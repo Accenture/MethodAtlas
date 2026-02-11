@@ -1,0 +1,10 @@
+package com.acme.other;
+
+import org.junit.jupiter.api.RepeatedTest;
+
+public class AnotherTest {
+
+    @RepeatedTest(2)
+    void delta() {
+    }
+}

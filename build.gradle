@@ -1,0 +1,68 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'org.egothor.methodatlas'
+version = '0.1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.github.javaparser:javaparser-core:3.28.0'
+
+	testImplementation(platform("org.junit:junit-bom:5.14.2"))
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    mainClass = 'org.egothor.methodatlas.MethodAtlasApp'
+}
+
+tasks.test {
+    useJUnitPlatform()
+}
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': application.mainClass,
+                'Implementation-Title': rootProject.name,
+            	'Implementation-Version': "${version}"
+        )
+    }
+    
+    from sourceSets.main.output
+
+    dependsOn configurations.runtimeClasspath
+
+    // Include each JAR dependency
+    configurations.runtimeClasspath.findAll { it.exists() && it.name.endsWith('.jar') }.each { jarFile ->
+        def jarName = jarFile.name.replaceAll(/\.jar$/, '')
+
+        from(zipTree(jarFile)) {
+            // Exclude signature-related files
+            exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+
+            // Rename license/notice files to avoid conflicts
+            eachFile { file ->
+                if (file.path ==~ /META-INF\/(LICENSE|NOTICE)(\..*)?/) {
+                    file.path = "META-INF/licenses-from-${jarName}/${file.name}"
+                }
+            }
+            
+            includeEmptyDirs = false
+        }
+    }
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
