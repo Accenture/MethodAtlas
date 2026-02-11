@@ -1,5 +1,7 @@
 # MethodAtlasApp
 
+<img src=MethodAtlas.png width=20% align="right" />
+
 `MethodAtlasApp` is a small standalone CLI that scans Java source trees for JUnit test methods and prints per-method
 statistics:
 
