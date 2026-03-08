@@ -1,0 +1,70 @@
+package com.acme.security;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+public class AccessControlServiceTest {
+
+    @Test
+    @Tag("security")
+    @Tag("authz")
+    void shouldAllowOwnerToReadOwnStatement() {
+        String userId = "user-100";
+        String ownerId = "user-100";
+
+        boolean allowed = userId.equals(ownerId);
+
+        assertEquals(true, allowed);
+    }
+
+    @Test
+    @Tag("security")
+    @Tag("authz")
+    void shouldAllowAdministratorToReadAnyStatement() {
+        String role = "ADMIN";
+
+        boolean allowed = "ADMIN".equals(role);
+
+        assertEquals(true, allowed);
+    }
+
+    @Test
+    @Tag("security")
+    @Tag("authz")
+    void shouldDenyForeignUserFromReadingAnotherUsersStatement() {
+        String requesterId = "user-200";
+        String ownerId = "user-100";
+
+        boolean allowed = requesterId.equals(ownerId);
+
+        assertEquals(false, allowed);
+    }
+
+    @Test
+    @Tag("security")
+    @Tag("authn")
+    void shouldRejectUnauthenticatedRequest() {
+        String principal = null;
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
+            if (principal == null) {
+                throw new IllegalStateException("Unauthenticated request");
+            }
+        });
+
+        assertEquals("Unauthenticated request", ex.getMessage());
+    }
+
+    @Test
+    void shouldRenderFriendlyAccountLabel() {
+        String firstName = "Ada";
+        String lastName = "Lovelace";
+
+        String label = firstName + " " + lastName;
+
+        assertEquals("Ada Lovelace", label);
+    }
+}

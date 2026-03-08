@@ -8,6 +8,10 @@ plugins {
 group = 'org.egothor.methodatlas'
 version = gitVersion(prefix:'release@')
 
+configurations {
+    mockitoAgent
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -20,10 +24,27 @@ repositories {
 
 dependencies {
     implementation 'com.github.javaparser:javaparser-core:3.28.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
 
 	testImplementation(platform("org.junit:junit-bom:5.14.2"))
 	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testImplementation 'org.mockito:mockito-core:5.22.0'
+	testImplementation 'org.mockito:mockito-junit-jupiter:5.22.0'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	
+	mockitoAgent('org.mockito:mockito-core:5.22.0') {
+        transitive = false
+    }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
+
+    doFirst {
+        println "Mockito agent: ${configurations.mockitoAgent.singleFile}"
+        println "JVM args: ${jvmArgs}"
+    }
 }
 
 application {

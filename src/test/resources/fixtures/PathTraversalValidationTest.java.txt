@@ -1,0 +1,63 @@
+package com.acme.storage;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.nio.file.Path;
+
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+public class PathTraversalValidationTest {
+
+    @Test
+    @Tag("security")
+    @Tag("validation")
+    void shouldRejectRelativePathTraversalSequence() {
+        String userInput = "../secrets.txt";
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+            if (userInput.contains("..")) {
+                throw new IllegalArgumentException("Path traversal attempt detected");
+            }
+        });
+
+        assertEquals("Path traversal attempt detected", ex.getMessage());
+    }
+
+    @Test
+    @Tag("security")
+    @Tag("validation")
+    void shouldRejectNestedTraversalAfterNormalization() {
+        String userInput = "reports/../../admin/keys.txt";
+        Path normalized = Path.of("/srv/app/uploads").resolve(userInput).normalize();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+            if (!normalized.startsWith(Path.of("/srv/app/uploads"))) {
+                throw new IllegalArgumentException("Escaped upload root");
+            }
+        });
+
+        assertEquals("Escaped upload root", ex.getMessage());
+    }
+
+    @Test
+    @Tag("security")
+    @Tag("validation")
+    void shouldAllowSafePathInsideUploadRoot() {
+        String userInput = "reports/2026/statement.pdf";
+        Path normalized = Path.of("/srv/app/uploads").resolve(userInput).normalize();
+
+        boolean allowed = normalized.startsWith(Path.of("/srv/app/uploads"));
+
+        assertEquals(true, allowed);
+    }
+
+    @Test
+    void shouldBuildDownloadFileName() {
+        String accountId = "ACC-42";
+        String fileName = accountId + "-statement.pdf";
+
+        assertEquals("ACC-42-statement.pdf", fileName);
+    }
+}

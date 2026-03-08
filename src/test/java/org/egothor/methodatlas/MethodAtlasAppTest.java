@@ -22,25 +22,38 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * End-to-end tests for {@link MethodAtlasApp} output formats (CSV default,
- * -plain).
+ * Baseline end-to-end regression tests for {@link MethodAtlasApp} output
+ * formats with AI enrichment disabled.
  *
+ * <p>
  * These tests copy predefined Java fixture files from
- * src/test/resources/fixtures into a temporary directory and run
- * MethodAtlasApp.main(...) against that directory, asserting the detected
- * methods, LOC, and extracted @Tag values.
+ * {@code src/test/resources/fixtures} into a temporary directory and execute
+ * {@link MethodAtlasApp#main(String[])} against that directory. The assertions
+ * verify the stable non-AI contract of the application:
+ * </p>
+ * <ul>
+ * <li>detected test methods</li>
+ * <li>inclusive method LOC values</li>
+ * <li>extracted JUnit {@code @Tag} values, including nested {@code @Tags}</li>
+ * <li>CSV and plain-text rendering behavior</li>
+ * </ul>
+ *
+ * <p>
+ * AI-specific behavior should be tested separately once a dedicated injection
+ * seam exists for supplying a mocked
+ * {@code org.egothor.methodatlas.ai.AiSuggestionEngine}.
+ * </p>
  */
 public class MethodAtlasAppTest {
 
     @Test
     public void csvMode_detectsMethodsLocAndTags(@TempDir Path tempDir) throws Exception {
-        copyFixture(tempDir, "SampleOneTest.java");
-        copyFixture(tempDir, "AnotherTest.java");
+        copyStandardFixtures(tempDir);
 
         String output = runAppCapturingStdout(new String[] { tempDir.toString() });
 
         List<String> lines = nonEmptyLines(output);
-        assertTrue(lines.size() >= 3, "Expected header + at least 2 records, got: " + lines.size());
+        assertEquals(18, lines.size(), "Expected header + 17 records");
 
         assertEquals("fqcn,method,loc,tags", lines.get(0));
 
@@ -58,13 +71,12 @@ public class MethodAtlasAppTest {
 
     @Test
     public void plainMode_detectsMethodsLocAndTags(@TempDir Path tempDir) throws Exception {
-        copyFixture(tempDir, "SampleOneTest.java");
-        copyFixture(tempDir, "AnotherTest.java");
+        copyStandardFixtures(tempDir);
 
         String output = runAppCapturingStdout(new String[] { "-plain", tempDir.toString() });
 
         List<String> lines = nonEmptyLines(output);
-        assertTrue(lines.size() >= 4, "Expected at least 4 method lines, got: " + lines.size());
+        assertEquals(17, lines.size(), "Expected 17 method lines");
 
         Map<String, PlainRow> rows = new HashMap<>();
         for (String line : lines) {
@@ -76,6 +88,14 @@ public class MethodAtlasAppTest {
         assertPlainRow(rows, "com.acme.tests.SampleOneTest", "beta", 6, "param");
         assertPlainRow(rows, "com.acme.tests.SampleOneTest", "gamma", 4, "nested1;nested2");
         assertPlainRow(rows, "com.acme.other.AnotherTest", "delta", 3, "-");
+    }
+
+    private static void copyStandardFixtures(Path tempDir) throws IOException {
+        copyFixture(tempDir, "SampleOneTest.java");
+        copyFixture(tempDir, "AnotherTest.java");
+        copyFixture(tempDir, "AccessControlServiceTest.java");
+        copyFixture(tempDir, "PathTraversalValidationTest.java");
+        copyFixture(tempDir, "AuditLoggingTest.java");
     }
 
     private static void assertCsvRow(Map<String, CsvRow> rows, String fqcn, String method, int expectedLoc,

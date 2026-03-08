@@ -1,0 +1,53 @@
+package com.acme.audit;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+public class AuditLoggingTest {
+
+    @Test
+    @Tag("security")
+    @Tag("audit")
+    void shouldWriteAuditEventForPrivilegeChange() {
+        String actor = "admin-7";
+        String action = "GRANT_ROLE";
+        String target = "user-17";
+
+        String auditLine = "actor=" + actor + ";action=" + action + ";target=" + target;
+
+        assertEquals("actor=admin-7;action=GRANT_ROLE;target=user-17", auditLine);
+    }
+
+    @Test
+    @Tag("security")
+    @Tag("logging")
+    void shouldNotLogRawBearerToken() {
+        String token = "Bearer eyJhbGciOiJIUzI1NiJ9.secret.signature";
+        String logLine = "Authorization header redacted";
+
+        assertFalse(logLine.contains(token));
+        assertEquals("Authorization header redacted", logLine);
+    }
+
+    @Test
+    @Tag("security")
+    @Tag("logging")
+    void shouldNotLogPlaintextPasswordOnAuthenticationFailure() {
+        String password = "Sup3rSecret!";
+        String logLine = "Authentication failed for user alice";
+
+        assertFalse(logLine.contains(password));
+        assertEquals("Authentication failed for user alice", logLine);
+    }
+
+    @Test
+    void shouldFormatHumanReadableSupportMessage() {
+        String user = "alice";
+        String message = "Support ticket opened for " + user;
+
+        assertEquals("Support ticket opened for alice", message);
+    }
+}
