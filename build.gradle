@@ -60,17 +60,21 @@ javadoc {
     source = sourceSets.main.allJava
 }
 
-jar {
+tasks.named('jar') {
+    enabled = false
+}
+
+tasks.register('fatJar', Jar) {
+    archiveClassifier = ''
     manifest {
         attributes(
-                'Main-Class': application.mainClass,
+                'Main-Class': application.mainClass.get(),
                 'Implementation-Title': rootProject.name,
-            	'Implementation-Version': "${version}"
+                'Implementation-Version': "${version}"
         )
     }
-    
-    from sourceSets.main.output
 
+    from sourceSets.main.output
     dependsOn configurations.runtimeClasspath
 
     // Include each JAR dependency
@@ -93,6 +97,33 @@ jar {
     }
     
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+distributions {
+    create('fat') {
+        distributionBaseName = project.name
+        contents {
+            into('bin') {
+                from(tasks.named('startScripts'))
+                filePermissions {
+                    unix('rwxr-xr-x')
+                }
+            }
+            into('lib') {
+                from(tasks.named('fatJar'))
+            }
+            from('src/dist')
+        }
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('fatDistZip'), tasks.named('fatDistTar')
+}
+
+tasks.named('startScripts') {
+    dependsOn tasks.named('fatJar')
+    classpath = files(tasks.named('fatJar').flatMap { it.archiveFile })
 }
 
 gradle.taskGraph.whenReady { taskGraph ->
