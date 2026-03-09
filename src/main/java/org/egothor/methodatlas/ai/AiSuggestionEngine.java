@@ -34,6 +34,7 @@ package org.egothor.methodatlas.ai;
  * @see AiProviderClient
  * @see org.egothor.methodatlas.MethodAtlasApp
  */
+@SuppressWarnings("PMD.ImplicitFunctionalInterface")
 public interface AiSuggestionEngine {
     /**
      * Requests AI-generated security classification for a single parsed test class.

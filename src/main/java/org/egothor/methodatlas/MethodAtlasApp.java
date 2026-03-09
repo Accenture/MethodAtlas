@@ -7,6 +7,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -25,6 +26,7 @@ import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ParserConfiguration.LanguageLevel;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
@@ -145,7 +147,7 @@ import com.github.javaparser.ast.expr.MemberValuePair;
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  * @see #main(String[])
  */
-public class MethodAtlasApp {
+public class MethodAtlasApp { // NOPMD
 
     private static final Logger LOG = Logger.getLogger(MethodAtlasApp.class.getName());
 
@@ -296,8 +298,8 @@ public class MethodAtlasApp {
     private static void processFile(Path path, OutputMode mode, AiOptions aiOptions, AiSuggestionEngine aiEngine) {
         try {
             CompilationUnit compilationUnit = StaticJavaParser.parse(path);
-            String packageName = compilationUnit.getPackageDeclaration()
-                    .map(packageDeclaration -> packageDeclaration.getNameAsString()).orElse("");
+            String packageName = compilationUnit.getPackageDeclaration().map(PackageDeclaration::getNameAsString)
+                    .orElse("");
 
             compilationUnit.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
                 String className = clazz.getNameAsString();
@@ -317,8 +319,9 @@ public class MethodAtlasApp {
                 });
             });
         } catch (Exception e) {
-            LOG.log(Level.WARNING, "Failed to parse: {0}", path);
-            e.printStackTrace();
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Failed to parse: {0} due to {1}", new Object[] { path, e.getMessage() });
+            }
         }
     }
 
@@ -346,8 +349,10 @@ public class MethodAtlasApp {
 
         String classSource = clazz.toString();
         if (classSource.length() > aiOptions.maxClassChars()) {
-            LOG.log(Level.INFO, "Skipping AI for {0}: class source too large ({1} chars)",
-                    new Object[] { fqcn, classSource.length() });
+            if (LOG.isLoggable(Level.INFO)) {
+                LOG.log(Level.INFO, "Skipping AI for {0}: class source too large ({1} chars)",
+                        new Object[] { fqcn, classSource.length() });
+            }
             return SuggestionLookup.from(null);
         }
 
@@ -355,7 +360,10 @@ public class MethodAtlasApp {
             AiClassSuggestion aiClassSuggestion = aiEngine.suggestForClass(fqcn, classSource);
             return SuggestionLookup.from(aiClassSuggestion);
         } catch (AiSuggestionException e) {
-            LOG.log(Level.WARNING, "AI suggestion failed for class " + fqcn + ": " + e.getMessage());
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "AI suggestion failed for class {0}: {1}",
+                        new Object[] { fqcn, e.getMessage() });
+            }
             return SuggestionLookup.from(null);
         }
     }
@@ -523,7 +531,8 @@ public class MethodAtlasApp {
      * @throws IllegalArgumentException if an option value is missing, malformed, or
      *                                  unsupported
      */
-    private static CliConfig parseArgs(String[] args) {
+    @SuppressWarnings("PMD.AvoidReassigningLoopVariables")
+    private static CliConfig parseArgs(String... args) {
         OutputMode outputMode = OutputMode.CSV;
         List<Path> paths = new ArrayList<>();
         AiOptions.Builder aiBuilder = AiOptions.builder();
@@ -534,14 +543,15 @@ public class MethodAtlasApp {
             switch (arg) {
                 case "-plain" -> outputMode = OutputMode.PLAIN;
                 case "-ai" -> aiBuilder.enabled(true);
-                case "-ai-provider" -> aiBuilder.provider(AiProvider.valueOf(nextArg(args, ++i, arg).toUpperCase()));
+                case "-ai-provider" ->
+                    aiBuilder.provider(AiProvider.valueOf(nextArg(args, ++i, arg).toUpperCase(Locale.ROOT)));
                 case "-ai-model" -> aiBuilder.modelName(nextArg(args, ++i, arg));
                 case "-ai-base-url" -> aiBuilder.baseUrl(nextArg(args, ++i, arg));
                 case "-ai-api-key" -> aiBuilder.apiKey(nextArg(args, ++i, arg));
                 case "-ai-api-key-env" -> aiBuilder.apiKeyEnv(nextArg(args, ++i, arg));
                 case "-ai-taxonomy" -> aiBuilder.taxonomyFile(Paths.get(nextArg(args, ++i, arg)));
-                case "-ai-taxonomy-mode" ->
-                    aiBuilder.taxonomyMode(AiOptions.TaxonomyMode.valueOf(nextArg(args, ++i, arg).toUpperCase()));
+                case "-ai-taxonomy-mode" -> aiBuilder
+                        .taxonomyMode(AiOptions.TaxonomyMode.valueOf(nextArg(args, ++i, arg).toUpperCase(Locale.ROOT)));
                 case "-ai-max-class-chars" -> aiBuilder.maxClassChars(Integer.parseInt(nextArg(args, ++i, arg)));
                 case "-ai-timeout-sec" ->
                     aiBuilder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++i, arg))));
@@ -635,9 +645,9 @@ public class MethodAtlasApp {
         for (AnnotationExpr annotation : method.getAnnotations()) {
             String name = annotation.getNameAsString();
 
-            if ("Tag".equals(name)) {
+            if ("Tag".equals(name)) { // NOPMD
                 extractTagValue(annotation).ifPresent(tagValues::add);
-            } else if ("Tags".equals(name)) {
+            } else if ("Tags".equals(name)) { // NOPMD
                 extractTagsContainerValues(annotation, tagValues);
             }
         }
@@ -665,7 +675,7 @@ public class MethodAtlasApp {
 
         if (annotation.isNormalAnnotationExpr()) {
             for (MemberValuePair pair : annotation.asNormalAnnotationExpr().getPairs()) {
-                if ("value".equals(pair.getNameAsString())) {
+                if ("value".equals(pair.getNameAsString())) { // NOPMD
                     extractTagsFromContainerValue(pair.getValue(), tagValues);
                 }
             }

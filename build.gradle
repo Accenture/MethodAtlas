@@ -12,6 +12,17 @@ configurations {
     mockitoAgent
 }
 
+pmd {
+        consoleOutput = true
+        toolVersion = '7.20.0'
+        sourceSets = [sourceSets.main]
+        ruleSetFiles = files(rootProject.file(".ruleset"))
+}
+
+tasks.withType(Pmd) {
+    maxHeapSize = "16g"
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)

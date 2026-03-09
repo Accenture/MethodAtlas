@@ -170,7 +170,7 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
             AiClassSuggestion suggestion = httpSupport.objectMapper().readValue(json, AiClassSuggestion.class);
             return normalize(suggestion);
 
-        } catch (Exception e) {
+        } catch (Exception e) { // NOPMD
             throw new AiSuggestionException("OpenAI-compatible suggestion failed for " + fqcn, e);
         }
     }
