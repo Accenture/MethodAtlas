@@ -4,21 +4,64 @@
 
 MethodAtlas is a small standalone CLI that scans Java source trees for JUnit 5 test methods and emits one record per discovered method.
 
-It combines source-derived metadata with optional AI-assisted security classification so that a programmer can quickly understand what a test suite contains, which tests appear security-relevant, and which methods may benefit from consistent `@Tag` and `@DisplayName` annotations.
+The tool combines **deterministic source analysis** with optional **AI-assisted classification** so that developers can quickly understand what a test suite contains and which tests appear security-relevant.
 
-For each discovered test method, MethodAtlas reports:
-- `fqcn` Fully qualified class name
-- `method` Test method name
-- `loc` Inclusive lines of code for the method declaration
-- `tags` Existing JUnit `@Tag` values declared on the method
+Unlike tools that rely entirely on large language models or agent pipelines, MethodAtlas separates the problem into two parts:
 
-When AI enrichment is enabled, it also reports:
-- `ai_security_relevant` Whether the model classified the test as security-relevant
-- `ai_display_name` Suggested security-oriented display name
-- `ai_tags` Suggested security taxonomy tags
-- `ai_reason` Short rationale for the classification
+- **Deterministic discovery** — a Java AST parser determines exactly which test methods exist
+- **AI interpretation** — an optional model classifies those methods and suggests security-related annotations
 
-Method discovery is AST-based via JavaParser rather than regex-based parsing. The CLI scans files ending in `*Test.java`, recognizes JUnit Jupiter methods annotated with `@Test`, `@ParameterizedTest`, or `@RepeatedTest`, and extracts tags from both repeated `@Tag` usage and `@Tags({...})`.
+This approach keeps the analysis **predictable, reproducible, and reviewable**, while still benefiting from AI where it adds value.
+
+The parser determines *what exists* in the code.  
+The AI suggests *what it means*.
+
+## What MethodAtlas reports
+
+For each discovered JUnit test method, MethodAtlas emits a single record containing:
+
+- `fqcn` – fully qualified class name
+- `method` – test method name
+- `loc` – inclusive lines of code for the method declaration
+- `tags` – existing JUnit `@Tag` values declared on the method
+
+When AI enrichment is enabled, additional fields are included:
+
+- `ai_security_relevant` – whether the model classified the test as security-relevant
+- `ai_display_name` – suggested security-oriented `@DisplayName`
+- `ai_tags` – suggested security taxonomy tags
+- `ai_reason` – short rationale for the classification
+
+These suggestions help identify tests that verify authentication, access control, cryptography, input validation, or other security-relevant behavior.
+
+## Deterministic method discovery
+
+Test discovery is performed using **JavaParser** and the Java AST rather than regex scanning or LLM inference.
+
+The CLI:
+
+- scans files matching `*Test.java`
+- detects JUnit Jupiter methods annotated with  
+  `@Test`, `@ParameterizedTest`, or `@RepeatedTest`
+- extracts existing tags from both repeated `@Tag` usage and `@Tags({...})`
+
+Because the list of test methods is obtained from the AST, the analysis is **deterministic and reproducible** regardless of the AI provider used for classification.
+
+## AI-assisted security classification
+
+If AI mode is enabled, MethodAtlas sends the **full class source for context** together with the **exact list of parser-discovered test methods**.
+
+The model is asked to classify only those methods and suggest:
+
+- whether the test appears security-relevant
+- consistent security taxonomy tags
+- a meaningful security-oriented display name
+
+This design avoids relying on AI to infer program structure and instead uses it only for semantic interpretation.
+
+MethodAtlas supports multiple providers and can also run against **locally hosted models via Ollama**, allowing teams to use AI without exposing proprietary source code.
+
+MethodAtlas is designed to be lightweight, deterministic, and easy to integrate into developer workflows or CI pipelines.
 
 ## Distribution layout
 
