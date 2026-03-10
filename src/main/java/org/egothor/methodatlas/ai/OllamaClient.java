@@ -128,9 +128,11 @@ public final class OllamaClient implements AiProviderClient {
      * {@link AiClassSuggestion}, and then normalized before being returned.
      * </p>
      *
-     * @param fqcn         fully qualified class name being analyzed
-     * @param classSource  complete source code of the class being analyzed
-     * @param taxonomyText taxonomy definition guiding classification
+     * @param fqcn          fully qualified class name being analyzed
+     * @param classSource   complete source code of the class being analyzed
+     * @param taxonomyText  taxonomy definition guiding classification
+     * @param targetMethods deterministically extracted JUnit test methods that must
+     *                      be classified
      * @return normalized AI classification result
      *
      * @throws AiSuggestionException if the request fails, if the provider returns
@@ -138,10 +140,10 @@ public final class OllamaClient implements AiProviderClient {
      *                               fails
      */
     @Override
-    public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText)
-            throws AiSuggestionException {
+    public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
+            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
         try {
-            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText);
+            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods);
 
             ChatRequest payload = new ChatRequest(options.modelName(),
                     List.of(new Message("system", SYSTEM_PROMPT), new Message("user", prompt)), false,

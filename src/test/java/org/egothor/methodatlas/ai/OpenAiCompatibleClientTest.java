@@ -54,6 +54,13 @@ class OpenAiCompatibleClientTest {
                 }
                 """;
         String taxonomyText = "security, auth, access-control";
+        List<PromptBuilder.TargetMethod> targetMethods = List
+                .of(new PromptBuilder.TargetMethod("shouldAllowOwnerToReadOwnStatement", null, null),
+                        new PromptBuilder.TargetMethod("shouldAllowAdministratorToReadAnyStatement", null, null),
+                        new PromptBuilder.TargetMethod("shouldDenyForeignUserFromReadingAnotherUsersStatement", null,
+                                null),
+                        new PromptBuilder.TargetMethod("shouldRejectUnauthenticatedRequest", null, null),
+                        new PromptBuilder.TargetMethod("shouldRenderFriendlyAccountLabel", null, null));
 
         String responseBody = """
                 {
@@ -74,7 +81,7 @@ class OpenAiCompatibleClientTest {
                     .baseUrl("https://api.openai.com").apiKey("sk-test-value").build();
 
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
-            AiClassSuggestion suggestion = client.suggestForClass(fqcn, classSource, taxonomyText);
+            AiClassSuggestion suggestion = client.suggestForClass(fqcn, classSource, taxonomyText, targetMethods);
 
             assertEquals(fqcn, suggestion.className());
             assertEquals(Boolean.TRUE, suggestion.classSecurityRelevant());
@@ -100,11 +107,13 @@ class OpenAiCompatibleClientTest {
             String requestBody = capturedBody.get();
             assertNotNull(requestBody);
             assertTrue(requestBody.contains("\"model\":\"gpt-4o-mini\""));
-            assertTrue(requestBody.contains("You are a precise software security classification engine."));
-            assertTrue(requestBody.contains("You classify JUnit 5 tests and return strict JSON only."));
             assertTrue(requestBody.contains("FQCN: " + fqcn));
             assertTrue(requestBody.contains("AccessControlServiceTest"));
+            assertTrue(requestBody.contains("shouldAllowOwnerToReadOwnStatement"));
+            assertTrue(requestBody.contains("shouldAllowAdministratorToReadAnyStatement"));
+            assertTrue(requestBody.contains("shouldDenyForeignUserFromReadingAnotherUsersStatement"));
             assertTrue(requestBody.contains("shouldRejectUnauthenticatedRequest"));
+            assertTrue(requestBody.contains("shouldRenderFriendlyAccountLabel"));
             assertTrue(requestBody.contains(taxonomyText));
             assertTrue(requestBody.contains("\"temperature\":0.0"));
         }
@@ -126,13 +135,19 @@ class OpenAiCompatibleClientTest {
                 }
                 """;
 
+        List<PromptBuilder.TargetMethod> targetMethods = List.of(
+                new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogRawBearerToken", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogPlaintextPasswordOnAuthenticationFailure", null, null),
+                new PromptBuilder.TargetMethod("shouldFormatHumanReadableSupportMessage", null, null));
+
         try (MockedConstruction<HttpSupport> mocked = mockHttpSupport(mapper, responseBody, null)) {
             AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENROUTER)
                     .modelName("openai/gpt-4o-mini").baseUrl("https://openrouter.ai/api").apiKey("or-test-key").build();
 
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
             AiClassSuggestion suggestion = client.suggestForClass("com.acme.audit.AuditLoggingTest",
-                    "class AuditLoggingTest {}", "security, logging");
+                    "class AuditLoggingTest {}", "security, logging", targetMethods);
 
             assertEquals("com.acme.audit.AuditLoggingTest", suggestion.className());
 
@@ -157,6 +172,12 @@ class OpenAiCompatibleClientTest {
                 }
                 """;
 
+        List<PromptBuilder.TargetMethod> targetMethods = List.of(
+                new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogRawBearerToken", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogPlaintextPasswordOnAuthenticationFailure", null, null),
+                new PromptBuilder.TargetMethod("shouldFormatHumanReadableSupportMessage", null, null));
+
         try (MockedConstruction<HttpSupport> mocked = mockHttpSupport(mapper, responseBody, null)) {
             AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).apiKey("sk-test-value")
                     .build();
@@ -164,7 +185,8 @@ class OpenAiCompatibleClientTest {
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
 
             AiSuggestionException ex = org.junit.jupiter.api.Assertions.assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging"));
+                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
+                            targetMethods));
 
             assertEquals("OpenAI-compatible suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());
@@ -189,6 +211,12 @@ class OpenAiCompatibleClientTest {
                 }
                 """;
 
+        List<PromptBuilder.TargetMethod> targetMethods = List.of(
+                new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogRawBearerToken", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogPlaintextPasswordOnAuthenticationFailure", null, null),
+                new PromptBuilder.TargetMethod("shouldFormatHumanReadableSupportMessage", null, null));
+
         try (MockedConstruction<HttpSupport> mocked = mockHttpSupport(mapper, responseBody, null)) {
             AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).apiKey("sk-test-value")
                     .build();
@@ -196,7 +224,8 @@ class OpenAiCompatibleClientTest {
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
 
             AiSuggestionException ex = org.junit.jupiter.api.Assertions.assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging"));
+                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
+                            targetMethods));
 
             assertEquals("OpenAI-compatible suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());

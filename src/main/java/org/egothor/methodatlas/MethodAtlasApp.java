@@ -20,19 +20,20 @@ import org.egothor.methodatlas.ai.AiProvider;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.ai.AiSuggestionEngineImpl;
 import org.egothor.methodatlas.ai.AiSuggestionException;
+import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.SuggestionLookup;
 
 import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ParserConfiguration.LanguageLevel;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.ArrayInitializerExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MemberValuePair;
+import com.github.javaparser.ast.nodeTypes.NodeWithName;
 
 /**
  * Command-line application for scanning Java test sources, extracting JUnit
@@ -298,31 +299,61 @@ public class MethodAtlasApp { // NOPMD
     private static void processFile(Path path, OutputMode mode, AiOptions aiOptions, AiSuggestionEngine aiEngine) {
         try {
             CompilationUnit compilationUnit = StaticJavaParser.parse(path);
-            String packageName = compilationUnit.getPackageDeclaration().map(PackageDeclaration::getNameAsString)
-                    .orElse("");
+            String packageName = compilationUnit.getPackageDeclaration().map(NodeWithName::getNameAsString).orElse("");
 
             compilationUnit.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
                 String className = clazz.getNameAsString();
                 String fqcn = packageName.isEmpty() ? className : packageName + "." + className;
-                SuggestionLookup suggestionLookup = resolveSuggestionLookup(clazz, fqcn, aiOptions, aiEngine);
 
-                clazz.findAll(MethodDeclaration.class).forEach(method -> {
-                    if (!isJUnitTest(method)) {
-                        return;
-                    }
+                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz);
+                SuggestionLookup suggestionLookup = resolveSuggestionLookup(clazz, fqcn, testMethods, aiOptions,
+                        aiEngine);
 
+                for (MethodDeclaration method : testMethods) {
                     int loc = countLOC(method);
                     List<String> tags = getTagValues(method);
                     AiMethodSuggestion suggestion = suggestionLookup.find(method.getNameAsString()).orElse(null);
 
                     emit(mode, aiOptions.enabled(), fqcn, method.getNameAsString(), loc, tags, suggestion);
-                });
+                }
             });
         } catch (Exception e) {
             if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "Failed to parse: {0} due to {1}", new Object[] { path, e.getMessage() });
+                LOG.log(Level.WARNING, "Failed to parse: " + path, e);
             }
         }
+    }
+
+    /**
+     * Returns all JUnit test methods declared within the specified class.
+     *
+     * <p>
+     * The method traverses the supplied {@link ClassOrInterfaceDeclaration} and
+     * collects all {@link MethodDeclaration} instances that satisfy the
+     * {@link #isJUnitTest(MethodDeclaration)} predicate.
+     * </p>
+     *
+     * <p>
+     * The detection logic currently recognizes methods annotated with supported
+     * JUnit Jupiter test annotations such as {@code @Test},
+     * {@code @ParameterizedTest}, and {@code @RepeatedTest}. Only methods matching
+     * these criteria are included in the returned list.
+     * </p>
+     *
+     * <p>
+     * The returned list preserves the discovery order produced by
+     * {@link com.github.javaparser.ast.Node#findAll(Class)}, which corresponds to
+     * the order of method declarations in the source file.
+     * </p>
+     *
+     * @param clazz parsed class declaration whose methods should be inspected
+     * @return list of JUnit test method declarations contained in the class;
+     *         possibly empty but never {@code null}
+     *
+     * @see #isJUnitTest(MethodDeclaration)
+     */
+    private static List<MethodDeclaration> findJUnitTestMethods(ClassOrInterfaceDeclaration clazz) {
+        return clazz.findAll(MethodDeclaration.class).stream().filter(MethodAtlasApp::isJUnitTest).toList();
     }
 
     /**
@@ -342,8 +373,8 @@ public class MethodAtlasApp { // NOPMD
      * @return lookup of AI suggestions keyed by method name; never {@code null}
      */
     private static SuggestionLookup resolveSuggestionLookup(ClassOrInterfaceDeclaration clazz, String fqcn,
-            AiOptions aiOptions, AiSuggestionEngine aiEngine) {
-        if (!aiOptions.enabled() || aiEngine == null) {
+            List<MethodDeclaration> testMethods, AiOptions aiOptions, AiSuggestionEngine aiEngine) {
+        if (!aiOptions.enabled() || aiEngine == null || testMethods.isEmpty()) {
             return SuggestionLookup.from(null);
         }
 
@@ -356,16 +387,53 @@ public class MethodAtlasApp { // NOPMD
             return SuggestionLookup.from(null);
         }
 
+        List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
+
         try {
-            AiClassSuggestion aiClassSuggestion = aiEngine.suggestForClass(fqcn, classSource);
+            AiClassSuggestion aiClassSuggestion = aiEngine.suggestForClass(fqcn, classSource, targetMethods);
             return SuggestionLookup.from(aiClassSuggestion);
         } catch (AiSuggestionException e) {
             if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "AI suggestion failed for class {0}: {1}",
-                        new Object[] { fqcn, e.getMessage() });
+                LOG.log(Level.WARNING, "AI suggestion failed for class " + fqcn, e);
             }
             return SuggestionLookup.from(null);
         }
+    }
+
+    /**
+     * Converts parsed JUnit test method declarations into prompt target
+     * descriptors.
+     *
+     * <p>
+     * The returned {@link PromptBuilder.TargetMethod} objects provide a compact
+     * representation of the methods that should be analyzed by the AI
+     * classification prompt. Each descriptor contains the method name together with
+     * the optional begin and end line numbers derived from the parser source range.
+     * </p>
+     *
+     * <p>
+     * Line numbers are obtained from {@link MethodDeclaration#getRange()} when
+     * source position information is available. If the parser did not retain range
+     * metadata for a method, the corresponding line value is set to {@code null}.
+     * </p>
+     *
+     * <p>
+     * The resulting list preserves the order of the supplied method declarations.
+     * </p>
+     *
+     * @param testMethods list of parsed JUnit test method declarations
+     * @return list of prompt target descriptors representing the supplied methods;
+     *         possibly empty but never {@code null}
+     *
+     * @see PromptBuilder.TargetMethod
+     * @see MethodDeclaration#getRange()
+     */
+    private static List<PromptBuilder.TargetMethod> toTargetMethods(List<MethodDeclaration> testMethods) {
+        return testMethods.stream()
+                .map(method -> new PromptBuilder.TargetMethod(method.getNameAsString(),
+                        method.getRange().map(range -> range.begin.line).orElse(null),
+                        method.getRange().map(range -> range.end.line).orElse(null)))
+                .toList();
     }
 
     /**

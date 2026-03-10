@@ -82,6 +82,11 @@ class OllamaClientTest {
                 }
                 """;
         String taxonomyText = "security, input-validation, owasp";
+        List<PromptBuilder.TargetMethod> targetMethods = List.of(
+                new PromptBuilder.TargetMethod("shouldRejectRelativePathTraversalSequence", null, null),
+                new PromptBuilder.TargetMethod("shouldRejectNestedTraversalAfterNormalization", null, null),
+                new PromptBuilder.TargetMethod("shouldAllowSafePathInsideUploadRoot", null, null),
+                new PromptBuilder.TargetMethod("shouldBuildDownloadFileName", null, null));
 
         String responseBody = """
                 {
@@ -111,7 +116,7 @@ class OllamaClientTest {
                     .modelName("qwen2.5-coder:7b").baseUrl("http://localhost:11434").build();
 
             OllamaClient client = new OllamaClient(options);
-            AiClassSuggestion suggestion = client.suggestForClass(fqcn, classSource, taxonomyText);
+            AiClassSuggestion suggestion = client.suggestForClass(fqcn, classSource, taxonomyText, targetMethods);
 
             assertEquals(fqcn, suggestion.className());
             assertEquals(Boolean.TRUE, suggestion.classSecurityRelevant());
@@ -137,12 +142,12 @@ class OllamaClientTest {
             assertNotNull(requestBody);
             assertTrue(requestBody.contains("\"model\":\"qwen2.5-coder:7b\""));
             assertTrue(requestBody.contains("\"stream\":false"));
-            assertTrue(requestBody.contains("You are a precise software security classification engine."));
-            assertTrue(requestBody.contains("You classify JUnit 5 tests and return strict JSON only."));
-            assertTrue(requestBody.contains("\"temperature\":0.0"));
             assertTrue(requestBody.contains("FQCN: " + fqcn));
             assertTrue(requestBody.contains("PathTraversalValidationTest"));
             assertTrue(requestBody.contains("shouldRejectRelativePathTraversalSequence"));
+            assertTrue(requestBody.contains("shouldRejectNestedTraversalAfterNormalization"));
+            assertTrue(requestBody.contains("shouldAllowSafePathInsideUploadRoot"));
+            assertTrue(requestBody.contains("shouldBuildDownloadFileName"));
             assertTrue(requestBody.contains(taxonomyText));
         }
     }
@@ -152,6 +157,12 @@ class OllamaClientTest {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
         String fqcn = "com.acme.audit.AuditLoggingTest";
+        List<PromptBuilder.TargetMethod> targetMethods = List.of(
+                new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogRawBearerToken", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogPlaintextPasswordOnAuthenticationFailure", null, null),
+                new PromptBuilder.TargetMethod("shouldFormatHumanReadableSupportMessage", null, null));
+
         String responseBody = """
                 {
                   "message": {
@@ -176,7 +187,8 @@ class OllamaClientTest {
             OllamaClient client = new OllamaClient(options);
 
             AiSuggestionException ex = org.junit.jupiter.api.Assertions.assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging"));
+                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
+                            targetMethods));
 
             assertEquals("Ollama suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());

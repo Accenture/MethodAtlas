@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockConstruction;
@@ -39,15 +40,15 @@ class MethodAtlasAppAiTest {
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, context) -> {
-                    when(mock.suggestForClass(eq("com.acme.tests.SampleOneTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.tests.SampleOneTest"), anyString(), any()))
                             .thenReturn(sampleOneSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.other.AnotherTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.other.AnotherTest"), anyString(), any()))
                             .thenReturn(anotherSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.security.AccessControlServiceTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.security.AccessControlServiceTest"), anyString(), any()))
                             .thenReturn(accessControlSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"), anyString(), any()))
                             .thenReturn(pathTraversalSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), anyString(), any()))
                             .thenReturn(auditLoggingSuggestion());
                 })) {
 
@@ -99,15 +100,15 @@ class MethodAtlasAppAiTest {
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, context) -> {
-                    when(mock.suggestForClass(eq("com.acme.tests.SampleOneTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.tests.SampleOneTest"), anyString(), any()))
                             .thenReturn(sampleOneSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.other.AnotherTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.other.AnotherTest"), anyString(), any()))
                             .thenReturn(anotherSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.security.AccessControlServiceTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.security.AccessControlServiceTest"), anyString(), any()))
                             .thenThrow(new AiSuggestionException("Simulated provider failure"));
-                    when(mock.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"), anyString(), any()))
                             .thenReturn(pathTraversalSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), anyString()))
+                    when(mock.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), anyString(), any()))
                             .thenReturn(auditLoggingSuggestion());
                 })) {
 
@@ -167,7 +168,7 @@ class MethodAtlasAppAiTest {
             assertEquals("", row.get(7));
 
             assertEquals(1, mocked.constructed().size(), "Expected one AI engine instance");
-            verify(mocked.constructed().get(0), never()).suggestForClass(anyString(), anyString());
+            verify(mocked.constructed().get(0), never()).suggestForClass(anyString(), anyString(), any());
         }
     }
 

@@ -1,5 +1,9 @@
 package org.egothor.methodatlas.ai;
 
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 /**
  * Utility responsible for constructing the prompt supplied to AI providers for
  * security classification of JUnit test classes.
@@ -17,6 +21,13 @@ package org.egothor.methodatlas.ai;
  * <li>the complete source code of the analyzed test class</li>
  * </ul>
  *
+ * <p>
+ * This revision keeps the full class source as semantic context but removes
+ * method discovery from the AI model. The caller supplies the exact list of
+ * JUnit test methods that must be classified, optionally with source line
+ * anchors.
+ * </p>
+ * 
  * <p>
  * The resulting prompt is passed to the configured AI provider and instructs
  * the model to produce a deterministic JSON classification result describing
@@ -38,6 +49,23 @@ package org.egothor.methodatlas.ai;
  * @see OptimizedSecurityTaxonomy
  */
 public final class PromptBuilder {
+
+    /**
+     * Deterministically extracted test method descriptor supplied to the prompt.
+     *
+     * @param methodName name of the JUnit test method
+     * @param beginLine  first source line of the method, or {@code null} if unknown
+     * @param endLine    last source line of the method, or {@code null} if unknown
+     */
+    public record TargetMethod(String methodName, Integer beginLine, Integer endLine) {
+        public TargetMethod {
+            Objects.requireNonNull(methodName, "methodName");
+            if (methodName.isBlank()) {
+                throw new IllegalArgumentException("methodName must not be blank");
+            }
+        }
+    }
+
     /**
      * Prevents instantiation of this utility class.
      */
@@ -55,6 +83,7 @@ public final class PromptBuilder {
      * <ul>
      * <li>task instructions describing the classification objective</li>
      * <li>the security taxonomy definition controlling allowed tags</li>
+     * <li>the exact list of target test methods to classify</li>
      * <li>strict output rules enforcing JSON-only responses</li>
      * <li>a formal JSON schema describing the expected result structure</li>
      * <li>the fully qualified class name of the analyzed test class</li>
@@ -73,22 +102,40 @@ public final class PromptBuilder {
      * in chat-based inference APIs.
      * </p>
      *
-     * @param fqcn         fully qualified class name of the test class being
-     *                     analyzed
-     * @param classSource  complete source code of the test class
-     * @param taxonomyText taxonomy definition guiding classification
+     * @param fqcn          fully qualified class name of the test class being
+     *                      analyzed
+     * @param classSource   complete source code of the test class
+     * @param taxonomyText  taxonomy definition guiding classification
+     * @param targetMethods exact list of deterministically discovered JUnit test
+     *                      methods to classify
      * @return formatted prompt supplied to the AI provider
      *
      * @see AiSuggestionEngine#suggestForClass(String, String)
      */
-    public static String build(String fqcn, String classSource, String taxonomyText) {
+    public static String build(String fqcn, String classSource, String taxonomyText, List<TargetMethod> targetMethods) {
+        Objects.requireNonNull(fqcn, "fqcn");
+        Objects.requireNonNull(classSource, "classSource");
+        Objects.requireNonNull(taxonomyText, "taxonomyText");
+        Objects.requireNonNull(targetMethods, "targetMethods");
+
+        if (targetMethods.isEmpty()) {
+            throw new IllegalArgumentException("targetMethods must not be empty");
+        }
+
+        String targetMethodBlock = targetMethods.stream().map(PromptBuilder::formatTargetMethod)
+                .collect(Collectors.joining("\n"));
+
+        String expectedMethodNames = targetMethods.stream().map(TargetMethod::methodName)
+                .map(name -> "\"" + name + "\"").collect(Collectors.joining(", "));
+
         return """
                 You are analyzing a single JUnit 5 test class and suggesting security tags.
 
                 TASK
                 - Analyze the WHOLE class for context.
-                - Return per-method suggestions for JUnit test methods only.
+                - Classify ONLY the methods explicitly listed in TARGET TEST METHODS.
                 - Do not invent methods that do not exist.
+                - Do not classify helper methods, lifecycle methods, nested classes, or any method not listed.
                 - Be conservative.
                 - If uncertain, classify the method as securityRelevant=false.
                 - Ignore pure functional / performance / UX tests unless they explicitly validate a security property.
@@ -96,17 +143,30 @@ public final class PromptBuilder {
                 CONTROLLED TAXONOMY
                 %s
 
+                TARGET TEST METHODS
+                The following methods were extracted deterministically by the parser and are the ONLY methods
+                you are allowed to classify. Use the full class source only as context for understanding them.
+
+                %s
+
                 OUTPUT RULES
                 - Return JSON only.
                 - No markdown.
                 - No prose outside JSON.
+                - Return exactly one result for each target method.
+                - methodName values in the output must exactly match one of:
+                  [%s]
+                - Do not omit any listed method.
+                - Do not include any additional methods.
                 - Tags must come only from this closed set:
                   security, auth, access-control, crypto, input-validation, injection, data-protection, logging, error-handling, owasp
                 - If securityRelevant=true, tags MUST include "security".
                 - Add 1-3 tags total per method.
-                - displayName must be null when securityRelevant=false.
+                - If securityRelevant=false, displayName must be null.
+                - If securityRelevant=false, tags must be [].
                 - If securityRelevant=true, displayName must match:
                   SECURITY: <control/property> - <scenario>
+                - reason should be short and specific.
 
                 JSON SHAPE
                 {
@@ -131,6 +191,17 @@ public final class PromptBuilder {
                 SOURCE
                 %s
                 """
-                .formatted(taxonomyText, fqcn, classSource);
+                .formatted(taxonomyText, targetMethodBlock, expectedMethodNames, fqcn, classSource);
+    }
+
+    private static String formatTargetMethod(TargetMethod targetMethod) {
+        StringBuilder builder = new StringBuilder("- ").append(targetMethod.methodName());
+
+        if (targetMethod.beginLine() != null || targetMethod.endLine() != null) {
+            builder.append(" [lines ").append(targetMethod.beginLine() == null ? "?" : targetMethod.beginLine())
+                    .append('-').append(targetMethod.endLine() == null ? "?" : targetMethod.endLine()).append(']');
+        }
+
+        return builder.toString();
     }
 }

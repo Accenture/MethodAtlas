@@ -128,10 +128,11 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
      * {@link AiClassSuggestion}.
      * </p>
      *
-     * @param fqcn         fully qualified class name being analyzed
-     * @param classSource  complete source code of the class
-     * @param taxonomyText taxonomy definition guiding classification
-     *
+     * @param fqcn          fully qualified class name being analyzed
+     * @param classSource   complete source code of the class
+     * @param taxonomyText  taxonomy definition guiding classification
+     * @param targetMethods deterministically extracted JUnit test methods that must
+     *                      be classified
      * @return normalized classification result
      *
      * @throws AiSuggestionException if the provider request fails, the model
@@ -139,10 +140,10 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
      *                               fails
      */
     @Override
-    public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText)
-            throws AiSuggestionException {
+    public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
+            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
         try {
-            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText);
+            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods);
 
             ChatRequest payload = new ChatRequest(options.modelName(),
                     List.of(new Message("system", SYSTEM_PROMPT), new Message("user", prompt)), 0.0);

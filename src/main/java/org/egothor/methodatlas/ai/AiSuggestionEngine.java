@@ -1,5 +1,7 @@
 package org.egothor.methodatlas.ai;
 
+import java.util.List;
+
 /**
  * High-level AI orchestration contract for security classification of parsed
  * test classes.
@@ -52,8 +54,10 @@ public interface AiSuggestionEngine {
      * using full class context.
      * </p>
      *
-     * @param fqcn        fully qualified class name of the parsed test class
-     * @param classSource complete source code of the class to analyze
+     * @param fqcn          fully qualified class name of the parsed test class
+     * @param classSource   complete source code of the class to analyze
+     * @param targetMethods deterministically extracted JUnit test methods that must
+     *                      be classified
      * @return normalized AI classification result for the class and its methods
      *
      * @throws AiSuggestionException if analysis fails due to provider communication
@@ -63,5 +67,6 @@ public interface AiSuggestionEngine {
      * @see AiClassSuggestion
      * @see AiMethodSuggestion
      */
-    AiClassSuggestion suggestForClass(String fqcn, String classSource) throws AiSuggestionException;
+    AiClassSuggestion suggestForClass(String fqcn, String classSource, List<PromptBuilder.TargetMethod> targetMethods)
+            throws AiSuggestionException;
 }

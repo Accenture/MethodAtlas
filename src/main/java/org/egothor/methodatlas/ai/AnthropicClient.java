@@ -118,9 +118,11 @@ public final class AnthropicClient implements AiProviderClient {
      * model, which is then deserialized into an {@link AiClassSuggestion}.
      * </p>
      *
-     * @param fqcn         fully qualified class name being analyzed
-     * @param classSource  complete source code of the class
-     * @param taxonomyText taxonomy definition guiding classification
+     * @param fqcn          fully qualified class name being analyzed
+     * @param classSource   complete source code of the class
+     * @param taxonomyText  taxonomy definition guiding classification
+     * @param targetMethods deterministically extracted JUnit test methods that must
+     *                      be classified
      *
      * @return normalized AI classification result
      *
@@ -129,10 +131,10 @@ public final class AnthropicClient implements AiProviderClient {
      *                               invalid content
      */
     @Override
-    public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText)
-            throws AiSuggestionException {
+    public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
+            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
         try {
-            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText);
+            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods);
 
             MessageRequest payload = new MessageRequest(options.modelName(), SYSTEM_PROMPT,
                     List.of(new ContentMessage("user", List.of(new ContentBlock("text", prompt)))), 0.0, 2_000);

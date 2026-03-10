@@ -2,6 +2,7 @@ package org.egothor.methodatlas.ai;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.List;
 
 /**
  * Default implementation of {@link AiSuggestionEngine} that coordinates
@@ -73,8 +74,10 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      * taxonomy text loaded at engine initialization time.
      * </p>
      *
-     * @param fqcn        fully qualified class name of the analyzed test class
-     * @param classSource complete source code of the class to analyze
+     * @param fqcn          fully qualified class name of the analyzed test class
+     * @param classSource   complete source code of the class to analyze
+     * @param targetMethods deterministically extracted JUnit test methods that must
+     *                      be classified
      * @return normalized AI classification result for the class and its methods
      *
      * @throws AiSuggestionException if the provider fails to analyze the class or
@@ -84,8 +87,9 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      * @see AiProviderClient#suggestForClass(String, String, String)
      */
     @Override
-    public AiClassSuggestion suggestForClass(String fqcn, String classSource) throws AiSuggestionException {
-        return client.suggestForClass(fqcn, classSource, taxonomyText);
+    public AiClassSuggestion suggestForClass(String fqcn, String classSource,
+            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
+        return client.suggestForClass(fqcn, classSource, taxonomyText, targetMethods);
     }
 
     /**

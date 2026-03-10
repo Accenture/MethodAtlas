@@ -1,5 +1,7 @@
 package org.egothor.methodatlas.ai;
 
+import java.util.List;
+
 /**
  * Provider-specific client abstraction used to communicate with external AI
  * inference services.
@@ -76,10 +78,12 @@ public interface AiProviderClient {
      * objects describing individual test methods.
      * </p>
      *
-     * @param fqcn         fully qualified name of the analyzed class
-     * @param classSource  complete source code of the class being analyzed
-     * @param taxonomyText security taxonomy definition guiding the AI
-     *                     classification
+     * @param fqcn          fully qualified name of the analyzed class
+     * @param classSource   complete source code of the class being analyzed
+     * @param taxonomyText  security taxonomy definition guiding the AI
+     *                      classification
+     * @param targetMethods deterministically extracted JUnit test methods that must
+     *                      be classified
      * @return normalized AI classification result
      *
      * @throws AiSuggestionException if the request fails due to provider errors,
@@ -88,6 +92,6 @@ public interface AiProviderClient {
      * @see AiClassSuggestion
      * @see AiMethodSuggestion
      */
-    AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText)
-            throws AiSuggestionException;
+    AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
+            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException;
 }

@@ -34,22 +34,31 @@ class AiSuggestionEngineImplTest {
                         "SECURITY: authentication - reject unauthenticated request", List.of("security", "auth"),
                         "The test verifies that anonymous access is rejected.")));
 
+        List<PromptBuilder.TargetMethod> targetMethods = List
+                .of(new PromptBuilder.TargetMethod("shouldAllowOwnerToReadOwnStatement", null, null),
+                        new PromptBuilder.TargetMethod("shouldAllowAdministratorToReadAnyStatement", null, null),
+                        new PromptBuilder.TargetMethod("shouldDenyForeignUserFromReadingAnotherUsersStatement", null,
+                                null),
+                        new PromptBuilder.TargetMethod("shouldRejectUnauthenticatedRequest", null, null),
+                        new PromptBuilder.TargetMethod("shouldRenderFriendlyAccountLabel", null, null));
+
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).build();
 
         try (MockedStatic<AiProviderFactory> factory = mockStatic(AiProviderFactory.class)) {
             factory.when(() -> AiProviderFactory.create(options)).thenReturn(client);
             when(client.suggestForClass(eq("com.acme.security.AccessControlServiceTest"),
-                    eq("class AccessControlServiceTest {}"), eq(DefaultSecurityTaxonomy.text()))).thenReturn(expected);
+                    eq("class AccessControlServiceTest {}"), eq(DefaultSecurityTaxonomy.text()), eq(targetMethods)))
+                    .thenReturn(expected);
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
             AiClassSuggestion actual = engine.suggestForClass("com.acme.security.AccessControlServiceTest",
-                    "class AccessControlServiceTest {}");
+                    "class AccessControlServiceTest {}", targetMethods);
 
             assertSame(expected, actual);
 
             factory.verify(() -> AiProviderFactory.create(options));
             verify(client).suggestForClass("com.acme.security.AccessControlServiceTest",
-                    "class AccessControlServiceTest {}", DefaultSecurityTaxonomy.text());
+                    "class AccessControlServiceTest {}", DefaultSecurityTaxonomy.text(), targetMethods);
             verifyNoMoreInteractions(client);
         }
     }
@@ -64,24 +73,30 @@ class AiSuggestionEngineImplTest {
                         List.of("security", "input-validation", "owasp"),
                         "The test rejects a classic path traversal payload.")));
 
+        List<PromptBuilder.TargetMethod> targetMethods = List.of(
+                new PromptBuilder.TargetMethod("shouldRejectRelativePathTraversalSequence", null, null),
+                new PromptBuilder.TargetMethod("shouldRejectNestedTraversalAfterNormalization", null, null),
+                new PromptBuilder.TargetMethod("shouldAllowSafePathInsideUploadRoot", null, null),
+                new PromptBuilder.TargetMethod("shouldBuildDownloadFileName", null, null));
+
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OLLAMA)
                 .taxonomyMode(AiOptions.TaxonomyMode.OPTIMIZED).build();
 
         try (MockedStatic<AiProviderFactory> factory = mockStatic(AiProviderFactory.class)) {
             factory.when(() -> AiProviderFactory.create(options)).thenReturn(client);
             when(client.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"),
-                    eq("class PathTraversalValidationTest {}"), eq(OptimizedSecurityTaxonomy.text())))
-                    .thenReturn(expected);
+                    eq("class PathTraversalValidationTest {}"), eq(OptimizedSecurityTaxonomy.text()),
+                    eq(targetMethods))).thenReturn(expected);
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
             AiClassSuggestion actual = engine.suggestForClass("com.acme.storage.PathTraversalValidationTest",
-                    "class PathTraversalValidationTest {}");
+                    "class PathTraversalValidationTest {}", targetMethods);
 
             assertSame(expected, actual);
 
             factory.verify(() -> AiProviderFactory.create(options));
             verify(client).suggestForClass("com.acme.storage.PathTraversalValidationTest",
-                    "class PathTraversalValidationTest {}", OptimizedSecurityTaxonomy.text());
+                    "class PathTraversalValidationTest {}", OptimizedSecurityTaxonomy.text(), targetMethods);
             verifyNoMoreInteractions(client);
         }
     }
@@ -104,23 +119,29 @@ class AiSuggestionEngineImplTest {
                         "SECURITY: logging - redact bearer token", List.of("security", "logging"),
                         "The test ensures credentials are not written to logs.")));
 
+        List<PromptBuilder.TargetMethod> targetMethods = List.of(
+                new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogRawBearerToken", null, null),
+                new PromptBuilder.TargetMethod("shouldNotLogPlaintextPasswordOnAuthenticationFailure", null, null),
+                new PromptBuilder.TargetMethod("shouldFormatHumanReadableSupportMessage", null, null));
+
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENROUTER).taxonomyFile(taxonomyFile)
                 .build();
 
         try (MockedStatic<AiProviderFactory> factory = mockStatic(AiProviderFactory.class)) {
             factory.when(() -> AiProviderFactory.create(options)).thenReturn(client);
             when(client.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), eq("class AuditLoggingTest {}"),
-                    eq(taxonomyText))).thenReturn(expected);
+                    eq(taxonomyText), eq(targetMethods))).thenReturn(expected);
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
             AiClassSuggestion actual = engine.suggestForClass("com.acme.audit.AuditLoggingTest",
-                    "class AuditLoggingTest {}");
+                    "class AuditLoggingTest {}", targetMethods);
 
             assertSame(expected, actual);
 
             factory.verify(() -> AiProviderFactory.create(options));
-            verify(client).suggestForClass("com.acme.audit.AuditLoggingTest", "class AuditLoggingTest {}",
-                    taxonomyText);
+            verify(client).suggestForClass("com.acme.audit.AuditLoggingTest", "class AuditLoggingTest {}", taxonomyText,
+                    targetMethods);
             verifyNoMoreInteractions(client);
         }
     }
