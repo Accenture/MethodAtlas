@@ -143,16 +143,16 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * @see OutputEmitter
  * @see #main(String[])
  */
-public class MethodAtlasApp {
+public final class MethodAtlasApp {
 
     private static final Logger LOG = Logger.getLogger(MethodAtlasApp.class.getName());
+    private static final String DEFAULT_FILE_SUFFIX = "Test.java";
 
     /**
      * Prevents instantiation of this utility class.
      */
     private MethodAtlasApp() {
     }
-    private static final String DEFAULT_FILE_SUFFIX = "Test.java";
 
     /**
      * Selects between the two phases of the manual AI workflow.
@@ -676,13 +676,12 @@ public class MethodAtlasApp {
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
-
+            if (arg.startsWith("-ai")) {
+                i = applyAiArg(arg, args, i, aiBuilder);
+                continue;
+            }
             switch (arg) {
                 case "-plain" -> outputMode = OutputMode.PLAIN;
-                case "-ai", "-ai-provider", "-ai-model", "-ai-base-url", "-ai-api-key",
-                        "-ai-api-key-env", "-ai-taxonomy", "-ai-taxonomy-mode",
-                        "-ai-max-class-chars", "-ai-timeout-sec", "-ai-max-retries" ->
-                    i = applyAiArg(arg, args, i, aiBuilder);
                 case "-file-suffix" -> fileSuffixes.add(nextArg(args, ++i, arg));
                 case "-test-annotation" -> testAnnotations.add(nextArg(args, ++i, arg));
                 case "-emit-metadata" -> emitMetadata = true;
@@ -738,23 +737,24 @@ public class MethodAtlasApp {
      * @throws IllegalArgumentException if a required value token is missing
      */
     private static int applyAiArg(String arg, String[] args, int i, AiOptions.Builder builder) {
+        int idx = i;
         switch (arg) {
             case "-ai" -> builder.enabled(true);
             case "-ai-provider" ->
-                builder.provider(AiProvider.valueOf(nextArg(args, ++i, arg).toUpperCase(Locale.ROOT)));
-            case "-ai-model" -> builder.modelName(nextArg(args, ++i, arg));
-            case "-ai-base-url" -> builder.baseUrl(nextArg(args, ++i, arg));
-            case "-ai-api-key" -> builder.apiKey(nextArg(args, ++i, arg));
-            case "-ai-api-key-env" -> builder.apiKeyEnv(nextArg(args, ++i, arg));
-            case "-ai-taxonomy" -> builder.taxonomyFile(Paths.get(nextArg(args, ++i, arg)));
+                builder.provider(AiProvider.valueOf(nextArg(args, ++idx, arg).toUpperCase(Locale.ROOT)));
+            case "-ai-model" -> builder.modelName(nextArg(args, ++idx, arg));
+            case "-ai-base-url" -> builder.baseUrl(nextArg(args, ++idx, arg));
+            case "-ai-api-key" -> builder.apiKey(nextArg(args, ++idx, arg));
+            case "-ai-api-key-env" -> builder.apiKeyEnv(nextArg(args, ++idx, arg));
+            case "-ai-taxonomy" -> builder.taxonomyFile(Paths.get(nextArg(args, ++idx, arg)));
             case "-ai-taxonomy-mode" ->
-                builder.taxonomyMode(AiOptions.TaxonomyMode.valueOf(nextArg(args, ++i, arg).toUpperCase(Locale.ROOT)));
-            case "-ai-max-class-chars" -> builder.maxClassChars(Integer.parseInt(nextArg(args, ++i, arg)));
-            case "-ai-timeout-sec" -> builder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++i, arg))));
-            case "-ai-max-retries" -> builder.maxRetries(Integer.parseInt(nextArg(args, ++i, arg)));
+                builder.taxonomyMode(AiOptions.TaxonomyMode.valueOf(nextArg(args, ++idx, arg).toUpperCase(Locale.ROOT)));
+            case "-ai-max-class-chars" -> builder.maxClassChars(Integer.parseInt(nextArg(args, ++idx, arg)));
+            case "-ai-timeout-sec" -> builder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++idx, arg))));
+            case "-ai-max-retries" -> builder.maxRetries(Integer.parseInt(nextArg(args, ++idx, arg)));
             default -> throw new IllegalArgumentException("Unknown AI argument: " + arg);
         }
-        return i;
+        return idx;
     }
 
     /**
