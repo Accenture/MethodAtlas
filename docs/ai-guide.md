@@ -269,6 +269,26 @@ public class LoginTest {
 
 `testCountItems` is unchanged because the AI classified it as not security-relevant.
 
+### Formatting note
+
+MethodAtlas uses JavaParser's **lexical-preserving printer** (`LexicalPreservingPrinter`) when writing modified source files. This preserves all original formatting outside the inserted annotations — blank lines, comments, brace style, and existing annotation order are untouched.
+
+However, the lexical-preserving printer derives annotation separators from its concrete syntax model, which uses a plain newline between annotations without inheriting the method's indentation level. As a result, the newly inserted `@DisplayName` and `@Tag` annotations may appear at column 0 (no leading whitespace) rather than indented to match the surrounding `@Test` annotation.
+
+The output is syntactically valid Java. Running your project's code formatter immediately after `-apply-tags` corrects the indentation in one pass:
+
+```bash
+# Apply annotations
+./methodatlas -ai -apply-tags /path/to/tests
+
+# Reformat (examples — use whichever formatter your project already uses)
+mvn spotless:apply
+./gradlew spotlessApply
+google-java-format --replace $(find /path/to/tests -name "*.java")
+```
+
+Alternatively, most IDEs provide a bulk reformat action (e.g. **Code → Reformat Code** in IntelliJ IDEA) that can be applied to the entire source tree after the annotation pass.
+
 ### Idempotency
 
 Running `-apply-tags` a second time on already-annotated files is safe. Tags and display names that are already present are silently skipped. If the AI returns the same suggestions, no changes are written and the file is not touched.

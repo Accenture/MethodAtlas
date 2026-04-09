@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -237,10 +238,19 @@ final class SarifEmitter implements TestMethodSink {
     }
 
     // -------------------------------------------------------------------------
-    // SARIF 2.1.0 POJO classes (serialized by Jackson via getters)
+    // SARIF 2.1.0 POJO classes (serialized by Jackson via direct field access)
+    //
+    // @JsonAutoDetect(fieldVisibility = ANY) instructs Jackson to read private
+    // fields directly instead of going through public getters.  The fields are
+    // only accessed by Jackson via reflection at runtime, so PMD would otherwise
+    // flag them as UnusedPrivateField; the suppression below is intentional.
     // -------------------------------------------------------------------------
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifDocument {
+        @JsonProperty("$schema")
+        private final String schema = SARIF_SCHEMA;
         private final String version;
         private final List<SarifRun> runs;
 
@@ -248,13 +258,10 @@ final class SarifEmitter implements TestMethodSink {
             this.version = version;
             this.runs = runs;
         }
-
-        @JsonProperty("$schema")
-        public String getSchema() { return SARIF_SCHEMA; }
-        public String getVersion() { return version; }
-        public List<SarifRun> getRuns() { return runs; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifRun {
         private final SarifTool tool;
         private final List<SarifResult> results;
@@ -263,18 +270,18 @@ final class SarifEmitter implements TestMethodSink {
             this.tool = tool;
             this.results = results;
         }
-
-        public SarifTool getTool() { return tool; }
-        public List<SarifResult> getResults() { return results; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifTool {
         private final SarifDriver driver;
 
         SarifTool(SarifDriver driver) { this.driver = driver; }
-        public SarifDriver getDriver() { return driver; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifDriver {
         private final String name;
         private final String version;
@@ -285,12 +292,10 @@ final class SarifEmitter implements TestMethodSink {
             this.version = version;
             this.rules = rules;
         }
-
-        public String getName() { return name; }
-        public String getVersion() { return version; }
-        public List<SarifRule> getRules() { return rules; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifRule {
         private final String id;
         private final String name;
@@ -301,12 +306,10 @@ final class SarifEmitter implements TestMethodSink {
             this.name = name;
             this.shortDescription = shortDescription;
         }
-
-        public String getId() { return id; }
-        public String getName() { return name; }
-        public SarifMessage getShortDescription() { return shortDescription; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifResult {
         private final String ruleId;
         private final String level;
@@ -322,14 +325,10 @@ final class SarifEmitter implements TestMethodSink {
             this.locations = locations;
             this.properties = properties;
         }
-
-        public String getRuleId() { return ruleId; }
-        public String getLevel() { return level; }
-        public SarifMessage getMessage() { return message; }
-        public List<SarifLocation> getLocations() { return locations; }
-        public SarifProperties getProperties() { return properties; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifLocation {
         private final SarifPhysicalLocation physicalLocation;
         private final List<SarifLogicalLocation> logicalLocations;
@@ -339,26 +338,24 @@ final class SarifEmitter implements TestMethodSink {
             this.physicalLocation = physicalLocation;
             this.logicalLocations = logicalLocations;
         }
-
-        public SarifPhysicalLocation getPhysicalLocation() { return physicalLocation; }
-        public List<SarifLogicalLocation> getLogicalLocations() { return logicalLocations; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifPhysicalLocation {
         private final SarifArtifactLocation artifactLocation;
+
+        @JsonInclude(Include.NON_NULL)
         private final SarifRegion region;
 
         SarifPhysicalLocation(SarifArtifactLocation artifactLocation, SarifRegion region) {
             this.artifactLocation = artifactLocation;
             this.region = region;
         }
-
-        public SarifArtifactLocation getArtifactLocation() { return artifactLocation; }
-
-        @JsonInclude(Include.NON_NULL)
-        public SarifRegion getRegion() { return region; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifArtifactLocation {
         private final String uri;
         private final String uriBaseId;
@@ -367,18 +364,18 @@ final class SarifEmitter implements TestMethodSink {
             this.uri = uri;
             this.uriBaseId = uriBaseId;
         }
-
-        public String getUri() { return uri; }
-        public String getUriBaseId() { return uriBaseId; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifRegion {
         private final int startLine;
 
         SarifRegion(int startLine) { this.startLine = startLine; }
-        public int getStartLine() { return startLine; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifLogicalLocation {
         private final String fullyQualifiedName;
         private final String kind;
@@ -387,19 +384,19 @@ final class SarifEmitter implements TestMethodSink {
             this.fullyQualifiedName = fullyQualifiedName;
             this.kind = kind;
         }
-
-        public String getFullyQualifiedName() { return fullyQualifiedName; }
-        public String getKind() { return kind; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifMessage {
         private final String text;
 
         SarifMessage(String text) { this.text = text; }
-        public String getText() { return text; }
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateField")
     @JsonInclude(Include.NON_NULL)
+    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
     private static final class SarifProperties {
         private final int loc;
         private final String contentHash;
@@ -422,14 +419,5 @@ final class SarifEmitter implements TestMethodSink {
             this.aiReason = aiReason;
             this.aiConfidence = aiConfidence;
         }
-
-        public int getLoc() { return loc; }
-        public String getContentHash() { return contentHash; }
-        public String getSourceTags() { return sourceTags; }
-        public Boolean getAiSecurityRelevant() { return aiSecurityRelevant; }
-        public String getAiDisplayName() { return aiDisplayName; }
-        public String getAiTags() { return aiTags; }
-        public String getAiReason() { return aiReason; }
-        public Double getAiConfidence() { return aiConfidence; }
     }
 }
