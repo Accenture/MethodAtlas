@@ -41,7 +41,7 @@ final class OutputEmitter {
      * @param out       writer to which all records are emitted
      * @param aiEnabled whether AI enrichment columns should be included
      */
-    OutputEmitter(PrintWriter out, boolean aiEnabled) {
+    /* default */ OutputEmitter(PrintWriter out, boolean aiEnabled) {
         this.out = out;
         this.aiEnabled = aiEnabled;
     }
@@ -64,7 +64,7 @@ final class OutputEmitter {
      * @param scanTimestamp ISO-8601 timestamp of the scan start
      * @param taxonomyInfo human-readable taxonomy descriptor
      */
-    void emitMetadata(String version, String scanTimestamp, String taxonomyInfo) {
+    /* default */ void emitMetadata(String version, String scanTimestamp, String taxonomyInfo) {
         out.println("# tool_version: " + version);
         out.println("# scan_timestamp: " + scanTimestamp);
         out.println("# taxonomy: " + taxonomyInfo);
@@ -79,7 +79,7 @@ final class OutputEmitter {
      *
      * @param mode selected output mode
      */
-    void emitCsvHeader(OutputMode mode) {
+    /* default */ void emitCsvHeader(OutputMode mode) {
         if (mode != OutputMode.CSV) {
             return;
         }
@@ -101,7 +101,7 @@ final class OutputEmitter {
      * @param suggestion AI suggestion for the method, or {@code null} if none
      *                   is available
      */
-    void emit(OutputMode mode, String fqcn, String method, int loc, List<String> tags,
+    /* default */ void emit(OutputMode mode, String fqcn, String method, int loc, List<String> tags,
             AiMethodSuggestion suggestion) {
         if (mode == OutputMode.PLAIN) {
             emitPlain(fqcn, method, loc, tags, suggestion);
@@ -212,7 +212,7 @@ final class OutputEmitter {
      * @param value value to escape; may be {@code null}
      * @return CSV-safe representation of {@code value}
      */
-    static String csvEscape(String value) {
+    /* default */ static String csvEscape(String value) {
         if (value == null) {
             return CSV_ABSENT;
         }

@@ -146,6 +146,12 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
 public class MethodAtlasApp {
 
     private static final Logger LOG = Logger.getLogger(MethodAtlasApp.class.getName());
+
+    /**
+     * Prevents instantiation of this utility class.
+     */
+    private MethodAtlasApp() {
+    }
     private static final String DEFAULT_FILE_SUFFIX = "Test.java";
 
     /**
@@ -223,11 +229,12 @@ public class MethodAtlasApp {
      *                                  cannot be created successfully
      */
     public static void main(String[] args) throws IOException {
-        PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
-        int exitCode = run(args, out);
-        out.flush();
+        int exitCode;
+        try (PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true)) {
+            exitCode = run(args, out);
+        }
         if (exitCode != 0) {
-            System.exit(exitCode); // NOPMD - CLI application exit code
+            System.exit(exitCode);
         }
     }
 
@@ -259,7 +266,7 @@ public class MethodAtlasApp {
      * @throws IllegalStateException    if AI support is enabled but the AI engine
      *                                  cannot be created successfully
      */
-    static int run(String[] args, PrintWriter out) throws IOException {
+    /* default */ static int run(String[] args, PrintWriter out) throws IOException {
         ParserConfiguration parserConfiguration = new ParserConfiguration();
         parserConfiguration.setLanguageLevel(LanguageLevel.JAVA_21);
         JavaParser parser = new JavaParser(parserConfiguration);
@@ -438,7 +445,9 @@ public class MethodAtlasApp {
     private static boolean scanRoot(Path root, OutputMode mode, AiOptions aiOptions, AiSuggestionEngine aiEngine,
             JavaParser parser, OutputEmitter emitter, List<String> fileSuffixes,
             Set<String> testAnnotations) throws IOException {
-        LOG.log(Level.INFO, "Scanning {0} for files matching {1}", new Object[] { root, fileSuffixes });
+        if (LOG.isLoggable(Level.INFO)) {
+            LOG.log(Level.INFO, "Scanning {0} for files matching {1}", new Object[] { root, fileSuffixes });
+        }
 
         boolean hadErrors = false;
 
@@ -603,19 +612,6 @@ public class MethodAtlasApp {
     }
 
     /**
-     * Creates the AI suggestion engine for the current run.
-     *
-     * <p>
-     * Returns {@code null} when AI support is disabled. Initialization failures
-     * are wrapped in an {@link IllegalStateException}.
-     * </p>
-     *
-     * @param aiOptions AI configuration for the current run
-     * @return initialized AI suggestion engine, or {@code null} when AI is
-     *         disabled
-     * @throws IllegalStateException if engine initialization fails
-     */
-    /**
      * Produces a human-readable string identifying which taxonomy configuration
      * is in effect, for use in scan metadata output.
      *
@@ -633,6 +629,19 @@ public class MethodAtlasApp {
         return "built-in/" + aiOptions.taxonomyMode().name().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Creates the AI suggestion engine for the current run.
+     *
+     * <p>
+     * Returns {@code null} when AI support is disabled. Initialization failures
+     * are wrapped in an {@link IllegalStateException}.
+     * </p>
+     *
+     * @param aiOptions AI configuration for the current run
+     * @return initialized AI suggestion engine, or {@code null} when AI is
+     *         disabled
+     * @throws IllegalStateException if engine initialization fails
+     */
     private static AiSuggestionEngine buildAiEngine(AiOptions aiOptions) {
         if (!aiOptions.enabled()) {
             return null;
@@ -658,52 +667,34 @@ public class MethodAtlasApp {
         OutputMode outputMode = OutputMode.CSV;
         List<Path> paths = new ArrayList<>();
         AiOptions.Builder aiBuilder = AiOptions.builder();
-        List<String> fileSuffixes = null;
-        Set<String> testAnnotations = null;
+        List<String> fileSuffixes = new ArrayList<>();
+        Set<String> testAnnotations = new LinkedHashSet<>();
         boolean emitMetadata = false;
-        ManualMode manualMode = null;
+        String manualWorkDir = null;
+        String manualResponseDir = null;
+        boolean manualIsConsume = false;
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
 
             switch (arg) {
                 case "-plain" -> outputMode = OutputMode.PLAIN;
-                case "-ai" -> aiBuilder.enabled(true);
-                case "-ai-provider" ->
-                    aiBuilder.provider(AiProvider.valueOf(nextArg(args, ++i, arg).toUpperCase(Locale.ROOT)));
-                case "-ai-model" -> aiBuilder.modelName(nextArg(args, ++i, arg));
-                case "-ai-base-url" -> aiBuilder.baseUrl(nextArg(args, ++i, arg));
-                case "-ai-api-key" -> aiBuilder.apiKey(nextArg(args, ++i, arg));
-                case "-ai-api-key-env" -> aiBuilder.apiKeyEnv(nextArg(args, ++i, arg));
-                case "-ai-taxonomy" -> aiBuilder.taxonomyFile(Paths.get(nextArg(args, ++i, arg)));
-                case "-ai-taxonomy-mode" -> aiBuilder
-                        .taxonomyMode(AiOptions.TaxonomyMode.valueOf(nextArg(args, ++i, arg).toUpperCase(Locale.ROOT)));
-                case "-ai-max-class-chars" -> aiBuilder.maxClassChars(Integer.parseInt(nextArg(args, ++i, arg)));
-                case "-ai-timeout-sec" ->
-                    aiBuilder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++i, arg))));
-                case "-ai-max-retries" -> aiBuilder.maxRetries(Integer.parseInt(nextArg(args, ++i, arg)));
-                case "-file-suffix" -> {
-                    if (fileSuffixes == null) {
-                        fileSuffixes = new ArrayList<>();
-                    }
-                    fileSuffixes.add(nextArg(args, ++i, arg));
-                }
-                case "-test-annotation" -> {
-                    if (testAnnotations == null) {
-                        testAnnotations = new LinkedHashSet<>();
-                    }
-                    testAnnotations.add(nextArg(args, ++i, arg));
-                }
+                case "-ai", "-ai-provider", "-ai-model", "-ai-base-url", "-ai-api-key",
+                        "-ai-api-key-env", "-ai-taxonomy", "-ai-taxonomy-mode",
+                        "-ai-max-class-chars", "-ai-timeout-sec", "-ai-max-retries" ->
+                    i = applyAiArg(arg, args, i, aiBuilder);
+                case "-file-suffix" -> fileSuffixes.add(nextArg(args, ++i, arg));
+                case "-test-annotation" -> testAnnotations.add(nextArg(args, ++i, arg));
                 case "-emit-metadata" -> emitMetadata = true;
                 case "-manual-prepare" -> {
-                    Path workDir = Paths.get(nextArg(args, ++i, arg));
-                    Path responseDir = Paths.get(nextArg(args, ++i, arg));
-                    manualMode = new ManualMode.Prepare(workDir, responseDir);
+                    manualWorkDir = nextArg(args, ++i, arg);
+                    manualResponseDir = nextArg(args, ++i, arg);
+                    manualIsConsume = false;
                 }
                 case "-manual-consume" -> {
-                    Path workDir = Paths.get(nextArg(args, ++i, arg));
-                    Path responseDir = Paths.get(nextArg(args, ++i, arg));
-                    manualMode = new ManualMode.Consume(workDir, responseDir);
+                    manualWorkDir = nextArg(args, ++i, arg);
+                    manualResponseDir = nextArg(args, ++i, arg);
+                    manualIsConsume = true;
                 }
                 default -> {
                     if (arg.startsWith("-")) {
@@ -714,11 +705,56 @@ public class MethodAtlasApp {
             }
         }
 
-        List<String> resolvedSuffixes = fileSuffixes != null ? fileSuffixes : List.of(DEFAULT_FILE_SUFFIX);
-        Set<String> resolvedAnnotations = testAnnotations != null
-                ? testAnnotations : AnnotationInspector.DEFAULT_TEST_ANNOTATIONS;
+        ManualMode manualMode = null;
+        if (manualWorkDir != null) {
+            Path workDir = Paths.get(manualWorkDir);
+            Path responseDir = Paths.get(manualResponseDir);
+            manualMode = manualIsConsume
+                    ? new ManualMode.Consume(workDir, responseDir)
+                    : new ManualMode.Prepare(workDir, responseDir);
+        }
+
+        List<String> resolvedSuffixes = fileSuffixes.isEmpty() ? List.of(DEFAULT_FILE_SUFFIX) : fileSuffixes;
+        Set<String> resolvedAnnotations = testAnnotations.isEmpty()
+                ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
                 emitMetadata, manualMode);
+    }
+
+    /**
+     * Applies a single AI-related command-line argument to the builder.
+     *
+     * <p>
+     * Handles all {@code -ai*} flags. Returns the updated argument index so
+     * the caller's loop counter stays consistent when the flag consumes an
+     * additional value token.
+     * </p>
+     *
+     * @param arg     the flag token being processed
+     * @param args    full argument array
+     * @param i       current position in {@code args}
+     * @param builder AI options builder to update
+     * @return updated value of {@code i} after consuming any argument value
+     * @throws IllegalArgumentException if a required value token is missing
+     */
+    private static int applyAiArg(String arg, String[] args, int i, AiOptions.Builder builder) {
+        switch (arg) {
+            case "-ai" -> builder.enabled(true);
+            case "-ai-provider" ->
+                builder.provider(AiProvider.valueOf(nextArg(args, ++i, arg).toUpperCase(Locale.ROOT)));
+            case "-ai-model" -> builder.modelName(nextArg(args, ++i, arg));
+            case "-ai-base-url" -> builder.baseUrl(nextArg(args, ++i, arg));
+            case "-ai-api-key" -> builder.apiKey(nextArg(args, ++i, arg));
+            case "-ai-api-key-env" -> builder.apiKeyEnv(nextArg(args, ++i, arg));
+            case "-ai-taxonomy" -> builder.taxonomyFile(Paths.get(nextArg(args, ++i, arg)));
+            case "-ai-taxonomy-mode" ->
+                builder.taxonomyMode(AiOptions.TaxonomyMode.valueOf(nextArg(args, ++i, arg).toUpperCase(Locale.ROOT)));
+            case "-ai-max-class-chars" -> builder.maxClassChars(Integer.parseInt(nextArg(args, ++i, arg)));
+            case "-ai-timeout-sec" -> builder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++i, arg))));
+            case "-ai-max-retries" -> builder.maxRetries(Integer.parseInt(nextArg(args, ++i, arg)));
+            default -> throw new IllegalArgumentException("Unknown AI argument: " + arg);
+        }
+        return i;
     }
 
     /**

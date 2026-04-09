@@ -46,7 +46,7 @@ final class AnnotationInspector {
      * {@code RepeatedTest}, {@code TestFactory}, and {@code TestTemplate}.
      * </p>
      */
-    static final Set<String> DEFAULT_TEST_ANNOTATIONS = Set.of(
+    /* default */ static final Set<String> DEFAULT_TEST_ANNOTATIONS = Set.of(
             "Test", "ParameterizedTest", "RepeatedTest", "TestFactory", "TestTemplate");
 
     /**
@@ -62,7 +62,7 @@ final class AnnotationInspector {
      * @param method method declaration to inspect
      * @return {@code true} if the method carries a recognised test annotation
      */
-    static boolean isJUnitTest(MethodDeclaration method) {
+    /* default */ static boolean isJUnitTest(MethodDeclaration method) {
         return isJUnitTest(method, DEFAULT_TEST_ANNOTATIONS);
     }
 
@@ -82,7 +82,7 @@ final class AnnotationInspector {
      * @return {@code true} if the method carries at least one annotation whose
      *         simple name is in {@code testAnnotations}
      */
-    static boolean isJUnitTest(MethodDeclaration method, Set<String> testAnnotations) {
+    /* default */ static boolean isJUnitTest(MethodDeclaration method, Set<String> testAnnotations) {
         for (AnnotationExpr annotation : method.getAnnotations()) {
             if (testAnnotations.contains(annotation.getNameAsString())) {
                 return true;
@@ -104,7 +104,7 @@ final class AnnotationInspector {
      * @return list of extracted tag values; possibly empty but never
      *         {@code null}
      */
-    static List<String> getTagValues(MethodDeclaration method) {
+    /* default */ static List<String> getTagValues(MethodDeclaration method) {
         List<String> tagValues = new ArrayList<>();
 
         for (AnnotationExpr annotation : method.getAnnotations()) {
@@ -132,7 +132,7 @@ final class AnnotationInspector {
      * @return inclusive line count, or {@code 0} if no range information is
      *         available
      */
-    static int countLOC(MethodDeclaration method) {
+    /* default */ static int countLOC(MethodDeclaration method) {
         return method.getRange().map(range -> range.end.line - range.begin.line + 1).orElse(0);
     }
 
