@@ -159,6 +159,101 @@ Supported providers:
 
 In `auto` mode, MethodAtlas prefers a reachable local Ollama instance and otherwise falls back to an OpenAI-compatible provider when an API key is configured.
 
+## Manual AI workflow
+
+Some teams have access to an AI chat window (ChatGPT, Claude, Copilot, etc.) but cannot reach an AI API directly — for example, because corporate security policy blocks outbound API calls or because there is no budget for API credentials.
+
+MethodAtlas supports this scenario through a two-phase **manual AI workflow** that replaces automated API communication with operator-mediated interaction.
+
+### How it works
+
+```
+Phase 1 – Prepare                      Phase 2 – Consume
+─────────────────                      ────────────────────────────────
+./methodatlas                          ./methodatlas
+  -manual-prepare ./work               -manual-consume ./work ./responses
+  /path/to/tests                       /path/to/tests
+
+  ↓                                      ↓
+For each test class:               For each test class:
+  write work/<fqcn>.txt              look for responses/<fqcn>.response.txt
+  (operator instructions             → found:   parse AI JSON → AI columns
+   + full AI prompt)                 → missing: blank AI columns
+```
+
+The final CSV format is identical to the automated flow.
+
+### Phase 1 — Prepare
+
+```bash
+./methodatlas -manual-prepare ./work /path/to/tests
+```
+
+MethodAtlas scans the source tree and writes one work file per test class to `./work`. Each file is named `<fully.qualified.ClassName>.txt` and contains two parts:
+
+1. **Operator instructions** — a plain-English explanation at the top telling the operator what to do, including the expected response file name and the consume command to run afterwards.
+2. **AI prompt block** — the complete prompt (taxonomy definition, method list, full class source) delimited by `--- BEGIN AI PROMPT ---` / `--- END AI PROMPT ---` markers.
+
+The operator copies the prompt block verbatim into their AI chat window. The source is embedded in the prompt text itself, so no file attachment is needed.
+
+No CSV output is produced in this phase.
+
+### Phase 2 — Consume
+
+After the operator has received the AI responses and saved them to a response directory:
+
+```bash
+./methodatlas -manual-consume ./work ./responses /path/to/tests
+```
+
+For each test class, MethodAtlas looks for a file named `<fully.qualified.ClassName>.response.txt` in `./responses`:
+
+- **Response file present** — MethodAtlas extracts the first JSON object it finds in the file (surrounding prose from the chat window is silently ignored), parses it, and merges the AI suggestions into the output.
+- **Response file absent** — MethodAtlas emits the row with blank AI columns. The scan continues; missing responses are not an error.
+
+This makes it easy to process batches incrementally: run consume after each response is saved rather than waiting until all classes are done.
+
+### Work file format
+
+Each work file looks like this:
+
+```
+================================================================================
+OPERATOR INSTRUCTIONS
+================================================================================
+Class      : com.acme.security.AccessControlServiceTest
+Work file  : com.acme.security.AccessControlServiceTest.txt
+Response   : com.acme.security.AccessControlServiceTest.response.txt
+
+Steps:
+  1. Copy the AI PROMPT block below (between the BEGIN/END markers)
+     into your AI chat window.
+  2. Wait for the AI to respond.
+  3. Save the complete AI response as:
+       com.acme.security.AccessControlServiceTest.response.txt
+     in the designated response directory.
+  4. Repeat for all other work files.
+  5. After all responses are saved, run the consume phase:
+       java -jar methodatlas.jar -manual-consume <workdir> <responsedir> <source-roots...>
+================================================================================
+
+--- BEGIN AI PROMPT ---
+You are analyzing a single JUnit 5 test class...
+(full prompt with taxonomy, method list, and class source)
+--- END AI PROMPT ---
+```
+
+### Taxonomy in manual mode
+
+The same taxonomy configuration flags used for automated providers also apply to the manual workflow. Pass `-ai-taxonomy <file>` or `-ai-taxonomy-mode optimized` before `-manual-prepare` to control what taxonomy text is embedded in the prompt.
+
+```bash
+./methodatlas \
+  -ai-taxonomy-mode optimized \
+  -manual-prepare ./work \
+  /path/to/tests
+```
+
 ## Complete command-line arguments
 
 ### General options
@@ -183,6 +278,13 @@ In `auto` mode, MethodAtlas prefers a reachable local Ollama instance and otherw
 | `-ai-max-class-chars <count>` | Skip AI analysis for larger classes | Default is `40000` |
 | `-ai-timeout-sec <seconds>` | Set request timeout for provider calls | Default is `90` seconds |
 | `-ai-max-retries <count>` | Set retry limit for AI operations | Default is `1` |
+
+### Manual AI options
+
+| Argument | Meaning |
+| --- | --- |
+| `-manual-prepare <workdir>` | Run the prepare phase: write AI prompt work files to `workdir`; no CSV output |
+| `-manual-consume <workdir> <responsedir>` | Run the consume phase: read operator-saved response files from `responsedir` and emit the enriched CSV |
 
 Unknown options cause an error. Missing option values also fail fast.
 
