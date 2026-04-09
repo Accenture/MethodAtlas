@@ -168,34 +168,37 @@ MethodAtlas supports this scenario through a two-phase **manual AI workflow** th
 ### How it works
 
 ```
-Phase 1 – Prepare                      Phase 2 – Consume
-─────────────────                      ────────────────────────────────
-./methodatlas                          ./methodatlas
-  -manual-prepare ./work               -manual-consume ./work ./work
-  /path/to/tests                       /path/to/tests
+Phase 1 – Prepare                         Phase 2 – Consume
+──────────────────────────────────────    ──────────────────────────────────────
+./methodatlas                             ./methodatlas
+  -manual-prepare ./work ./responses        -manual-consume ./work ./responses
+  /path/to/tests                            /path/to/tests
 
-  ↓                                      ↓
-For each test class:               For each test class:
-  write work/<fqcn>.txt              look for work/<fqcn>.response.txt
-  write work/<fqcn>.response.txt     → non-empty: parse AI JSON → AI columns
-  (operator instructions               → empty/absent: blank AI columns
-   + full AI prompt)
+  ↓                                         ↓
+For each test class:                      For each test class:
+  write  work/<fqcn>.txt                    look for responses/<fqcn>.response.txt
+  create responses/<fqcn>.response.txt      → non-empty: parse AI JSON → AI cols
+  (operator instructions + AI prompt)       → empty/absent: blank AI columns
 ```
+
+The two directory arguments may point to the same path if you prefer a single folder.
 
 The final CSV format is identical to the automated flow.
 
 ### Phase 1 — Prepare
 
 ```bash
-./methodatlas -manual-prepare ./work /path/to/tests
+./methodatlas -manual-prepare ./work ./responses /path/to/tests
 ```
 
-MethodAtlas scans the source tree and for each test class writes two files to `./work`:
+MethodAtlas scans the source tree and for each test class writes:
 
-1. **`<fqcn>.txt`** — the work file, containing:
+1. **`<workdir>/<fqcn>.txt`** — the work file, containing:
    - **Operator instructions** at the top: what to do, the expected response file name, and the consume command to run afterwards.
    - **AI prompt block**: the complete prompt (taxonomy definition, method list, full class source) delimited by `--- BEGIN AI PROMPT ---` / `--- END AI PROMPT ---` markers.
-2. **`<fqcn>.response.txt`** — an empty placeholder for the AI response. If this file already exists (e.g. from a previous prepare run that already received a response), it is left untouched.
+2. **`<responsedir>/<fqcn>.response.txt`** — an empty placeholder for the AI response. If this file already exists (e.g. from a previous prepare run where a response was already saved), it is left untouched.
+
+Both directories are created automatically if they do not exist. They may be the same path.
 
 The operator copies the prompt block verbatim into their AI chat window, then pastes the AI's response into the pre-created `.response.txt` file. No file attachments or manual file creation are needed.
 
@@ -206,10 +209,10 @@ No CSV output is produced in this phase.
 After pasting the AI responses into the pre-created `.response.txt` files:
 
 ```bash
-./methodatlas -manual-consume ./work ./work /path/to/tests
+./methodatlas -manual-consume ./work ./responses /path/to/tests
 ```
 
-Because the prepare phase writes both the work files and the empty response placeholders to the same directory, you pass the same directory twice (as `<workdir>` and `<responsedir>`).
+Pass the same response directory you specified in the prepare phase.
 
 For each test class, MethodAtlas reads `<fully.qualified.ClassName>.response.txt` from the response directory:
 
@@ -239,7 +242,7 @@ Steps:
      (it was created empty alongside this work file — do not rename it).
   4. Repeat for all other work files.
   5. After all responses are saved, run the consume phase:
-       java -jar methodatlas.jar -manual-consume <workdir> <workdir> <source-roots...>
+       java -jar methodatlas.jar -manual-consume <workdir> <responsedir> <source-roots...>
 ================================================================================
 
 --- BEGIN AI PROMPT ---
@@ -255,7 +258,7 @@ The same taxonomy configuration flags used for automated providers also apply to
 ```bash
 ./methodatlas \
   -ai-taxonomy-mode optimized \
-  -manual-prepare ./work \
+  -manual-prepare ./work ./responses \
   /path/to/tests
 ```
 
@@ -266,6 +269,7 @@ The same taxonomy configuration flags used for automated providers also apply to
 | Argument | Meaning | Default |
 | --- | --- | --- |
 | `-plain` | Emit plain text instead of CSV | CSV mode |
+| `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated to match multiple patterns; first occurrence replaces the default | `Test.java` |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
 ### AI options
@@ -288,7 +292,7 @@ The same taxonomy configuration flags used for automated providers also apply to
 
 | Argument | Meaning |
 | --- | --- |
-| `-manual-prepare <workdir>` | Run the prepare phase: write AI prompt work files and empty response placeholders to `workdir`; no CSV output |
+| `-manual-prepare <workdir> <responsedir>` | Run the prepare phase: write AI prompt work files to `workdir` and empty response stubs to `responsedir`; the two paths may be the same; no CSV output |
 | `-manual-consume <workdir> <responsedir>` | Run the consume phase: read operator-filled response files from `responsedir` and emit the enriched CSV |
 
 Unknown options cause an error. Missing option values also fail fast.
@@ -483,7 +487,7 @@ Because the application emits one row per test method, the output is easy to pip
 
 ## Notes
 
-- The scanner currently considers files ending with `*Test.java`.
+- The scanner considers files ending with `*Test.java` by default. Use `-file-suffix` to override or extend this. The flag may be repeated to match multiple patterns, e.g. `-file-suffix Test.java -file-suffix IT.java`. The first occurrence replaces the default; subsequent occurrences add further patterns.
 - AI classification is class-contextual: the full class source is submitted so the model can classify methods with more context.
 - If AI support is enabled but engine initialization fails, the application aborts.
 - If AI classification of a particular class fails, the scan continues and MethodAtlas emits base metadata without AI suggestions for that class.

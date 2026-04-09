@@ -15,9 +15,11 @@ import org.junit.jupiter.api.io.TempDir;
 class ManualPrepareEngineTest {
 
     @Test
-    void prepare_createsWorkFileWithOperatorInstructionsAndPrompt(@TempDir Path workDir) throws Exception {
+    void prepare_createsWorkFileWithOperatorInstructionsAndPrompt(@TempDir Path tempDir) throws Exception {
+        Path workDir = tempDir.resolve("work");
+        Path responseDir = tempDir.resolve("responses");
         AiOptions options = AiOptions.builder().build();
-        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, options);
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
         String fqcn = "com.acme.security.AccessControlServiceTest";
         String classSource = "class AccessControlServiceTest { @Test void shouldAllowOwner() {} }";
@@ -49,8 +51,9 @@ class ManualPrepareEngineTest {
     @Test
     void prepare_createsWorkDirectoryIfAbsent(@TempDir Path tempDir) throws Exception {
         Path workDir = tempDir.resolve("nested/workdir");
+        Path responseDir = tempDir.resolve("nested/responses");
         AiOptions options = AiOptions.builder().build();
-        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, options);
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
         engine.prepare("com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
@@ -60,12 +63,28 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    void prepare_createsResponseDirectoryIfAbsent(@TempDir Path tempDir) throws Exception {
+        Path workDir = tempDir.resolve("work");
+        Path responseDir = tempDir.resolve("nested/responses");
+        AiOptions options = AiOptions.builder().build();
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
+
+        engine.prepare("com.acme.FooTest", "class FooTest {}",
+                List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
+
+        assertTrue(Files.isDirectory(responseDir), "Response directory should be created");
+        assertTrue(Files.exists(responseDir.resolve("com.acme.FooTest.response.txt")),
+                "Response stub should exist in response directory");
+    }
+
+    @Test
     void prepare_usesExternalTaxonomyFileWhenConfigured(@TempDir Path tempDir) throws Exception {
         Path taxonomyFile = tempDir.resolve("taxonomy.txt");
         Files.writeString(taxonomyFile, "custom-taxonomy-content", StandardCharsets.UTF_8);
 
         AiOptions options = AiOptions.builder().taxonomyFile(taxonomyFile).build();
-        ManualPrepareEngine engine = new ManualPrepareEngine(tempDir.resolve("work"), options);
+        ManualPrepareEngine engine = new ManualPrepareEngine(
+                tempDir.resolve("work"), tempDir.resolve("responses"), options);
 
         engine.prepare("com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
@@ -75,9 +94,11 @@ class ManualPrepareEngineTest {
     }
 
     @Test
-    void prepare_returnsPathOfWrittenFile(@TempDir Path workDir) throws Exception {
+    void prepare_returnsPathOfWrittenFile(@TempDir Path tempDir) throws Exception {
+        Path workDir = tempDir.resolve("work");
+        Path responseDir = tempDir.resolve("responses");
         AiOptions options = AiOptions.builder().build();
-        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, options);
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
         Path result = engine.prepare("org.example.BarTest", "class BarTest {}",
                 List.of(new PromptBuilder.TargetMethod("testBar", 5, 10)));
@@ -86,9 +107,11 @@ class ManualPrepareEngineTest {
     }
 
     @Test
-    void prepare_writesMultipleWorkFilesForDifferentClasses(@TempDir Path workDir) throws Exception {
+    void prepare_writesMultipleWorkFilesForDifferentClasses(@TempDir Path tempDir) throws Exception {
+        Path workDir = tempDir.resolve("work");
+        Path responseDir = tempDir.resolve("responses");
         AiOptions options = AiOptions.builder().build();
-        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, options);
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
         engine.prepare("com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
@@ -100,30 +123,49 @@ class ManualPrepareEngineTest {
     }
 
     @Test
-    void prepare_createsEmptyResponseFileAlongsideWorkFile(@TempDir Path workDir) throws Exception {
+    void prepare_createsEmptyResponseStubInResponseDir(@TempDir Path tempDir) throws Exception {
+        Path workDir = tempDir.resolve("work");
+        Path responseDir = tempDir.resolve("responses");
         AiOptions options = AiOptions.builder().build();
-        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, options);
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
         engine.prepare("com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
 
-        Path responseFile = workDir.resolve("com.acme.FooTest.response.txt");
-        assertTrue(Files.exists(responseFile), "Empty response file should be pre-created");
+        Path responseFile = responseDir.resolve("com.acme.FooTest.response.txt");
+        assertTrue(Files.exists(responseFile), "Empty response stub should be pre-created in responseDir");
         assertEquals("", Files.readString(responseFile, StandardCharsets.UTF_8),
-                "Pre-created response file should be empty");
+                "Pre-created response stub should be empty");
     }
 
     @Test
-    void prepare_doesNotOverwriteExistingResponseFile(@TempDir Path workDir) throws Exception {
-        Path responseFile = workDir.resolve("com.acme.FooTest.response.txt");
+    void prepare_doesNotOverwriteExistingResponseFile(@TempDir Path tempDir) throws Exception {
+        Path workDir = tempDir.resolve("work");
+        Path responseDir = tempDir.resolve("responses");
+        Files.createDirectories(responseDir);
+        Path responseFile = responseDir.resolve("com.acme.FooTest.response.txt");
         Files.writeString(responseFile, "existing content", StandardCharsets.UTF_8);
 
         AiOptions options = AiOptions.builder().build();
-        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, options);
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
         engine.prepare("com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
 
         assertEquals("existing content", Files.readString(responseFile, StandardCharsets.UTF_8),
                 "Existing response file content must not be overwritten");
+    }
+
+    @Test
+    void prepare_supportsSameDirForWorkAndResponse(@TempDir Path sharedDir) throws Exception {
+        AiOptions options = AiOptions.builder().build();
+        ManualPrepareEngine engine = new ManualPrepareEngine(sharedDir, sharedDir, options);
+
+        engine.prepare("com.acme.FooTest", "class FooTest {}",
+                List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
+
+        assertTrue(Files.exists(sharedDir.resolve("com.acme.FooTest.txt")),
+                "Work file should be in shared directory");
+        assertTrue(Files.exists(sharedDir.resolve("com.acme.FooTest.response.txt")),
+                "Response stub should be in shared directory");
     }
 }

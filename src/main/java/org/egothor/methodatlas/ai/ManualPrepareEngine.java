@@ -23,17 +23,18 @@ import java.util.List;
  * </ul>
  *
  * <p>
- * After the AI responds the operator saves the response text as
- * {@code <fqcn>.response.txt} in a designated response directory and then runs
- * the consume phase (via {@link ManualConsumeEngine}) to produce the final
- * enriched CSV.
+ * After the AI responds the operator pastes the response text into the
+ * pre-created {@code <fqcn>.response.txt} stub and then runs the consume phase
+ * (via {@link ManualConsumeEngine}) to produce the final enriched CSV.
  * </p>
  *
- * <h2>Work file naming</h2>
+ * <h2>File naming</h2>
  *
  * <p>
- * Each work file is named {@code <fqcn>.txt} and written directly inside the
- * work directory (no sub-directory structure).
+ * Work files are named {@code <fqcn>.txt} and written to the work directory.
+ * Empty response stubs are named {@code <fqcn>.response.txt} and written to
+ * the response directory. Both directories are flat (no sub-directory
+ * structure). The two directories may be the same path.
  * </p>
  *
  * @see ManualConsumeEngine
@@ -44,29 +45,43 @@ public final class ManualPrepareEngine {
     private static final String SEPARATOR = "=".repeat(80);
 
     private final Path workDir;
+    private final Path responseDir;
     private final String taxonomyText;
 
     /**
-     * Creates a new prepare engine that writes work files to the given directory.
+     * Creates a new prepare engine that writes work files and response stubs to
+     * separate directories.
      *
      * <p>
-     * The work directory is created if it does not already exist.
+     * Both directories are created if they do not already exist. The two paths may
+     * point to the same directory.
      * </p>
      *
-     * @param workDir path to the directory where work files will be written
-     * @param options AI options used to load the taxonomy text; only taxonomy
-     *                settings are relevant here — provider settings are ignored
-     * @throws AiSuggestionException if the work directory cannot be created or the
+     * @param workDir     path to the directory where work files ({@code <fqcn>.txt})
+     *                    will be written
+     * @param responseDir path to the directory where empty response stubs
+     *                    ({@code <fqcn>.response.txt}) will be pre-created
+     * @param options     AI options used to load the taxonomy text; only taxonomy
+     *                    settings are relevant here — provider settings are ignored
+     * @throws AiSuggestionException if either directory cannot be created or the
      *                               configured taxonomy file cannot be read
      */
-    public ManualPrepareEngine(Path workDir, AiOptions options) throws AiSuggestionException {
+    public ManualPrepareEngine(Path workDir, Path responseDir, AiOptions options) throws AiSuggestionException {
         this.workDir = workDir;
+        this.responseDir = responseDir;
         this.taxonomyText = loadTaxonomy(options);
 
         try {
             Files.createDirectories(workDir);
         } catch (IOException e) {
             throw new AiSuggestionException("Cannot create work directory: " + workDir, e);
+        }
+        if (!responseDir.equals(workDir)) {
+            try {
+                Files.createDirectories(responseDir);
+            } catch (IOException e) {
+                throw new AiSuggestionException("Cannot create response directory: " + responseDir, e);
+            }
         }
     }
 
@@ -108,7 +123,7 @@ public final class ManualPrepareEngine {
             throw new AiSuggestionException("Failed to write work file: " + outputFile, e);
         }
 
-        Path responseFile = workDir.resolve(fqcn + ".response.txt");
+        Path responseFile = responseDir.resolve(fqcn + ".response.txt");
         if (!Files.exists(responseFile)) {
             try {
                 Files.writeString(responseFile, "", StandardCharsets.UTF_8);
@@ -133,12 +148,12 @@ public final class ManualPrepareEngine {
                 + "  1. Copy the AI PROMPT block below (between the BEGIN/END markers)\n"
                 + "     into your AI chat window.\n"
                 + "  2. Wait for the AI to respond.\n"
-                + "  3. Paste the complete AI response into the pre-created file:\n"
+                + "  3. Paste the complete AI response into the pre-created stub file:\n"
                 + "       " + responseFileName + "\n"
-                + "     (it was created empty alongside this work file — do not rename it).\n"
+                + "     (created empty in the response directory — do not rename it).\n"
                 + "  4. Repeat for all other work files.\n"
                 + "  5. After all responses are saved, run the consume phase:\n"
-                + "       java -jar methodatlas.jar -manual-consume <workdir> <workdir> <source-roots...>\n"
+                + "       java -jar methodatlas.jar -manual-consume <workdir> <responsedir> <source-roots...>\n"
                 + SEPARATOR + "\n"
                 + "\n"
                 + "--- BEGIN AI PROMPT ---\n"

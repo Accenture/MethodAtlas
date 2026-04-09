@@ -55,7 +55,7 @@ public class MethodAtlasAppManualTest {
         copyFixture(sourceDir, "AuditLoggingTest.java");
 
         String output = runAppCapturingStdout(
-                new String[] { "-manual-prepare", workDir.toString(), sourceDir.toString() });
+                new String[] { "-manual-prepare", workDir.toString(), workDir.toString(), sourceDir.toString() });
 
         // Work files are named <fqcn>.txt
         assertTrue(Files.exists(workDir.resolve(FQCN_ACCESS_CONTROL + ".txt")),
@@ -77,7 +77,7 @@ public class MethodAtlasAppManualTest {
         copyFixture(sourceDir, "AccessControlServiceTest.java");
 
         runAppCapturingStdout(
-                new String[] { "-manual-prepare", workDir.toString(), sourceDir.toString() });
+                new String[] { "-manual-prepare", workDir.toString(), workDir.toString(), sourceDir.toString() });
 
         Path workFile = workDir.resolve(FQCN_ACCESS_CONTROL + ".txt");
         assertTrue(Files.exists(workFile));
@@ -107,7 +107,7 @@ public class MethodAtlasAppManualTest {
         copyFixture(sourceDir, "AccessControlServiceTest.java");
 
         String output = runAppCapturingStdout(
-                new String[] { "-manual-prepare", workDir.toString(), sourceDir.toString() });
+                new String[] { "-manual-prepare", workDir.toString(), workDir.toString(), sourceDir.toString() });
 
         // Should not contain CSV header
         assertFalse(output.contains("fqcn,method,loc,tags"), "Prepare phase must not emit CSV header");
@@ -122,7 +122,7 @@ public class MethodAtlasAppManualTest {
         copyFixture(sourceDir, "AccessControlServiceTest.java");
 
         int exitCode = runAppReturningExitCode(
-                new String[] { "-manual-prepare", workDir.toString(), sourceDir.toString() });
+                new String[] { "-manual-prepare", workDir.toString(), workDir.toString(), sourceDir.toString() });
 
         assertEquals(0, exitCode);
     }

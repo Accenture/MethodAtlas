@@ -106,9 +106,12 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * <li>{@code -ai-max-retries <count>} — sets the retry limit for AI
  * operations</li>
  * <li>{@code -file-suffix <suffix>} — matches source files by name suffix
- * (default: {@code Test.java})</li>
- * <li>{@code -manual-prepare <workdir>} — runs the manual AI prepare phase,
- * writing one work file per test class to {@code workdir}</li>
+ * (default: {@code Test.java}); may be repeated to match multiple patterns,
+ * e.g. {@code -file-suffix Test.java -file-suffix IT.java}; the first
+ * occurrence replaces the default</li>
+ * <li>{@code -manual-prepare <workdir> <responsedir>} — runs the manual AI
+ * prepare phase, writing work files to {@code workdir} and empty response stubs
+ * to {@code responsedir}; the two paths may be identical</li>
  * <li>{@code -manual-consume <workdir> <responsedir>} — runs the manual AI
  * consume phase, reading response files from {@code responsedir} and emitting
  * the final enriched CSV</li>
@@ -146,11 +149,16 @@ public class MethodAtlasApp {
      */
     private sealed interface ManualMode {
         /**
-         * Prepare phase: scan source files and write AI prompt work files.
+         * Prepare phase: scan source files and write AI prompt work files and empty
+         * response stubs.
          *
-         * @param workDir directory where work files will be written
+         * @param workDir     directory where work files ({@code <fqcn>.txt}) will be
+         *                    written
+         * @param responseDir directory where empty response stubs
+         *                    ({@code <fqcn>.response.txt}) will be pre-created; may be
+         *                    the same as {@code workDir}
          */
-        record Prepare(Path workDir) implements ManualMode {
+        record Prepare(Path workDir, Path responseDir) implements ManualMode {
         }
 
         /**
@@ -174,11 +182,13 @@ public class MethodAtlasApp {
      *                   limits, and timeouts
      * @param paths      root paths to scan; when empty, the current working
      *                   directory is scanned
-     * @param fileSuffix filename suffix used to select source files for scanning
-     * @param manualMode manual AI workflow mode, or {@code null} when using
-     *                   automated providers
+     * @param fileSuffixes one or more filename suffixes used to select source files
+     *                     for scanning; a file is included if its name ends with any
+     *                     of the listed suffixes
+     * @param manualMode   manual AI workflow mode, or {@code null} when using
+     *                     automated providers
      */
-    private record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, String fileSuffix,
+    private record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
             ManualMode manualMode) {
     }
 
@@ -263,7 +273,7 @@ public class MethodAtlasApp {
 
         for (Path root : roots) {
             if (scanRoot(root, cliConfig.outputMode(), cliConfig.aiOptions(), aiEngine, parser, emitter,
-                    cliConfig.fileSuffix())) {
+                    cliConfig.fileSuffixes())) {
                 hadErrors = true;
             }
         }
@@ -294,7 +304,7 @@ public class MethodAtlasApp {
             PrintWriter log) throws IOException {
         ManualPrepareEngine engine;
         try {
-            engine = new ManualPrepareEngine(prepare.workDir(), cliConfig.aiOptions());
+            engine = new ManualPrepareEngine(prepare.workDir(), prepare.responseDir(), cliConfig.aiOptions());
         } catch (AiSuggestionException e) {
             throw new IllegalStateException("Failed to initialize manual prepare engine", e);
         }
@@ -306,7 +316,8 @@ public class MethodAtlasApp {
         for (Path root : roots) {
             try (Stream<Path> stream = Files.walk(root)) {
                 List<Path> files = stream
-                        .filter(path -> path.toString().endsWith(cliConfig.fileSuffix()))
+                        .filter(path -> cliConfig.fileSuffixes().stream()
+                                .anyMatch(s -> path.toString().endsWith(s)))
                         .toList();
                 for (Path path : files) {
                     int count = processFileForPrepare(path, engine, parser, log);
@@ -319,7 +330,8 @@ public class MethodAtlasApp {
             }
         }
 
-        log.println("Manual prepare complete. Wrote " + prepared + " work file(s) to " + prepare.workDir());
+        log.println("Manual prepare complete. Wrote " + prepared + " work file(s) to " + prepare.workDir()
+                + " (response stubs in " + prepare.responseDir() + ")");
         return hadErrors ? 1 : 0;
     }
 
@@ -392,18 +404,22 @@ public class MethodAtlasApp {
      * @param aiEngine   AI engine, or {@code null} when AI is disabled
      * @param parser     configured JavaParser instance
      * @param emitter    output emitter for the current run
-     * @param fileSuffix filename suffix used to select source files
+     * @param fileSuffixes one or more filename suffixes used to select source files;
+     *                     a file is included if its name ends with any of the listed
+     *                     suffixes
      * @return {@code true} if any file produced a processing error
      * @throws IOException if traversing the file tree fails
      */
     private static boolean scanRoot(Path root, OutputMode mode, AiOptions aiOptions, AiSuggestionEngine aiEngine,
-            JavaParser parser, OutputEmitter emitter, String fileSuffix) throws IOException {
-        LOG.log(Level.INFO, "Scanning {0} for files matching *{1}", new Object[] { root, fileSuffix });
+            JavaParser parser, OutputEmitter emitter, List<String> fileSuffixes) throws IOException {
+        LOG.log(Level.INFO, "Scanning {0} for files matching {1}", new Object[] { root, fileSuffixes });
 
         boolean hadErrors = false;
 
         try (Stream<Path> stream = Files.walk(root)) {
-            List<Path> files = stream.filter(path -> path.toString().endsWith(fileSuffix)).toList();
+            List<Path> files = stream
+                    .filter(path -> fileSuffixes.stream().anyMatch(s -> path.toString().endsWith(s)))
+                    .toList();
             for (Path path : files) {
                 if (!processFile(path, mode, aiOptions, aiEngine, parser, emitter)) {
                     hadErrors = true;
@@ -594,7 +610,7 @@ public class MethodAtlasApp {
         OutputMode outputMode = OutputMode.CSV;
         List<Path> paths = new ArrayList<>();
         AiOptions.Builder aiBuilder = AiOptions.builder();
-        String fileSuffix = DEFAULT_FILE_SUFFIX;
+        List<String> fileSuffixes = null;
         ManualMode manualMode = null;
 
         for (int i = 0; i < args.length; i++) {
@@ -616,8 +632,17 @@ public class MethodAtlasApp {
                 case "-ai-timeout-sec" ->
                     aiBuilder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++i, arg))));
                 case "-ai-max-retries" -> aiBuilder.maxRetries(Integer.parseInt(nextArg(args, ++i, arg)));
-                case "-file-suffix" -> fileSuffix = nextArg(args, ++i, arg);
-                case "-manual-prepare" -> manualMode = new ManualMode.Prepare(Paths.get(nextArg(args, ++i, arg)));
+                case "-file-suffix" -> {
+                    if (fileSuffixes == null) {
+                        fileSuffixes = new ArrayList<>();
+                    }
+                    fileSuffixes.add(nextArg(args, ++i, arg));
+                }
+                case "-manual-prepare" -> {
+                    Path workDir = Paths.get(nextArg(args, ++i, arg));
+                    Path responseDir = Paths.get(nextArg(args, ++i, arg));
+                    manualMode = new ManualMode.Prepare(workDir, responseDir);
+                }
                 case "-manual-consume" -> {
                     Path workDir = Paths.get(nextArg(args, ++i, arg));
                     Path responseDir = Paths.get(nextArg(args, ++i, arg));
@@ -632,7 +657,8 @@ public class MethodAtlasApp {
             }
         }
 
-        return new CliConfig(outputMode, aiBuilder.build(), paths, fileSuffix, manualMode);
+        List<String> resolvedSuffixes = fileSuffixes != null ? fileSuffixes : List.of(DEFAULT_FILE_SUFFIX);
+        return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, manualMode);
     }
 
     /**
