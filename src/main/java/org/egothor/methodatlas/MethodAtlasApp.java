@@ -21,6 +21,8 @@ import org.egothor.methodatlas.ai.AiProvider;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.ai.AiSuggestionEngineImpl;
 import org.egothor.methodatlas.ai.AiSuggestionException;
+import org.egothor.methodatlas.ai.ManualConsumeEngine;
+import org.egothor.methodatlas.ai.ManualPrepareEngine;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.SuggestionLookup;
 
@@ -66,6 +68,23 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * the returned method-level suggestions into the emitted output.
  * </p>
  *
+ * <h2>Manual AI Workflow</h2>
+ *
+ * <p>
+ * Operators who cannot access an AI API directly can use the two-phase manual
+ * workflow:
+ * </p>
+ * <ol>
+ * <li><b>Prepare phase</b> ({@code -manual-prepare}): the application scans
+ * test sources and writes one work file per class to the specified directory.
+ * Each work file contains operator instructions and the full AI prompt (with
+ * class source embedded). No CSV output is produced in this phase.</li>
+ * <li><b>Consume phase</b> ({@code -manual-consume}): the application reads
+ * operator-saved AI response files ({@code <fqcn>.response.txt}) from the
+ * response directory and produces the final enriched CSV. Classes whose
+ * response file is absent receive empty AI columns.</li>
+ * </ol>
+ *
  * <h2>Supported Command-Line Options</h2>
  *
  * <ul>
@@ -88,6 +107,11 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * operations</li>
  * <li>{@code -file-suffix <suffix>} — matches source files by name suffix
  * (default: {@code Test.java})</li>
+ * <li>{@code -manual-prepare <workdir>} — runs the manual AI prepare phase,
+ * writing one work file per test class to {@code workdir}</li>
+ * <li>{@code -manual-consume <workdir> <responsedir>} — runs the manual AI
+ * consume phase, reading response files from {@code responsedir} and emitting
+ * the final enriched CSV</li>
  * </ul>
  *
  * <p>
@@ -113,6 +137,36 @@ public class MethodAtlasApp {
     private static final String DEFAULT_FILE_SUFFIX = "Test.java";
 
     /**
+     * Selects between the two phases of the manual AI workflow.
+     *
+     * <p>
+     * When a {@code ManualMode} is present in the parsed configuration the
+     * application bypasses the normal automated AI provider path.
+     * </p>
+     */
+    private sealed interface ManualMode {
+        /**
+         * Prepare phase: scan source files and write AI prompt work files.
+         *
+         * @param workDir directory where work files will be written
+         */
+        record Prepare(Path workDir) implements ManualMode {
+        }
+
+        /**
+         * Consume phase: read operator-saved response files and emit enriched CSV.
+         *
+         * @param workDir     directory that contains the work files written during
+         *                    prepare (reserved for future reference; currently unused
+         *                    at runtime)
+         * @param responseDir directory where the operator saved
+         *                    {@code <fqcn>.response.txt} files
+         */
+        record Consume(Path workDir, Path responseDir) implements ManualMode {
+        }
+    }
+
+    /**
      * Parsed command-line configuration used to drive a single application run.
      *
      * @param outputMode selected output mode
@@ -121,8 +175,11 @@ public class MethodAtlasApp {
      * @param paths      root paths to scan; when empty, the current working
      *                   directory is scanned
      * @param fileSuffix filename suffix used to select source files for scanning
+     * @param manualMode manual AI workflow mode, or {@code null} when using
+     *                   automated providers
      */
-    private record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, String fileSuffix) {
+    private record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, String fileSuffix,
+            ManualMode manualMode) {
     }
 
     /**
@@ -159,6 +216,14 @@ public class MethodAtlasApp {
      * scans the requested paths.
      * </p>
      *
+     * <p>
+     * When the manual prepare phase is active ({@code -manual-prepare}) this method
+     * writes work files and reports progress to {@code out} instead of emitting CSV.
+     * When the manual consume phase is active ({@code -manual-consume}) this method
+     * uses {@link ManualConsumeEngine} to read operator-saved responses and emits
+     * the standard enriched CSV.
+     * </p>
+     *
      * @param args command-line arguments
      * @param out  writer that receives all emitted output
      * @return {@code 0} if all files were processed successfully, {@code 1} if
@@ -176,9 +241,21 @@ public class MethodAtlasApp {
         JavaParser parser = new JavaParser(parserConfiguration);
 
         CliConfig cliConfig = parseArgs(args);
-        AiSuggestionEngine aiEngine = buildAiEngine(cliConfig.aiOptions());
-        OutputEmitter emitter = new OutputEmitter(out, cliConfig.aiOptions().enabled());
 
+        // Manual prepare phase: write AI prompt work files; no CSV output.
+        if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {
+            return runManualPrepare(prepare, cliConfig, parser, out);
+        }
+
+        // Determine AI engine: manual consume reads from files; normal mode calls APIs.
+        AiSuggestionEngine aiEngine;
+        if (cliConfig.manualMode() instanceof ManualMode.Consume consume) {
+            aiEngine = new ManualConsumeEngine(consume.responseDir());
+        } else {
+            aiEngine = buildAiEngine(cliConfig.aiOptions());
+        }
+
+        OutputEmitter emitter = new OutputEmitter(out, aiEngine != null);
         emitter.emitCsvHeader(cliConfig.outputMode());
 
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
@@ -192,6 +269,118 @@ public class MethodAtlasApp {
         }
 
         return hadErrors ? 1 : 0;
+    }
+
+    /**
+     * Executes the manual AI prepare phase.
+     *
+     * <p>
+     * Scans the configured source roots, discovers test classes and their JUnit
+     * test methods, and writes one work file per class to the prepare work
+     * directory. Progress lines are written to {@code log}. No CSV output is
+     * produced.
+     * </p>
+     *
+     * @param prepare    manual prepare mode configuration
+     * @param cliConfig  full parsed CLI configuration (used for paths, suffix,
+     *                   and taxonomy options)
+     * @param parser     configured JavaParser instance
+     * @param log        writer used for progress reporting
+     * @return {@code 0} if all files were processed successfully, {@code 1} if any
+     *         file produced a parse or processing error
+     * @throws IOException if traversing a file tree fails
+     */
+    private static int runManualPrepare(ManualMode.Prepare prepare, CliConfig cliConfig, JavaParser parser,
+            PrintWriter log) throws IOException {
+        ManualPrepareEngine engine;
+        try {
+            engine = new ManualPrepareEngine(prepare.workDir(), cliConfig.aiOptions());
+        } catch (AiSuggestionException e) {
+            throw new IllegalStateException("Failed to initialize manual prepare engine", e);
+        }
+
+        List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
+        boolean hadErrors = false;
+        int prepared = 0;
+
+        for (Path root : roots) {
+            try (Stream<Path> stream = Files.walk(root)) {
+                List<Path> files = stream
+                        .filter(path -> path.toString().endsWith(cliConfig.fileSuffix()))
+                        .toList();
+                for (Path path : files) {
+                    int count = processFileForPrepare(path, engine, parser, log);
+                    if (count < 0) {
+                        hadErrors = true;
+                    } else {
+                        prepared += count;
+                    }
+                }
+            }
+        }
+
+        log.println("Manual prepare complete. Wrote " + prepared + " work file(s) to " + prepare.workDir());
+        return hadErrors ? 1 : 0;
+    }
+
+    /**
+     * Parses a single Java source file and writes work files for each discovered
+     * test class.
+     *
+     * @param path   source file to parse
+     * @param engine prepare engine used to write work files
+     * @param parser configured JavaParser instance
+     * @param log    writer used for progress reporting
+     * @return number of work files written, or {@code -1} if the file could not
+     *         be parsed
+     */
+    private static int processFileForPrepare(Path path, ManualPrepareEngine engine, JavaParser parser,
+            PrintWriter log) {
+        try {
+            ParseResult<CompilationUnit> parseResult = parser.parse(path);
+
+            if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.log(Level.WARNING, "Failed to parse {0}: {1}",
+                            new Object[] { path, parseResult.getProblems() });
+                }
+                return -1;
+            }
+
+            CompilationUnit compilationUnit = parseResult.getResult().orElseThrow();
+            String packageName = compilationUnit.getPackageDeclaration()
+                    .map(NodeWithName::getNameAsString).orElse("");
+
+            int count = 0;
+            for (ClassOrInterfaceDeclaration clazz : compilationUnit
+                    .findAll(ClassOrInterfaceDeclaration.class)) {
+                String fqcn = buildFqcn(packageName, clazz.getNameAsString());
+                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz);
+
+                if (testMethods.isEmpty()) {
+                    continue;
+                }
+
+                List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
+                try {
+                    Path workFile = engine.prepare(fqcn, clazz.toString(), targetMethods);
+                    log.println("Prepared: " + workFile);
+                    count++;
+                } catch (AiSuggestionException e) {
+                    if (LOG.isLoggable(Level.WARNING)) {
+                        LOG.log(Level.WARNING, "Failed to prepare work file for " + fqcn, e);
+                    }
+                }
+            }
+
+            return count;
+
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Cannot read file: " + path, e);
+            }
+            return -1;
+        }
     }
 
     /**
@@ -255,8 +444,7 @@ public class MethodAtlasApp {
                     .map(NodeWithName::getNameAsString).orElse("");
 
             compilationUnit.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
-                String className = clazz.getNameAsString();
-                String fqcn = packageName.isEmpty() ? className : packageName + "." + className;
+                String fqcn = buildFqcn(packageName, clazz.getNameAsString());
 
                 List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz);
                 SuggestionLookup suggestionLookup = resolveSuggestionLookup(clazz, fqcn, testMethods, aiOptions,
@@ -281,6 +469,18 @@ public class MethodAtlasApp {
     }
 
     /**
+     * Builds a fully qualified class name from a package name and a simple class
+     * name.
+     *
+     * @param packageName package name; may be empty for the default package
+     * @param className   simple class name
+     * @return fully qualified class name
+     */
+    private static String buildFqcn(String packageName, String className) {
+        return packageName.isEmpty() ? className : packageName + "." + className;
+    }
+
+    /**
      * Returns all JUnit test methods declared within the specified class.
      *
      * @param clazz parsed class declaration whose methods should be inspected
@@ -297,26 +497,29 @@ public class MethodAtlasApp {
      * Resolves method-level AI suggestions for a parsed class.
      *
      * <p>
-     * Returns an empty lookup when AI is disabled, no engine is available, the
-     * method list is empty, the class source exceeds the configured maximum size,
-     * or the AI engine fails.
+     * Returns an empty lookup when no AI engine is available, the method list is
+     * empty, or (for regular provider-based AI) the class source exceeds the
+     * configured maximum size. The {@code maxClassChars} limit is only enforced
+     * when the automated provider is enabled ({@link AiOptions#enabled()}); it is
+     * not applied in the manual consume phase.
      * </p>
      *
      * @param clazz       parsed class declaration to analyze
      * @param fqcn        fully qualified class name of {@code clazz}
      * @param testMethods discovered JUnit test methods
      * @param aiOptions   AI configuration for the current run
-     * @param aiEngine    AI engine used to produce suggestions
+     * @param aiEngine    AI engine used to produce suggestions; {@code null} when
+     *                    AI is disabled
      * @return lookup of AI suggestions keyed by method name; never {@code null}
      */
     private static SuggestionLookup resolveSuggestionLookup(ClassOrInterfaceDeclaration clazz, String fqcn,
             List<MethodDeclaration> testMethods, AiOptions aiOptions, AiSuggestionEngine aiEngine) {
-        if (!aiOptions.enabled() || aiEngine == null || testMethods.isEmpty()) {
+        if (aiEngine == null || testMethods.isEmpty()) {
             return SuggestionLookup.from(null);
         }
 
         String classSource = clazz.toString();
-        if (classSource.length() > aiOptions.maxClassChars()) {
+        if (aiOptions.enabled() && classSource.length() > aiOptions.maxClassChars()) {
             if (LOG.isLoggable(Level.INFO)) {
                 LOG.log(Level.INFO, "Skipping AI for {0}: class source too large ({1} chars)",
                         new Object[] { fqcn, classSource.length() });
@@ -392,6 +595,7 @@ public class MethodAtlasApp {
         List<Path> paths = new ArrayList<>();
         AiOptions.Builder aiBuilder = AiOptions.builder();
         String fileSuffix = DEFAULT_FILE_SUFFIX;
+        ManualMode manualMode = null;
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
@@ -413,6 +617,12 @@ public class MethodAtlasApp {
                     aiBuilder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++i, arg))));
                 case "-ai-max-retries" -> aiBuilder.maxRetries(Integer.parseInt(nextArg(args, ++i, arg)));
                 case "-file-suffix" -> fileSuffix = nextArg(args, ++i, arg);
+                case "-manual-prepare" -> manualMode = new ManualMode.Prepare(Paths.get(nextArg(args, ++i, arg)));
+                case "-manual-consume" -> {
+                    Path workDir = Paths.get(nextArg(args, ++i, arg));
+                    Path responseDir = Paths.get(nextArg(args, ++i, arg));
+                    manualMode = new ManualMode.Consume(workDir, responseDir);
+                }
                 default -> {
                     if (arg.startsWith("-")) {
                         throw new IllegalArgumentException("Unknown argument: " + arg);
@@ -422,7 +632,7 @@ public class MethodAtlasApp {
             }
         }
 
-        return new CliConfig(outputMode, aiBuilder.build(), paths, fileSuffix);
+        return new CliConfig(outputMode, aiBuilder.build(), paths, fileSuffix, manualMode);
     }
 
     /**

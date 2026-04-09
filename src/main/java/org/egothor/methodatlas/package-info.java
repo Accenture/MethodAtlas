@@ -109,5 +109,7 @@
  * @see org.egothor.methodatlas.AnnotationInspector
  * @see org.egothor.methodatlas.OutputEmitter
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
+ * @see org.egothor.methodatlas.ai.ManualPrepareEngine
+ * @see org.egothor.methodatlas.ai.ManualConsumeEngine
  */
 package org.egothor.methodatlas;
