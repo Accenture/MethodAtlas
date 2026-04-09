@@ -26,10 +26,13 @@ tasks.withType(Pmd) {
     maxHeapSize = "512m"
 }
 
+if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
+    throw new GradleException("Java 21 or higher is required to build this project. Found: ${JavaVersion.current()}")
+}
+
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 repositories {
@@ -52,13 +55,12 @@ dependencies {
 }
 
 compileTestJava {
-    options.release = 21
-    options.compilerArgs += ['--enable-preview']
+    options.release = JavaVersion.current().majorVersion.toInteger()
 }
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
-    jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}", '--enable-preview'
+    jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
 
     doFirst {
         println "Mockito agent: ${configurations.mockitoAgent.singleFile}"
