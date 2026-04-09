@@ -33,6 +33,7 @@ import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.nodeTypes.NodeWithName;
+import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 
 /**
  * Command-line application for scanning Java test sources, extracting JUnit
@@ -120,6 +121,9 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * <li>{@code -emit-metadata} — emits {@code # key: value} comment lines
  * before the header row describing the tool version, scan timestamp, and
  * taxonomy configuration</li>
+ * <li>{@code -apply-tags} — instead of emitting a report, writes
+ * AI-generated {@code @DisplayName} and {@code @Tag} annotations back to
+ * the scanned source files; requires AI enrichment to be enabled</li>
  * <li>{@code -manual-prepare <workdir> <responsedir>} — runs the manual AI
  * prepare phase, writing work files to {@code workdir} and empty response stubs
  * to {@code responsedir}; the two paths may be identical</li>
@@ -235,6 +239,11 @@ public final class MethodAtlasApp {
 
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
 
+        // Apply-tags mode: annotate source files; no report emitted.
+        if (cliConfig.applyTags()) {
+            return runApplyTags(cliConfig, aiEngine, parser, roots, out);
+        }
+
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
             return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, parser, roots, out);
@@ -256,6 +265,127 @@ public final class MethodAtlasApp {
                 emitter.emit(mode, fqcn, method, loc, tags, suggestion);
 
         return scan(roots, cliConfig, aiEngine, parser, sink);
+    }
+
+    /**
+     * Applies AI-generated annotations to test method source files.
+     *
+     * <p>
+     * Scans every configured source root, resolves AI suggestions for each
+     * discovered test class, and uses {@link TagApplier} to insert
+     * {@code @DisplayName} and {@code @Tag} annotations. Each modified file is
+     * written back to disk using the lexical-preserving printer so that
+     * unrelated formatting is left intact. A summary line is written to
+     * {@code log} on completion.
+     * </p>
+     *
+     * @param cliConfig full parsed CLI configuration
+     * @param aiEngine  AI engine providing suggestions; may be {@code null}
+     * @param parser    configured JavaParser instance
+     * @param roots     source roots to scan
+     * @param log       writer for progress and summary output
+     * @return {@code 0} if all files were processed successfully, {@code 1}
+     *         if any file produced a parse or processing error
+     * @throws IOException if traversing a file tree fails
+     */
+    private static int runApplyTags(CliConfig cliConfig, AiSuggestionEngine aiEngine,
+            JavaParser parser, List<Path> roots, PrintWriter log) throws IOException {
+        boolean hadErrors = false;
+        int modifiedFiles = 0;
+        int totalAnnotations = 0;
+
+        for (Path root : roots) {
+            try (Stream<Path> stream = Files.walk(root)) {
+                List<Path> files = stream
+                        .filter(path -> cliConfig.fileSuffixes().stream()
+                                .anyMatch(s -> path.toString().endsWith(s)))
+                        .toList();
+                for (Path path : files) {
+                    try {
+                        int added = applyTagsToFile(root, path, cliConfig, aiEngine, parser, log);
+                        if (added > 0) {
+                            modifiedFiles++;
+                            totalAnnotations += added;
+                        }
+                    } catch (IOException e) {
+                        if (LOG.isLoggable(Level.WARNING)) {
+                            LOG.log(Level.WARNING, "Cannot process: " + path, e);
+                        }
+                        hadErrors = true;
+                    }
+                }
+            }
+        }
+
+        log.println("Apply-tags complete: " + totalAnnotations + " annotation(s) added to "
+                + modifiedFiles + " file(s)");
+        return hadErrors ? 1 : 0;
+    }
+
+    /**
+     * Parses a single source file, applies AI-suggested security annotations,
+     * and writes the file back when at least one annotation was inserted.
+     *
+     * <p>
+     * {@link LexicalPreservingPrinter} is used so that only the inserted
+     * annotations affect the output; all other formatting is preserved.
+     * </p>
+     *
+     * @param root      scan root used to compute the path-based file stem
+     * @param path      source file to process
+     * @param cliConfig full parsed CLI configuration
+     * @param aiEngine  AI engine providing suggestions; may be {@code null}
+     * @param parser    configured JavaParser instance
+     * @param log       writer for progress output
+     * @return number of annotations added to the file
+     * @throws IOException if the file cannot be read or written
+     */
+    private static int applyTagsToFile(Path root, Path path, CliConfig cliConfig,
+            AiSuggestionEngine aiEngine, JavaParser parser, PrintWriter log) throws IOException {
+        ParseResult<CompilationUnit> parseResult = parser.parse(path);
+        if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Failed to parse {0}: {1}",
+                        new Object[] { path, parseResult.getProblems() });
+            }
+            return 0;
+        }
+
+        CompilationUnit cu = parseResult.getResult().orElseThrow();
+        LexicalPreservingPrinter.setup(cu);
+
+        String packageName = cu.getPackageDeclaration()
+                .map(NodeWithName::getNameAsString).orElse("");
+
+        int displayNamesAdded = 0;
+        int tagsAdded = 0;
+
+        for (ClassOrInterfaceDeclaration clazz : cu.findAll(ClassOrInterfaceDeclaration.class)) {
+            String fqcn = buildFqcn(packageName, clazz.getNameAsString());
+            String fileStem = buildFileStem(root, path, fqcn);
+            List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, cliConfig.testAnnotations());
+            SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
+                    cliConfig.aiOptions(), aiEngine);
+
+            TagApplier.ClassResult result = TagApplier.applyToClass(clazz, suggestionLookup,
+                    cliConfig.testAnnotations());
+            displayNamesAdded += result.displayNamesAdded();
+            tagsAdded += result.tagsAdded();
+        }
+
+        int totalAdded = displayNamesAdded + tagsAdded;
+        if (totalAdded > 0) {
+            if (displayNamesAdded > 0) {
+                cu.addImport(TagApplier.IMPORT_DISPLAY_NAME);
+            }
+            if (tagsAdded > 0) {
+                cu.addImport(TagApplier.IMPORT_TAG);
+            }
+            Files.writeString(path, LexicalPreservingPrinter.print(cu), StandardCharsets.UTF_8);
+            log.println("Modified: " + path + " (+" + totalAdded + " annotation(s))");
+        }
+
+        return totalAdded;
     }
 
     /**

@@ -29,7 +29,10 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                        lines before the CSV header
  * @param manualMode      manual AI workflow mode, or {@code null} when using
  *                        automated providers
+ * @param applyTags       when {@code true}, AI-generated {@code @DisplayName}
+ *                        and {@code @Tag} annotations are written back to the
+ *                        source files instead of producing a CSV/SARIF report
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
-        Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode) {
+        Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags) {
 }
