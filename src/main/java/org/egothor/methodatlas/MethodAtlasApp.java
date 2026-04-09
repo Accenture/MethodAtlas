@@ -156,6 +156,7 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * @see SarifEmitter
  * @see #main(String[])
  */
+@SuppressWarnings("PMD.CyclomaticComplexity")
 public final class MethodAtlasApp {
 
     private static final Logger LOG = Logger.getLogger(MethodAtlasApp.class.getName());
@@ -253,8 +254,7 @@ public final class MethodAtlasApp {
 
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
-            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, contentHashEnabled,
-                    parser, roots, out);
+            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, parser, roots, out);
         }
 
         // CSV / PLAIN mode: emit incrementally.
@@ -401,7 +401,7 @@ public final class MethodAtlasApp {
      * records as a single SARIF document.
      */
     private static int runSarif(CliConfig cliConfig, AiSuggestionEngine aiEngine,
-            boolean aiEnabled, boolean confidenceEnabled, boolean contentHashEnabled,
+            boolean aiEnabled, boolean confidenceEnabled,
             JavaParser parser, List<Path> roots, PrintWriter out) throws IOException {
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled);
         int result = scan(roots, cliConfig, aiEngine, parser, sarifEmitter);

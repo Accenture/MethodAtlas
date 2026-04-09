@@ -40,6 +40,7 @@ import org.egothor.methodatlas.ai.AiProvider;
 final class CliArgs {
 
     private static final String DEFAULT_FILE_SUFFIX = "Test.java";
+    private static final String FLAG_CONFIG = "-config";
 
     /**
      * Prevents instantiation of this utility class.
@@ -62,7 +63,7 @@ final class CliArgs {
      *                                  or unsupported, or if the config file
      *                                  cannot be read
      */
-    @SuppressWarnings("PMD.AvoidReassigningLoopVariables")
+    @SuppressWarnings({"PMD.AvoidReassigningLoopVariables", "PMD.CyclomaticComplexity", "PMD.NPathComplexity"})
     /* default */ static CliConfig parse(String... args) {
         // Pre-scan for -config to load YAML defaults before processing other flags.
         YamlConfig.YamlConfigFile yamlConfig = loadYamlConfigFromArgs(args);
@@ -100,7 +101,7 @@ final class CliArgs {
                 case "-sarif" -> outputMode = OutputMode.SARIF;
                 case "-apply-tags" -> applyTags = true;
                 case "-content-hash" -> contentHash = true;
-                case "-config" -> i++; // value already consumed in pre-scan; skip here
+                case FLAG_CONFIG -> i++; // value already consumed in pre-scan; skip here
                 case "-file-suffix" -> {
                     if (!cliFileSuffixSet) {
                         // First CLI -file-suffix replaces YAML defaults
@@ -159,9 +160,9 @@ final class CliArgs {
      *         present
      * @throws IllegalArgumentException if the config file cannot be read
      */
-    private static YamlConfig.YamlConfigFile loadYamlConfigFromArgs(String[] args) {
+    private static YamlConfig.YamlConfigFile loadYamlConfigFromArgs(String... args) {
         for (int i = 0; i < args.length - 1; i++) {
-            if ("-config".equals(args[i])) {
+            if (FLAG_CONFIG.equals(args[i])) {
                 Path configPath = Paths.get(args[i + 1]);
                 try {
                     return YamlConfig.load(configPath);
@@ -196,6 +197,7 @@ final class CliArgs {
      * @param builder   AI options builder to update
      * @param aiConfig  AI section of the YAML config; never {@code null}
      */
+    @SuppressWarnings("PMD.NPathComplexity")
     private static void applyYamlAiConfig(AiOptions.Builder builder, YamlConfig.YamlAiConfig aiConfig) {
         if (Boolean.TRUE.equals(aiConfig.enabled)) {
             builder.enabled(true);

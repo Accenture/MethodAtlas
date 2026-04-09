@@ -50,10 +50,10 @@ import com.github.javaparser.ast.expr.StringLiteralExpr;
 final class TagApplier {
 
     /** Fully qualified name of {@code @DisplayName} for import management. */
-    static final String IMPORT_DISPLAY_NAME = "org.junit.jupiter.api.DisplayName";
+    /* default */ static final String IMPORT_DISPLAY_NAME = "org.junit.jupiter.api.DisplayName";
 
     /** Fully qualified name of {@code @Tag} for import management. */
-    static final String IMPORT_TAG = "org.junit.jupiter.api.Tag";
+    /* default */ static final String IMPORT_TAG = "org.junit.jupiter.api.Tag";
 
     private static final String ANNOTATION_DISPLAY_NAME = "DisplayName";
     private static final String ANNOTATION_TAG = "Tag";
@@ -71,14 +71,14 @@ final class TagApplier {
      * @param displayNamesAdded number of {@code @DisplayName} annotations inserted
      * @param tagsAdded         number of {@code @Tag} annotations inserted
      */
-    record ClassResult(int annotationsAdded, int displayNamesAdded, int tagsAdded) {
+    /* default */ record ClassResult(int annotationsAdded, int displayNamesAdded, int tagsAdded) {
 
         /**
          * Returns {@code true} when at least one annotation was inserted.
          *
          * @return {@code true} if the class was modified
          */
-        boolean modified() {
+        /* default */ boolean modified() {
             return annotationsAdded > 0;
         }
     }
@@ -106,7 +106,7 @@ final class TagApplier {
      * @return result describing what was changed; never {@code null}
      */
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-    static ClassResult applyToClass(ClassOrInterfaceDeclaration clazz, SuggestionLookup lookup,
+    /* default */ static ClassResult applyToClass(ClassOrInterfaceDeclaration clazz, SuggestionLookup lookup,
             Set<String> testAnnotations) {
         int displayNamesAdded = 0;
         int tagsAdded = 0;

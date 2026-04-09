@@ -93,7 +93,7 @@ final class OutputEmitter {
         if (mode != OutputMode.CSV) {
             return;
         }
-        StringBuilder header = new StringBuilder("fqcn,method,loc,tags");
+        StringBuilder header = new StringBuilder(128).append("fqcn,method,loc,tags");
         if (contentHashEnabled) {
             header.append(",content_hash");
         }
@@ -163,6 +163,7 @@ final class OutputEmitter {
      * @param line       string builder receiving the AI field tokens
      * @param suggestion AI suggestion, or {@code null}
      */
+    @SuppressWarnings("PMD.NPathComplexity")
     private void appendAiPlainFields(StringBuilder line, AiMethodSuggestion suggestion) {
         String aiSecurity = suggestion == null ? PLAIN_ABSENT : Boolean.toString(suggestion.securityRelevant());
         String aiDisplayName = suggestion == null || suggestion.displayName() == null

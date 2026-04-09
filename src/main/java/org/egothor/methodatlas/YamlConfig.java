@@ -69,7 +69,7 @@ final class YamlConfig {
      * @throws IOException              if the file cannot be read
      * @throws IllegalArgumentException if the file cannot be parsed as valid YAML
      */
-    static YamlConfigFile load(Path configFile) throws IOException {
+    /* default */ static YamlConfigFile load(Path configFile) throws IOException {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         return mapper.readValue(configFile.toFile(), YamlConfigFile.class);
@@ -82,94 +82,92 @@ final class YamlConfig {
     /**
      * Top-level YAML configuration structure.
      */
-    @SuppressWarnings("PMD.DataClass")
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static final class YamlConfigFile {
+    /* default */ static final class YamlConfigFile {
 
         /** Output mode: {@code csv}, {@code plain}, or {@code sarif}. */
         @JsonProperty("outputMode")
-        String outputMode;
+        /* default */ String outputMode;
 
         /** Whether to emit {@code # key: value} metadata comment lines. */
         @JsonProperty("emitMetadata")
-        boolean emitMetadata;
+        /* default */ boolean emitMetadata;
 
         /** File name suffixes used to select test source files. */
         @JsonProperty("fileSuffixes")
-        List<String> fileSuffixes;
+        /* default */ List<String> fileSuffixes;
 
         /** Annotation simple names that identify test methods. */
         @JsonProperty("testAnnotations")
-        List<String> testAnnotations;
+        /* default */ List<String> testAnnotations;
 
         /**
          * Whether to include a SHA-256 content-hash fingerprint of each class
          * source as a {@code content_hash} column.
          */
         @JsonProperty("contentHash")
-        boolean contentHash;
+        /* default */ boolean contentHash;
 
         /** AI enrichment settings. */
         @JsonProperty("ai")
-        YamlAiConfig ai;
+        /* default */ YamlAiConfig ai;
     }
 
     /**
      * AI subsystem configuration within the YAML file.
      */
-    @SuppressWarnings("PMD.DataClass")
     @JsonIgnoreProperties(ignoreUnknown = true)
-    static final class YamlAiConfig {
+    /* default */ static final class YamlAiConfig {
 
         /** Whether AI enrichment is enabled. */
         @JsonProperty("enabled")
-        Boolean enabled;
+        /* default */ Boolean enabled;
 
         /**
          * AI provider: {@code auto}, {@code ollama}, {@code openai},
          * {@code openrouter}, or {@code anthropic}.
          */
         @JsonProperty("provider")
-        String provider;
+        /* default */ String provider;
 
         /** Provider-specific model name. */
         @JsonProperty("model")
-        String model;
+        /* default */ String model;
 
         /** Provider base URL override. */
         @JsonProperty("baseUrl")
-        String baseUrl;
+        /* default */ String baseUrl;
 
         /** API key supplied directly. */
         @JsonProperty("apiKey")
-        String apiKey;
+        /* default */ String apiKey;
 
         /** Name of the environment variable that holds the API key. */
         @JsonProperty("apiKeyEnv")
-        String apiKeyEnv;
+        /* default */ String apiKeyEnv;
 
         /** Path to an external taxonomy file. */
         @JsonProperty("taxonomyFile")
-        String taxonomyFile;
+        /* default */ String taxonomyFile;
 
         /** Built-in taxonomy variant: {@code default} or {@code optimized}. */
         @JsonProperty("taxonomyMode")
-        String taxonomyMode;
+        /* default */ String taxonomyMode;
 
         /** Maximum number of characters of class source sent to the AI. */
         @JsonProperty("maxClassChars")
-        Integer maxClassChars;
+        /* default */ Integer maxClassChars;
 
         /** AI request timeout in seconds. */
         @JsonProperty("timeoutSec")
-        Long timeoutSec;
+        /* default */ Long timeoutSec;
 
         /** Maximum number of retries for AI requests. */
         @JsonProperty("maxRetries")
-        Integer maxRetries;
+        /* default */ Integer maxRetries;
 
         /** Whether to request a confidence score for each classification. */
         @JsonProperty("confidence")
-        Boolean confidence;
+        /* default */ Boolean confidence;
     }
 }
