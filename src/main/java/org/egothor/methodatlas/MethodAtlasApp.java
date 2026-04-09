@@ -7,7 +7,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -124,6 +127,9 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * <li>{@code -apply-tags} — instead of emitting a report, writes
  * AI-generated {@code @DisplayName} and {@code @Tag} annotations back to
  * the scanned source files; requires AI enrichment to be enabled</li>
+ * <li>{@code -content-hash} — includes a SHA-256 fingerprint of each class
+ * source as a {@code content_hash} column in CSV/plain output and as a SARIF
+ * property; useful for detecting which classes changed between scans</li>
  * <li>{@code -manual-prepare <workdir> <responsedir>} — runs the manual AI
  * prepare phase, writing work files to {@code workdir} and empty response stubs
  * to {@code responsedir}; the two paths may be identical</li>
@@ -236,6 +242,7 @@ public final class MethodAtlasApp {
 
         boolean aiEnabled = aiEngine != null;
         boolean confidenceEnabled = aiEnabled && cliConfig.aiOptions().confidence();
+        boolean contentHashEnabled = cliConfig.contentHash();
 
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
 
@@ -246,11 +253,12 @@ public final class MethodAtlasApp {
 
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
-            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, parser, roots, out);
+            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, contentHashEnabled,
+                    parser, roots, out);
         }
 
         // CSV / PLAIN mode: emit incrementally.
-        OutputEmitter emitter = new OutputEmitter(out, aiEnabled, confidenceEnabled);
+        OutputEmitter emitter = new OutputEmitter(out, aiEnabled, confidenceEnabled, contentHashEnabled);
 
         if (cliConfig.emitMetadata()) {
             String version = MethodAtlasApp.class.getPackage().getImplementationVersion();
@@ -261,8 +269,8 @@ public final class MethodAtlasApp {
         emitter.emitCsvHeader(cliConfig.outputMode());
 
         final OutputMode mode = cliConfig.outputMode();
-        TestMethodSink sink = (fqcn, method, beginLine, loc, tags, suggestion) ->
-                emitter.emit(mode, fqcn, method, loc, tags, suggestion);
+        TestMethodSink sink = (fqcn, method, beginLine, loc, contentHash, tags, suggestion) ->
+                emitter.emit(mode, fqcn, method, loc, contentHash, tags, suggestion);
 
         return scan(roots, cliConfig, aiEngine, parser, sink);
     }
@@ -393,7 +401,7 @@ public final class MethodAtlasApp {
      * records as a single SARIF document.
      */
     private static int runSarif(CliConfig cliConfig, AiSuggestionEngine aiEngine,
-            boolean aiEnabled, boolean confidenceEnabled,
+            boolean aiEnabled, boolean confidenceEnabled, boolean contentHashEnabled,
             JavaParser parser, List<Path> roots, PrintWriter out) throws IOException {
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled);
         int result = scan(roots, cliConfig, aiEngine, parser, sarifEmitter);
@@ -411,7 +419,7 @@ public final class MethodAtlasApp {
         boolean hadErrors = false;
         for (Path root : roots) {
             if (scanRoot(root, cliConfig.aiOptions(), aiEngine, parser, sink,
-                    cliConfig.fileSuffixes(), cliConfig.testAnnotations())) {
+                    cliConfig.fileSuffixes(), cliConfig.testAnnotations(), cliConfig.contentHash())) {
                 hadErrors = true;
             }
         }
@@ -554,7 +562,7 @@ public final class MethodAtlasApp {
      */
     private static boolean scanRoot(Path root, AiOptions aiOptions, AiSuggestionEngine aiEngine,
             JavaParser parser, TestMethodSink sink, List<String> fileSuffixes,
-            Set<String> testAnnotations) throws IOException {
+            Set<String> testAnnotations, boolean contentHashEnabled) throws IOException {
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "Scanning {0} for files matching {1}", new Object[] { root, fileSuffixes });
         }
@@ -566,7 +574,8 @@ public final class MethodAtlasApp {
                     .filter(path -> fileSuffixes.stream().anyMatch(s -> path.toString().endsWith(s)))
                     .toList();
             for (Path path : files) {
-                if (!processFile(root, path, aiOptions, aiEngine, parser, sink, testAnnotations)) {
+                if (!processFile(root, path, aiOptions, aiEngine, parser, sink, testAnnotations,
+                        contentHashEnabled)) {
                     hadErrors = true;
                 }
             }
@@ -579,19 +588,21 @@ public final class MethodAtlasApp {
      * Parses a single Java source file, discovers JUnit test methods, and forwards
      * each to the supplied sink.
      *
-     * @param root      scan root used to compute the path-based file stem
-     * @param path      source file to parse
-     * @param aiOptions AI configuration for the current run
-     * @param aiEngine  AI engine, or {@code null} when AI is disabled
-     * @param parser    configured JavaParser instance
-     * @param sink            receiver of discovered test method records
-     * @param testAnnotations set of annotation simple names that identify test
-     *                        methods
+     * @param root              scan root used to compute the path-based file stem
+     * @param path              source file to parse
+     * @param aiOptions         AI configuration for the current run
+     * @param aiEngine          AI engine, or {@code null} when AI is disabled
+     * @param parser            configured JavaParser instance
+     * @param sink              receiver of discovered test method records
+     * @param testAnnotations   set of annotation simple names that identify test
+     *                          methods
+     * @param contentHashEnabled whether to compute a SHA-256 fingerprint of each
+     *                          class source and include it in the records
      * @return {@code true} if the file was processed successfully
      */
     private static boolean processFile(Path root, Path path, AiOptions aiOptions,
             AiSuggestionEngine aiEngine, JavaParser parser, TestMethodSink sink,
-            Set<String> testAnnotations) {
+            Set<String> testAnnotations, boolean contentHashEnabled) {
         try {
             ParseResult<CompilationUnit> parseResult = parser.parse(path);
 
@@ -610,6 +621,7 @@ public final class MethodAtlasApp {
             compilationUnit.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
                 String fqcn = buildFqcn(packageName, clazz.getNameAsString());
                 String fileStem = buildFileStem(root, path, fqcn);
+                String contentHash = contentHashEnabled ? computeContentHash(clazz) : null;
 
                 List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, testAnnotations);
                 SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
@@ -619,7 +631,7 @@ public final class MethodAtlasApp {
                     int beginLine = method.getRange().map(range -> range.begin.line).orElse(0);
                     int loc = AnnotationInspector.countLOC(method);
                     List<String> tags = AnnotationInspector.getTagValues(method);
-                    sink.record(fqcn, method.getNameAsString(), beginLine, loc, tags,
+                    sink.record(fqcn, method.getNameAsString(), beginLine, loc, contentHash, tags,
                             suggestionLookup.find(method.getNameAsString()).orElse(null));
                 }
             });
@@ -687,6 +699,31 @@ public final class MethodAtlasApp {
             return pathStr + "." + fqcnLastPart;
         }
         return pathStr;
+    }
+
+    /**
+     * Computes a SHA-256 content fingerprint of a class declaration.
+     *
+     * <p>
+     * The hash is derived from the JavaParser pretty-printed form of the class
+     * declaration, which normalizes whitespace so that insignificant formatting
+     * changes do not alter the fingerprint. The result is a 64-character
+     * lowercase hexadecimal string.
+     * </p>
+     *
+     * @param clazz parsed class declaration to fingerprint
+     * @return 64-character lowercase hex SHA-256 digest
+     * @throws IllegalStateException if SHA-256 is unavailable (never in practice;
+     *                               SHA-256 is mandated by the Java SE spec)
+     */
+    private static String computeContentHash(ClassOrInterfaceDeclaration clazz) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(clazz.toString().getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(bytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 
     /**

@@ -84,6 +84,7 @@ final class CliArgs {
         String manualResponseDir = null;
         boolean manualIsConsume = false;
         boolean applyTags = false;
+        boolean contentHash = yamlConfig != null && yamlConfig.contentHash;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -98,6 +99,7 @@ final class CliArgs {
                 case "-plain" -> outputMode = OutputMode.PLAIN;
                 case "-sarif" -> outputMode = OutputMode.SARIF;
                 case "-apply-tags" -> applyTags = true;
+                case "-content-hash" -> contentHash = true;
                 case "-config" -> i++; // value already consumed in pre-scan; skip here
                 case "-file-suffix" -> {
                     if (!cliFileSuffixSet) {
@@ -141,7 +143,7 @@ final class CliArgs {
         Set<String> resolvedAnnotations = testAnnotations.isEmpty()
                 ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
-                emitMetadata, manualMode, applyTags);
+                emitMetadata, manualMode, applyTags, contentHash);
     }
 
     // -------------------------------------------------------------------------

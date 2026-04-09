@@ -35,20 +35,25 @@ final class OutputEmitter {
     private final PrintWriter out;
     private final boolean aiEnabled;
     private final boolean confidenceEnabled;
+    private final boolean contentHashEnabled;
 
     /**
      * Creates a new output emitter bound to the supplied writer.
      *
-     * @param out               writer to which all records are emitted
-     * @param aiEnabled         whether AI enrichment columns should be included
-     * @param confidenceEnabled whether the {@code ai_confidence} column should be
-     *                          included; only meaningful when {@code aiEnabled} is
-     *                          {@code true}
+     * @param out                writer to which all records are emitted
+     * @param aiEnabled          whether AI enrichment columns should be included
+     * @param confidenceEnabled  whether the {@code ai_confidence} column should be
+     *                           included; only meaningful when {@code aiEnabled} is
+     *                           {@code true}
+     * @param contentHashEnabled whether the {@code content_hash} column should be
+     *                           included
      */
-    /* default */ OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled) {
+    /* default */ OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled,
+            boolean contentHashEnabled) {
         this.out = out;
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
+        this.contentHashEnabled = contentHashEnabled;
     }
 
     /**
@@ -88,53 +93,62 @@ final class OutputEmitter {
         if (mode != OutputMode.CSV) {
             return;
         }
-        if (aiEnabled) {
-            if (confidenceEnabled) {
-                out.println("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_confidence");
-            } else {
-                out.println("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason");
-            }
-        } else {
-            out.println("fqcn,method,loc,tags");
+        StringBuilder header = new StringBuilder("fqcn,method,loc,tags");
+        if (contentHashEnabled) {
+            header.append(",content_hash");
         }
+        if (aiEnabled) {
+            header.append(",ai_security_relevant,ai_display_name,ai_tags,ai_reason");
+            if (confidenceEnabled) {
+                header.append(",ai_confidence");
+            }
+        }
+        out.println(header.toString());
     }
 
     /**
      * Emits a single test method record in the configured output mode.
      *
-     * @param mode       selected output mode
-     * @param fqcn       fully qualified class name containing the method
-     * @param method     test method name
-     * @param loc        inclusive line count of the method declaration
-     * @param tags       source-level JUnit tags extracted from the method
-     * @param suggestion AI suggestion for the method, or {@code null} if none
-     *                   is available
+     * @param mode        selected output mode
+     * @param fqcn        fully qualified class name containing the method
+     * @param method      test method name
+     * @param loc         inclusive line count of the method declaration
+     * @param contentHash SHA-256 fingerprint of the enclosing class source, or
+     *                    {@code null} when {@code -content-hash} is not enabled
+     * @param tags        source-level JUnit tags extracted from the method
+     * @param suggestion  AI suggestion for the method, or {@code null} if none
+     *                    is available
      */
-    /* default */ void emit(OutputMode mode, String fqcn, String method, int loc, List<String> tags,
-            AiMethodSuggestion suggestion) {
+    /* default */ void emit(OutputMode mode, String fqcn, String method, int loc, String contentHash,
+            List<String> tags, AiMethodSuggestion suggestion) {
         if (mode == OutputMode.PLAIN) {
-            emitPlain(fqcn, method, loc, tags, suggestion);
+            emitPlain(fqcn, method, loc, contentHash, tags, suggestion);
         } else {
-            emitCsv(fqcn, method, loc, tags, suggestion);
+            emitCsv(fqcn, method, loc, contentHash, tags, suggestion);
         }
     }
 
     /**
      * Emits a record in plain text format.
      *
-     * @param fqcn       fully qualified class name
-     * @param method     test method name
-     * @param loc        inclusive line count
-     * @param tags       source-level JUnit tags
-     * @param suggestion AI suggestion, or {@code null}
+     * @param fqcn        fully qualified class name
+     * @param method      test method name
+     * @param loc         inclusive line count
+     * @param contentHash SHA-256 fingerprint, or {@code null}
+     * @param tags        source-level JUnit tags
+     * @param suggestion  AI suggestion, or {@code null}
      */
-    private void emitPlain(String fqcn, String method, int loc, List<String> tags,
-            AiMethodSuggestion suggestion) {
+    private void emitPlain(String fqcn, String method, int loc, String contentHash,
+            List<String> tags, AiMethodSuggestion suggestion) {
         String existingTags = tags.isEmpty() ? PLAIN_ABSENT : String.join(";", tags);
         StringBuilder line = new StringBuilder(fqcn)
                 .append(", ").append(method)
                 .append(", LOC=").append(loc)
                 .append(", TAGS=").append(existingTags);
+
+        if (contentHashEnabled) {
+            line.append(", HASH=").append(contentHash != null ? contentHash : PLAIN_ABSENT);
+        }
 
         if (aiEnabled) {
             appendAiPlainFields(line, suggestion);
@@ -173,19 +187,24 @@ final class OutputEmitter {
     /**
      * Emits a record in CSV format.
      *
-     * @param fqcn       fully qualified class name
-     * @param method     test method name
-     * @param loc        inclusive line count
-     * @param tags       source-level JUnit tags
-     * @param suggestion AI suggestion, or {@code null}
+     * @param fqcn        fully qualified class name
+     * @param method      test method name
+     * @param loc         inclusive line count
+     * @param contentHash SHA-256 fingerprint, or {@code null}
+     * @param tags        source-level JUnit tags
+     * @param suggestion  AI suggestion, or {@code null}
      */
-    private void emitCsv(String fqcn, String method, int loc, List<String> tags,
-            AiMethodSuggestion suggestion) {
+    private void emitCsv(String fqcn, String method, int loc, String contentHash,
+            List<String> tags, AiMethodSuggestion suggestion) {
         String existingTags = tags.isEmpty() ? CSV_ABSENT : String.join(";", tags);
         StringBuilder line = new StringBuilder(csvEscape(fqcn))
                 .append(',').append(csvEscape(method))
                 .append(',').append(loc)
                 .append(',').append(csvEscape(existingTags));
+
+        if (contentHashEnabled) {
+            line.append(',').append(contentHash != null ? contentHash : CSV_ABSENT);
+        }
 
         if (aiEnabled) {
             appendAiCsvFields(line, suggestion);

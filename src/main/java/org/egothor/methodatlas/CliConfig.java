@@ -32,7 +32,11 @@ import org.egothor.methodatlas.ai.AiOptions;
  * @param applyTags       when {@code true}, AI-generated {@code @DisplayName}
  *                        and {@code @Tag} annotations are written back to the
  *                        source files instead of producing a CSV/SARIF report
+ * @param contentHash     when {@code true}, a SHA-256 fingerprint of each
+ *                        class source is included as a {@code content_hash}
+ *                        column in CSV/plain output and as a SARIF property
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
-        Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags) {
+        Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags,
+        boolean contentHash) {
 }

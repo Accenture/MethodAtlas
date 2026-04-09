@@ -88,9 +88,9 @@ final class SarifEmitter implements TestMethodSink {
      * </p>
      */
     @Override
-    public void record(String fqcn, String method, int beginLine, int loc, List<String> tags,
-            AiMethodSuggestion suggestion) {
-        records.add(new ResultRecord(fqcn, method, beginLine, loc, tags, suggestion));
+    public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
+            List<String> tags, AiMethodSuggestion suggestion) {
+        records.add(new ResultRecord(fqcn, method, beginLine, loc, contentHash, tags, suggestion));
     }
 
     /**
@@ -216,15 +216,16 @@ final class SarifEmitter implements TestMethodSink {
         String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
 
         if (!aiEnabled || s == null) {
-            return new SarifProperties(rec.loc(), sourceTags, null, null, null, null, null);
+            return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
+                    null, null, null, null, null);
         }
 
         String aiTags = s.tags() == null || s.tags().isEmpty() ? null : String.join(";", s.tags());
         String aiDisplayName = s.displayName();
         String aiReason = s.reason() == null || s.reason().isBlank() ? null : s.reason();
         Double aiConfidence = confidenceEnabled ? s.confidence() : null;
-        return new SarifProperties(rec.loc(), sourceTags, s.securityRelevant(), aiDisplayName,
-                aiTags, aiReason, aiConfidence);
+        return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
+                s.securityRelevant(), aiDisplayName, aiTags, aiReason, aiConfidence);
     }
 
     // -------------------------------------------------------------------------
@@ -232,7 +233,7 @@ final class SarifEmitter implements TestMethodSink {
     // -------------------------------------------------------------------------
 
     private record ResultRecord(String fqcn, String method, int beginLine, int loc,
-            List<String> tags, AiMethodSuggestion suggestion) {
+            String contentHash, List<String> tags, AiMethodSuggestion suggestion) {
     }
 
     // -------------------------------------------------------------------------
@@ -401,6 +402,7 @@ final class SarifEmitter implements TestMethodSink {
     @JsonInclude(Include.NON_NULL)
     private static final class SarifProperties {
         private final int loc;
+        private final String contentHash;
         private final String sourceTags;
         private final Boolean aiSecurityRelevant;
         private final String aiDisplayName;
@@ -408,9 +410,11 @@ final class SarifEmitter implements TestMethodSink {
         private final String aiReason;
         private final Double aiConfidence;
 
-        SarifProperties(int loc, String sourceTags, Boolean aiSecurityRelevant,
-                String aiDisplayName, String aiTags, String aiReason, Double aiConfidence) {
+        SarifProperties(int loc, String contentHash, String sourceTags,
+                Boolean aiSecurityRelevant, String aiDisplayName, String aiTags,
+                String aiReason, Double aiConfidence) {
             this.loc = loc;
+            this.contentHash = contentHash;
             this.sourceTags = sourceTags;
             this.aiSecurityRelevant = aiSecurityRelevant;
             this.aiDisplayName = aiDisplayName;
@@ -420,6 +424,7 @@ final class SarifEmitter implements TestMethodSink {
         }
 
         public int getLoc() { return loc; }
+        public String getContentHash() { return contentHash; }
         public String getSourceTags() { return sourceTags; }
         public Boolean getAiSecurityRelevant() { return aiSecurityRelevant; }
         public String getAiDisplayName() { return aiDisplayName; }

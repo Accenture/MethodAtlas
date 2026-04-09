@@ -18,6 +18,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-emit-metadata` | Prepend `# key: value` comment lines before the CSV header | Off |
 | `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated; first occurrence replaces the default | `Test.java` |
 | `-test-annotation <name>` | Treat methods carrying annotation `name` as test methods; may be repeated; first occurrence replaces the default set | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
+| `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
@@ -56,6 +57,7 @@ Loads default option values from a YAML configuration file before processing any
 ```yaml
 outputMode: sarif          # csv | plain | sarif  (default: csv)
 emitMetadata: false
+contentHash: false         # append SHA-256 fingerprint column  (default: false)
 fileSuffixes:
   - Test.java
   - IT.java
@@ -128,6 +130,34 @@ The first occurrence of `-test-annotation` replaces the entire default set; subs
 ```
 
 Annotation matching is performed against the simple name only (symbol resolution is not available in source-only parsing mode). False positives are possible if a project defines a custom annotation with the same simple name as a JUnit Jupiter annotation.
+
+### `-content-hash`
+
+Appends a SHA-256 content fingerprint to every emitted record. The hash is computed from the JavaParser AST string representation of the enclosing class, so it is independent of file encoding, line endings, and unrelated file-level changes. When a class contains multiple test methods, all of them share the same hash value.
+
+In CSV output, a `content_hash` column is appended immediately after `tags`:
+
+```text
+fqcn,method,loc,tags,content_hash
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,3a7f9b...
+com.acme.tests.SampleOneTest,beta,6,param,3a7f9b...
+```
+
+In plain-text output, a `HASH=<value>` token is appended to each line. In SARIF output, the hash is stored as `properties.contentHash`.
+
+The flag can also be enabled via YAML configuration:
+
+```yaml
+contentHash: true
+```
+
+A command-line `-content-hash` flag always overrides the YAML setting.
+
+**Use cases:**
+
+- **Incremental scanning** — compare hashes across runs to skip classes that have not changed.
+- **Result traceability** — correlate a SARIF finding back to the exact class revision that produced it.
+- **Change detection in CI** — detect when a class is modified between two pipeline runs without diffing source files.
 
 ### `-apply-tags`
 
@@ -330,6 +360,18 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```bash
 ./methodatlas -ai -ai-confidence /path/to/tests | \
   awk -F',' 'NR==1 || ($9+0) >= 0.7'
+```
+
+### Emit content hash fingerprints
+
+```bash
+./methodatlas -content-hash /path/to/project
+```
+
+### Content hash with SARIF output
+
+```bash
+./methodatlas -content-hash -sarif /path/to/project > results.sarif
 ```
 
 ### Apply AI annotations to source files

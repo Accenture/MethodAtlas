@@ -26,6 +26,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  * <pre>
  * outputMode: csv          # csv | plain | sarif  (default: csv)
  * emitMetadata: false      # (default: false)
+ * contentHash: false       # (default: false)
  * fileSuffixes:
  *   - Test.java
  * testAnnotations:
@@ -100,6 +101,13 @@ final class YamlConfig {
         /** Annotation simple names that identify test methods. */
         @JsonProperty("testAnnotations")
         List<String> testAnnotations;
+
+        /**
+         * Whether to include a SHA-256 content-hash fingerprint of each class
+         * source as a {@code content_hash} column.
+         */
+        @JsonProperty("contentHash")
+        boolean contentHash;
 
         /** AI enrichment settings. */
         @JsonProperty("ai")

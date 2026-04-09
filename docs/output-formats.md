@@ -19,6 +19,19 @@ com.acme.other.AnotherTest,delta,3,
 
 Multiple JUnit `@Tag` values are joined with `;`. An empty `tags` field means the method has no source-level tags.
 
+### With content hash (`-content-hash`)
+
+Pass `-content-hash` to append a SHA-256 fingerprint column immediately after `tags`:
+
+```text
+fqcn,method,loc,tags,content_hash
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,3a7f9b2e...
+com.acme.tests.SampleOneTest,beta,6,param,3a7f9b2e...
+com.acme.other.AnotherTest,delta,3,,f1c04a8d...
+```
+
+The hash is a 64-character lowercase hexadecimal string (SHA-256). It is computed from the AST text of the enclosing class, so all test methods in the same class share the same value. The hash changes only when the class body changes, not when unrelated files in the same package change.
+
 ### With AI enrichment (`-ai`)
 
 ```text
@@ -28,6 +41,12 @@ com.acme.tests.SampleOneTest,beta,6,param,false,,,
 ```
 
 Fields `ai_display_name`, `ai_tags`, and `ai_reason` are empty for non-security-relevant methods.
+
+When `-content-hash` is combined with `-ai`, the `content_hash` column appears between `tags` and `ai_security_relevant`:
+
+```text
+fqcn,method,loc,tags,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason
+```
 
 ### With AI enrichment and confidence scoring (`-ai -ai-confidence`)
 
@@ -70,6 +89,16 @@ com.acme.other.AnotherTest, delta, LOC=3, TAGS=-
 ```
 
 `TAGS=-` is printed when a method has no source-level JUnit tags.
+
+### Plain mode with content hash
+
+When `-content-hash` is also passed, a `HASH=<value>` token is appended after `TAGS`:
+
+```text
+com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, HASH=3a7f9b2e...
+com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param, HASH=3a7f9b2e...
+com.acme.other.AnotherTest, delta, LOC=3, TAGS=-, HASH=f1c04a8d...
+```
 
 ### Plain mode with AI enrichment
 
@@ -132,14 +161,15 @@ AI enrichment fields are stored in the result `properties` object when AI is ena
 | Property | Description |
 | --- | --- |
 | `loc` | Inclusive line count of the method declaration |
-| `sourceTags` | Semicolon-separated JUnit `@Tag` values from the source, or `null` |
-| `aiSecurityRelevant` | Boolean AI classification, or `null` when AI is disabled |
-| `aiDisplayName` | Suggested `@DisplayName` text, or `null` |
-| `aiTags` | Semicolon-separated security taxonomy tags, or `null` |
-| `aiReason` | Explanatory rationale from the AI, or `null` |
-| `aiConfidence` | Confidence score `0.0–1.0`, or `null` when `-ai-confidence` was not passed |
+| `contentHash` | SHA-256 fingerprint of the enclosing class (64-char lowercase hex), or omitted when `-content-hash` was not passed |
+| `sourceTags` | Semicolon-separated JUnit `@Tag` values from the source, or omitted when none |
+| `aiSecurityRelevant` | Boolean AI classification, or omitted when AI is disabled |
+| `aiDisplayName` | Suggested `@DisplayName` text, or omitted |
+| `aiTags` | Semicolon-separated security taxonomy tags, or omitted |
+| `aiReason` | Explanatory rationale from the AI, or omitted |
+| `aiConfidence` | Confidence score `0.0–1.0`, or omitted when `-ai-confidence` was not passed |
 
-`null`-valued properties are omitted from the JSON output.
+Properties with `null` or absent values are omitted from the JSON output entirely.
 
 ### Example output
 
@@ -190,7 +220,8 @@ AI enrichment fields are stored in the result `properties` object when AI is ena
             }
           ],
           "properties": {
-            "loc": 3
+            "loc": 3,
+            "contentHash": "3a7f9b2e4c1d8f5a0e2b6c9d7f4a1e8b3c5d2f7a0b4e9c6d1f8a3b5e2c7d4f9"
           }
         },
         {
@@ -275,5 +306,6 @@ See [ai-guide.md](ai-guide.md#apply-tags-workflow) for the complete workflow, in
 | Quick visual inspection in a terminal | Plain (`-plain`) |
 | Archiving scan results with provenance metadata | CSV + `-emit-metadata` |
 | Filtering high-confidence security findings | CSV + `-ai-confidence` |
+| Incremental scanning or change detection | CSV or SARIF + `-content-hash` |
 | Integrating with a SAST platform or IDE | SARIF (`-sarif`) |
 | Annotating source files with AI-suggested tags | `-apply-tags` |
