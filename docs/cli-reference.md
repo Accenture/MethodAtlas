@@ -12,9 +12,13 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 
 | Argument | Meaning | Default |
 | --- | --- | --- |
+| `-config <file>` | Load default option values from a YAML configuration file; command-line flags override YAML values | — |
 | `-plain` | Emit plain text instead of CSV | CSV mode |
+| `-sarif` | Emit SARIF 2.1.0 JSON instead of CSV | CSV mode |
 | `-emit-metadata` | Prepend `# key: value` comment lines before the CSV header | Off |
 | `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated; first occurrence replaces the default | `Test.java` |
+| `-test-annotation <name>` | Treat methods carrying annotation `name` as test methods; may be repeated; first occurrence replaces the default set | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
+| `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
 ## AI options
@@ -45,9 +49,49 @@ The two directory arguments may be the same path.
 
 ## Option details
 
+### `-config <file>`
+
+Loads default option values from a YAML configuration file before processing any other arguments. Command-line flags always take precedence over values from the file.
+
+```yaml
+outputMode: sarif          # csv | plain | sarif  (default: csv)
+emitMetadata: false
+fileSuffixes:
+  - Test.java
+  - IT.java
+testAnnotations:
+  - Test
+  - ParameterizedTest
+ai:
+  enabled: true
+  provider: ollama
+  model: qwen2.5-coder:7b
+  baseUrl: http://localhost:11434
+  apiKey: sk-...
+  apiKeyEnv: MY_API_KEY_ENV
+  taxonomyFile: /path/to/taxonomy.txt
+  taxonomyMode: default       # default | optimized
+  maxClassChars: 40000
+  timeoutSec: 90
+  maxRetries: 1
+  confidence: false
+```
+
+All fields are optional. Unknown fields are silently ignored. This makes it safe to add future fields to a shared configuration file without breaking older versions.
+
+A configuration file is useful in CI pipelines or when several team members share the same scan settings. Individual developers can override specific values on the command line without editing the shared file.
+
 ### `-plain`
 
 Switches output from CSV to a human-readable line-oriented format. Method discovery and AI classification are unaffected.
+
+### `-sarif`
+
+Switches output to a single [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) JSON document. MethodAtlas buffers all discovered test methods and serializes the complete document after the scan finishes, so the JSON is valid even when the scan spans many files.
+
+Security-relevant methods receive SARIF level `note`; all other methods receive level `none`. Rule IDs are derived from AI tags (e.g. `security/auth`, `security/crypto`). Non-security methods use the rule `test-method`.
+
+See [output-formats.md](output-formats.md#sarif-mode) for the full schema description and an example document.
 
 ### `-emit-metadata`
 
@@ -71,6 +115,31 @@ Filters which files are considered test classes. The flag may be repeated to mat
 ```
 
 The first occurrence replaces the built-in default (`Test.java`). Each subsequent occurrence adds an additional pattern.
+
+### `-test-annotation <name>`
+
+Extends or replaces the set of annotation simple names that MethodAtlas uses to identify JUnit test methods. The default set is `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, and `TestTemplate`.
+
+The first occurrence of `-test-annotation` replaces the entire default set; subsequent occurrences append to it:
+
+```bash
+# Recognise only @Test and @MyCustomTest
+./methodatlas -test-annotation Test -test-annotation MyCustomTest /path/to/tests
+```
+
+Annotation matching is performed against the simple name only (symbol resolution is not available in source-only parsing mode). False positives are possible if a project defines a custom annotation with the same simple name as a JUnit Jupiter annotation.
+
+### `-apply-tags`
+
+Instead of emitting a report, modifies source files in place by inserting AI-generated `@DisplayName` and `@Tag` annotations on security-relevant test methods. Requires AI to be enabled via `-ai` or `-manual-consume`.
+
+A summary line is always printed to standard output:
+
+```text
+Apply-tags complete: 12 annotation(s) added to 3 file(s)
+```
+
+See [ai-guide.md](ai-guide.md#apply-tags-workflow) for the complete workflow and formatting guarantees.
 
 ### `-ai`
 
@@ -167,6 +236,31 @@ Runs the consume phase. MethodAtlas reads operator-filled response files and mer
 ./methodatlas -plain /path/to/project
 ```
 
+### SARIF output
+
+```bash
+./methodatlas -sarif /path/to/project > results.sarif
+```
+
+### SARIF with AI enrichment
+
+```bash
+./methodatlas -ai -sarif /path/to/tests > results.sarif
+```
+
+### Load defaults from a configuration file
+
+```bash
+./methodatlas -config ./methodatlas.yaml /path/to/tests
+```
+
+### Override YAML output mode on the command line
+
+```bash
+# Even if methodatlas.yaml sets outputMode: plain, -sarif takes precedence
+./methodatlas -config ./methodatlas.yaml -sarif /path/to/tests
+```
+
 ### Scan with metadata header
 
 ```bash
@@ -177,6 +271,12 @@ Runs the consume phase. MethodAtlas reads operator-filled response files and mer
 
 ```bash
 ./methodatlas -file-suffix Test.java -file-suffix IT.java /path/to/project
+```
+
+### Recognise a custom test annotation
+
+```bash
+./methodatlas -test-annotation Test -test-annotation ScenarioTest /path/to/project
 ```
 
 ### AI with local Ollama
@@ -230,6 +330,18 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```bash
 ./methodatlas -ai -ai-confidence /path/to/tests | \
   awk -F',' 'NR==1 || ($9+0) >= 0.7'
+```
+
+### Apply AI annotations to source files
+
+```bash
+./methodatlas -ai -apply-tags /path/to/tests
+```
+
+### Apply annotations using manual responses
+
+```bash
+./methodatlas -manual-consume ./work ./responses -apply-tags /path/to/tests
 ```
 
 ### Manual AI workflow

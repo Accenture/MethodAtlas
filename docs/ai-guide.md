@@ -62,6 +62,37 @@ export ANTHROPIC_API_KEY=sk-ant-...
   /path/to/tests
 ```
 
+## Configuration file
+
+All AI options can be stored in a YAML configuration file so that teams share the same settings without repeating flags on every invocation:
+
+```yaml
+ai:
+  enabled: true
+  provider: openrouter
+  model: stepfun/step-3.5-flash:free
+  apiKeyEnv: OPENROUTER_API_KEY
+  taxonomyMode: optimized
+  timeoutSec: 120
+  maxRetries: 2
+  confidence: true
+```
+
+Load it with `-config`:
+
+```bash
+./methodatlas -config ./methodatlas.yaml /path/to/tests
+```
+
+Command-line flags always override values from the file, so individual developers can selectively change settings without editing the shared file:
+
+```bash
+# Use the team config but switch to a local Ollama model for offline work
+./methodatlas -config ./methodatlas.yaml -ai-provider ollama -ai-model qwen2.5-coder:7b /path/to/tests
+```
+
+See [cli-reference.md](cli-reference.md#-config-file) for the complete field reference.
+
 ## AI confidence scoring
 
 ### What it is
@@ -149,6 +180,108 @@ To align the taxonomy with your organisation's internal controls framework, supp
 ```
 
 The file contents replace the built-in taxonomy text verbatim. When both `-ai-taxonomy` and `-ai-taxonomy-mode` are provided, the external file takes precedence.
+
+## Apply-tags workflow
+
+Once AI classification is complete — either through a live provider or through the manual workflow — the suggested `@DisplayName` and `@Tag` annotations can be written directly back into the test source files using `-apply-tags`.
+
+### What it does
+
+For every security-relevant test method, MethodAtlas inserts:
+
+- **`@DisplayName("<text>")`** — when the AI suggestion provides a non-blank display name and the annotation is not already present on the method
+- **`@Tag("<tag>")`** — for each security tag in the suggestion that is not already declared on the method
+
+Non-security-relevant methods are left untouched. Existing annotations are never overwritten or duplicated. The required imports (`org.junit.jupiter.api.DisplayName`, `org.junit.jupiter.api.Tag`) are added to the compilation unit automatically when at least one annotation of the respective type is inserted. All formatting outside the modified methods is preserved through lexical-preserving pretty printing.
+
+### With a live provider
+
+```bash
+./methodatlas -ai -apply-tags /path/to/tests
+```
+
+MethodAtlas scans, classifies, and annotates in a single pass. A summary is printed on completion:
+
+```text
+Modified: /path/to/tests/com/acme/security/LoginTest.java (+3 annotation(s))
+Modified: /path/to/tests/com/acme/crypto/AesGcmTest.java (+2 annotation(s))
+Apply-tags complete: 5 annotation(s) added to 2 file(s)
+```
+
+### With the manual workflow
+
+The two-phase manual workflow integrates naturally with `-apply-tags`. After filling in response files and verifying the classifications look correct, pass `-apply-tags` during the consume phase instead of letting it emit CSV:
+
+```bash
+# Phase 1 — write prompts (unchanged)
+./methodatlas -manual-prepare ./work ./responses /path/to/tests
+
+# (fill in .response.txt files as usual)
+
+# Phase 2 — apply annotations to source files instead of emitting CSV
+./methodatlas -manual-consume ./work ./responses -apply-tags /path/to/tests
+```
+
+### Example transformation
+
+Before:
+
+```java
+import org.junit.jupiter.api.Test;
+
+public class LoginTest {
+
+    @Test
+    void testLoginWithValidCredentials() {
+        // ...
+    }
+
+    @Test
+    void testCountItems() {
+        // ...
+    }
+}
+```
+
+After running `./methodatlas -ai -apply-tags .`:
+
+```java
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+public class LoginTest {
+
+    @Test
+    @DisplayName("SECURITY: auth - validates session token after login")
+    @Tag("security")
+    @Tag("auth")
+    void testLoginWithValidCredentials() {
+        // ...
+    }
+
+    @Test
+    void testCountItems() {
+        // ...
+    }
+}
+```
+
+`testCountItems` is unchanged because the AI classified it as not security-relevant.
+
+### Idempotency
+
+Running `-apply-tags` a second time on already-annotated files is safe. Tags and display names that are already present are silently skipped. If the AI returns the same suggestions, no changes are written and the file is not touched.
+
+### Combining with a configuration file
+
+If most of your AI settings are shared across the team, store them in a YAML config file and override as needed:
+
+```bash
+./methodatlas -config ./methodatlas.yaml -apply-tags /path/to/tests
+```
+
+See [cli-reference.md](cli-reference.md#-config-file) for the full YAML schema.
 
 ## Manual AI workflow
 
