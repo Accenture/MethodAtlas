@@ -1,0 +1,42 @@
+package org.egothor.methodatlas;
+
+import java.util.List;
+
+import org.egothor.methodatlas.ai.AiMethodSuggestion;
+
+/**
+ * Consumer that receives a single discovered test method record.
+ *
+ * <p>
+ * This functional interface decouples the scanning logic in
+ * {@link MethodAtlasApp} from the output format. During a scan run, one
+ * implementation is created up-front (either a CSV/plain-text lambda backed by
+ * {@link OutputEmitter} or a buffering {@link SarifEmitter}), and every
+ * discovered test method is forwarded to it via {@link #record}.
+ * </p>
+ *
+ * @see OutputEmitter
+ * @see SarifEmitter
+ * @see MethodAtlasApp
+ */
+@FunctionalInterface
+interface TestMethodSink {
+
+    /**
+     * Records a single test method.
+     *
+     * @param fqcn       fully qualified name of the class that declares the method
+     * @param method     simple method name
+     * @param beginLine  one-based line number of the first line of the method
+     *                   declaration; {@code 0} when the parser cannot determine
+     *                   the location
+     * @param loc        inclusive line count of the method declaration
+     * @param tags       source-level JUnit {@code @Tag} values declared on the
+     *                   method; never {@code null}
+     * @param suggestion AI-generated security classification for the method, or
+     *                   {@code null} when AI enrichment is disabled or
+     *                   unavailable for this class
+     */
+    void record(String fqcn, String method, int beginLine, int loc, List<String> tags,
+            AiMethodSuggestion suggestion);
+}

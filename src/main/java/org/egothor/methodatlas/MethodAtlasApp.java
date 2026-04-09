@@ -79,7 +79,7 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * Each work file contains operator instructions and the full AI prompt (with
  * class source embedded). No CSV output is produced in this phase.</li>
  * <li><b>Consume phase</b> ({@code -manual-consume}): the application reads
- * operator-saved AI response files ({@code <fqcn>.response.txt}) from the
+ * operator-saved AI response files ({@code <stem>.response.txt}) from the
  * response directory and produces the final enriched CSV. Classes whose
  * response file is absent receive empty AI columns.</li>
  * </ol>
@@ -87,7 +87,10 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * <h2>Supported Command-Line Options</h2>
  *
  * <ul>
+ * <li>{@code -config <path>} — loads default values from a YAML configuration
+ * file; command-line flags override YAML values</li>
  * <li>{@code -plain} — emits plain text output instead of CSV</li>
+ * <li>{@code -sarif} — emits SARIF 2.1.0 JSON output</li>
  * <li>{@code -ai} — enables AI-based enrichment</li>
  * <li>{@code -ai-provider <provider>} — selects the AI provider</li>
  * <li>{@code -ai-model <model>} — selects the provider-specific model</li>
@@ -140,6 +143,7 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  * @see AnnotationInspector
  * @see OutputEmitter
+ * @see SarifEmitter
  * @see #main(String[])
  */
 public final class MethodAtlasApp {
@@ -226,27 +230,61 @@ public final class MethodAtlasApp {
             aiEngine = buildAiEngine(cliConfig.aiOptions());
         }
 
-        boolean confidenceEnabled = aiEngine != null && cliConfig.aiOptions().confidence();
-        OutputEmitter emitter = new OutputEmitter(out, aiEngine != null, confidenceEnabled);
+        boolean aiEnabled = aiEngine != null;
+        boolean confidenceEnabled = aiEnabled && cliConfig.aiOptions().confidence();
+
+        List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
+
+        // SARIF mode: buffer all records; write JSON once after the scan completes.
+        if (cliConfig.outputMode() == OutputMode.SARIF) {
+            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, parser, roots, out);
+        }
+
+        // CSV / PLAIN mode: emit incrementally.
+        OutputEmitter emitter = new OutputEmitter(out, aiEnabled, confidenceEnabled);
 
         if (cliConfig.emitMetadata()) {
             String version = MethodAtlasApp.class.getPackage().getImplementationVersion();
-            String taxonomyInfo = resolveTaxonomyInfo(cliConfig.aiOptions(), aiEngine != null);
+            String taxonomyInfo = resolveTaxonomyInfo(cliConfig.aiOptions(), aiEnabled);
             emitter.emitMetadata(version != null ? version : "dev", Instant.now().toString(), taxonomyInfo);
         }
 
         emitter.emitCsvHeader(cliConfig.outputMode());
 
-        List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
-        boolean hadErrors = false;
+        final OutputMode mode = cliConfig.outputMode();
+        TestMethodSink sink = (fqcn, method, beginLine, loc, tags, suggestion) ->
+                emitter.emit(mode, fqcn, method, loc, tags, suggestion);
 
+        return scan(roots, cliConfig, aiEngine, parser, sink);
+    }
+
+    /**
+     * Runs the SARIF output path: scans all roots, then serializes the buffered
+     * records as a single SARIF document.
+     */
+    private static int runSarif(CliConfig cliConfig, AiSuggestionEngine aiEngine,
+            boolean aiEnabled, boolean confidenceEnabled,
+            JavaParser parser, List<Path> roots, PrintWriter out) throws IOException {
+        SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled);
+        int result = scan(roots, cliConfig, aiEngine, parser, sarifEmitter);
+        sarifEmitter.flush(out);
+        return result;
+    }
+
+    /**
+     * Scans all roots and forwards each discovered test method to {@code sink}.
+     *
+     * @return {@code 1} if any file produced an error, {@code 0} otherwise
+     */
+    private static int scan(List<Path> roots, CliConfig cliConfig, AiSuggestionEngine aiEngine,
+            JavaParser parser, TestMethodSink sink) throws IOException {
+        boolean hadErrors = false;
         for (Path root : roots) {
-            if (scanRoot(root, cliConfig.outputMode(), cliConfig.aiOptions(), aiEngine, parser, emitter,
+            if (scanRoot(root, cliConfig.aiOptions(), aiEngine, parser, sink,
                     cliConfig.fileSuffixes(), cliConfig.testAnnotations())) {
                 hadErrors = true;
             }
         }
-
         return hadErrors ? 1 : 0;
     }
 
@@ -289,7 +327,7 @@ public final class MethodAtlasApp {
                                 .anyMatch(s -> path.toString().endsWith(s)))
                         .toList();
                 for (Path path : files) {
-                    int count = processFileForPrepare(path, engine, parser, log, cliConfig.testAnnotations());
+                    int count = processFileForPrepare(root, path, engine, parser, log, cliConfig.testAnnotations());
                     if (count < 0) {
                         hadErrors = true;
                     } else {
@@ -308,6 +346,7 @@ public final class MethodAtlasApp {
      * Parses a single Java source file and writes work files for each discovered
      * test class.
      *
+     * @param root   scan root used to compute the path-based file stem
      * @param path   source file to parse
      * @param engine prepare engine used to write work files
      * @param parser configured JavaParser instance
@@ -317,7 +356,7 @@ public final class MethodAtlasApp {
      * @return number of work files written, or {@code -1} if the file could not
      *         be parsed
      */
-    private static int processFileForPrepare(Path path, ManualPrepareEngine engine, JavaParser parser,
+    private static int processFileForPrepare(Path root, Path path, ManualPrepareEngine engine, JavaParser parser,
             PrintWriter log, Set<String> testAnnotations) {
         try {
             ParseResult<CompilationUnit> parseResult = parser.parse(path);
@@ -344,9 +383,10 @@ public final class MethodAtlasApp {
                     continue;
                 }
 
+                String fileStem = buildFileStem(root, path, fqcn);
                 List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
                 try {
-                    Path workFile = engine.prepare(fqcn, clazz.toString(), targetMethods);
+                    Path workFile = engine.prepare(fileStem, fqcn, clazz.toString(), targetMethods);
                     log.println("Prepared: " + workFile);
                     count++;
                 } catch (AiSuggestionException e) {
@@ -370,11 +410,10 @@ public final class MethodAtlasApp {
      * Recursively scans a directory tree for Java test source files.
      *
      * @param root       root directory to scan
-     * @param mode       output mode used for emitted records
      * @param aiOptions  AI configuration for the current run
      * @param aiEngine   AI engine, or {@code null} when AI is disabled
      * @param parser     configured JavaParser instance
-     * @param emitter    output emitter for the current run
+     * @param sink       receiver of discovered test method records
      * @param fileSuffixes    one or more filename suffixes used to select source
      *                        files; a file is included if its name ends with any of
      *                        the listed suffixes
@@ -383,8 +422,8 @@ public final class MethodAtlasApp {
      * @return {@code true} if any file produced a processing error
      * @throws IOException if traversing the file tree fails
      */
-    private static boolean scanRoot(Path root, OutputMode mode, AiOptions aiOptions, AiSuggestionEngine aiEngine,
-            JavaParser parser, OutputEmitter emitter, List<String> fileSuffixes,
+    private static boolean scanRoot(Path root, AiOptions aiOptions, AiSuggestionEngine aiEngine,
+            JavaParser parser, TestMethodSink sink, List<String> fileSuffixes,
             Set<String> testAnnotations) throws IOException {
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "Scanning {0} for files matching {1}", new Object[] { root, fileSuffixes });
@@ -397,7 +436,7 @@ public final class MethodAtlasApp {
                     .filter(path -> fileSuffixes.stream().anyMatch(s -> path.toString().endsWith(s)))
                     .toList();
             for (Path path : files) {
-                if (!processFile(path, mode, aiOptions, aiEngine, parser, emitter, testAnnotations)) {
+                if (!processFile(root, path, aiOptions, aiEngine, parser, sink, testAnnotations)) {
                     hadErrors = true;
                 }
             }
@@ -407,21 +446,22 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Parses a single Java source file, discovers JUnit test methods, and emits
-     * output records for each discovered method.
+     * Parses a single Java source file, discovers JUnit test methods, and forwards
+     * each to the supplied sink.
      *
+     * @param root      scan root used to compute the path-based file stem
      * @param path      source file to parse
-     * @param mode      output mode used for emitted records
      * @param aiOptions AI configuration for the current run
      * @param aiEngine  AI engine, or {@code null} when AI is disabled
      * @param parser    configured JavaParser instance
-     * @param emitter         output emitter for the current run
+     * @param sink            receiver of discovered test method records
      * @param testAnnotations set of annotation simple names that identify test
      *                        methods
      * @return {@code true} if the file was processed successfully
      */
-    private static boolean processFile(Path path, OutputMode mode, AiOptions aiOptions, AiSuggestionEngine aiEngine,
-            JavaParser parser, OutputEmitter emitter, Set<String> testAnnotations) {
+    private static boolean processFile(Path root, Path path, AiOptions aiOptions,
+            AiSuggestionEngine aiEngine, JavaParser parser, TestMethodSink sink,
+            Set<String> testAnnotations) {
         try {
             ParseResult<CompilationUnit> parseResult = parser.parse(path);
 
@@ -439,15 +479,17 @@ public final class MethodAtlasApp {
 
             compilationUnit.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
                 String fqcn = buildFqcn(packageName, clazz.getNameAsString());
+                String fileStem = buildFileStem(root, path, fqcn);
 
                 List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, testAnnotations);
-                SuggestionLookup suggestionLookup = resolveSuggestionLookup(clazz, fqcn, testMethods, aiOptions,
-                        aiEngine);
+                SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
+                        aiOptions, aiEngine);
 
                 for (MethodDeclaration method : testMethods) {
+                    int beginLine = method.getRange().map(range -> range.begin.line).orElse(0);
                     int loc = AnnotationInspector.countLOC(method);
                     List<String> tags = AnnotationInspector.getTagValues(method);
-                    emitter.emit(mode, fqcn, method.getNameAsString(), loc, tags,
+                    sink.record(fqcn, method.getNameAsString(), beginLine, loc, tags,
                             suggestionLookup.find(method.getNameAsString()).orElse(null));
                 }
             });
@@ -472,6 +514,49 @@ public final class MethodAtlasApp {
      */
     private static String buildFqcn(String packageName, String className) {
         return packageName.isEmpty() ? className : packageName + "." + className;
+    }
+
+    /**
+     * Computes the dot-separated file stem used to name work and response files
+     * in the manual AI workflow.
+     *
+     * <p>
+     * The stem is derived from the source file's path relative to the scan root,
+     * with path separators replaced by {@code .} and the {@code .java} extension
+     * removed. This makes each stem unique within a scan root, and when scanning
+     * from a project root that contains multiple modules the module directory name
+     * is naturally included in the stem (e.g.
+     * {@code module-a.src.test.java.com.acme.FooTest}).
+     * </p>
+     *
+     * <p>
+     * When a file contains inner classes whose simple name differs from the file
+     * name, the FQCN's simple name is appended so that each class in the file
+     * receives a distinct stem (e.g. {@code com.acme.FooTest.BarTest}).
+     * </p>
+     *
+     * @param root  scan root directory
+     * @param file  source file being processed
+     * @param fqcn  fully qualified class name of the class in {@code file}
+     * @return dot-separated file stem; never {@code null}
+     */
+    /* default */ static String buildFileStem(Path root, Path file, String fqcn) {
+        Path rel = root.toAbsolutePath().normalize()
+                .relativize(file.toAbsolutePath().normalize());
+        String pathStr = rel.toString().replace('\\', '/').replace('/', '.');
+        if (pathStr.endsWith(".java")) {
+            pathStr = pathStr.substring(0, pathStr.length() - 5);
+        }
+        // For inner classes the file name encodes the outer class but the FQCN ends
+        // with the inner class name; append it to keep stems distinct per class.
+        String pathLastPart = pathStr.contains(".")
+                ? pathStr.substring(pathStr.lastIndexOf('.') + 1) : pathStr;
+        String fqcnLastPart = fqcn.contains(".")
+                ? fqcn.substring(fqcn.lastIndexOf('.') + 1) : fqcn;
+        if (!pathLastPart.equals(fqcnLastPart)) {
+            return pathStr + "." + fqcnLastPart;
+        }
+        return pathStr;
     }
 
     /**
@@ -500,6 +585,8 @@ public final class MethodAtlasApp {
      * not applied in the manual consume phase.
      * </p>
      *
+     * @param fileStem    dot-separated path stem identifying the source file;
+     *                    forwarded to {@link AiSuggestionEngine#suggestForClass}
      * @param clazz       parsed class declaration to analyze
      * @param fqcn        fully qualified class name of {@code clazz}
      * @param testMethods discovered JUnit test methods
@@ -508,8 +595,8 @@ public final class MethodAtlasApp {
      *                    AI is disabled
      * @return lookup of AI suggestions keyed by method name; never {@code null}
      */
-    private static SuggestionLookup resolveSuggestionLookup(ClassOrInterfaceDeclaration clazz, String fqcn,
-            List<MethodDeclaration> testMethods, AiOptions aiOptions, AiSuggestionEngine aiEngine) {
+    private static SuggestionLookup resolveSuggestionLookup(String fileStem, ClassOrInterfaceDeclaration clazz,
+            String fqcn, List<MethodDeclaration> testMethods, AiOptions aiOptions, AiSuggestionEngine aiEngine) {
         if (aiEngine == null || testMethods.isEmpty()) {
             return SuggestionLookup.from(null);
         }
@@ -526,7 +613,7 @@ public final class MethodAtlasApp {
         List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
 
         try {
-            AiClassSuggestion aiClassSuggestion = aiEngine.suggestForClass(fqcn, classSource, targetMethods);
+            AiClassSuggestion aiClassSuggestion = aiEngine.suggestForClass(fileStem, fqcn, classSource, targetMethods);
             return SuggestionLookup.from(aiClassSuggestion);
         } catch (AiSuggestionException e) {
             if (LOG.isLoggable(Level.WARNING)) {

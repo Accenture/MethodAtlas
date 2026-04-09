@@ -41,6 +41,10 @@ public class MethodAtlasAppManualTest {
     private static final String FQCN_ACCESS_CONTROL = "com.acme.security.AccessControlServiceTest";
     private static final String FQCN_AUDIT = "com.acme.audit.AuditLoggingTest";
 
+    // Path-derived file stems (flat sourceDir → stem = file name without .java)
+    private static final String STEM_ACCESS_CONTROL = "AccessControlServiceTest";
+    private static final String STEM_AUDIT = "AuditLoggingTest";
+
     // -------------------------------------------------------------------------
     // Prepare phase
     // -------------------------------------------------------------------------
@@ -57,10 +61,10 @@ public class MethodAtlasAppManualTest {
         String output = runAppCapturingStdout(
                 new String[] { "-manual-prepare", workDir.toString(), workDir.toString(), sourceDir.toString() });
 
-        // Work files are named <fqcn>.txt
-        assertTrue(Files.exists(workDir.resolve(FQCN_ACCESS_CONTROL + ".txt")),
+        // Work files are named <fileStem>.txt where stem is derived from source file path
+        assertTrue(Files.exists(workDir.resolve(STEM_ACCESS_CONTROL + ".txt")),
                 "Work file for AccessControlServiceTest should exist");
-        assertTrue(Files.exists(workDir.resolve(FQCN_AUDIT + ".txt")),
+        assertTrue(Files.exists(workDir.resolve(STEM_AUDIT + ".txt")),
                 "Work file for AuditLoggingTest should exist");
 
         // Progress lines printed to stdout
@@ -79,14 +83,14 @@ public class MethodAtlasAppManualTest {
         runAppCapturingStdout(
                 new String[] { "-manual-prepare", workDir.toString(), workDir.toString(), sourceDir.toString() });
 
-        Path workFile = workDir.resolve(FQCN_ACCESS_CONTROL + ".txt");
+        Path workFile = workDir.resolve(STEM_ACCESS_CONTROL + ".txt");
         assertTrue(Files.exists(workFile));
 
         String content = Files.readString(workFile, StandardCharsets.UTF_8);
 
         // Operator instructions
         assertTrue(content.contains("OPERATOR INSTRUCTIONS"));
-        assertTrue(content.contains(FQCN_ACCESS_CONTROL + ".response.txt"));
+        assertTrue(content.contains(STEM_ACCESS_CONTROL + ".response.txt"));
         assertTrue(content.contains("-manual-consume"));
 
         // AI prompt markers
@@ -160,7 +164,8 @@ public class MethodAtlasAppManualTest {
                   ]
                 }
                 """.formatted(FQCN_ACCESS_CONTROL);
-        Files.writeString(responseDir.resolve(FQCN_ACCESS_CONTROL + ".response.txt"), responseJson,
+        // Response file is named by stem (path-derived), not FQCN
+        Files.writeString(responseDir.resolve(STEM_ACCESS_CONTROL + ".response.txt"), responseJson,
                 StandardCharsets.UTF_8);
 
         String output = runAppCapturingStdout(new String[] {
@@ -229,7 +234,7 @@ public class MethodAtlasAppManualTest {
         copyFixture(sourceDir, "AccessControlServiceTest.java");
         copyFixture(sourceDir, "AuditLoggingTest.java");
 
-        // Only provide response for AccessControlServiceTest
+        // Only provide response for AccessControlServiceTest (using stem-based filename)
         String responseJson = """
                 {
                   "className": "%s",
@@ -247,7 +252,7 @@ public class MethodAtlasAppManualTest {
                   ]
                 }
                 """.formatted(FQCN_ACCESS_CONTROL);
-        Files.writeString(responseDir.resolve(FQCN_ACCESS_CONTROL + ".response.txt"), responseJson,
+        Files.writeString(responseDir.resolve(STEM_ACCESS_CONTROL + ".response.txt"), responseJson,
                 StandardCharsets.UTF_8);
 
         String output = runAppCapturingStdout(new String[] {

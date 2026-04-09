@@ -99,13 +99,25 @@ public final class ManualPrepareEngine {
      * </p>
      *
      * <p>
-     * An empty {@code <fqcn>.response.txt} file is also written to the same work
+     * File names are derived from {@code fileStem} (a dot-separated path identifier
+     * based on the source file's location relative to the scan root) rather than the
+     * FQCN. This ensures uniqueness in multi-module projects where the same FQCN
+     * may appear in multiple modules. For a standard Maven source root
+     * (e.g. {@code src/test/java}), the stem is identical to the FQCN.
+     * </p>
+     *
+     * <p>
+     * An empty {@code <fileStem>.response.txt} file is also written to the response
      * directory so the operator only needs to paste the AI response into the
      * pre-existing file rather than creating it manually. If the response file
      * already contains content (e.g. from a previous run) it is left untouched.
      * </p>
      *
-     * @param fqcn          fully qualified class name of the test class
+     * @param fileStem      dot-separated path stem used as the base name for the
+     *                      work file and response stub; derived from the source
+     *                      file path relative to the scan root
+     * @param fqcn          fully qualified class name of the test class; used in
+     *                      the work file content and AI prompt
      * @param classSource   complete source code of the test class
      * @param targetMethods deterministically discovered JUnit test methods to
      *                      classify
@@ -113,11 +125,11 @@ public final class ManualPrepareEngine {
      * @throws AiSuggestionException if the work file or the empty response file
      *                               cannot be written
      */
-    public Path prepare(String fqcn, String classSource, List<PromptBuilder.TargetMethod> targetMethods)
-            throws AiSuggestionException {
+    public Path prepare(String fileStem, String fqcn, String classSource,
+            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
         String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, confidence);
-        Path outputFile = workDir.resolve(fqcn + ".txt");
-        String content = buildFileContent(fqcn, prompt);
+        Path outputFile = workDir.resolve(fileStem + ".txt");
+        String content = buildFileContent(fileStem, fqcn, prompt);
 
         try {
             Files.writeString(outputFile, content, StandardCharsets.UTF_8);
@@ -125,7 +137,7 @@ public final class ManualPrepareEngine {
             throw new AiSuggestionException("Failed to write work file: " + outputFile, e);
         }
 
-        Path responseFile = responseDir.resolve(fqcn + ".response.txt");
+        Path responseFile = responseDir.resolve(fileStem + ".response.txt");
         if (!Files.exists(responseFile)) {
             try {
                 Files.writeString(responseFile, "", StandardCharsets.UTF_8);
@@ -137,13 +149,13 @@ public final class ManualPrepareEngine {
         return outputFile;
     }
 
-    private static String buildFileContent(String fqcn, String prompt) {
-        String responseFileName = fqcn + ".response.txt";
+    private static String buildFileContent(String fileStem, String fqcn, String prompt) {
+        String responseFileName = fileStem + ".response.txt";
         return SEPARATOR + "\n"
                 + "OPERATOR INSTRUCTIONS\n"
                 + SEPARATOR + "\n"
                 + "Class      : " + fqcn + "\n"
-                + "Work file  : " + fqcn + ".txt\n"
+                + "Work file  : " + fileStem + ".txt\n"
                 + "Response   : " + responseFileName + "\n"
                 + "\n"
                 + "Steps:\n"

@@ -65,13 +65,18 @@ public final class ManualConsumeEngine implements AiSuggestionEngine {
      * corresponding response file.
      *
      * <p>
-     * If {@code <fqcn>.response.txt} does not exist in the response directory an
-     * empty {@link AiClassSuggestion} is returned so the caller emits blank AI
-     * columns rather than failing.
+     * The response file is looked up as {@code <fileStem>.response.txt} in the
+     * configured response directory, where {@code fileStem} is the dot-separated
+     * path identifier computed from the source file's location relative to the scan
+     * root (e.g. {@code module-a.src.test.java.com.acme.FooTest}). If the file does
+     * not exist an empty {@link AiClassSuggestion} is returned so the caller emits
+     * blank AI columns rather than failing.
      * </p>
      *
-     * @param fqcn          fully qualified class name; used to derive the response
-     *                      file name
+     * @param fileStem      dot-separated path stem used to locate the response file
+     *                      ({@code <fileStem>.response.txt})
+     * @param fqcn          fully qualified class name; included in the returned
+     *                      suggestion for identification
      * @param classSource   ignored — the AI already saw the source during the
      *                      prepare phase
      * @param targetMethods ignored — method classification is read from the
@@ -82,12 +87,12 @@ public final class ManualConsumeEngine implements AiSuggestionEngine {
      *                               or does not contain a valid JSON object
      */
     @Override
-    public AiClassSuggestion suggestForClass(String fqcn, String classSource,
+    public AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
-        Path responseFile = responseDir.resolve(fqcn + ".response.txt");
+        Path responseFile = responseDir.resolve(fileStem + ".response.txt");
 
         if (!Files.exists(responseFile)) {
-            return new AiClassSuggestion(fqcn, null, List.of(), null, List.of());
+            return new AiClassSuggestion(fqcn, null, List.of(), null, List.of()); // fqcn used for className
         }
 
         try {

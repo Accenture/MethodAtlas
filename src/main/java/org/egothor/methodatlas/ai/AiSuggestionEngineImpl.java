@@ -87,7 +87,7 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      * @see AiProviderClient#suggestForClass(String, String, String)
      */
     @Override
-    public AiClassSuggestion suggestForClass(String fqcn, String classSource,
+    public AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
         return client.suggestForClass(fqcn, classSource, taxonomyText, targetMethods);
     }

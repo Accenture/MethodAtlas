@@ -25,5 +25,19 @@ enum OutputMode {
     /**
      * Emits output in a human-readable plain text format.
      */
-    PLAIN
+    PLAIN,
+
+    /**
+     * Emits output in SARIF 2.1.0 JSON format.
+     *
+     * <p>
+     * Results are buffered in memory and serialized to a single JSON document
+     * after all source files have been scanned. Each test method becomes one
+     * SARIF result; security-relevant methods receive level {@code note}, all
+     * others receive level {@code none}.
+     * </p>
+     *
+     * @see <a href="https://docs.oasis-open.org/sarif/sarif/v2.1.0/">SARIF 2.1.0 specification</a>
+     */
+    SARIF
 }

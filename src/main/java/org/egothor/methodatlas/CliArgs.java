@@ -1,5 +1,6 @@
 package org.egothor.methodatlas;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -23,6 +24,13 @@ import org.egothor.methodatlas.ai.AiProvider;
  * </p>
  *
  * <p>
+ * When a {@code -config <file>} argument is present it is processed first
+ * (via a pre-scan) so that the YAML file provides default values before
+ * individual command-line flags are evaluated. Command-line flags always take
+ * precedence over values from the YAML configuration file.
+ * </p>
+ *
+ * <p>
  * This class is a non-instantiable utility holder.
  * </p>
  *
@@ -42,22 +50,42 @@ final class CliArgs {
     /**
      * Parses command-line arguments into a structured configuration object.
      *
+     * <p>
+     * If a {@code -config <file>} argument is present it is loaded first and
+     * its values seed the initial configuration. Subsequent command-line flags
+     * override those defaults.
+     * </p>
+     *
      * @param args raw command-line arguments
      * @return parsed command-line configuration
      * @throws IllegalArgumentException if an option value is missing, malformed,
-     *                                  or unsupported
+     *                                  or unsupported, or if the config file
+     *                                  cannot be read
      */
     @SuppressWarnings("PMD.AvoidReassigningLoopVariables")
     /* default */ static CliConfig parse(String... args) {
-        OutputMode outputMode = OutputMode.CSV;
-        List<Path> paths = new ArrayList<>();
+        // Pre-scan for -config to load YAML defaults before processing other flags.
+        YamlConfig.YamlConfigFile yamlConfig = loadYamlConfigFromArgs(args);
+
+        // Seed initial values from YAML (command-line flags will override these).
+        OutputMode outputMode = resolveOutputModeFromYaml(yamlConfig);
+        boolean emitMetadata = yamlConfig != null && yamlConfig.emitMetadata;
+        List<String> fileSuffixes = yamlConfig != null && yamlConfig.fileSuffixes != null
+                ? new ArrayList<>(yamlConfig.fileSuffixes) : new ArrayList<>();
+        Set<String> testAnnotations = yamlConfig != null && yamlConfig.testAnnotations != null
+                ? new LinkedHashSet<>(yamlConfig.testAnnotations) : new LinkedHashSet<>();
         AiOptions.Builder aiBuilder = AiOptions.builder();
-        List<String> fileSuffixes = new ArrayList<>();
-        Set<String> testAnnotations = new LinkedHashSet<>();
-        boolean emitMetadata = false;
+        if (yamlConfig != null && yamlConfig.ai != null) {
+            applyYamlAiConfig(aiBuilder, yamlConfig.ai);
+        }
+
+        List<Path> paths = new ArrayList<>();
         String manualWorkDir = null;
         String manualResponseDir = null;
         boolean manualIsConsume = false;
+        // Tracks whether the first CLI -file-suffix has been seen; when it is,
+        // subsequent -file-suffix values are appended rather than replacing defaults.
+        boolean cliFileSuffixSet = false;
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
@@ -67,7 +95,16 @@ final class CliArgs {
             }
             switch (arg) {
                 case "-plain" -> outputMode = OutputMode.PLAIN;
-                case "-file-suffix" -> fileSuffixes.add(nextArg(args, ++i, arg));
+                case "-sarif" -> outputMode = OutputMode.SARIF;
+                case "-config" -> i++; // value already consumed in pre-scan; skip here
+                case "-file-suffix" -> {
+                    if (!cliFileSuffixSet) {
+                        // First CLI -file-suffix replaces YAML defaults
+                        fileSuffixes.clear();
+                        cliFileSuffixSet = true;
+                    }
+                    fileSuffixes.add(nextArg(args, ++i, arg));
+                }
                 case "-test-annotation" -> testAnnotations.add(nextArg(args, ++i, arg));
                 case "-emit-metadata" -> emitMetadata = true;
                 case "-manual-prepare" -> {
@@ -104,6 +141,100 @@ final class CliArgs {
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
                 emitMetadata, manualMode);
     }
+
+    // -------------------------------------------------------------------------
+    // YAML config helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Pre-scans {@code args} for a {@code -config <file>} argument and loads the
+     * YAML file if found.
+     *
+     * @param args raw command-line arguments
+     * @return parsed YAML config, or {@code null} when no {@code -config} flag is
+     *         present
+     * @throws IllegalArgumentException if the config file cannot be read
+     */
+    private static YamlConfig.YamlConfigFile loadYamlConfigFromArgs(String[] args) {
+        for (int i = 0; i < args.length - 1; i++) {
+            if ("-config".equals(args[i])) {
+                Path configPath = Paths.get(args[i + 1]);
+                try {
+                    return YamlConfig.load(configPath);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Cannot load config file: " + configPath, e);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Derives the initial {@link OutputMode} from a loaded YAML config.
+     *
+     * @param yamlConfig YAML config, or {@code null}
+     * @return resolved output mode; defaults to {@link OutputMode#CSV}
+     */
+    private static OutputMode resolveOutputModeFromYaml(YamlConfig.YamlConfigFile yamlConfig) {
+        if (yamlConfig == null || yamlConfig.outputMode == null) {
+            return OutputMode.CSV;
+        }
+        return switch (yamlConfig.outputMode.toLowerCase(Locale.ROOT)) {
+            case "plain" -> OutputMode.PLAIN;
+            case "sarif" -> OutputMode.SARIF;
+            default -> OutputMode.CSV;
+        };
+    }
+
+    /**
+     * Seeds the AI options builder from YAML configuration values.
+     *
+     * @param builder   AI options builder to update
+     * @param aiConfig  AI section of the YAML config; never {@code null}
+     */
+    private static void applyYamlAiConfig(AiOptions.Builder builder, YamlConfig.YamlAiConfig aiConfig) {
+        if (Boolean.TRUE.equals(aiConfig.enabled)) {
+            builder.enabled(true);
+        }
+        if (aiConfig.provider != null) {
+            builder.provider(AiProvider.valueOf(aiConfig.provider.toUpperCase(Locale.ROOT)));
+        }
+        if (aiConfig.model != null) {
+            builder.modelName(aiConfig.model);
+        }
+        if (aiConfig.baseUrl != null) {
+            builder.baseUrl(aiConfig.baseUrl);
+        }
+        if (aiConfig.apiKey != null) {
+            builder.apiKey(aiConfig.apiKey);
+        }
+        if (aiConfig.apiKeyEnv != null) {
+            builder.apiKeyEnv(aiConfig.apiKeyEnv);
+        }
+        if (aiConfig.taxonomyFile != null) {
+            builder.taxonomyFile(Paths.get(aiConfig.taxonomyFile));
+        }
+        if (aiConfig.taxonomyMode != null) {
+            builder.taxonomyMode(
+                    AiOptions.TaxonomyMode.valueOf(aiConfig.taxonomyMode.toUpperCase(Locale.ROOT)));
+        }
+        if (aiConfig.maxClassChars != null) {
+            builder.maxClassChars(aiConfig.maxClassChars);
+        }
+        if (aiConfig.timeoutSec != null) {
+            builder.timeout(Duration.ofSeconds(aiConfig.timeoutSec));
+        }
+        if (aiConfig.maxRetries != null) {
+            builder.maxRetries(aiConfig.maxRetries);
+        }
+        if (Boolean.TRUE.equals(aiConfig.confidence)) {
+            builder.confidence(true);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // AI argument helper
+    // -------------------------------------------------------------------------
 
     /**
      * Applies a single AI-related command-line argument to the builder.

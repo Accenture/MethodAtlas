@@ -23,7 +23,7 @@ class ManualConsumeEngineTest {
     void suggestForClass_returnsEmptySuggestionWhenResponseFileAbsent(@TempDir Path responseDir) throws Exception {
         ManualConsumeEngine engine = new ManualConsumeEngine(responseDir);
 
-        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, "class AccessControlServiceTest {}",
+        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, FQCN, "class AccessControlServiceTest {}",
                 List.of(new PromptBuilder.TargetMethod("shouldAllowOwner", 1, 1)));
 
         assertNotNull(suggestion);
@@ -56,7 +56,7 @@ class ManualConsumeEngineTest {
         Files.writeString(responseDir.resolve(FQCN + ".response.txt"), responseJson, StandardCharsets.UTF_8);
 
         ManualConsumeEngine engine = new ManualConsumeEngine(responseDir);
-        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, "class AccessControlServiceTest {}",
+        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, FQCN, "class AccessControlServiceTest {}",
                 List.of(new PromptBuilder.TargetMethod("shouldAllowOwner", 1, 1)));
 
         assertEquals(FQCN, suggestion.className());
@@ -92,7 +92,7 @@ class ManualConsumeEngineTest {
         Files.writeString(responseDir.resolve(FQCN + ".response.txt"), responseWithProse, StandardCharsets.UTF_8);
 
         ManualConsumeEngine engine = new ManualConsumeEngine(responseDir);
-        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, "class AccessControlServiceTest {}",
+        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, FQCN, "class AccessControlServiceTest {}",
                 List.of(new PromptBuilder.TargetMethod("shouldAllowOwner", 1, 1)));
 
         assertEquals(Boolean.FALSE, suggestion.classSecurityRelevant());
@@ -130,7 +130,7 @@ class ManualConsumeEngineTest {
         Files.writeString(responseDir.resolve(FQCN + ".response.txt"), responseJson, StandardCharsets.UTF_8);
 
         ManualConsumeEngine engine = new ManualConsumeEngine(responseDir);
-        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, "",
+        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, FQCN, "",
                 List.of(new PromptBuilder.TargetMethod("shouldAllowOwner", 1, 1)));
 
         // null classTags normalized to empty list
@@ -152,7 +152,7 @@ class ManualConsumeEngineTest {
         ManualConsumeEngine engine = new ManualConsumeEngine(responseDir);
 
         assertThrows(AiSuggestionException.class,
-                () -> engine.suggestForClass(FQCN, "", List.of(new PromptBuilder.TargetMethod("m", 1, 1))));
+                () -> engine.suggestForClass(FQCN, FQCN, "", List.of(new PromptBuilder.TargetMethod("m", 1, 1))));
     }
 
     @Test
@@ -164,7 +164,7 @@ class ManualConsumeEngineTest {
         Files.writeString(responseDir.resolve(FQCN + ".response.txt"), responseJson, StandardCharsets.UTF_8);
 
         ManualConsumeEngine engine = new ManualConsumeEngine(responseDir);
-        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, "" /* ignored */,
+        AiClassSuggestion suggestion = engine.suggestForClass(FQCN, FQCN, "" /* ignored */,
                 List.of(new PromptBuilder.TargetMethod("m", 1, 1)));
 
         assertFalse(suggestion.classSecurityRelevant());

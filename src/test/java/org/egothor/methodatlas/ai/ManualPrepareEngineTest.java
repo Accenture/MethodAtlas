@@ -26,7 +26,7 @@ class ManualPrepareEngineTest {
         List<PromptBuilder.TargetMethod> targetMethods = List.of(
                 new PromptBuilder.TargetMethod("shouldAllowOwner", 1, 1));
 
-        Path workFile = engine.prepare(fqcn, classSource, targetMethods);
+        Path workFile = engine.prepare(fqcn, fqcn, classSource, targetMethods);
 
         assertNotNull(workFile);
         assertEquals(workDir.resolve(fqcn + ".txt"), workFile);
@@ -55,7 +55,7 @@ class ManualPrepareEngineTest {
         AiOptions options = AiOptions.builder().build();
         ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
-        engine.prepare("com.acme.FooTest", "class FooTest {}",
+        engine.prepare("com.acme.FooTest", "com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
 
         assertTrue(Files.isDirectory(workDir), "Work directory should be created");
@@ -69,7 +69,7 @@ class ManualPrepareEngineTest {
         AiOptions options = AiOptions.builder().build();
         ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
-        engine.prepare("com.acme.FooTest", "class FooTest {}",
+        engine.prepare("com.acme.FooTest", "com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
 
         assertTrue(Files.isDirectory(responseDir), "Response directory should be created");
@@ -86,7 +86,7 @@ class ManualPrepareEngineTest {
         ManualPrepareEngine engine = new ManualPrepareEngine(
                 tempDir.resolve("work"), tempDir.resolve("responses"), options);
 
-        engine.prepare("com.acme.FooTest", "class FooTest {}",
+        engine.prepare("com.acme.FooTest", "com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
 
         String content = Files.readString(tempDir.resolve("work/com.acme.FooTest.txt"), StandardCharsets.UTF_8);
@@ -100,7 +100,7 @@ class ManualPrepareEngineTest {
         AiOptions options = AiOptions.builder().build();
         ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
-        Path result = engine.prepare("org.example.BarTest", "class BarTest {}",
+        Path result = engine.prepare("org.example.BarTest", "org.example.BarTest", "class BarTest {}",
                 List.of(new PromptBuilder.TargetMethod("testBar", 5, 10)));
 
         assertEquals(workDir.resolve("org.example.BarTest.txt"), result);
@@ -113,9 +113,9 @@ class ManualPrepareEngineTest {
         AiOptions options = AiOptions.builder().build();
         ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
-        engine.prepare("com.acme.FooTest", "class FooTest {}",
+        engine.prepare("com.acme.FooTest", "com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
-        engine.prepare("com.acme.BarTest", "class BarTest {}",
+        engine.prepare("com.acme.BarTest", "com.acme.BarTest", "class BarTest {}",
                 List.of(new PromptBuilder.TargetMethod("testBar", 1, 1)));
 
         assertTrue(Files.exists(workDir.resolve("com.acme.FooTest.txt")));
@@ -129,7 +129,7 @@ class ManualPrepareEngineTest {
         AiOptions options = AiOptions.builder().build();
         ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
 
-        engine.prepare("com.acme.FooTest", "class FooTest {}",
+        engine.prepare("com.acme.FooTest", "com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
 
         Path responseFile = responseDir.resolve("com.acme.FooTest.response.txt");
@@ -148,7 +148,7 @@ class ManualPrepareEngineTest {
 
         AiOptions options = AiOptions.builder().build();
         ManualPrepareEngine engine = new ManualPrepareEngine(workDir, responseDir, options);
-        engine.prepare("com.acme.FooTest", "class FooTest {}",
+        engine.prepare("com.acme.FooTest", "com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
 
         assertEquals("existing content", Files.readString(responseFile, StandardCharsets.UTF_8),
@@ -160,7 +160,7 @@ class ManualPrepareEngineTest {
         AiOptions options = AiOptions.builder().build();
         ManualPrepareEngine engine = new ManualPrepareEngine(sharedDir, sharedDir, options);
 
-        engine.prepare("com.acme.FooTest", "class FooTest {}",
+        engine.prepare("com.acme.FooTest", "com.acme.FooTest", "class FooTest {}",
                 List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
 
         assertTrue(Files.exists(sharedDir.resolve("com.acme.FooTest.txt")),

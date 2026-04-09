@@ -41,15 +41,15 @@ class MethodAtlasAppAiTest {
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, _) -> {
-                    when(mock.suggestForClass(eq("com.acme.tests.SampleOneTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.tests.SampleOneTest"), anyString(), any()))
                             .thenReturn(sampleOneSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.other.AnotherTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.other.AnotherTest"), anyString(), any()))
                             .thenReturn(anotherSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.security.AccessControlServiceTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.security.AccessControlServiceTest"), anyString(), any()))
                             .thenReturn(accessControlSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.storage.PathTraversalValidationTest"), anyString(), any()))
                             .thenReturn(pathTraversalSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.audit.AuditLoggingTest"), anyString(), any()))
                             .thenReturn(auditLoggingSuggestion());
                 })) {
 
@@ -101,15 +101,15 @@ class MethodAtlasAppAiTest {
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, _) -> {
-                    when(mock.suggestForClass(eq("com.acme.tests.SampleOneTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.tests.SampleOneTest"), anyString(), any()))
                             .thenReturn(sampleOneSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.other.AnotherTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.other.AnotherTest"), anyString(), any()))
                             .thenReturn(anotherSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.security.AccessControlServiceTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.security.AccessControlServiceTest"), anyString(), any()))
                             .thenThrow(new AiSuggestionException("Simulated provider failure"));
-                    when(mock.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.storage.PathTraversalValidationTest"), anyString(), any()))
                             .thenReturn(pathTraversalSuggestion());
-                    when(mock.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), anyString(), any()))
+                    when(mock.suggestForClass(anyString(), eq("com.acme.audit.AuditLoggingTest"), anyString(), any()))
                             .thenReturn(auditLoggingSuggestion());
                 })) {
 
@@ -169,7 +169,7 @@ class MethodAtlasAppAiTest {
             assertEquals("", row.get(7));
 
             assertEquals(1, mocked.constructed().size(), "Expected one AI engine instance");
-            verify(mocked.constructed().get(0), never()).suggestForClass(anyString(), anyString(), any());
+            verify(mocked.constructed().get(0), never()).suggestForClass(anyString(), anyString(), anyString(), any());
         }
     }
 

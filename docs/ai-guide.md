@@ -167,10 +167,12 @@ Phase 1 – Prepare                         Phase 2 – Consume
 
   ↓                                         ↓
 For each test class:                      For each test class:
-  write  work/<fqcn>.txt                    look for responses/<fqcn>.response.txt
-  create responses/<fqcn>.response.txt      → non-empty: parse AI JSON → AI cols
+  write  work/<stem>.txt                    look for responses/<stem>.response.txt
+  create responses/<stem>.response.txt      → non-empty: parse AI JSON → AI cols
   (operator instructions + AI prompt)       → empty/absent: blank AI columns
 ```
+
+`<stem>` is derived from the source file's path relative to the scan root, with path separators replaced by `.` and the `.java` extension removed (e.g. `module-a.src.test.java.com.acme.FooTest`). When scanning from a standard Maven source root (`src/test/java`) the stem equals the FQCN.
 
 The final CSV is identical in format to the automated flow.
 
@@ -182,8 +184,10 @@ The final CSV is identical in format to the automated flow.
 
 MethodAtlas scans the source tree and, for each test class, writes:
 
-1. **`<workdir>/<fqcn>.txt`** — the work file, containing operator instructions and the complete AI prompt (taxonomy definition, method list, full class source)
-2. **`<responsedir>/<fqcn>.response.txt`** — an empty placeholder for the AI response; if it already exists and contains content from a previous run, it is left untouched
+1. **`<workdir>/<stem>.txt`** — the work file, containing operator instructions and the complete AI prompt (taxonomy definition, method list, full class source)
+2. **`<responsedir>/<stem>.response.txt`** — an empty placeholder for the AI response; if it already exists and contains content from a previous run, it is left untouched
+
+The `<stem>` is derived from the source file path relative to the scan root. For a standard Maven layout (scanning from `src/test/java`) it equals the FQCN. When scanning from a higher root (e.g. the project root in a multi-module build), the module directory name is included — for example `module-a.src.test.java.com.acme.FooTest`. This ensures files from different modules never collide even when they share an FQCN.
 
 Both directories are created automatically if they do not exist. They may be the same path.
 
@@ -197,7 +201,7 @@ After pasting AI responses into the pre-created `.response.txt` files:
 ./methodatlas -manual-consume ./work ./responses /path/to/tests
 ```
 
-For each test class, MethodAtlas reads `<fqcn>.response.txt`:
+For each test class, MethodAtlas reads `<stem>.response.txt` (using the same stem derived from the source file path):
 
 - **File contains AI JSON** — the first JSON object is extracted (surrounding prose from the chat window is silently ignored), parsed, and merged into the output
 - **File is empty or absent** — the row is emitted with blank AI columns; the scan continues without error
@@ -211,15 +215,15 @@ Processing is incremental: you can run consume after filling in each response ra
 OPERATOR INSTRUCTIONS
 ================================================================================
 Class      : com.acme.security.AccessControlServiceTest
-Work file  : com.acme.security.AccessControlServiceTest.txt
-Response   : com.acme.security.AccessControlServiceTest.response.txt
+Work file  : module-a.src.test.java.com.acme.security.AccessControlServiceTest.txt
+Response   : module-a.src.test.java.com.acme.security.AccessControlServiceTest.response.txt
 
 Steps:
   1. Copy the AI PROMPT block below (between the BEGIN/END markers)
      into your AI chat window.
   2. Wait for the AI to respond.
   3. Paste the complete AI response into the pre-created file:
-       com.acme.security.AccessControlServiceTest.response.txt
+       module-a.src.test.java.com.acme.security.AccessControlServiceTest.response.txt
      (created empty alongside this work file — do not rename it).
   4. Repeat for all other work files.
   5. After all responses are saved, run the consume phase:

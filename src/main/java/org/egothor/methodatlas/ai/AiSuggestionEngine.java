@@ -54,6 +54,16 @@ public interface AiSuggestionEngine {
      * using full class context.
      * </p>
      *
+     * <p>
+     * The {@code fileStem} parameter is a dot-separated identifier derived from the
+     * source file's path relative to the scan root (e.g.
+     * {@code module-a.src.test.java.com.acme.FooTest}). Automated provider
+     * implementations ignore it; the {@link ManualConsumeEngine} uses it to locate
+     * the operator-saved response file ({@code <fileStem>.response.txt}).
+     * </p>
+     *
+     * @param fileStem      dot-separated path stem identifying the source file;
+     *                      used by file-based engines to locate response files
      * @param fqcn          fully qualified class name of the parsed test class
      * @param classSource   complete source code of the class to analyze
      * @param targetMethods deterministically extracted JUnit test methods that must
@@ -66,7 +76,8 @@ public interface AiSuggestionEngine {
      *
      * @see AiClassSuggestion
      * @see AiMethodSuggestion
+     * @see ManualConsumeEngine
      */
-    AiClassSuggestion suggestForClass(String fqcn, String classSource, List<PromptBuilder.TargetMethod> targetMethods)
-            throws AiSuggestionException;
+    AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
+            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException;
 }

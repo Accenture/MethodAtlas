@@ -52,7 +52,7 @@ class AiSuggestionEngineImplTest {
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
             AiClassSuggestion actual = engine.suggestForClass("com.acme.security.AccessControlServiceTest",
-                    "class AccessControlServiceTest {}", targetMethods);
+                    "com.acme.security.AccessControlServiceTest", "class AccessControlServiceTest {}", targetMethods);
 
             assertSame(expected, actual);
 
@@ -90,7 +90,8 @@ class AiSuggestionEngineImplTest {
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
             AiClassSuggestion actual = engine.suggestForClass("com.acme.storage.PathTraversalValidationTest",
-                    "class PathTraversalValidationTest {}", targetMethods);
+                    "com.acme.storage.PathTraversalValidationTest", "class PathTraversalValidationTest {}",
+                    targetMethods);
 
             assertSame(expected, actual);
 
@@ -135,7 +136,7 @@ class AiSuggestionEngineImplTest {
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
             AiClassSuggestion actual = engine.suggestForClass("com.acme.audit.AuditLoggingTest",
-                    "class AuditLoggingTest {}", targetMethods);
+                    "com.acme.audit.AuditLoggingTest", "class AuditLoggingTest {}", targetMethods);
 
             assertSame(expected, actual);
 
