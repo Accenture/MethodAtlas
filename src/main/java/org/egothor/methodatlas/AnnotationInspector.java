@@ -84,7 +84,11 @@ final class AnnotationInspector {
      */
     /* default */ static boolean isJUnitTest(MethodDeclaration method, Set<String> testAnnotations) {
         for (AnnotationExpr annotation : method.getAnnotations()) {
-            if (testAnnotations.contains(annotation.getNameAsString())) {
+            String name = annotation.getNameAsString();
+            // Strip qualifier so @org.junit.jupiter.api.Test matches the simple name "Test"
+            int dot = name.lastIndexOf('.');
+            String simpleName = dot >= 0 ? name.substring(dot + 1) : name;
+            if (testAnnotations.contains(simpleName)) {
                 return true;
             }
         }

@@ -42,7 +42,7 @@ repositories {
 dependencies {
     implementation 'com.github.javaparser:javaparser-core:3.28.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.19.0'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.1'
 
 	testImplementation(platform("org.junit:junit-bom:5.14.2"))
 	testImplementation 'org.junit.jupiter:junit-jupiter'
