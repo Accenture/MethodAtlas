@@ -15,7 +15,8 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,7 +40,7 @@ class MethodAtlasAppAiTest {
         copyAllFixtures(tempDir);
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
-                (mock, context) -> {
+                (mock, _) -> {
                     when(mock.suggestForClass(eq("com.acme.tests.SampleOneTest"), anyString(), any()))
                             .thenReturn(sampleOneSuggestion());
                     when(mock.suggestForClass(eq("com.acme.other.AnotherTest"), anyString(), any()))
@@ -99,7 +100,7 @@ class MethodAtlasAppAiTest {
         copyAllFixtures(tempDir);
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
-                (mock, context) -> {
+                (mock, _) -> {
                     when(mock.suggestForClass(eq("com.acme.tests.SampleOneTest"), anyString(), any()))
                             .thenReturn(sampleOneSuggestion());
                     when(mock.suggestForClass(eq("com.acme.other.AnotherTest"), anyString(), any()))
@@ -312,15 +313,9 @@ class MethodAtlasAppAiTest {
 
     private static String runAppCapturingStdout(String[] args) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PrintStream previous = System.out;
-
-        try (PrintStream ps = new PrintStream(baos, true, StandardCharsets.UTF_8)) {
-            System.setOut(ps);
-            MethodAtlasApp.main(args);
-        } finally {
-            System.setOut(previous);
+        try (PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
+            MethodAtlasApp.run(args, out);
         }
-
         return baos.toString(StandardCharsets.UTF_8);
     }
 

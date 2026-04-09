@@ -96,16 +96,18 @@
  * <h2>Implementation Notes</h2>
  *
  * <ul>
- * <li>Parsing is performed using
- * {@link com.github.javaparser.StaticJavaParser}.</li>
+ * <li>Parsing is performed using {@link com.github.javaparser.JavaParser}
+ * (instance API, not the static singleton).</li>
  * <li>Test detection is based on JUnit Jupiter annotations such as
- * {@code @Test}, {@code @ParameterizedTest}, and {@code @RepeatedTest}.</li>
+ * {@code @Test}, {@code @ParameterizedTest}, {@code @RepeatedTest},
+ * {@code @TestFactory}, and {@code @TestTemplate}.</li>
  * <li>Tag extraction supports both {@code @Tag} annotations and the container
  * form {@code @Tags}.</li>
  * </ul>
  *
  * @see org.egothor.methodatlas.MethodAtlasApp
+ * @see org.egothor.methodatlas.AnnotationInspector
+ * @see org.egothor.methodatlas.OutputEmitter
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
- * @see com.github.javaparser.StaticJavaParser
  */
 package org.egothor.methodatlas;

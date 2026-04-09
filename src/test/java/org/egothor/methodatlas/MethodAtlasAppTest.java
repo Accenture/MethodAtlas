@@ -7,7 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -130,15 +131,9 @@ public class MethodAtlasAppTest {
 
     private static String runAppCapturingStdout(String[] args) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PrintStream previous = System.out;
-
-        try (PrintStream ps = new PrintStream(baos, true, StandardCharsets.UTF_8)) {
-            System.setOut(ps);
-            MethodAtlasApp.main(args);
-        } finally {
-            System.setOut(previous);
+        try (PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
+            MethodAtlasApp.run(args, out);
         }
-
         return baos.toString(StandardCharsets.UTF_8);
     }
 

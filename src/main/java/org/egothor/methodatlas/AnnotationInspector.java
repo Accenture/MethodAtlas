@@ -1,0 +1,193 @@
+package org.egothor.methodatlas;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.ArrayInitializerExpr;
+import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.MemberValuePair;
+
+/**
+ * Static utilities for inspecting JUnit 5 annotations on parsed method
+ * declarations.
+ *
+ * <p>
+ * This class centralizes the annotation-analysis logic used during test method
+ * discovery. All methods operate on parsed AST nodes produced by JavaParser and
+ * do not perform symbol resolution.
+ * </p>
+ *
+ * <p>
+ * Annotation matching is performed by simple name because fully qualified
+ * names require symbol resolution, which is not available in the current
+ * source-only parsing configuration. False positives are therefore possible if
+ * a project defines a custom annotation with the same simple name as a JUnit
+ * Jupiter annotation.
+ * </p>
+ *
+ * <p>
+ * This class is a non-instantiable utility holder.
+ * </p>
+ *
+ * @see MethodAtlasApp
+ */
+final class AnnotationInspector {
+
+    /**
+     * Prevents instantiation of this utility class.
+     */
+    private AnnotationInspector() {
+    }
+
+    /**
+     * Determines whether a method declaration represents a supported JUnit
+     * Jupiter test method.
+     *
+     * <p>
+     * The following annotations are recognised by simple name:
+     * {@code @Test}, {@code @ParameterizedTest}, {@code @RepeatedTest},
+     * {@code @TestFactory}, and {@code @TestTemplate}.
+     * </p>
+     *
+     * @param method method declaration to inspect
+     * @return {@code true} if the method is treated as a test method
+     */
+    static boolean isJUnitTest(MethodDeclaration method) {
+        for (AnnotationExpr annotation : method.getAnnotations()) {
+            String name = annotation.getNameAsString();
+            if ("Test".equals(name) || "ParameterizedTest".equals(name) || "RepeatedTest".equals(name)
+                    || "TestFactory".equals(name) || "TestTemplate".equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Extracts all JUnit tag values declared on a method.
+     *
+     * <p>
+     * Both direct {@code @Tag} annotations and the container-style
+     * {@code @Tags} annotation are supported. Tags are returned in declaration
+     * order.
+     * </p>
+     *
+     * @param method method declaration whose annotations should be inspected
+     * @return list of extracted tag values; possibly empty but never
+     *         {@code null}
+     */
+    static List<String> getTagValues(MethodDeclaration method) {
+        List<String> tagValues = new ArrayList<>();
+
+        for (AnnotationExpr annotation : method.getAnnotations()) {
+            String name = annotation.getNameAsString();
+
+            if ("Tag".equals(name)) { // NOPMD
+                extractTagValue(annotation).ifPresent(tagValues::add);
+            } else if ("Tags".equals(name)) { // NOPMD
+                extractTagsContainerValues(annotation, tagValues);
+            }
+        }
+
+        return tagValues;
+    }
+
+    /**
+     * Computes the inclusive line count of a method declaration from its
+     * source range.
+     *
+     * <p>
+     * Returns {@code 0} if no source position information is available.
+     * </p>
+     *
+     * @param method method declaration whose size should be measured
+     * @return inclusive line count, or {@code 0} if no range information is
+     *         available
+     */
+    static int countLOC(MethodDeclaration method) {
+        return method.getRange().map(range -> range.end.line - range.begin.line + 1).orElse(0);
+    }
+
+    /**
+     * Extracts tag values from a JUnit {@code @Tags} container annotation.
+     *
+     * @param annotation annotation expected to represent {@code @Tags}
+     * @param tagValues  destination list to which extracted tag values are
+     *                   appended
+     */
+    private static void extractTagsContainerValues(AnnotationExpr annotation, List<String> tagValues) {
+        if (annotation.isSingleMemberAnnotationExpr()) {
+            Expression memberValue = annotation.asSingleMemberAnnotationExpr().getMemberValue();
+            extractTagsFromContainerValue(memberValue, tagValues);
+            return;
+        }
+
+        if (annotation.isNormalAnnotationExpr()) {
+            for (MemberValuePair pair : annotation.asNormalAnnotationExpr().getPairs()) {
+                if ("value".equals(pair.getNameAsString())) { // NOPMD
+                    extractTagsFromContainerValue(pair.getValue(), tagValues);
+                }
+            }
+        }
+    }
+
+    /**
+     * Extracts individual {@code @Tag} values from the value expression of a
+     * {@code @Tags} container annotation.
+     *
+     * @param value     expression holding the container contents
+     * @param tagValues destination list to which extracted tag values are
+     *                  appended
+     */
+    private static void extractTagsFromContainerValue(Expression value, List<String> tagValues) {
+        if (!value.isArrayInitializerExpr()) {
+            return;
+        }
+
+        ArrayInitializerExpr array = value.asArrayInitializerExpr();
+        for (Expression expression : array.getValues()) {
+            if (expression.isAnnotationExpr()) {
+                extractTagValue(expression.asAnnotationExpr()).ifPresent(tagValues::add);
+            }
+        }
+    }
+
+    /**
+     * Extracts the value from a single JUnit {@code @Tag} annotation.
+     *
+     * <p>
+     * Both the single-member form {@code @Tag("x")} and the normal form
+     * {@code @Tag(value = "x")} are supported.
+     * </p>
+     *
+     * @param annotation annotation expected to represent {@code @Tag}
+     * @return extracted tag value, or {@link Optional#empty()} if the
+     *         annotation is not a supported {@code @Tag} form
+     */
+    private static Optional<String> extractTagValue(AnnotationExpr annotation) {
+        if (!"Tag".equals(annotation.getNameAsString())) {
+            return Optional.empty();
+        }
+
+        if (annotation.isSingleMemberAnnotationExpr()) {
+            Expression memberValue = annotation.asSingleMemberAnnotationExpr().getMemberValue();
+            if (memberValue.isStringLiteralExpr()) {
+                return Optional.of(memberValue.asStringLiteralExpr().asString());
+            }
+            return Optional.empty();
+        }
+
+        if (annotation.isNormalAnnotationExpr()) {
+            for (MemberValuePair pair : annotation.asNormalAnnotationExpr().getPairs()) {
+                if ("value".equals(pair.getNameAsString()) && pair.getValue().isStringLiteralExpr()) {
+                    return Optional.of(pair.getValue().asStringLiteralExpr().asString());
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+}

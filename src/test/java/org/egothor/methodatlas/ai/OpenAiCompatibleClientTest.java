@@ -236,7 +236,7 @@ class OpenAiCompatibleClientTest {
     private static MockedConstruction<HttpSupport> mockHttpSupport(ObjectMapper mapper, String responseBody,
             AtomicReference<String> capturedBody) {
 
-        return mockConstruction(HttpSupport.class, (mock, context) -> {
+        return mockConstruction(HttpSupport.class, (mock, _) -> {
             when(mock.objectMapper()).thenReturn(mapper);
             when(mock.jsonPost(any(URI.class), any(String.class), any(Duration.class))).thenAnswer(invocation -> {
                 URI uri = invocation.getArgument(0);

@@ -103,9 +103,18 @@ public final class AiProviderFactory {
      * @throws AiSuggestionException if no suitable provider can be discovered
      */
     private static AiProviderClient auto(AiOptions options) throws AiSuggestionException {
-        AiOptions ollamaOptions = AiOptions.builder().enabled(options.enabled()).provider(AiProvider.OLLAMA)
-                .modelName(options.modelName()).baseUrl(options.baseUrl()).taxonomyFile(options.taxonomyFile())
-                .maxClassChars(options.maxClassChars()).timeout(options.timeout()).maxRetries(options.maxRetries())
+        AiOptions ollamaOptions = AiOptions.builder()
+                .enabled(options.enabled())
+                .provider(AiProvider.OLLAMA)
+                .modelName(options.modelName())
+                .baseUrl(options.baseUrl())
+                .apiKey(options.apiKey())
+                .apiKeyEnv(options.apiKeyEnv())
+                .taxonomyFile(options.taxonomyFile())
+                .taxonomyMode(options.taxonomyMode())
+                .maxClassChars(options.maxClassChars())
+                .timeout(options.timeout())
+                .maxRetries(options.maxRetries())
                 .build();
 
         OllamaClient ollamaClient = new OllamaClient(ollamaOptions);
