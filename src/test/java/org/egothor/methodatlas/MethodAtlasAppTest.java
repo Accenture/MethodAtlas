@@ -1,6 +1,7 @@
 package org.egothor.methodatlas;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -89,6 +90,77 @@ public class MethodAtlasAppTest {
         assertPlainRow(rows, "com.acme.tests.SampleOneTest", "beta", 6, "param");
         assertPlainRow(rows, "com.acme.tests.SampleOneTest", "gamma", 4, "nested1;nested2");
         assertPlainRow(rows, "com.acme.other.AnotherTest", "delta", 3, "-");
+    }
+
+    @Test
+    public void testAnnotation_customAnnotationIsRecognised(@TempDir Path tempDir) throws Exception {
+        // Fixture with one standard @Test and one custom @MyTest annotation
+        String javaSource = """
+                package com.acme.tests;
+                public class CustomAnnotationTest {
+                    @MyTest
+                    public void shouldMatchCustomAnnotation() {}
+                    @Test
+                    public void shouldMatchDefaultAnnotation() {}
+                }
+                """;
+        Files.writeString(tempDir.resolve("CustomAnnotationTest.java"), javaSource, StandardCharsets.UTF_8);
+
+        // Default behaviour: only @Test is recognised
+        String defaultOutput = runAppCapturingStdout(new String[] { tempDir.toString() });
+        List<String> defaultLines = nonEmptyLines(defaultOutput);
+        // header + 1 row (shouldMatchDefaultAnnotation only)
+        assertEquals(2, defaultLines.size());
+        assertTrue(defaultLines.stream().anyMatch(l -> l.contains("shouldMatchDefaultAnnotation")));
+        assertFalse(defaultLines.stream().anyMatch(l -> l.contains("shouldMatchCustomAnnotation")));
+
+        // With -test-annotation replacing the default: only @MyTest is recognised
+        String customOutput = runAppCapturingStdout(new String[] {
+                "-test-annotation", "MyTest", tempDir.toString()
+        });
+        List<String> customLines = nonEmptyLines(customOutput);
+        assertEquals(2, customLines.size());
+        assertTrue(customLines.stream().anyMatch(l -> l.contains("shouldMatchCustomAnnotation")));
+        assertFalse(customLines.stream().anyMatch(l -> l.contains("shouldMatchDefaultAnnotation")));
+
+        // With -test-annotation adding to the default: both are recognised
+        String bothOutput = runAppCapturingStdout(new String[] {
+                "-test-annotation", "Test", "-test-annotation", "MyTest", tempDir.toString()
+        });
+        List<String> bothLines = nonEmptyLines(bothOutput);
+        assertEquals(3, bothLines.size()); // header + 2 rows
+        assertTrue(bothLines.stream().anyMatch(l -> l.contains("shouldMatchCustomAnnotation")));
+        assertTrue(bothLines.stream().anyMatch(l -> l.contains("shouldMatchDefaultAnnotation")));
+    }
+
+    @Test
+    public void emitMetadata_prependsCommentLinesBeforeHeader(@TempDir Path tempDir) throws Exception {
+        copyStandardFixtures(tempDir);
+
+        String output = runAppCapturingStdout(new String[] { "-emit-metadata", tempDir.toString() });
+        List<String> lines = nonEmptyLines(output);
+
+        // Metadata lines are present
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith("# tool_version:")),
+                "Should contain tool_version metadata");
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith("# scan_timestamp:")),
+                "Should contain scan_timestamp metadata");
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith("# taxonomy:")),
+                "Should contain taxonomy metadata");
+
+        // Metadata precedes the CSV header
+        int toolVersionIdx = -1;
+        int headerIdx = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).startsWith("# tool_version:")) toolVersionIdx = i;
+            if ("fqcn,method,loc,tags".equals(lines.get(i))) headerIdx = i;
+        }
+        assertTrue(toolVersionIdx >= 0 && headerIdx >= 0 && toolVersionIdx < headerIdx,
+                "Metadata must appear before the CSV header");
+
+        // taxonomy value indicates AI is not enabled
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith("# taxonomy:") && l.contains("n/a")),
+                "Taxonomy metadata should indicate AI is disabled");
     }
 
     private static void copyStandardFixtures(Path tempDir) throws IOException {

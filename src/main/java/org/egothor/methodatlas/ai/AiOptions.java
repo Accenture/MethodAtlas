@@ -84,6 +84,17 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
     }
 
     /**
+     * Default model identifier used when no model is explicitly configured.
+     *
+     * <p>
+     * This constant is intentionally public so that governance processes can
+     * locate and track the approved fallback model in version control without
+     * searching through builder internals.
+     * </p>
+     */
+    public static final String DEFAULT_MODEL = "qwen2.5-coder:7b";
+
+    /**
      * Canonical constructor performing validation of configuration parameters.
      *
      * <p>
@@ -177,7 +188,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
     public static final class Builder {
         private boolean enabled;
         private AiProvider provider = AiProvider.AUTO;
-        private String modelName = "qwen2.5-coder:7b";
+        private String modelName = DEFAULT_MODEL;
         private String baseUrl;
         private String apiKey;
         private String apiKeyEnv;

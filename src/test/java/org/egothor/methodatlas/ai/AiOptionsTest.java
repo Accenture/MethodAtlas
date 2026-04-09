@@ -17,7 +17,7 @@ class AiOptionsTest {
 
         assertEquals(false, options.enabled());
         assertEquals(AiProvider.AUTO, options.provider());
-        assertEquals("qwen2.5-coder:7b", options.modelName());
+        assertEquals(AiOptions.DEFAULT_MODEL, options.modelName());
         assertEquals("http://localhost:11434", options.baseUrl());
         assertNull(options.apiKey());
         assertNull(options.apiKeyEnv());
@@ -26,6 +26,13 @@ class AiOptionsTest {
         assertEquals(40_000, options.maxClassChars());
         assertEquals(Duration.ofSeconds(90), options.timeout());
         assertEquals(1, options.maxRetries());
+    }
+
+    @Test
+    void defaultModel_constantMatchesBuilderDefault() {
+        AiOptions options = AiOptions.builder().build();
+        assertEquals(AiOptions.DEFAULT_MODEL, options.modelName(),
+                "Builder default model must equal the DEFAULT_MODEL constant");
     }
 
     @Test

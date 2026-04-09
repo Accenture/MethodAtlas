@@ -3,6 +3,7 @@ package org.egothor.methodatlas;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
@@ -37,29 +38,53 @@ import com.github.javaparser.ast.expr.MemberValuePair;
 final class AnnotationInspector {
 
     /**
+     * Default set of annotation simple names recognised as JUnit Jupiter test
+     * methods when no custom set is configured.
+     *
+     * <p>
+     * The set contains: {@code Test}, {@code ParameterizedTest},
+     * {@code RepeatedTest}, {@code TestFactory}, and {@code TestTemplate}.
+     * </p>
+     */
+    static final Set<String> DEFAULT_TEST_ANNOTATIONS = Set.of(
+            "Test", "ParameterizedTest", "RepeatedTest", "TestFactory", "TestTemplate");
+
+    /**
      * Prevents instantiation of this utility class.
      */
     private AnnotationInspector() {
     }
 
     /**
-     * Determines whether a method declaration represents a supported JUnit
-     * Jupiter test method.
-     *
-     * <p>
-     * The following annotations are recognised by simple name:
-     * {@code @Test}, {@code @ParameterizedTest}, {@code @RepeatedTest},
-     * {@code @TestFactory}, and {@code @TestTemplate}.
-     * </p>
+     * Determines whether a method declaration represents a JUnit test method
+     * using the {@link #DEFAULT_TEST_ANNOTATIONS default annotation set}.
      *
      * @param method method declaration to inspect
-     * @return {@code true} if the method is treated as a test method
+     * @return {@code true} if the method carries a recognised test annotation
      */
     static boolean isJUnitTest(MethodDeclaration method) {
+        return isJUnitTest(method, DEFAULT_TEST_ANNOTATIONS);
+    }
+
+    /**
+     * Determines whether a method declaration represents a JUnit test method
+     * using a caller-supplied set of annotation simple names.
+     *
+     * <p>
+     * Matching is performed against the annotation's simple name only, because
+     * fully qualified name resolution requires symbol resolution which is not
+     * available in source-only parsing mode.
+     * </p>
+     *
+     * @param method          method declaration to inspect
+     * @param testAnnotations set of annotation simple names to recognise as
+     *                        test methods; must not be {@code null}
+     * @return {@code true} if the method carries at least one annotation whose
+     *         simple name is in {@code testAnnotations}
+     */
+    static boolean isJUnitTest(MethodDeclaration method, Set<String> testAnnotations) {
         for (AnnotationExpr annotation : method.getAnnotations()) {
-            String name = annotation.getNameAsString();
-            if ("Test".equals(name) || "ParameterizedTest".equals(name) || "RepeatedTest".equals(name)
-                    || "TestFactory".equals(name) || "TestTemplate".equals(name)) {
+            if (testAnnotations.contains(annotation.getNameAsString())) {
                 return true;
             }
         }

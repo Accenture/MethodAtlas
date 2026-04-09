@@ -270,6 +270,8 @@ The same taxonomy configuration flags used for automated providers also apply to
 | --- | --- | --- |
 | `-plain` | Emit plain text instead of CSV | CSV mode |
 | `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated to match multiple patterns; first occurrence replaces the default | `Test.java` |
+| `-test-annotation <name>` | Treat methods annotated with `name` as test methods; may be repeated; first occurrence replaces the default set (`Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate`) | standard JUnit 5 set |
+| `-emit-metadata` | Emit `# key: value` comment lines before the CSV header (tool version, scan timestamp, taxonomy) | off |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
 ### AI options
@@ -488,6 +490,8 @@ Because the application emits one row per test method, the output is easy to pip
 ## Notes
 
 - The scanner considers files ending with `*Test.java` by default. Use `-file-suffix` to override or extend this. The flag may be repeated to match multiple patterns, e.g. `-file-suffix Test.java -file-suffix IT.java`. The first occurrence replaces the default; subsequent occurrences add further patterns.
+- Test method detection matches annotation simple names (e.g. `Test`, not `org.junit.jupiter.api.Test`), because fully qualified name resolution requires symbol resolution which is not available in source-only parse mode. Use `-test-annotation` to add custom annotation names or replace the default set entirely.
+- The default AI model (`qwen2.5-coder:7b`) is declared as the `AiOptions.DEFAULT_MODEL` public constant so governance processes can locate and track the approved fallback model in version control.
 - AI classification is class-contextual: the full class source is submitted so the model can classify methods with more context.
 - If AI support is enabled but engine initialization fails, the application aborts.
 - If AI classification of a particular class fails, the scan continues and MethodAtlas emits base metadata without AI suggestions for that class.

@@ -47,6 +47,30 @@ final class OutputEmitter {
     }
 
     /**
+     * Emits {@code # key: value} metadata comment lines before the CSV header.
+     *
+     * <p>
+     * The lines are prefixed with {@code #} so standard CSV parsers treat them as
+     * comments and skip them. The metadata describes the conditions under which the
+     * scan was performed so that historical output files remain interpretable.
+     * </p>
+     *
+     * <p>
+     * Three lines are emitted: {@code tool_version}, {@code scan_timestamp}, and
+     * {@code taxonomy}.
+     * </p>
+     *
+     * @param version      tool version string, e.g. {@code 1.2.3} or {@code dev}
+     * @param scanTimestamp ISO-8601 timestamp of the scan start
+     * @param taxonomyInfo human-readable taxonomy descriptor
+     */
+    void emitMetadata(String version, String scanTimestamp, String taxonomyInfo) {
+        out.println("# tool_version: " + version);
+        out.println("# scan_timestamp: " + scanTimestamp);
+        out.println("# taxonomy: " + taxonomyInfo);
+    }
+
+    /**
      * Emits the CSV header line when {@link OutputMode#CSV} is selected.
      *
      * <p>

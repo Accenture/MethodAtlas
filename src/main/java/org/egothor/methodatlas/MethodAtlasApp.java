@@ -8,9 +8,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
@@ -109,6 +112,12 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * (default: {@code Test.java}); may be repeated to match multiple patterns,
  * e.g. {@code -file-suffix Test.java -file-suffix IT.java}; the first
  * occurrence replaces the default</li>
+ * <li>{@code -test-annotation <name>} — recognises methods annotated with
+ * {@code name} as test methods; may be repeated; the first occurrence replaces
+ * the default set ({@link AnnotationInspector#DEFAULT_TEST_ANNOTATIONS})</li>
+ * <li>{@code -emit-metadata} — emits {@code # key: value} comment lines
+ * before the header row describing the tool version, scan timestamp, and
+ * taxonomy configuration</li>
  * <li>{@code -manual-prepare <workdir> <responsedir>} — runs the manual AI
  * prepare phase, writing work files to {@code workdir} and empty response stubs
  * to {@code responsedir}; the two paths may be identical</li>
@@ -182,14 +191,19 @@ public class MethodAtlasApp {
      *                   limits, and timeouts
      * @param paths      root paths to scan; when empty, the current working
      *                   directory is scanned
-     * @param fileSuffixes one or more filename suffixes used to select source files
-     *                     for scanning; a file is included if its name ends with any
-     *                     of the listed suffixes
-     * @param manualMode   manual AI workflow mode, or {@code null} when using
-     *                     automated providers
+     * @param fileSuffixes    one or more filename suffixes used to select source
+     *                        files for scanning; a file is included if its name
+     *                        ends with any of the listed suffixes
+     * @param testAnnotations set of annotation simple names used to identify test
+     *                        methods; defaults to
+     *                        {@link AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}
+     * @param emitMetadata    whether to emit {@code # key: value} metadata comment
+     *                        lines before the CSV header
+     * @param manualMode      manual AI workflow mode, or {@code null} when using
+     *                        automated providers
      */
     private record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
-            ManualMode manualMode) {
+            Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode) {
     }
 
     /**
@@ -266,6 +280,13 @@ public class MethodAtlasApp {
         }
 
         OutputEmitter emitter = new OutputEmitter(out, aiEngine != null);
+
+        if (cliConfig.emitMetadata()) {
+            String version = MethodAtlasApp.class.getPackage().getImplementationVersion();
+            String taxonomyInfo = resolveTaxonomyInfo(cliConfig.aiOptions(), aiEngine != null);
+            emitter.emitMetadata(version != null ? version : "dev", Instant.now().toString(), taxonomyInfo);
+        }
+
         emitter.emitCsvHeader(cliConfig.outputMode());
 
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
@@ -273,7 +294,7 @@ public class MethodAtlasApp {
 
         for (Path root : roots) {
             if (scanRoot(root, cliConfig.outputMode(), cliConfig.aiOptions(), aiEngine, parser, emitter,
-                    cliConfig.fileSuffixes())) {
+                    cliConfig.fileSuffixes(), cliConfig.testAnnotations())) {
                 hadErrors = true;
             }
         }
@@ -320,7 +341,7 @@ public class MethodAtlasApp {
                                 .anyMatch(s -> path.toString().endsWith(s)))
                         .toList();
                 for (Path path : files) {
-                    int count = processFileForPrepare(path, engine, parser, log);
+                    int count = processFileForPrepare(path, engine, parser, log, cliConfig.testAnnotations());
                     if (count < 0) {
                         hadErrors = true;
                     } else {
@@ -343,11 +364,13 @@ public class MethodAtlasApp {
      * @param engine prepare engine used to write work files
      * @param parser configured JavaParser instance
      * @param log    writer used for progress reporting
+     * @param testAnnotations set of annotation simple names that identify test
+     *                        methods
      * @return number of work files written, or {@code -1} if the file could not
      *         be parsed
      */
     private static int processFileForPrepare(Path path, ManualPrepareEngine engine, JavaParser parser,
-            PrintWriter log) {
+            PrintWriter log, Set<String> testAnnotations) {
         try {
             ParseResult<CompilationUnit> parseResult = parser.parse(path);
 
@@ -367,7 +390,7 @@ public class MethodAtlasApp {
             for (ClassOrInterfaceDeclaration clazz : compilationUnit
                     .findAll(ClassOrInterfaceDeclaration.class)) {
                 String fqcn = buildFqcn(packageName, clazz.getNameAsString());
-                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz);
+                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, testAnnotations);
 
                 if (testMethods.isEmpty()) {
                     continue;
@@ -404,14 +427,17 @@ public class MethodAtlasApp {
      * @param aiEngine   AI engine, or {@code null} when AI is disabled
      * @param parser     configured JavaParser instance
      * @param emitter    output emitter for the current run
-     * @param fileSuffixes one or more filename suffixes used to select source files;
-     *                     a file is included if its name ends with any of the listed
-     *                     suffixes
+     * @param fileSuffixes    one or more filename suffixes used to select source
+     *                        files; a file is included if its name ends with any of
+     *                        the listed suffixes
+     * @param testAnnotations set of annotation simple names that identify test
+     *                        methods
      * @return {@code true} if any file produced a processing error
      * @throws IOException if traversing the file tree fails
      */
     private static boolean scanRoot(Path root, OutputMode mode, AiOptions aiOptions, AiSuggestionEngine aiEngine,
-            JavaParser parser, OutputEmitter emitter, List<String> fileSuffixes) throws IOException {
+            JavaParser parser, OutputEmitter emitter, List<String> fileSuffixes,
+            Set<String> testAnnotations) throws IOException {
         LOG.log(Level.INFO, "Scanning {0} for files matching {1}", new Object[] { root, fileSuffixes });
 
         boolean hadErrors = false;
@@ -421,7 +447,7 @@ public class MethodAtlasApp {
                     .filter(path -> fileSuffixes.stream().anyMatch(s -> path.toString().endsWith(s)))
                     .toList();
             for (Path path : files) {
-                if (!processFile(path, mode, aiOptions, aiEngine, parser, emitter)) {
+                if (!processFile(path, mode, aiOptions, aiEngine, parser, emitter, testAnnotations)) {
                     hadErrors = true;
                 }
             }
@@ -439,11 +465,13 @@ public class MethodAtlasApp {
      * @param aiOptions AI configuration for the current run
      * @param aiEngine  AI engine, or {@code null} when AI is disabled
      * @param parser    configured JavaParser instance
-     * @param emitter   output emitter for the current run
+     * @param emitter         output emitter for the current run
+     * @param testAnnotations set of annotation simple names that identify test
+     *                        methods
      * @return {@code true} if the file was processed successfully
      */
     private static boolean processFile(Path path, OutputMode mode, AiOptions aiOptions, AiSuggestionEngine aiEngine,
-            JavaParser parser, OutputEmitter emitter) {
+            JavaParser parser, OutputEmitter emitter, Set<String> testAnnotations) {
         try {
             ParseResult<CompilationUnit> parseResult = parser.parse(path);
 
@@ -462,7 +490,7 @@ public class MethodAtlasApp {
             compilationUnit.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
                 String fqcn = buildFqcn(packageName, clazz.getNameAsString());
 
-                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz);
+                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, testAnnotations);
                 SuggestionLookup suggestionLookup = resolveSuggestionLookup(clazz, fqcn, testMethods, aiOptions,
                         aiEngine);
 
@@ -502,11 +530,13 @@ public class MethodAtlasApp {
      * @param clazz parsed class declaration whose methods should be inspected
      * @return list of JUnit test method declarations; possibly empty but never
      *         {@code null}
-     * @see AnnotationInspector#isJUnitTest(MethodDeclaration)
+     * @param testAnnotations set of annotation simple names to match
+     * @see AnnotationInspector#isJUnitTest(MethodDeclaration, Set)
      */
-    private static List<MethodDeclaration> findJUnitTestMethods(ClassOrInterfaceDeclaration clazz) {
+    private static List<MethodDeclaration> findJUnitTestMethods(ClassOrInterfaceDeclaration clazz,
+            Set<String> testAnnotations) {
         return clazz.findAll(MethodDeclaration.class).stream()
-                .filter(AnnotationInspector::isJUnitTest).toList();
+                .filter(m -> AnnotationInspector.isJUnitTest(m, testAnnotations)).toList();
     }
 
     /**
@@ -585,6 +615,24 @@ public class MethodAtlasApp {
      *         disabled
      * @throws IllegalStateException if engine initialization fails
      */
+    /**
+     * Produces a human-readable string identifying which taxonomy configuration
+     * is in effect, for use in scan metadata output.
+     *
+     * @param aiOptions AI configuration for the current run
+     * @param aiActive  whether an AI engine is active for this run
+     * @return taxonomy descriptor string; never {@code null}
+     */
+    private static String resolveTaxonomyInfo(AiOptions aiOptions, boolean aiActive) {
+        if (!aiActive) {
+            return "n/a (AI disabled)";
+        }
+        if (aiOptions.taxonomyFile() != null) {
+            return "file:" + aiOptions.taxonomyFile().toAbsolutePath();
+        }
+        return "built-in/" + aiOptions.taxonomyMode().name().toLowerCase(Locale.ROOT);
+    }
+
     private static AiSuggestionEngine buildAiEngine(AiOptions aiOptions) {
         if (!aiOptions.enabled()) {
             return null;
@@ -611,6 +659,8 @@ public class MethodAtlasApp {
         List<Path> paths = new ArrayList<>();
         AiOptions.Builder aiBuilder = AiOptions.builder();
         List<String> fileSuffixes = null;
+        Set<String> testAnnotations = null;
+        boolean emitMetadata = false;
         ManualMode manualMode = null;
 
         for (int i = 0; i < args.length; i++) {
@@ -638,6 +688,13 @@ public class MethodAtlasApp {
                     }
                     fileSuffixes.add(nextArg(args, ++i, arg));
                 }
+                case "-test-annotation" -> {
+                    if (testAnnotations == null) {
+                        testAnnotations = new LinkedHashSet<>();
+                    }
+                    testAnnotations.add(nextArg(args, ++i, arg));
+                }
+                case "-emit-metadata" -> emitMetadata = true;
                 case "-manual-prepare" -> {
                     Path workDir = Paths.get(nextArg(args, ++i, arg));
                     Path responseDir = Paths.get(nextArg(args, ++i, arg));
@@ -658,7 +715,10 @@ public class MethodAtlasApp {
         }
 
         List<String> resolvedSuffixes = fileSuffixes != null ? fileSuffixes : List.of(DEFAULT_FILE_SUFFIX);
-        return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, manualMode);
+        Set<String> resolvedAnnotations = testAnnotations != null
+                ? testAnnotations : AnnotationInspector.DEFAULT_TEST_ANNOTATIONS;
+        return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
+                emitMetadata, manualMode);
     }
 
     /**
