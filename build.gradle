@@ -160,6 +160,9 @@ tasks.register('fatJar', Jar) {
         from(zipTree(jarFile)) {
             // Exclude signature-related files — fat JARs cannot carry per-entry signatures
             exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+            // Exclude multi-release module descriptors — duplicate across JARs and not
+            // needed at runtime inside a fat JAR
+            exclude 'META-INF/versions/*/module-info.class'
 
             // Rename license/notice files to avoid conflicts
             eachFile { file ->
