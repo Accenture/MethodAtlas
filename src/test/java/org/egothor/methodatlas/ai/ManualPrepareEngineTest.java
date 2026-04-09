@@ -98,4 +98,32 @@ class ManualPrepareEngineTest {
         assertTrue(Files.exists(workDir.resolve("com.acme.FooTest.txt")));
         assertTrue(Files.exists(workDir.resolve("com.acme.BarTest.txt")));
     }
+
+    @Test
+    void prepare_createsEmptyResponseFileAlongsideWorkFile(@TempDir Path workDir) throws Exception {
+        AiOptions options = AiOptions.builder().build();
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, options);
+
+        engine.prepare("com.acme.FooTest", "class FooTest {}",
+                List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
+
+        Path responseFile = workDir.resolve("com.acme.FooTest.response.txt");
+        assertTrue(Files.exists(responseFile), "Empty response file should be pre-created");
+        assertEquals("", Files.readString(responseFile, StandardCharsets.UTF_8),
+                "Pre-created response file should be empty");
+    }
+
+    @Test
+    void prepare_doesNotOverwriteExistingResponseFile(@TempDir Path workDir) throws Exception {
+        Path responseFile = workDir.resolve("com.acme.FooTest.response.txt");
+        Files.writeString(responseFile, "existing content", StandardCharsets.UTF_8);
+
+        AiOptions options = AiOptions.builder().build();
+        ManualPrepareEngine engine = new ManualPrepareEngine(workDir, options);
+        engine.prepare("com.acme.FooTest", "class FooTest {}",
+                List.of(new PromptBuilder.TargetMethod("testFoo", 1, 1)));
+
+        assertEquals("existing content", Files.readString(responseFile, StandardCharsets.UTF_8),
+                "Existing response file content must not be overwritten");
+    }
 }

@@ -171,14 +171,15 @@ MethodAtlas supports this scenario through a two-phase **manual AI workflow** th
 Phase 1 – Prepare                      Phase 2 – Consume
 ─────────────────                      ────────────────────────────────
 ./methodatlas                          ./methodatlas
-  -manual-prepare ./work               -manual-consume ./work ./responses
+  -manual-prepare ./work               -manual-consume ./work ./work
   /path/to/tests                       /path/to/tests
 
   ↓                                      ↓
 For each test class:               For each test class:
-  write work/<fqcn>.txt              look for responses/<fqcn>.response.txt
-  (operator instructions             → found:   parse AI JSON → AI columns
-   + full AI prompt)                 → missing: blank AI columns
+  write work/<fqcn>.txt              look for work/<fqcn>.response.txt
+  write work/<fqcn>.response.txt     → non-empty: parse AI JSON → AI columns
+  (operator instructions               → empty/absent: blank AI columns
+   + full AI prompt)
 ```
 
 The final CSV format is identical to the automated flow.
@@ -189,29 +190,33 @@ The final CSV format is identical to the automated flow.
 ./methodatlas -manual-prepare ./work /path/to/tests
 ```
 
-MethodAtlas scans the source tree and writes one work file per test class to `./work`. Each file is named `<fully.qualified.ClassName>.txt` and contains two parts:
+MethodAtlas scans the source tree and for each test class writes two files to `./work`:
 
-1. **Operator instructions** — a plain-English explanation at the top telling the operator what to do, including the expected response file name and the consume command to run afterwards.
-2. **AI prompt block** — the complete prompt (taxonomy definition, method list, full class source) delimited by `--- BEGIN AI PROMPT ---` / `--- END AI PROMPT ---` markers.
+1. **`<fqcn>.txt`** — the work file, containing:
+   - **Operator instructions** at the top: what to do, the expected response file name, and the consume command to run afterwards.
+   - **AI prompt block**: the complete prompt (taxonomy definition, method list, full class source) delimited by `--- BEGIN AI PROMPT ---` / `--- END AI PROMPT ---` markers.
+2. **`<fqcn>.response.txt`** — an empty placeholder for the AI response. If this file already exists (e.g. from a previous prepare run that already received a response), it is left untouched.
 
-The operator copies the prompt block verbatim into their AI chat window. The source is embedded in the prompt text itself, so no file attachment is needed.
+The operator copies the prompt block verbatim into their AI chat window, then pastes the AI's response into the pre-created `.response.txt` file. No file attachments or manual file creation are needed.
 
 No CSV output is produced in this phase.
 
 ### Phase 2 — Consume
 
-After the operator has received the AI responses and saved them to a response directory:
+After pasting the AI responses into the pre-created `.response.txt` files:
 
 ```bash
-./methodatlas -manual-consume ./work ./responses /path/to/tests
+./methodatlas -manual-consume ./work ./work /path/to/tests
 ```
 
-For each test class, MethodAtlas looks for a file named `<fully.qualified.ClassName>.response.txt` in `./responses`:
+Because the prepare phase writes both the work files and the empty response placeholders to the same directory, you pass the same directory twice (as `<workdir>` and `<responsedir>`).
 
-- **Response file present** — MethodAtlas extracts the first JSON object it finds in the file (surrounding prose from the chat window is silently ignored), parses it, and merges the AI suggestions into the output.
-- **Response file absent** — MethodAtlas emits the row with blank AI columns. The scan continues; missing responses are not an error.
+For each test class, MethodAtlas reads `<fully.qualified.ClassName>.response.txt` from the response directory:
 
-This makes it easy to process batches incrementally: run consume after each response is saved rather than waiting until all classes are done.
+- **File contains AI JSON** — MethodAtlas extracts the first JSON object it finds (surrounding prose from the chat window is silently ignored), parses it, and merges the AI suggestions into the output.
+- **File is empty or absent** — MethodAtlas emits the row with blank AI columns. The scan continues; missing or empty responses are not an error.
+
+This makes it easy to process batches incrementally: run consume after filling in each response rather than waiting until all classes are done.
 
 ### Work file format
 
@@ -229,12 +234,12 @@ Steps:
   1. Copy the AI PROMPT block below (between the BEGIN/END markers)
      into your AI chat window.
   2. Wait for the AI to respond.
-  3. Save the complete AI response as:
+  3. Paste the complete AI response into the pre-created file:
        com.acme.security.AccessControlServiceTest.response.txt
-     in the designated response directory.
+     (it was created empty alongside this work file — do not rename it).
   4. Repeat for all other work files.
   5. After all responses are saved, run the consume phase:
-       java -jar methodatlas.jar -manual-consume <workdir> <responsedir> <source-roots...>
+       java -jar methodatlas.jar -manual-consume <workdir> <workdir> <source-roots...>
 ================================================================================
 
 --- BEGIN AI PROMPT ---
@@ -283,8 +288,8 @@ The same taxonomy configuration flags used for automated providers also apply to
 
 | Argument | Meaning |
 | --- | --- |
-| `-manual-prepare <workdir>` | Run the prepare phase: write AI prompt work files to `workdir`; no CSV output |
-| `-manual-consume <workdir> <responsedir>` | Run the consume phase: read operator-saved response files from `responsedir` and emit the enriched CSV |
+| `-manual-prepare <workdir>` | Run the prepare phase: write AI prompt work files and empty response placeholders to `workdir`; no CSV output |
+| `-manual-consume <workdir> <responsedir>` | Run the consume phase: read operator-filled response files from `responsedir` and emit the enriched CSV |
 
 Unknown options cause an error. Missing option values also fail fast.
 

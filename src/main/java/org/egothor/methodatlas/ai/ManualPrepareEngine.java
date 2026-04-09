@@ -71,7 +71,8 @@ public final class ManualPrepareEngine {
     }
 
     /**
-     * Builds and writes the work file for the specified test class.
+     * Builds and writes the work file for the specified test class, and
+     * pre-creates an empty response file alongside it.
      *
      * <p>
      * The work file contains operator instructions at the top followed by the full
@@ -80,12 +81,20 @@ public final class ManualPrepareEngine {
      * their AI chat window without attaching any files separately.
      * </p>
      *
+     * <p>
+     * An empty {@code <fqcn>.response.txt} file is also written to the same work
+     * directory so the operator only needs to paste the AI response into the
+     * pre-existing file rather than creating it manually. If the response file
+     * already contains content (e.g. from a previous run) it is left untouched.
+     * </p>
+     *
      * @param fqcn          fully qualified class name of the test class
      * @param classSource   complete source code of the test class
      * @param targetMethods deterministically discovered JUnit test methods to
      *                      classify
      * @return path of the written work file
-     * @throws AiSuggestionException if the work file cannot be written
+     * @throws AiSuggestionException if the work file or the empty response file
+     *                               cannot be written
      */
     public Path prepare(String fqcn, String classSource, List<PromptBuilder.TargetMethod> targetMethods)
             throws AiSuggestionException {
@@ -97,6 +106,15 @@ public final class ManualPrepareEngine {
             Files.writeString(outputFile, content, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new AiSuggestionException("Failed to write work file: " + outputFile, e);
+        }
+
+        Path responseFile = workDir.resolve(fqcn + ".response.txt");
+        if (!Files.exists(responseFile)) {
+            try {
+                Files.writeString(responseFile, "", StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new AiSuggestionException("Failed to create response file: " + responseFile, e);
+            }
         }
 
         return outputFile;
@@ -115,12 +133,12 @@ public final class ManualPrepareEngine {
                 + "  1. Copy the AI PROMPT block below (between the BEGIN/END markers)\n"
                 + "     into your AI chat window.\n"
                 + "  2. Wait for the AI to respond.\n"
-                + "  3. Save the complete AI response as:\n"
+                + "  3. Paste the complete AI response into the pre-created file:\n"
                 + "       " + responseFileName + "\n"
-                + "     in the designated response directory.\n"
+                + "     (it was created empty alongside this work file — do not rename it).\n"
                 + "  4. Repeat for all other work files.\n"
                 + "  5. After all responses are saved, run the consume phase:\n"
-                + "       java -jar methodatlas.jar -manual-consume <workdir> <responsedir> <source-roots...>\n"
+                + "       java -jar methodatlas.jar -manual-consume <workdir> <workdir> <source-roots...>\n"
                 + SEPARATOR + "\n"
                 + "\n"
                 + "--- BEGIN AI PROMPT ---\n"
