@@ -7,10 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -20,7 +17,6 @@ import java.util.stream.Stream;
 
 import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiOptions;
-import org.egothor.methodatlas.ai.AiProvider;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.ai.AiSuggestionEngineImpl;
 import org.egothor.methodatlas.ai.AiSuggestionException;
@@ -146,70 +142,11 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
 public final class MethodAtlasApp {
 
     private static final Logger LOG = Logger.getLogger(MethodAtlasApp.class.getName());
-    private static final String DEFAULT_FILE_SUFFIX = "Test.java";
 
     /**
      * Prevents instantiation of this utility class.
      */
     private MethodAtlasApp() {
-    }
-
-    /**
-     * Selects between the two phases of the manual AI workflow.
-     *
-     * <p>
-     * When a {@code ManualMode} is present in the parsed configuration the
-     * application bypasses the normal automated AI provider path.
-     * </p>
-     */
-    private sealed interface ManualMode {
-        /**
-         * Prepare phase: scan source files and write AI prompt work files and empty
-         * response stubs.
-         *
-         * @param workDir     directory where work files ({@code <fqcn>.txt}) will be
-         *                    written
-         * @param responseDir directory where empty response stubs
-         *                    ({@code <fqcn>.response.txt}) will be pre-created; may be
-         *                    the same as {@code workDir}
-         */
-        record Prepare(Path workDir, Path responseDir) implements ManualMode {
-        }
-
-        /**
-         * Consume phase: read operator-saved response files and emit enriched CSV.
-         *
-         * @param workDir     directory that contains the work files written during
-         *                    prepare (reserved for future reference; currently unused
-         *                    at runtime)
-         * @param responseDir directory where the operator saved
-         *                    {@code <fqcn>.response.txt} files
-         */
-        record Consume(Path workDir, Path responseDir) implements ManualMode {
-        }
-    }
-
-    /**
-     * Parsed command-line configuration used to drive a single application run.
-     *
-     * @param outputMode selected output mode
-     * @param aiOptions  AI configuration controlling provider selection, taxonomy,
-     *                   limits, and timeouts
-     * @param paths      root paths to scan; when empty, the current working
-     *                   directory is scanned
-     * @param fileSuffixes    one or more filename suffixes used to select source
-     *                        files for scanning; a file is included if its name
-     *                        ends with any of the listed suffixes
-     * @param testAnnotations set of annotation simple names used to identify test
-     *                        methods; defaults to
-     *                        {@link AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}
-     * @param emitMetadata    whether to emit {@code # key: value} metadata comment
-     *                        lines before the CSV header
-     * @param manualMode      manual AI workflow mode, or {@code null} when using
-     *                        automated providers
-     */
-    private record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
-            Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode) {
     }
 
     /**
@@ -271,7 +208,7 @@ public final class MethodAtlasApp {
         parserConfiguration.setLanguageLevel(LanguageLevel.JAVA_21);
         JavaParser parser = new JavaParser(parserConfiguration);
 
-        CliConfig cliConfig = parseArgs(args);
+        CliConfig cliConfig = CliArgs.parse(args);
 
         // Manual prepare phase: write AI prompt work files; no CSV output.
         if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {
@@ -654,123 +591,4 @@ public final class MethodAtlasApp {
         }
     }
 
-    /**
-     * Parses command-line arguments into a structured configuration object.
-     *
-     * @param args raw command-line arguments
-     * @return parsed command-line configuration
-     * @throws IllegalArgumentException if an option value is missing, malformed,
-     *                                  or unsupported
-     */
-    @SuppressWarnings("PMD.AvoidReassigningLoopVariables")
-    private static CliConfig parseArgs(String... args) {
-        OutputMode outputMode = OutputMode.CSV;
-        List<Path> paths = new ArrayList<>();
-        AiOptions.Builder aiBuilder = AiOptions.builder();
-        List<String> fileSuffixes = new ArrayList<>();
-        Set<String> testAnnotations = new LinkedHashSet<>();
-        boolean emitMetadata = false;
-        String manualWorkDir = null;
-        String manualResponseDir = null;
-        boolean manualIsConsume = false;
-
-        for (int i = 0; i < args.length; i++) {
-            String arg = args[i];
-            if (arg.startsWith("-ai")) {
-                i = applyAiArg(arg, args, i, aiBuilder);
-                continue;
-            }
-            switch (arg) {
-                case "-plain" -> outputMode = OutputMode.PLAIN;
-                case "-file-suffix" -> fileSuffixes.add(nextArg(args, ++i, arg));
-                case "-test-annotation" -> testAnnotations.add(nextArg(args, ++i, arg));
-                case "-emit-metadata" -> emitMetadata = true;
-                case "-manual-prepare" -> {
-                    manualWorkDir = nextArg(args, ++i, arg);
-                    manualResponseDir = nextArg(args, ++i, arg);
-                    manualIsConsume = false;
-                }
-                case "-manual-consume" -> {
-                    manualWorkDir = nextArg(args, ++i, arg);
-                    manualResponseDir = nextArg(args, ++i, arg);
-                    manualIsConsume = true;
-                }
-                default -> {
-                    if (arg.startsWith("-")) {
-                        throw new IllegalArgumentException("Unknown argument: " + arg);
-                    }
-                    paths.add(Paths.get(arg));
-                }
-            }
-        }
-
-        ManualMode manualMode = null;
-        if (manualWorkDir != null) {
-            Path workDir = Paths.get(manualWorkDir);
-            Path responseDir = Paths.get(manualResponseDir);
-            manualMode = manualIsConsume
-                    ? new ManualMode.Consume(workDir, responseDir)
-                    : new ManualMode.Prepare(workDir, responseDir);
-        }
-
-        List<String> resolvedSuffixes = fileSuffixes.isEmpty() ? List.of(DEFAULT_FILE_SUFFIX) : fileSuffixes;
-        Set<String> resolvedAnnotations = testAnnotations.isEmpty()
-                ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
-        return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
-                emitMetadata, manualMode);
-    }
-
-    /**
-     * Applies a single AI-related command-line argument to the builder.
-     *
-     * <p>
-     * Handles all {@code -ai*} flags. Returns the updated argument index so
-     * the caller's loop counter stays consistent when the flag consumes an
-     * additional value token.
-     * </p>
-     *
-     * @param arg     the flag token being processed
-     * @param args    full argument array
-     * @param i       current position in {@code args}
-     * @param builder AI options builder to update
-     * @return updated value of {@code i} after consuming any argument value
-     * @throws IllegalArgumentException if a required value token is missing
-     */
-    private static int applyAiArg(String arg, String[] args, int i, AiOptions.Builder builder) {
-        int idx = i;
-        switch (arg) {
-            case "-ai" -> builder.enabled(true);
-            case "-ai-provider" ->
-                builder.provider(AiProvider.valueOf(nextArg(args, ++idx, arg).toUpperCase(Locale.ROOT)));
-            case "-ai-model" -> builder.modelName(nextArg(args, ++idx, arg));
-            case "-ai-base-url" -> builder.baseUrl(nextArg(args, ++idx, arg));
-            case "-ai-api-key" -> builder.apiKey(nextArg(args, ++idx, arg));
-            case "-ai-api-key-env" -> builder.apiKeyEnv(nextArg(args, ++idx, arg));
-            case "-ai-taxonomy" -> builder.taxonomyFile(Paths.get(nextArg(args, ++idx, arg)));
-            case "-ai-taxonomy-mode" ->
-                builder.taxonomyMode(AiOptions.TaxonomyMode.valueOf(nextArg(args, ++idx, arg).toUpperCase(Locale.ROOT)));
-            case "-ai-max-class-chars" -> builder.maxClassChars(Integer.parseInt(nextArg(args, ++idx, arg)));
-            case "-ai-timeout-sec" -> builder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++idx, arg))));
-            case "-ai-max-retries" -> builder.maxRetries(Integer.parseInt(nextArg(args, ++idx, arg)));
-            default -> throw new IllegalArgumentException("Unknown AI argument: " + arg);
-        }
-        return idx;
-    }
-
-    /**
-     * Returns the argument value following an option token.
-     *
-     * @param args   full command-line argument array
-     * @param index  index of the expected option value
-     * @param option option whose value is being retrieved
-     * @return argument value at {@code index}
-     * @throws IllegalArgumentException if {@code index} is outside the bounds of
-     *                                  {@code args}
-     */
-    private static String nextArg(String[] args, int index, String option) {
-        if (index >= args.length) {
-            throw new IllegalArgumentException("Missing value for " + option);
-        }
-        return args[index];
-    }
 }
