@@ -126,6 +126,7 @@ final class CliArgs {
         int idx = i;
         switch (arg) {
             case "-ai" -> builder.enabled(true);
+            case "-ai-confidence" -> builder.confidence(true);
             case "-ai-provider" ->
                 builder.provider(AiProvider.valueOf(nextArg(args, ++idx, arg).toUpperCase(Locale.ROOT)));
             case "-ai-model" -> builder.modelName(nextArg(args, ++idx, arg));

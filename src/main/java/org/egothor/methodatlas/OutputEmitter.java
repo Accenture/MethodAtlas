@@ -34,16 +34,21 @@ final class OutputEmitter {
 
     private final PrintWriter out;
     private final boolean aiEnabled;
+    private final boolean confidenceEnabled;
 
     /**
      * Creates a new output emitter bound to the supplied writer.
      *
-     * @param out       writer to which all records are emitted
-     * @param aiEnabled whether AI enrichment columns should be included
+     * @param out               writer to which all records are emitted
+     * @param aiEnabled         whether AI enrichment columns should be included
+     * @param confidenceEnabled whether the {@code ai_confidence} column should be
+     *                          included; only meaningful when {@code aiEnabled} is
+     *                          {@code true}
      */
-    /* default */ OutputEmitter(PrintWriter out, boolean aiEnabled) {
+    /* default */ OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled) {
         this.out = out;
         this.aiEnabled = aiEnabled;
+        this.confidenceEnabled = confidenceEnabled;
     }
 
     /**
@@ -84,7 +89,11 @@ final class OutputEmitter {
             return;
         }
         if (aiEnabled) {
-            out.println("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason");
+            if (confidenceEnabled) {
+                out.println("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_confidence");
+            } else {
+                out.println("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason");
+            }
         } else {
             out.println("fqcn,method,loc,tags");
         }
@@ -140,7 +149,7 @@ final class OutputEmitter {
      * @param line       string builder receiving the AI field tokens
      * @param suggestion AI suggestion, or {@code null}
      */
-    private static void appendAiPlainFields(StringBuilder line, AiMethodSuggestion suggestion) {
+    private void appendAiPlainFields(StringBuilder line, AiMethodSuggestion suggestion) {
         String aiSecurity = suggestion == null ? PLAIN_ABSENT : Boolean.toString(suggestion.securityRelevant());
         String aiDisplayName = suggestion == null || suggestion.displayName() == null
                 ? PLAIN_ABSENT : suggestion.displayName();
@@ -153,6 +162,12 @@ final class OutputEmitter {
                 .append(", AI_DISPLAY=").append(aiDisplayName)
                 .append(", AI_TAGS=").append(aiTags)
                 .append(", AI_REASON=").append(aiReason);
+
+        if (confidenceEnabled) {
+            String aiConfidence = suggestion == null ? PLAIN_ABSENT
+                    : String.format("%.1f", suggestion.confidence());
+            line.append(", AI_CONFIDENCE=").append(aiConfidence);
+        }
     }
 
     /**
@@ -185,7 +200,7 @@ final class OutputEmitter {
      * @param line       string builder receiving the AI columns
      * @param suggestion AI suggestion, or {@code null}
      */
-    private static void appendAiCsvFields(StringBuilder line, AiMethodSuggestion suggestion) {
+    private void appendAiCsvFields(StringBuilder line, AiMethodSuggestion suggestion) {
         String aiSecurity = suggestion == null ? CSV_ABSENT : Boolean.toString(suggestion.securityRelevant());
         String aiDisplayName = suggestion == null || suggestion.displayName() == null
                 ? CSV_ABSENT : suggestion.displayName();
@@ -198,6 +213,12 @@ final class OutputEmitter {
                 .append(',').append(csvEscape(aiDisplayName))
                 .append(',').append(csvEscape(aiTags))
                 .append(',').append(csvEscape(aiReason));
+
+        if (confidenceEnabled) {
+            String aiConfidence = suggestion == null ? CSV_ABSENT
+                    : String.format("%.1f", suggestion.confidence());
+            line.append(',').append(csvEscape(aiConfidence));
+        }
     }
 
     /**

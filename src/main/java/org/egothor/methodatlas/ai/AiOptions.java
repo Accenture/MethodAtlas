@@ -50,13 +50,17 @@ import java.util.Objects;
  *                      submitted to the AI provider
  * @param timeout       request timeout applied to AI calls
  * @param maxRetries    number of retry attempts for failed AI operations
+ * @param confidence    whether the AI provider should be asked to include a
+ *                      confidence score for each security-relevant method
+ *                      classification; requires model support and increases
+ *                      token usage slightly
  *
  * @see AiSuggestionEngine
  * @see Builder
  */
 public record AiOptions(boolean enabled, AiProvider provider, String modelName, String baseUrl, String apiKey,
         String apiKeyEnv, Path taxonomyFile, TaxonomyMode taxonomyMode, int maxClassChars, Duration timeout,
-        int maxRetries) {
+        int maxRetries, boolean confidence) {
     /**
      * Built-in taxonomy modes used for security classification.
      *
@@ -197,6 +201,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         private int maxClassChars = 40_000;
         private Duration timeout = Duration.ofSeconds(90);
         private int maxRetries = 1;
+        private boolean confidence;
 
         /**
          * Enables or disables AI enrichment.
@@ -320,6 +325,23 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         }
 
         /**
+         * Enables or disables AI confidence scoring.
+         *
+         * <p>
+         * When enabled, the prompt instructs the AI provider to return a
+         * {@code confidence} value for each method classification. The value is
+         * included in the output as an {@code ai_confidence} column.
+         * </p>
+         *
+         * @param confidence {@code true} to request confidence scores
+         * @return this builder
+         */
+        public Builder confidence(boolean confidence) {
+            this.confidence = confidence;
+            return this;
+        }
+
+        /**
          * Builds the final immutable {@link AiOptions} configuration.
          *
          * <p>
@@ -343,7 +365,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
             }
 
             return new AiOptions(enabled, effectiveProvider, modelName, effectiveBaseUrl, apiKey, apiKeyEnv,
-                    taxonomyFile, taxonomyMode, maxClassChars, timeout, maxRetries);
+                    taxonomyFile, taxonomyMode, maxClassChars, timeout, maxRetries, confidence);
         }
     }
 }

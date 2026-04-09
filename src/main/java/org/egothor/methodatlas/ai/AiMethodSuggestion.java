@@ -50,11 +50,16 @@ import java.util.List;
  * @param reason           explanatory rationale describing why the method was
  *                         classified as security-relevant or why specific tags
  *                         were assigned; may be {@code null}
+ * @param confidence       AI confidence score in the range {@code [0.0, 1.0]}
+ *                         describing how certain the model is that the method is
+ *                         security-relevant; {@code 0.0} when the AI did not
+ *                         provide a confidence score or when
+ *                         {@code securityRelevant} is {@code false}
  *
  * @see org.egothor.methodatlas.MethodAtlasApp
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  * @see org.egothor.methodatlas.ai.SuggestionLookup
  */
 public record AiMethodSuggestion(String methodName, boolean securityRelevant, String displayName, List<String> tags,
-        String reason) {
+        String reason, double confidence) {
 }

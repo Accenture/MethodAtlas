@@ -48,14 +48,14 @@ class SuggestionLookupTest {
     void from_filtersNullBlankAndMissingMethodNames() {
         AiMethodSuggestion valid = new AiMethodSuggestion("shouldRejectUnauthenticatedRequest", true,
                 "Reject unauthenticated access", List.of("security", "authentication", "access-control"),
-                "The test verifies anonymous access is rejected.");
+                "The test verifies anonymous access is rejected.", 0.0);
 
         AiClassSuggestion suggestion = new AiClassSuggestion("com.acme.security.AccessControlServiceTest", Boolean.TRUE,
                 List.of("security", "authentication", "access-control"), "Class tests protected-access scenarios.",
                 Arrays.asList(null,
-                        new AiMethodSuggestion(null, true, "Invalid", List.of("security"), "missing method name"),
-                        new AiMethodSuggestion("", true, "Invalid", List.of("security"), "blank method name"),
-                        new AiMethodSuggestion("   ", true, "Invalid", List.of("security"), "blank method name"),
+                        new AiMethodSuggestion(null, true, "Invalid", List.of("security"), "missing method name", 0.0),
+                        new AiMethodSuggestion("", true, "Invalid", List.of("security"), "blank method name", 0.0),
+                        new AiMethodSuggestion("   ", true, "Invalid", List.of("security"), "blank method name", 0.0),
                         valid));
 
         SuggestionLookup lookup = SuggestionLookup.from(suggestion);
@@ -74,10 +74,11 @@ class SuggestionLookupTest {
     void from_duplicateMethodNames_keepsFirstOccurrence() {
         AiMethodSuggestion first = new AiMethodSuggestion("shouldAllowAdministratorToReadAnyStatement", true,
                 "Allow administrative access", List.of("security", "access-control", "authorization"),
-                "The test verifies that an administrator is allowed access.");
+                "The test verifies that an administrator is allowed access.", 0.0);
 
         AiMethodSuggestion duplicate = new AiMethodSuggestion("shouldAllowAdministratorToReadAnyStatement", true,
-                "Ignore duplicate", List.of("security", "logging"), "A later duplicate entry that must be ignored.");
+                "Ignore duplicate", List.of("security", "logging"), "A later duplicate entry that must be ignored.",
+                0.0);
 
         AiClassSuggestion suggestion = new AiClassSuggestion("com.acme.security.AccessControlServiceTest", Boolean.TRUE,
                 List.of("security", "access-control"), "Class covers authorization scenarios.",
@@ -97,7 +98,7 @@ class SuggestionLookupTest {
     void find_existingMethod_returnsSuggestion() {
         AiMethodSuggestion method = new AiMethodSuggestion("shouldRejectRelativePathTraversalSequence", true,
                 "Reject path traversal payload", List.of("security", "input-validation", "path-traversal"),
-                "The test rejects a parent-directory traversal sequence.");
+                "The test rejects a parent-directory traversal sequence.", 0.0);
 
         AiClassSuggestion suggestion = new AiClassSuggestion("com.acme.storage.PathTraversalValidationTest",
                 Boolean.TRUE, List.of("security", "input-validation"), "Class validates filesystem input handling.",
@@ -118,7 +119,7 @@ class SuggestionLookupTest {
     void find_missingMethod_returnsEmptyOptional() {
         AiMethodSuggestion method = new AiMethodSuggestion("shouldWriteAuditEventForPrivilegeChange", true,
                 "Audit privilege changes", List.of("security", "audit", "logging"),
-                "The test verifies audit logging for a security-sensitive action.");
+                "The test verifies audit logging for a security-sensitive action.", 0.0);
 
         AiClassSuggestion suggestion = new AiClassSuggestion("com.acme.audit.AuditLoggingTest", Boolean.TRUE,
                 List.of("security", "audit", "logging"), "Class contains audit and secure logging tests.",
@@ -133,7 +134,7 @@ class SuggestionLookupTest {
     void find_nullMethodName_throwsNullPointerException() {
         AiMethodSuggestion method = new AiMethodSuggestion("shouldNotLogRawBearerToken", true,
                 "Redact bearer token in logs", List.of("security", "logging", "secrets-handling"),
-                "The test ensures sensitive credentials are not written to logs.");
+                "The test ensures sensitive credentials are not written to logs.", 0.0);
 
         AiClassSuggestion suggestion = new AiClassSuggestion("com.acme.audit.AuditLoggingTest", Boolean.TRUE,
                 List.of("security", "logging"), "Class checks secure logging behavior.", List.of(method));

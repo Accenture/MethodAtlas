@@ -143,7 +143,7 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
     public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
         try {
-            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods);
+            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
 
             ChatRequest payload = new ChatRequest(options.modelName(),
                     List.of(new Message("system", SYSTEM_PROMPT), new Message("user", prompt)), 0.0);
@@ -195,7 +195,8 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
         List<AiMethodSuggestion> normalizedMethods = methods.stream()
                 .filter(method -> method != null && method.methodName() != null && !method.methodName().isBlank())
                 .map(method -> new AiMethodSuggestion(method.methodName(), method.securityRelevant(),
-                        method.displayName(), method.tags() == null ? List.of() : method.tags(), method.reason()))
+                        method.displayName(), method.tags() == null ? List.of() : method.tags(), method.reason(),
+                        method.confidence()))
                 .toList();
 
         return new AiClassSuggestion(input.className(), input.classSecurityRelevant(), classTags, input.classReason(),

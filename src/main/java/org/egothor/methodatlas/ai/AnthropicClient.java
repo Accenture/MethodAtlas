@@ -134,7 +134,7 @@ public final class AnthropicClient implements AiProviderClient {
     public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
         try {
-            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods);
+            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
 
             MessageRequest payload = new MessageRequest(options.modelName(), SYSTEM_PROMPT,
                     List.of(new ContentMessage("user", List.of(new ContentBlock("text", prompt)))), 0.0, 2_000);
@@ -189,7 +189,8 @@ public final class AnthropicClient implements AiProviderClient {
         List<AiMethodSuggestion> normalizedMethods = methods.stream()
                 .filter(method -> method != null && method.methodName() != null && !method.methodName().isBlank())
                 .map(method -> new AiMethodSuggestion(method.methodName(), method.securityRelevant(),
-                        method.displayName(), method.tags() == null ? List.of() : method.tags(), method.reason()))
+                        method.displayName(), method.tags() == null ? List.of() : method.tags(), method.reason(),
+                        method.confidence()))
                 .toList();
 
         return new AiClassSuggestion(input.className(), input.classSecurityRelevant(), classTags, input.classReason(),

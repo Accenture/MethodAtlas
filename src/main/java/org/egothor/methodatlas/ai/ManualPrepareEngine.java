@@ -47,6 +47,7 @@ public final class ManualPrepareEngine {
     private final Path workDir;
     private final Path responseDir;
     private final String taxonomyText;
+    private final boolean confidence;
 
     /**
      * Creates a new prepare engine that writes work files and response stubs to
@@ -70,6 +71,7 @@ public final class ManualPrepareEngine {
         this.workDir = workDir;
         this.responseDir = responseDir;
         this.taxonomyText = loadTaxonomy(options);
+        this.confidence = options.confidence();
 
         try {
             Files.createDirectories(workDir);
@@ -113,7 +115,7 @@ public final class ManualPrepareEngine {
      */
     public Path prepare(String fqcn, String classSource, List<PromptBuilder.TargetMethod> targetMethods)
             throws AiSuggestionException {
-        String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods);
+        String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, confidence);
         Path outputFile = workDir.resolve(fqcn + ".txt");
         String content = buildFileContent(fqcn, prompt);
 

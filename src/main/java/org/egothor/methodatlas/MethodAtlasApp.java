@@ -104,6 +104,9 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * <li>{@code -ai-timeout-sec <seconds>} — sets the AI request timeout</li>
  * <li>{@code -ai-max-retries <count>} — sets the retry limit for AI
  * operations</li>
+ * <li>{@code -ai-confidence} — requests a confidence score for each AI
+ * security classification; adds an {@code ai_confidence} column to the
+ * output</li>
  * <li>{@code -file-suffix <suffix>} — matches source files by name suffix
  * (default: {@code Test.java}); may be repeated to match multiple patterns,
  * e.g. {@code -file-suffix Test.java -file-suffix IT.java}; the first
@@ -223,7 +226,8 @@ public final class MethodAtlasApp {
             aiEngine = buildAiEngine(cliConfig.aiOptions());
         }
 
-        OutputEmitter emitter = new OutputEmitter(out, aiEngine != null);
+        boolean confidenceEnabled = aiEngine != null && cliConfig.aiOptions().confidence();
+        OutputEmitter emitter = new OutputEmitter(out, aiEngine != null, confidenceEnabled);
 
         if (cliConfig.emitMetadata()) {
             String version = MethodAtlasApp.class.getPackage().getImplementationVersion();

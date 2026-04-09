@@ -107,7 +107,7 @@ public final class ManualConsumeEngine implements AiSuggestionEngine {
         List<AiMethodSuggestion> normalizedMethods = methods.stream()
                 .filter(m -> m != null && m.methodName() != null && !m.methodName().isBlank())
                 .map(m -> new AiMethodSuggestion(m.methodName(), m.securityRelevant(),
-                        m.displayName(), m.tags() == null ? List.of() : m.tags(), m.reason()))
+                        m.displayName(), m.tags() == null ? List.of() : m.tags(), m.reason(), m.confidence()))
                 .toList();
 
         return new AiClassSuggestion(input.className(), input.classSecurityRelevant(), classTags,

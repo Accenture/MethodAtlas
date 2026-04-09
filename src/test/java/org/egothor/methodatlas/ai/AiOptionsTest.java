@@ -26,6 +26,7 @@ class AiOptionsTest {
         assertEquals(40_000, options.maxClassChars());
         assertEquals(Duration.ofSeconds(90), options.timeout());
         assertEquals(1, options.maxRetries());
+        assertEquals(false, options.confidence());
     }
 
     @Test
@@ -111,7 +112,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullProvider() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, null, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false));
 
         assertEquals("provider", ex.getMessage());
     }
@@ -120,7 +121,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullModelName() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, null, "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false));
 
         assertEquals("modelName", ex.getMessage());
     }
@@ -129,7 +130,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullTimeout() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, null, 1));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, null, 1, false));
 
         assertEquals("timeout", ex.getMessage());
     }
@@ -137,7 +138,8 @@ class AiOptionsTest {
     @Test
     void canonicalConstructor_rejectsNullTaxonomyMode() {
         NullPointerException ex = assertThrows(NullPointerException.class, () -> new AiOptions(true, AiProvider.OPENAI,
-                "gpt-4o-mini", "https://api.openai.com", null, null, null, null, 40_000, Duration.ofSeconds(30), 1));
+                "gpt-4o-mini", "https://api.openai.com", null, null, null, null, 40_000, Duration.ofSeconds(30), 1,
+                false));
 
         assertEquals("taxonomyMode", ex.getMessage());
     }
@@ -146,7 +148,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsBlankBaseUrl() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "   ", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false));
 
         assertEquals("baseUrl must not be blank", ex.getMessage());
     }
@@ -155,7 +157,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNonPositiveMaxClassChars() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 0, Duration.ofSeconds(30), 1));
+                        AiOptions.TaxonomyMode.DEFAULT, 0, Duration.ofSeconds(30), 1, false));
 
         assertEquals("maxClassChars must be > 0", ex.getMessage());
     }
@@ -164,7 +166,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNegativeMaxRetries() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), -1));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), -1, false));
 
         assertEquals("maxRetries must be >= 0", ex.getMessage());
     }
@@ -177,7 +179,7 @@ class AiOptionsTest {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.ANTHROPIC)
                 .modelName("claude-3-5-sonnet").baseUrl("https://proxy.example.test/anthropic").apiKey("test-api-key")
                 .apiKeyEnv("IGNORED_ENV").taxonomyFile(taxonomyFile).taxonomyMode(AiOptions.TaxonomyMode.OPTIMIZED)
-                .maxClassChars(12_345).timeout(timeout).maxRetries(4).build();
+                .maxClassChars(12_345).timeout(timeout).maxRetries(4).confidence(true).build();
 
         assertEquals(true, options.enabled());
         assertEquals(AiProvider.ANTHROPIC, options.provider());
@@ -190,5 +192,6 @@ class AiOptionsTest {
         assertEquals(12_345, options.maxClassChars());
         assertEquals(timeout, options.timeout());
         assertEquals(4, options.maxRetries());
+        assertEquals(true, options.confidence());
     }
 }

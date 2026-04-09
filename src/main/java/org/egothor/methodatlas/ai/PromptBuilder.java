@@ -108,11 +108,15 @@ public final class PromptBuilder {
      * @param taxonomyText  taxonomy definition guiding classification
      * @param targetMethods exact list of deterministically discovered JUnit test
      *                      methods to classify
+     * @param confidence    when {@code true}, the prompt instructs the AI to
+     *                      include a {@code confidence} score for each method
+     *                      classification
      * @return formatted prompt supplied to the AI provider
      *
      * @see AiSuggestionEngine#suggestForClass(String, String)
      */
-    public static String build(String fqcn, String classSource, String taxonomyText, List<TargetMethod> targetMethods) {
+    public static String build(String fqcn, String classSource, String taxonomyText, List<TargetMethod> targetMethods,
+            boolean confidence) {
         Objects.requireNonNull(fqcn, "fqcn");
         Objects.requireNonNull(classSource, "classSource");
         Objects.requireNonNull(taxonomyText, "taxonomyText");
@@ -127,6 +131,21 @@ public final class PromptBuilder {
 
         String expectedMethodNames = targetMethods.stream().map(TargetMethod::methodName)
                 .map(name -> "\"" + name + "\"").collect(Collectors.joining(", "));
+
+        String confidenceOutputRules = confidence
+                ? "\n- confidence must be a decimal between 0.0 and 1.0 (one decimal place is sufficient).\n"
+                        + "  Use these anchor points when setting it:\n"
+                        + "    1.0 \u2014 the method name and body explicitly and unambiguously test a named\n"
+                        + "          security property (authentication, authorisation, encryption,\n"
+                        + "          injection prevention, access control, etc.)\n"
+                        + "    0.7 \u2014 the method clearly tests a security-adjacent concern but the mapping\n"
+                        + "          requires inference from context, class name, or surrounding code\n"
+                        + "    0.5 \u2014 the classification is plausible; the method name or body is equally\n"
+                        + "          consistent with a non-security interpretation\n"
+                        + "  Prefer securityRelevant=false rather than returning a confidence value below\n"
+                        + "  0.5. When securityRelevant=false, set confidence to 0.0."
+                : "";
+        String confidenceJsonField = confidence ? "\n              \"confidence\": 0.9," : "";
 
         return """
                 You are analyzing a single JUnit 5 test class and suggesting security tags.
@@ -166,7 +185,7 @@ public final class PromptBuilder {
                 - If securityRelevant=false, tags must be [].
                 - If securityRelevant=true, displayName must match:
                   SECURITY: <control/property> - <scenario>
-                - reason should be short and specific.
+                - reason should be short and specific.%s
 
                 JSON SHAPE
                 {
@@ -179,7 +198,7 @@ public final class PromptBuilder {
                       "methodName": "string",
                       "securityRelevant": true,
                       "displayName": "SECURITY: ...",
-                      "tags": ["security", "crypto"],
+                      "tags": ["security", "crypto"],%s
                       "reason": "string"
                     }
                   ]
@@ -191,7 +210,8 @@ public final class PromptBuilder {
                 SOURCE
                 %s
                 """
-                .formatted(taxonomyText, targetMethodBlock, expectedMethodNames, fqcn, classSource);
+                .formatted(taxonomyText, targetMethodBlock, expectedMethodNames,
+                        confidenceOutputRules, confidenceJsonField, fqcn, classSource);
     }
 
     private static String formatTargetMethod(TargetMethod targetMethod) {

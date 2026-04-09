@@ -177,15 +177,15 @@ class MethodAtlasAppAiTest {
         return new AiClassSuggestion("com.acme.tests.SampleOneTest", true, List.of("security", "crypto"),
                 "Class contains crypto-related security coverage.",
                 List.of(new AiMethodSuggestion("alpha", true, "SECURITY: crypto - validates encrypted happy path",
-                        List.of("security", "crypto"), "The test exercises a crypto-related security property."),
+                        List.of("security", "crypto"), "The test exercises a crypto-related security property.", 0.0),
                         new AiMethodSuggestion("ghostMethod", true, "SECURITY: invented - should never appear",
-                                List.of("security"), "This invented method must not be emitted by the CLI.")));
+                                List.of("security"), "This invented method must not be emitted by the CLI.", 0.0)));
     }
 
     private static AiClassSuggestion anotherSuggestion() {
         return new AiClassSuggestion("com.acme.other.AnotherTest", false, List.of(), "Class is not security-relevant.",
                 List.of(new AiMethodSuggestion("delta", false, null, List.of(),
-                        "The repeated test is not security-specific.")));
+                        "The repeated test is not security-specific.", 0.0)));
     }
 
     private static AiClassSuggestion accessControlSuggestion() {
@@ -193,21 +193,21 @@ class MethodAtlasAppAiTest {
                 List.of("security", "access-control"), "Class verifies authorization and authentication controls.",
                 List.of(new AiMethodSuggestion("shouldAllowOwnerToReadOwnStatement", true,
                         "SECURITY: access control - allow owner access", List.of("security", "access-control"),
-                        "The test verifies that the resource owner is granted access."),
+                        "The test verifies that the resource owner is granted access.", 0.0),
                         new AiMethodSuggestion("shouldAllowAdministratorToReadAnyStatement", true,
                                 "SECURITY: access control - allow administrator access",
                                 List.of("security", "access-control"),
-                                "The test verifies privileged administrative access."),
+                                "The test verifies privileged administrative access.", 0.0),
                         new AiMethodSuggestion("shouldDenyForeignUserFromReadingAnotherUsersStatement", true,
                                 "SECURITY: access control - deny foreign user access",
                                 List.of("security", "access-control"),
-                                "The test verifies that one user cannot access another user's statement."),
+                                "The test verifies that one user cannot access another user's statement.", 0.0),
                         new AiMethodSuggestion("shouldRejectUnauthenticatedRequest", true,
                                 "SECURITY: authentication - reject unauthenticated request",
                                 List.of("security", "auth", "access-control"),
-                                "The test verifies that anonymous access to a protected operation is rejected."),
+                                "The test verifies that anonymous access to a protected operation is rejected.", 0.0),
                         new AiMethodSuggestion("shouldRenderFriendlyAccountLabel", false, null, List.of(),
-                                "The test is purely presentational and not security-specific.")));
+                                "The test is purely presentational and not security-specific.", 0.0)));
     }
 
     private static AiClassSuggestion pathTraversalSuggestion() {
@@ -216,17 +216,17 @@ class MethodAtlasAppAiTest {
                 List.of(new AiMethodSuggestion("shouldRejectRelativePathTraversalSequence", true,
                         "SECURITY: input validation - reject path traversal sequence",
                         List.of("security", "input-validation", "owasp"),
-                        "The test rejects a classic parent-directory traversal payload."),
+                        "The test rejects a classic parent-directory traversal payload.", 0.0),
                         new AiMethodSuggestion("shouldRejectNestedTraversalAfterNormalization", true,
                                 "SECURITY: input validation - block normalized root escape",
                                 List.of("security", "input-validation", "owasp"),
-                                "The test verifies that normalized traversal cannot escape the upload root."),
+                                "The test verifies that normalized traversal cannot escape the upload root.", 0.0),
                         new AiMethodSuggestion("shouldAllowSafePathInsideUploadRoot", true,
                                 "SECURITY: input validation - allow safe normalized path",
                                 List.of("security", "input-validation"),
-                                "The test verifies that a normalized in-root path is accepted."),
+                                "The test verifies that a normalized in-root path is accepted.", 0.0),
                         new AiMethodSuggestion("shouldBuildDownloadFileName", false, null, List.of(),
-                                "The test only formats a filename and is not security-specific.")));
+                                "The test only formats a filename and is not security-specific.", 0.0)));
     }
 
     private static AiClassSuggestion auditLoggingSuggestion() {
@@ -234,16 +234,16 @@ class MethodAtlasAppAiTest {
                 "Class verifies security-relevant logging and audit behavior.",
                 List.of(new AiMethodSuggestion("shouldWriteAuditEventForPrivilegeChange", true,
                         "SECURITY: logging - audit privilege change", List.of("security", "logging"),
-                        "The test verifies audit logging of a privileged security action."),
+                        "The test verifies audit logging of a privileged security action.", 0.0),
                         new AiMethodSuggestion("shouldNotLogRawBearerToken", true,
                                 "SECURITY: logging - redact bearer token", List.of("security", "logging"),
-                                "The test ensures that sensitive bearer tokens are redacted before logging."),
+                                "The test ensures that sensitive bearer tokens are redacted before logging.", 0.0),
                         new AiMethodSuggestion("shouldNotLogPlaintextPasswordOnAuthenticationFailure", true,
                                 "SECURITY: logging - avoid plaintext password disclosure",
                                 List.of("security", "logging"),
-                                "The test verifies that plaintext passwords are not written to logs."),
+                                "The test verifies that plaintext passwords are not written to logs.", 0.0),
                         new AiMethodSuggestion("shouldFormatHumanReadableSupportMessage", false, null, List.of(),
-                                "The test is functional formatting coverage and is not security-specific.")));
+                                "The test is functional formatting coverage and is not security-specific.", 0.0)));
     }
 
     private static List<String> parseCsvFields(String line) {

@@ -1,6 +1,7 @@
 package org.egothor.methodatlas.ai;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,7 +41,7 @@ class PromptBuilderTest {
                 new PromptBuilder.TargetMethod("shouldRejectUnauthenticatedRequest", 8, 8),
                 new PromptBuilder.TargetMethod("shouldAllowOwnerToReadOwnStatement", 11, 11));
 
-        String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods);
+        String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, false);
 
         assertTrue(prompt.contains("FQCN: " + fqcn));
         assertTrue(prompt.contains(classSource));
@@ -53,7 +54,7 @@ class PromptBuilderTest {
     void build_containsExpectedTaskInstructions() {
         String prompt = PromptBuilder.build("com.acme.audit.AuditLoggingTest", "class AuditLoggingTest {}",
                 "security, logging",
-                List.of(new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null)));
+                List.of(new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null)), false);
 
         assertTrue(prompt.contains("You are analyzing a single JUnit 5 test class and suggesting security tags."));
         assertTrue(prompt.contains("- Analyze the WHOLE class for context."));
@@ -69,7 +70,8 @@ class PromptBuilderTest {
     void build_containsClosedTaxonomyRules() {
         String prompt = PromptBuilder.build("com.acme.storage.PathTraversalValidationTest",
                 "class PathTraversalValidationTest {}", "security, input-validation, injection",
-                List.of(new PromptBuilder.TargetMethod("shouldRejectRelativePathTraversalSequence", null, null)));
+                List.of(new PromptBuilder.TargetMethod("shouldRejectRelativePathTraversalSequence", null, null)),
+                false);
 
         assertTrue(prompt.contains("Tags must come only from this closed set:"));
         assertTrue(prompt.contains(
@@ -82,7 +84,7 @@ class PromptBuilderTest {
     void build_containsDisplayNameRules() {
         String prompt = PromptBuilder.build("com.acme.security.AccessControlServiceTest",
                 "class AccessControlServiceTest {}", "security, auth, access-control",
-                List.of(new PromptBuilder.TargetMethod("shouldRejectUnauthenticatedRequest", null, null)));
+                List.of(new PromptBuilder.TargetMethod("shouldRejectUnauthenticatedRequest", null, null)), false);
 
         assertTrue(prompt.contains("If securityRelevant=false, displayName must be null."));
         assertTrue(prompt.contains("If securityRelevant=true, displayName must match:"));
@@ -93,7 +95,7 @@ class PromptBuilderTest {
     void build_containsJsonShapeContract() {
         String prompt = PromptBuilder.build("com.acme.audit.AuditLoggingTest", "class AuditLoggingTest {}",
                 "security, logging",
-                List.of(new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null)));
+                List.of(new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null)), false);
 
         assertTrue(prompt.contains("JSON SHAPE"));
         assertTrue(prompt.contains("\"className\": \"string\""));
@@ -121,7 +123,7 @@ class PromptBuilderTest {
 
         String prompt = PromptBuilder.build("com.acme.storage.PathTraversalValidationTest", classSource,
                 "security, input-validation, injection",
-                List.of(new PromptBuilder.TargetMethod("shouldRejectRelativePathTraversalSequence", 3, 5)));
+                List.of(new PromptBuilder.TargetMethod("shouldRejectRelativePathTraversalSequence", 3, 5)), false);
 
         assertTrue(prompt.contains("String userInput = \"../etc/passwd\";"));
         assertTrue(prompt.contains("void shouldRejectRelativePathTraversalSequence()"));
@@ -132,7 +134,8 @@ class PromptBuilderTest {
     void build_includesExpectedMethodNamesConstraint() {
         String prompt = PromptBuilder.build("com.acme.tests.SampleOneTest", "class SampleOneTest {}",
                 "security, crypto", List.of(new PromptBuilder.TargetMethod("alpha", 1, 1),
-                        new PromptBuilder.TargetMethod("beta", 2, 2), new PromptBuilder.TargetMethod("gamma", 3, 3)));
+                        new PromptBuilder.TargetMethod("beta", 2, 2), new PromptBuilder.TargetMethod("gamma", 3, 3)),
+                false);
 
         assertTrue(prompt.contains("- methodName values in the output must exactly match one of:"));
         assertTrue(prompt.contains("[\"alpha\", \"beta\", \"gamma\"]"));
@@ -147,16 +150,39 @@ class PromptBuilderTest {
         String taxonomy = "security, logging";
         List<PromptBuilder.TargetMethod> targetMethods = List.of(new PromptBuilder.TargetMethod("alpha", null, null));
 
-        String prompt1 = PromptBuilder.build(fqcn, source, taxonomy, targetMethods);
-        String prompt2 = PromptBuilder.build(fqcn, source, taxonomy, targetMethods);
+        String prompt1 = PromptBuilder.build(fqcn, source, taxonomy, targetMethods, false);
+        String prompt2 = PromptBuilder.build(fqcn, source, taxonomy, targetMethods, false);
 
         assertEquals(prompt1, prompt2);
     }
 
     @Test
+    void build_withConfidence_includesConfidenceRulesAndJsonField() {
+        String prompt = PromptBuilder.build("com.acme.security.AccessControlServiceTest",
+                "class AccessControlServiceTest {}", "security, auth",
+                List.of(new PromptBuilder.TargetMethod("shouldRejectUnauthenticatedRequest", null, null)), true);
+
+        assertTrue(prompt.contains("confidence must be a decimal between 0.0 and 1.0"));
+        assertTrue(prompt.contains("1.0"));
+        assertTrue(prompt.contains("0.7"));
+        assertTrue(prompt.contains("0.5"));
+        assertTrue(prompt.contains("\"confidence\": 0.9"));
+    }
+
+    @Test
+    void build_withoutConfidence_excludesConfidenceRulesAndJsonField() {
+        String prompt = PromptBuilder.build("com.acme.security.AccessControlServiceTest",
+                "class AccessControlServiceTest {}", "security, auth",
+                List.of(new PromptBuilder.TargetMethod("shouldRejectUnauthenticatedRequest", null, null)), false);
+
+        assertFalse(prompt.contains("confidence must be a decimal"));
+        assertFalse(prompt.contains("\"confidence\": 0.9"));
+    }
+
+    @Test
     void build_rejectsEmptyTargetMethods() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> PromptBuilder.build("com.example.X", "class X {}", "security", List.of()));
+                () -> PromptBuilder.build("com.example.X", "class X {}", "security", List.of(), false));
 
         assertEquals("targetMethods must not be empty", ex.getMessage());
     }
