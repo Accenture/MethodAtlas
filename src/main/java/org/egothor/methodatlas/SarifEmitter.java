@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -60,6 +60,14 @@ final class SarifEmitter implements TestMethodSink {
     private static final String LEVEL_NOTE = "note";
     private static final String LEVEL_NONE = "none";
     private static final String URI_BASE_ID = "%SRCROOT%";
+
+    /**
+     * Pre-compiled pattern for splitting rule IDs into camel-case name segments.
+     * Using {@link Pattern#split(CharSequence, int)} with limit {@code -1} is
+     * more predictable than {@link String#split(String)} which silently discards
+     * trailing empty strings.
+     */
+    private static final Pattern RULE_NAME_SEPARATOR = Pattern.compile("[/-]");
 
     private final boolean aiEnabled;
     private final boolean confidenceEnabled;
@@ -121,7 +129,7 @@ final class SarifEmitter implements TestMethodSink {
                 new ArrayList<>(rulesById.values()));
         SarifTool tool = new SarifTool(driver);
         SarifRun run = new SarifRun(tool, results);
-        SarifDocument doc = new SarifDocument(SARIF_VERSION, List.of(run));
+        SarifDocument doc = new SarifDocument(SARIF_SCHEMA, SARIF_VERSION, List.of(run));
 
         JsonMapper mapper = JsonMapper.builder()
                 .enable(SerializationFeature.INDENT_OUTPUT)
@@ -162,7 +170,7 @@ final class SarifEmitter implements TestMethodSink {
 
     private static String toRuleName(String ruleId) {
         StringBuilder sb = new StringBuilder();
-        for (String part : ruleId.split("[/-]")) {
+        for (String part : RULE_NAME_SEPARATOR.split(ruleId, -1)) {
             if (!part.isEmpty()) {
                 sb.append(Character.toUpperCase(part.charAt(0)));
                 if (part.length() > SINGLE_CHAR_LENGTH) {
@@ -238,185 +246,84 @@ final class SarifEmitter implements TestMethodSink {
     }
 
     // -------------------------------------------------------------------------
-    // SARIF 2.1.0 POJO classes (serialized by Jackson via direct field access)
+    // SARIF 2.1.0 POJO records (serialized by Jackson via accessor methods).
     //
-    // @JsonAutoDetect(fieldVisibility = ANY) instructs Jackson to read private
-    // fields directly instead of going through public getters.
+    // Java records expose each component through a public accessor method whose
+    // name matches the component name (no "get" prefix).  Jackson 2.12+
+    // recognises records natively and serialises them via those accessors,
+    // so no @JsonAutoDetect(fieldVisibility = ANY) is required.
     // -------------------------------------------------------------------------
 
     /** SARIF 2.1.0 top-level document containing a version, schema URL, and runs. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifDocument {
-        @JsonProperty("$schema")
-        @SuppressWarnings("PMD.FinalFieldCouldBeStatic") // static field not serialized by Jackson
-        private final String schema = SARIF_SCHEMA;
-        private final String version;
-        private final List<SarifRun> runs;
-
-        private SarifDocument(String version, List<SarifRun> runs) {
-            this.version = version;
-            this.runs = runs;
-        }
+    private record SarifDocument(
+            @JsonProperty("$schema") String schema,
+            String version,
+            List<SarifRun> runs) {
     }
 
     /** SARIF run containing a tool description and the list of results. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifRun {
-        private final SarifTool tool;
-        private final List<SarifResult> results;
-
-        private SarifRun(SarifTool tool, List<SarifResult> results) {
-            this.tool = tool;
-            this.results = results;
-        }
+    private record SarifRun(SarifTool tool, List<SarifResult> results) {
     }
 
     /** SARIF tool wrapper holding the driver descriptor. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifTool {
-        private final SarifDriver driver;
-
-        private SarifTool(SarifDriver driver) { this.driver = driver; }
+    private record SarifTool(SarifDriver driver) {
     }
 
     /** SARIF driver descriptor containing the tool name, version, and rules. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifDriver {
-        private final String name;
-        private final String version;
-        private final List<SarifRule> rules;
-
-        private SarifDriver(String name, String version, List<SarifRule> rules) {
-            this.name = name;
-            this.version = version;
-            this.rules = rules;
-        }
+    private record SarifDriver(String name, String version, List<SarifRule> rules) {
     }
 
     /** SARIF rule definition with an id, camel-case name, and short description. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifRule {
-        private final String id;
-        private final String name;
-        private final SarifMessage shortDescription;
-
-        private SarifRule(String id, String name, SarifMessage shortDescription) {
-            this.id = id;
-            this.name = name;
-            this.shortDescription = shortDescription;
-        }
+    private record SarifRule(String id, String name, SarifMessage shortDescription) {
     }
 
     /** SARIF result record representing one discovered test method. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifResult {
-        private final String ruleId;
-        private final String level;
-        private final SarifMessage message;
-        private final List<SarifLocation> locations;
-        private final SarifProperties properties;
-
-        private SarifResult(String ruleId, String level, SarifMessage message,
-                List<SarifLocation> locations, SarifProperties properties) {
-            this.ruleId = ruleId;
-            this.level = level;
-            this.message = message;
-            this.locations = locations;
-            this.properties = properties;
-        }
+    private record SarifResult(
+            String ruleId,
+            String level,
+            SarifMessage message,
+            List<SarifLocation> locations,
+            SarifProperties properties) {
     }
 
     /** SARIF location combining a physical and logical location for a result. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifLocation {
-        private final SarifPhysicalLocation physicalLocation;
-        private final List<SarifLogicalLocation> logicalLocations;
-
-        private SarifLocation(SarifPhysicalLocation physicalLocation,
-                List<SarifLogicalLocation> logicalLocations) {
-            this.physicalLocation = physicalLocation;
-            this.logicalLocations = logicalLocations;
-        }
+    private record SarifLocation(
+            SarifPhysicalLocation physicalLocation,
+            List<SarifLogicalLocation> logicalLocations) {
     }
 
     /** SARIF physical location identifying a file and an optional region. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifPhysicalLocation {
-        private final SarifArtifactLocation artifactLocation;
-
-        @JsonInclude(Include.NON_NULL)
-        private final SarifRegion region;
-
-        private SarifPhysicalLocation(SarifArtifactLocation artifactLocation, SarifRegion region) {
-            this.artifactLocation = artifactLocation;
-            this.region = region;
-        }
+    private record SarifPhysicalLocation(
+            SarifArtifactLocation artifactLocation,
+            @JsonInclude(Include.NON_NULL) SarifRegion region) {
     }
 
     /** SARIF artifact location holding a URI and an optional URI base-id token. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifArtifactLocation {
-        private final String uri;
-        private final String uriBaseId;
-
-        private SarifArtifactLocation(String uri, String uriBaseId) {
-            this.uri = uri;
-            this.uriBaseId = uriBaseId;
-        }
+    private record SarifArtifactLocation(String uri, String uriBaseId) {
     }
 
     /** SARIF region identifying the starting line of a result within a file. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifRegion {
-        private final int startLine;
-
-        private SarifRegion(int startLine) { this.startLine = startLine; }
+    private record SarifRegion(int startLine) {
     }
 
     /** SARIF logical location holding a fully-qualified member name and kind. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifLogicalLocation {
-        private final String fullyQualifiedName;
-        private final String kind;
-
-        private SarifLogicalLocation(String fullyQualifiedName, String kind) {
-            this.fullyQualifiedName = fullyQualifiedName;
-            this.kind = kind;
-        }
+    private record SarifLogicalLocation(String fullyQualifiedName, String kind) {
     }
 
     /** SARIF message wrapper containing a plain-text description string. */
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifMessage {
-        private final String text;
-
-        private SarifMessage(String text) { this.text = text; }
+    private record SarifMessage(String text) {
     }
 
     /** Custom SARIF properties bag carrying MethodAtlas-specific enrichment fields. */
     @JsonInclude(Include.NON_NULL)
-    @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-    private static final class SarifProperties {
-        private final int loc;
-        private final String contentHash;
-        private final String sourceTags;
-        private final Boolean aiSecurityRelevant;
-        private final String aiDisplayName;
-        private final String aiTags;
-        private final String aiReason;
-        private final Double aiConfidence;
-
-        private SarifProperties(int loc, String contentHash, String sourceTags,
-                Boolean aiSecurityRelevant, String aiDisplayName, String aiTags,
-                String aiReason, Double aiConfidence) {
-            this.loc = loc;
-            this.contentHash = contentHash;
-            this.sourceTags = sourceTags;
-            this.aiSecurityRelevant = aiSecurityRelevant;
-            this.aiDisplayName = aiDisplayName;
-            this.aiTags = aiTags;
-            this.aiReason = aiReason;
-            this.aiConfidence = aiConfidence;
-        }
+    private record SarifProperties(
+            int loc,
+            String contentHash,
+            String sourceTags,
+            Boolean aiSecurityRelevant,
+            String aiDisplayName,
+            String aiTags,
+            String aiReason,
+            Double aiConfidence) {
     }
 }

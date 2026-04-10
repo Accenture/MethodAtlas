@@ -184,10 +184,12 @@ public final class MethodAtlasApp {
      *                                  cannot be created successfully
      */
     public static void main(String[] args) throws IOException {
-        int exitCode;
-        try (PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true)) {
-            exitCode = run(args, out);
-        }
+        // Do NOT wrap System.out in try-with-resources: closing the PrintWriter
+        // would permanently close System.out, silencing any subsequent output.
+        // Auto-flush (second constructor argument) flushes after every println/printf.
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
+        int exitCode = run(args, out);
+        out.flush();
         if (exitCode != 0) {
             System.exit(exitCode);
         }
