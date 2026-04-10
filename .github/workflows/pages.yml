@@ -40,16 +40,30 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          build-scan-publish: true
+          build-scan-terms-of-service-url: "https://gradle.com/help/legal-terms-of-use"
+          build-scan-terms-of-service-agree: "yes"
 
       # jacocoTestReport is a finalizer of the test task and runs automatically.
       - name: Run tests and generate JaCoCo report
         run: ./gradlew test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: build/reports/jacoco/test/jacocoTestReport.xml
+          fail_ci_if_error: false
 
       # PMD violations must not block the Pages deployment – the report itself
       # is the deliverable.  The step is marked continue-on-error so a failed
       # PMD check still produces build/reports/pmd/main.html.
       - name: Run PMD static analysis
         run: ./gradlew pmdMain
+        continue-on-error: true
+
+      - name: Run SpotBugs analysis
+        run: ./gradlew spotbugsMain
         continue-on-error: true
 
       - name: Generate Javadoc
@@ -62,10 +76,11 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Assemble Pages site
         run: |
-          mkdir -p site/jacoco site/pmd site/tests site/javadoc
+          mkdir -p site/jacoco site/pmd site/spotbugs site/tests site/javadoc
 
           cp -r build/reports/jacoco/test/html/. site/jacoco/
           cp -r build/reports/pmd/.               site/pmd/
+          cp -r build/reports/spotbugs/.          site/spotbugs/ 2>/dev/null || true
           cp -r build/reports/tests/test/.        site/tests/
           cp -r build/docs/javadoc/.              site/javadoc/
 
@@ -193,6 +208,11 @@ jobs:
                   <span class="icon">&#x2705;</span>
                   <strong>Test Results</strong>
                   <span>Unit test execution report</span>
+                </a>
+                <a class="card" href="spotbugs/main.html">
+                  <span class="icon">&#x1F41E;</span>
+                  <strong>SpotBugs</strong>
+                  <span>Bug-pattern detection report</span>
                 </a>
               </div>
             </main>

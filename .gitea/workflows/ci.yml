@@ -1,18 +1,20 @@
-# Runs on every branch push and on every pull-request to give developers fast
-# feedback before a release tag is cut.  The quality gate executes the Gradle
-# `check` lifecycle, which covers:
-#   - compilation of main and test sources
-#   - all JUnit 5 tests (via `test`)
-#   - JaCoCo instruction coverage ≥ 70 % (via `jacocoTestCoverageVerification`)
-#   - PMD static analysis on the main source set (via `pmdMain`)
-# Reports are uploaded as workflow artifacts so failing runs can be diagnosed
-# without a local checkout.
+# Runs on every branch push and on every pull-request.
+# Each quality gate is an explicit named step so the CI log immediately shows
+# which check failed without inspecting build.gradle.
+#
+# Gates enforced by ./gradlew check (build.gradle):
+#   test                        – all JUnit 5 tests must pass
+#   jacocoTestCoverageVerification – instruction coverage ≥ 70 %
+#   pmdMain                     – zero PMD violations on main sources
+#   spotbugsMain                – zero SpotBugs violations (excluding
+#                                 config/spotbugs/excludeFilter.xml)
+#   ArchitectureTest            – ArchUnit structural rules (runs as a test)
 name: CI
 
 on:
   push:
     branches: ['**']
-    tags-ignore: ['**']   # release tags are handled by release.yml
+    tags-ignore: ['**']
   pull_request:
 
 jobs:
@@ -25,6 +27,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0    # full history + tags required by com.palantir.git-version
+
+      - name: Validate commit messages (Conventional Commits)
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|test|chore|ci|perf|build|revert)(\([^)]+\))?(!)?: .+'
+          fails=0
+          while IFS= read -r msg; do
+            [[ -z "$msg" ]] && continue
+            if ! [[ "$msg" =~ $pattern ]]; then
+              echo "::error::Non-conformant commit message: $msg"
+              fails=$((fails + 1))
+            fi
+          done < <(git log --format="%s" "origin/${{ github.base_ref }}..HEAD")
+          exit $fails
 
       - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v4
@@ -41,12 +58,38 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
-      # `check` depends on: test, jacocoTestCoverageVerification, pmdMain.
-      # `test` is finalized by jacocoTestReport, so the HTML coverage report is
-      # always produced regardless of whether the coverage threshold is met.
-      - name: Run quality gate
-        run: ./gradlew check --no-daemon
+      # -----------------------------------------------------------------------
+      # Step 1 – compile and run all JUnit 5 tests.
+      # jacocoTestReport runs automatically as a test finalizer and produces
+      # build/reports/jacoco/test/jacocoTestReport.xml (consumed by Codecov).
+      # -----------------------------------------------------------------------
+      - name: Run tests
+        run: ./gradlew test --no-daemon
 
+      # -----------------------------------------------------------------------
+      # Step 2 – enforce JaCoCo instruction coverage ≥ 70 %.
+      # This is a separate, explicitly named step so the threshold is visible
+      # in the CI log.  The task reads build/jacoco/test.exec written in step 1.
+      # -----------------------------------------------------------------------
+      - name: Verify JaCoCo instruction coverage ≥ 70 %
+        run: ./gradlew jacocoTestCoverageVerification --no-daemon
+
+      # -----------------------------------------------------------------------
+      # Step 3 – PMD static analysis on main sources.
+      # -----------------------------------------------------------------------
+      - name: PMD static analysis
+        run: ./gradlew pmdMain --no-daemon
+
+      # -----------------------------------------------------------------------
+      # Step 4 – SpotBugs bug-pattern detection on main sources.
+      # -----------------------------------------------------------------------
+      - name: SpotBugs analysis
+        run: ./gradlew spotbugsMain --no-daemon
+
+      # -----------------------------------------------------------------------
+      # Upload reports so failing runs can be diagnosed without a local checkout.
+      # if: always() ensures upload even when a gate step fails.
+      # -----------------------------------------------------------------------
       - name: Upload test report
         uses: actions/upload-artifact@v4
         if: always()
@@ -70,3 +113,22 @@ jobs:
           name: pmd-report
           path: build/reports/pmd/
           retention-days: 14
+
+      - name: Upload SpotBugs report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spotbugs-report
+          path: build/reports/spotbugs/
+          retention-days: 14
+
+      # -----------------------------------------------------------------------
+      # Upload coverage to Codecov for trend tracking and PR delta comments.
+      # CODECOV_TOKEN secret is optional for public repositories.
+      # -----------------------------------------------------------------------
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: always()
+        with:
+          files: build/reports/jacoco/test/jacocoTestReport.xml
+          fail_ci_if_error: false

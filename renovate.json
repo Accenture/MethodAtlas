@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:base"],
+  "labels": ["dependencies"],
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 5,
+  "commitMessagePrefix": "chore(deps):",
+  "packageRules": [
+    {
+      "description": "Group all Gradle plugin updates into one PR",
+      "matchManagers": ["gradle-wrapper", "gradle"],
+      "matchDepTypes": ["plugin"],
+      "groupName": "Gradle plugins"
+    },
+    {
+      "description": "Group all JUnit 5 updates into one PR",
+      "matchPackagePrefixes": ["org.junit"],
+      "groupName": "JUnit 5"
+    },
+    {
+      "description": "Group all Mockito updates into one PR",
+      "matchPackagePrefixes": ["org.mockito"],
+      "groupName": "Mockito"
+    },
+    {
+      "description": "Group all Jackson updates into one PR",
+      "matchPackagePrefixes": ["com.fasterxml.jackson"],
+      "groupName": "Jackson"
+    },
+    {
+      "description": "Automerge patch-level dependency updates after CI passes",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}

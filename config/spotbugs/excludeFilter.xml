@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SpotBugs exclusion filter for MethodAtlas.
+
+  EI_EXPOSE_REP / EI_EXPOSE_REP2
+    Java records expose their fields through generated accessor methods.
+    SpotBugs reports EI_EXPOSE_REP2 whenever an accessor returns a List,
+    because it cannot statically prove that the stored reference is
+    immutable.  In this project all List fields stored in records are
+    produced by List.of(), List.copyOf(), or stream().toList(), all of
+    which return unmodifiable views.  The warning is a false positive.
+
+  REC_CATCH_EXCEPTION
+    The AI provider clients (AnthropicClient, OllamaClient,
+    OpenAiCompatibleClient) intentionally catch the broadest Exception to
+    convert every possible failure mode into a single AiSuggestionException.
+    The same suppression already exists for PMD (NOPMD comment).
+-->
+<FindBugsFilter
+    xmlns="https://github.com/spotbugs/filter/3.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0
+                        https://raw.githubusercontent.com/spotbugs/spotbugs/master/spotbugs/etc/findbugsfilter.xsd">
+
+    <!-- False positive: record accessors returning List fields that are
+         guaranteed immutable at construction time. -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- Intentional broad catch in AI provider clients to unify all failure
+         modes under AiSuggestionException. -->
+    <Match>
+        <Bug pattern="REC_CATCH_EXCEPTION"/>
+        <Class name="~org\.egothor\.methodatlas\.ai\.(Anthropic|OpenAiCompatible|Ollama)Client"/>
+    </Match>
+
+</FindBugsFilter>

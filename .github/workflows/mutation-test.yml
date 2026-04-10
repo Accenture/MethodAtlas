@@ -1,0 +1,38 @@
+# Runs PIT mutation testing every Sunday at 04:00 UTC and on manual dispatch.
+name: Mutation testing
+
+on:
+  schedule:
+    - cron: '0 4 * * 0'   # Every Sunday at 04:00 UTC
+  workflow_dispatch:
+
+jobs:
+  pitest:
+    name: PIT mutation testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run PIT mutation testing
+        run: ./gradlew pitest
+
+      - name: Upload mutation report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pitest-report
+          path: build/reports/pitest/
+          retention-days: 30

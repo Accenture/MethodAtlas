@@ -16,10 +16,10 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Java 21
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: '21'
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -31,59 +31,51 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # Quality gate: all tests must pass, JaCoCo instruction coverage must be
-      # ≥ 70 %, and PMD must report no violations before a release is published.
-      - name: Quality gate
-        run: ./gradlew check --no-daemon
+      # -----------------------------------------------------------------------
+      # Quality gate – explicit named steps so each check is visible in the log.
+      # -----------------------------------------------------------------------
+      - name: Run tests
+        run: ./gradlew test --no-daemon
 
+      - name: Verify JaCoCo instruction coverage ≥ 70 %
+        run: ./gradlew jacocoTestCoverageVerification --no-daemon
+
+      - name: PMD static analysis
+        run: ./gradlew pmdMain --no-daemon
+
+      - name: SpotBugs analysis
+        run: ./gradlew spotbugsMain --no-daemon
+
+      # -----------------------------------------------------------------------
+      # Build artefacts
+      # -----------------------------------------------------------------------
       - name: Build distribution archives
         run: ./gradlew distZip distTar --no-daemon
 
-      - name: Generate release notes
-        id: notes
+      - name: Generate CycloneDX SBOM
+        run: ./gradlew cyclonedxBom --no-daemon
+
+      # -----------------------------------------------------------------------
+      # Changelog via git-cliff (reads cliff.toml at repo root)
+      # -----------------------------------------------------------------------
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+
+      - name: Generate changelog
         run: |
-          current_tag="${{ github.ref_name }}"
+          git-cliff --tag "${{ github.ref_name }}" \
+                    --output /tmp/CHANGELOG_RELEASE.md
 
-          # strip the prefix for sorting, keep prefix for matching
-          prefix="release@"
-
-          # get all matching tags, strip prefix, sort them
-          all_versions=$(git tag --list "${prefix}*" | sed "s/^${prefix}//" | sort -V)
-
-          # find previous version
-          previous_tag=""
-          for v in $all_versions; do
-            if [[ "$prefix$v" == "$current_tag" ]]; then
-              break
-            fi
-            previous_tag="$prefix$v"
-          done
-
-          if [[ -z "$previous_tag" ]]; then
-            range=""
-          else
-            range="$previous_tag..$current_tag"
-          fi
-
-          echo "Comparing range: $range"
-
-          body="## What's New"
-
-          for category in "feat: Features" "fix: Bug Fixes" "docs: Documentation" "chore: Chores"; do
-            prefix="${category%%:*}"
-            title="${category##*: }"
-            entries=$(git log $range --pretty=format:"%B" --no-merges | ( grep "^${prefix}" || true ) | sed "s/^${prefix}:/- /")
-            if [[ -n "$entries" ]]; then
-              body="$body\n\n### $title\n$entries"
-            fi
-          done
-
-          echo -e "$body" > /tmp/release_notes.md
-
+      # -----------------------------------------------------------------------
+      # Publish release
+      # -----------------------------------------------------------------------
       - name: Create Gitea Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: /tmp/CHANGELOG_RELEASE.md
           files: |
             build/distributions/*.tar
             build/distributions/*.zip
-          body_path: /tmp/release_notes.md
+            build/reports/bom.json

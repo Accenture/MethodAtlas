@@ -1,0 +1,110 @@
+# Runs OWASP Dependency-Check, SpotBugs SARIF upload, and MethodAtlas
+# self-analysis (dogfooding) every Monday at 03:00 UTC and on manual dispatch.
+#
+# SpotBugs and MethodAtlas results are uploaded to GitHub Code Scanning so
+# findings appear in the Security tab and as PR diff annotations.
+#
+# MethodAtlas self-analysis: the tool classifies its own test methods for
+# security relevance and uploads the SARIF output to Code Scanning.  This
+# exercises the SARIF pipeline and provides a real-world demonstration of the
+# tool's output on a known, well-maintained codebase.
+name: Security scan
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'   # Every Monday at 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # required to upload SARIF to Code Scanning
+
+jobs:
+  dependency-check:
+    name: OWASP Dependency-Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache NVD database
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/dependency-check-data
+          key: nvd-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: nvd-db-${{ runner.os }}-
+
+      - name: Run OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./gradlew dependencyCheckAnalyze
+
+      - name: Upload Dependency-Check report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: build/reports/dependency-check-report.*
+          retention-days: 30
+
+  code-scanning:
+    name: Code scanning (SpotBugs + MethodAtlas self-analysis)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Run SpotBugs; the task is configured to emit SARIF alongside HTML.
+      - name: Run SpotBugs (produces SARIF)
+        run: ./gradlew spotbugsMain
+
+      # Build and install the tool so we can run it on itself.
+      - name: Build and install MethodAtlas
+        run: ./gradlew installDist
+
+      # Run MethodAtlas on its own test sources.  The tool classifies each
+      # JUnit test method for security relevance and outputs a SARIF document
+      # to stdout.  No AI provider is configured, so classification is
+      # rule-based only (the default mode when -ai is absent).
+      - name: Run MethodAtlas self-analysis (dogfooding)
+        run: |
+          build/install/methodatlas/bin/methodatlas \
+            -sarif \
+            src/test/java \
+            > build/reports/methodatlas-self.sarif.json
+
+      - name: Upload SpotBugs SARIF to Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: build/reports/spotbugs/main.sarif
+          category: spotbugs
+
+      - name: Upload MethodAtlas self-analysis SARIF to Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: build/reports/methodatlas-self.sarif.json
+          category: methodatlas

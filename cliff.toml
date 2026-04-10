@@ -1,0 +1,57 @@
+# git-cliff configuration for MethodAtlas.
+# Generates structured changelogs from Conventional Commit messages.
+# Tags must match the pattern release@x.y.z.
+# Run: git-cliff --tag release@1.2.3 --output CHANGELOG.md
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to MethodAtlas are documented in this file.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="release@") }}] \
+— {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}\
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}\
+- {% if commit.breaking %}**BREAKING CHANGE** {% endif %}\
+{{ commit.message | upper_first }}\
+{% if commit.github.username %} ([@{{ commit.github.username }}](https://github.com/{{ commit.github.username }})){% endif %}
+{% endfor %}
+{% endfor %}\n
+"""
+trim = true
+footer = ""
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+commit_parsers = [
+    { message = "^feat",                        group = "Features" },
+    { message = "^fix",                         group = "Bug Fixes" },
+    { message = "^perf",                        group = "Performance" },
+    { message = "^refactor",                    group = "Refactoring" },
+    { message = "^docs",                        group = "Documentation" },
+    { message = "^test",                        group = "Tests" },
+    { message = "^build",                       group = "Build" },
+    { message = "^ci",                          group = "CI/CD" },
+    { message = "^style",                       group = "Styling" },
+    { message = "^chore\\(release\\)",          skip = true },
+    { message = "^chore",                       group = "Miscellaneous" },
+    { message = "^revert",                      group = "Reverts" },
+]
+filter_commits = false
+tag_pattern = "release@[0-9].*"
+skip_tags = ""
+ignore_tags = ""
+topo_order = false
+sort_commits = "oldest"
