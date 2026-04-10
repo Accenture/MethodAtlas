@@ -15,6 +15,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
+import java.time.Duration;
+
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
 import org.junit.jupiter.api.DisplayName;
@@ -343,5 +345,72 @@ class CliArgsTest {
         Path missing = tempDir.resolve("nonexistent.yaml");
         assertThrows(IllegalArgumentException.class,
                 () -> CliArgs.parse("-config", missing.toString()));
+    }
+
+    @Test
+    @DisplayName("-config with full ai section applies all twelve AI option fields")
+    @Tag("positive")
+    void parse_configWithFullAiSection_appliesAllTwelveAiFields(@TempDir Path tempDir) throws IOException {
+        Path taxonomyPath = tempDir.resolve("taxonomy.txt");
+        // Use forward slashes so the YAML value is portable across OS (Java accepts / everywhere)
+        String taxonomyYamlPath = taxonomyPath.toString().replace('\\', '/');
+
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile, """
+                ai:
+                  enabled: true
+                  provider: openai
+                  model: gpt-4o-mini
+                  baseUrl: http://custom-host
+                  apiKey: sk-test-key
+                  apiKeyEnv: MY_KEY_ENV
+                  taxonomyFile: %s
+                  taxonomyMode: optimized
+                  maxClassChars: 50000
+                  timeoutSec: 30
+                  maxRetries: 5
+                  confidence: true
+                """.formatted(taxonomyYamlPath), StandardCharsets.UTF_8);
+
+        CliConfig cfg = CliArgs.parse("-config", configFile.toString());
+        AiOptions ai = cfg.aiOptions();
+
+        assertTrue(ai.enabled());
+        assertEquals(AiProvider.OPENAI, ai.provider());
+        assertEquals("gpt-4o-mini", ai.modelName());
+        assertEquals("http://custom-host", ai.baseUrl());
+        assertEquals("sk-test-key", ai.apiKey());
+        assertEquals("MY_KEY_ENV", ai.apiKeyEnv());
+        assertEquals(taxonomyPath.toAbsolutePath().normalize(),
+                ai.taxonomyFile().toAbsolutePath().normalize());
+        assertEquals(AiOptions.TaxonomyMode.OPTIMIZED, ai.taxonomyMode());
+        assertEquals(50000, ai.maxClassChars());
+        assertEquals(Duration.ofSeconds(30), ai.timeout());
+        assertEquals(5, ai.maxRetries());
+        assertTrue(ai.confidence());
+    }
+
+    @Test
+    @DisplayName("-config with ai.enabled=false and ai.confidence=false leaves those flags unset")
+    @Tag("positive")
+    void parse_configWithAiEnabledFalseAndConfidenceFalse_doesNotActivate(@TempDir Path tempDir)
+            throws IOException {
+        // Boolean.TRUE.equals(false) == false → builder.enabled() and builder.confidence()
+        // must NOT be called; both remain at their default value of false.
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile, """
+                ai:
+                  enabled: false
+                  provider: anthropic
+                  confidence: false
+                """, StandardCharsets.UTF_8);
+
+        CliConfig cfg = CliArgs.parse("-config", configFile.toString());
+        AiOptions ai = cfg.aiOptions();
+
+        assertFalse(ai.enabled(),   "enabled:false in YAML must not activate AI");
+        assertFalse(ai.confidence(), "confidence:false in YAML must not set confidence flag");
+        // provider IS a non-null string field and must be applied regardless
+        assertEquals(AiProvider.ANTHROPIC, ai.provider());
     }
 }
