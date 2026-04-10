@@ -190,8 +190,8 @@ dependencyCheck {
 // CycloneDX SBOM
 // ---------------------------------------------------------------------------
 cyclonedxBom {
-    includeConfigs = ['runtimeClasspath']
-    schemaVersion  = '1.5'
+    // includeConfigs was removed in 3.x; the task scans runtime configurations automatically.
+    schemaVersion = '1.5'
 }
 
 // ---------------------------------------------------------------------------
