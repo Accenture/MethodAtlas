@@ -250,7 +250,7 @@ class OutputEmitterTest {
                         List.of(), null),
                 true, false, false);
         // Format: fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-        assertEquals("com.acme.FooTest,testFoo,5,,,,", output.trim());
+        assertEquals("com.acme.FooTest,testFoo,5,,,,,", output.trim());
     }
 
     // -------------------------------------------------------------------------
