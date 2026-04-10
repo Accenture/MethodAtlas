@@ -138,47 +138,6 @@ javadoc {
 }
 
 tasks.named('jar') {
-    enabled = false
-}
-
-def mergedServicesDir = layout.buildDirectory.dir('mergedServices')
-
-tasks.register('mergeServiceFiles') {
-    inputs.files(configurations.runtimeClasspath)
-    outputs.dir(mergedServicesDir)
-
-    doLast {
-        def outDir = mergedServicesDir.get().asFile
-        outDir.deleteDir()
-
-        def serviceMap = [:] as Map<String, LinkedHashSet<String>>
-
-        configurations.runtimeClasspath
-                .findAll { it.exists() && it.name.endsWith('.jar') }
-                .each { jarFile ->
-                    new java.util.zip.ZipFile(jarFile).withCloseable { zip ->
-                        zip.entries().each { entry ->
-                            if (entry.name.startsWith('META-INF/services/') && !entry.isDirectory()) {
-                                def set = serviceMap.computeIfAbsent(entry.name) { new LinkedHashSet<>() }
-                                zip.getInputStream(entry).text.readLines().each { line ->
-                                    line = line.trim()
-                                    if (line && !line.startsWith('#')) set.add(line)
-                                }
-                            }
-                        }
-                    }
-                }
-
-        serviceMap.each { path, impls ->
-            def outFile = new File(outDir, path)
-            outFile.parentFile.mkdirs()
-            outFile.text = impls.join('\n') + '\n'
-        }
-    }
-}
-
-tasks.register('fatJar', Jar) {
-    archiveClassifier = ''
     manifest {
         attributes(
                 'Main-Class': application.mainClass.get(),
@@ -186,66 +145,6 @@ tasks.register('fatJar', Jar) {
                 'Implementation-Version': "${version}"
         )
     }
-
-    from sourceSets.main.output
-    dependsOn configurations.runtimeClasspath, 'mergeServiceFiles'
-
-    // Include merged META-INF/services files (deduplicated and concatenated)
-    from(mergedServicesDir)
-
-    // Include each JAR dependency
-    configurations.runtimeClasspath.findAll { it.exists() && it.name.endsWith('.jar') }.each { jarFile ->
-        def jarName = jarFile.name.replaceAll(/\.jar$/, '')
-
-        from(zipTree(jarFile)) {
-            // Exclude signature-related files — fat JARs cannot carry per-entry signatures
-            exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
-            // Exclude multi-release module descriptors — duplicate across JARs and not
-            // needed at runtime inside a fat JAR
-            exclude 'META-INF/versions/*/module-info.class'
-            // Exclude SPI service files — handled by mergeServiceFiles task which merges
-            // duplicate entries from multiple JARs into a single unified file
-            exclude 'META-INF/services/**'
-
-            // Rename license/notice files to avoid conflicts
-            eachFile { file ->
-                if (file.path ==~ /META-INF\/(LICENSE|NOTICE)(\..*)?/) {
-                    file.path = "META-INF/licenses-from-${jarName}/${file.name}"
-                }
-            }
-
-            includeEmptyDirs = false
-        }
-    }
-
-    duplicatesStrategy = DuplicatesStrategy.FAIL
-}
-
-distributions {
-    create('fat') {
-        distributionBaseName = project.name
-        contents {
-            into('bin') {
-                from(tasks.named('startScripts'))
-                filePermissions {
-                    unix('rwxr-xr-x')
-                }
-            }
-            into('lib') {
-                from(tasks.named('fatJar'))
-            }
-            from('src/dist')
-        }
-    }
-}
-
-tasks.named('assemble') {
-    dependsOn tasks.named('fatDistZip'), tasks.named('fatDistTar')
-}
-
-tasks.named('startScripts') {
-    dependsOn tasks.named('fatJar')
-    classpath = files(tasks.named('fatJar').flatMap { it.archiveFile })
 }
 
 gradle.taskGraph.whenReady { taskGraph ->

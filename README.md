@@ -253,8 +253,11 @@ methodatlas-<version>/
 │   ├── methodatlas
 │   └── methodatlas.bat
 └── lib/
-    └── methodatlas-<version>.jar
+    ├── methodatlas-<version>.jar
+    └── *.jar  (runtime dependency libraries)
 ```
+
+The startup scripts in `bin/` configure the classpath automatically to include all JARs in `lib/`, so no manual setup is required after extraction.
 
 ---
 
