@@ -113,7 +113,7 @@ public final class PromptBuilder {
      *                      classification
      * @return formatted prompt supplied to the AI provider
      *
-     * @see AiSuggestionEngine#suggestForClass(String, String)
+     * @see AiSuggestionEngine#suggestForClass(String, String, String, List)
      */
     public static String build(String fqcn, String classSource, String taxonomyText, List<TargetMethod> targetMethods,
             boolean confidence) {

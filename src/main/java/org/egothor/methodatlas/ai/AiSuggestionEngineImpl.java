@@ -84,7 +84,7 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      *                               returns an invalid response
      *
      * @see AiClassSuggestion
-     * @see AiProviderClient#suggestForClass(String, String, String)
+     * @see AiProviderClient#suggestForClass(String, String, String, List)
      */
     @Override
     public AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
