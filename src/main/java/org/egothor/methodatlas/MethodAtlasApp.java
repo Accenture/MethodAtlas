@@ -1,6 +1,8 @@
 package org.egothor.methodatlas;
 
+import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -184,14 +186,22 @@ public final class MethodAtlasApp {
      *                                  cannot be created successfully
      */
     public static void main(String[] args) throws IOException {
-        // Do NOT wrap System.out in try-with-resources: closing the PrintWriter
-        // would permanently close System.out, silencing any subsequent output.
-        // Auto-flush (second constructor argument) flushes after every println/printf.
-        PrintWriter out = new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
-        int exitCode = run(args, out);
-        out.flush();
-        if (exitCode != 0) {
-            System.exit(exitCode);
+        // Wrap System.out in a guarded stream whose close() only flushes.
+        // This lets try-with-resources manage the PrintWriter (satisfying
+        // SpotBugs CloseResource and PMD UseTryWithResources) without
+        // permanently closing System.out (satisfying Error Prone's
+        // ClosingStandardOutputStreams check).
+        OutputStream guarded = new FilterOutputStream(System.out) {
+            @Override
+            public void close() throws IOException {
+                flush(); // flush but do NOT close System.out
+            }
+        };
+        try (PrintWriter out = new PrintWriter(new OutputStreamWriter(guarded, StandardCharsets.UTF_8), true)) {
+            int exitCode = run(args, out);
+            if (exitCode != 0) {
+                System.exit(exitCode);
+            }
         }
     }
 

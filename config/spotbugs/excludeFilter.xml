@@ -35,4 +35,13 @@
         <Class name="~org\.egothor\.methodatlas\.ai\.(Anthropic|OpenAiCompatible|Ollama)Client"/>
     </Match>
 
+    <!-- PromptBuilder constructs AI prompts using text blocks with .formatted().
+         The \n characters are intentional Unix newlines for HTTP-transmitted
+         text; using %n would emit \r\n on Windows, which is wrong for API
+         payloads.  This is a false positive for prompt-building code. -->
+    <Match>
+        <Bug pattern="VA_FORMAT_STRING_USES_NEWLINE"/>
+        <Class name="org.egothor.methodatlas.ai.PromptBuilder"/>
+    </Match>
+
 </FindBugsFilter>

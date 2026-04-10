@@ -148,11 +148,11 @@ public final class AnthropicClient implements AiProviderClient {
             String responseBody = httpSupport.postJson(request);
             MessageResponse response = httpSupport.objectMapper().readValue(responseBody, MessageResponse.class);
 
-            if (response.content == null || response.content.isEmpty()) {
+            if (response.content() == null || response.content().isEmpty()) {
                 throw new AiSuggestionException("No content returned by Anthropic");
             }
 
-            String text = response.content.stream().filter(block -> "text".equals(block.type)).map(block -> block.text)
+            String text = response.content().stream().filter(block -> "text".equals(block.type())).map(ResponseBlock::text)
                     .filter(value -> value != null && !value.isBlank()).findFirst()
                     .orElseThrow(() -> new AiSuggestionException("Anthropic returned no text block"));
 
@@ -240,10 +240,11 @@ public final class AnthropicClient implements AiProviderClient {
      * Only the fields required by this client are mapped. Additional fields are
      * ignored to maintain forward compatibility with API changes.
      * </p>
+     *
+     * @param content list of content blocks in the response
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private static final class MessageResponse {
-        public List<ResponseBlock> content;
+    private record MessageResponse(List<ResponseBlock> content) {
     }
 
     /**
@@ -253,10 +254,11 @@ public final class AnthropicClient implements AiProviderClient {
      * The client scans these blocks to locate the first text segment containing the
      * JSON classification result.
      * </p>
+     *
+     * @param type block type (for example {@code text})
+     * @param text textual content of the block
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private static final class ResponseBlock {
-        public String type;
-        public String text;
+    private record ResponseBlock(String type, String text) {
     }
 }
