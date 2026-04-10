@@ -16,16 +16,32 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
 
+/**
+ * Unit tests for {@link AiSuggestionEngineImpl}.
+ *
+ * <p>
+ * This class verifies that the engine delegates to the correct provider client
+ * with the correct taxonomy text (default, optimized, or external file),
+ * propagates provider factory failures, and throws an appropriate
+ * {@link AiSuggestionException} when a configured taxonomy file cannot be read.
+ * </p>
+ */
+@Tag("unit")
+@Tag("ai-suggestion-engine")
 class AiSuggestionEngineImplTest {
 
     @TempDir
     Path tempDir;
 
     @Test
+    @DisplayName("suggestForClass delegates to provider client using DefaultSecurityTaxonomy text")
+    @Tag("positive")
     void suggestForClass_delegatesToProviderClient_usingDefaultTaxonomy() throws Exception {
         AiProviderClient client = mock(AiProviderClient.class);
         AiClassSuggestion expected = new AiClassSuggestion("com.acme.security.AccessControlServiceTest", true,
@@ -64,6 +80,8 @@ class AiSuggestionEngineImplTest {
     }
 
     @Test
+    @DisplayName("suggestForClass delegates to provider client using OptimizedSecurityTaxonomy text")
+    @Tag("positive")
     void suggestForClass_delegatesToProviderClient_usingOptimizedTaxonomy() throws Exception {
         AiProviderClient client = mock(AiProviderClient.class);
         AiClassSuggestion expected = new AiClassSuggestion("com.acme.storage.PathTraversalValidationTest", true,
@@ -103,6 +121,8 @@ class AiSuggestionEngineImplTest {
     }
 
     @Test
+    @DisplayName("suggestForClass uses external taxonomy file content when taxonomyFile is configured")
+    @Tag("positive")
     void suggestForClass_usesExternalTaxonomyFile_whenConfigured() throws Exception {
         Path taxonomyFile = tempDir.resolve("security-taxonomy.txt");
         String taxonomyText = """
@@ -148,6 +168,8 @@ class AiSuggestionEngineImplTest {
     }
 
     @Test
+    @DisplayName("constructor throws AiSuggestionException with expected message when taxonomy file cannot be read")
+    @Tag("negative")
     void constructor_throwsWhenTaxonomyFileCannotBeRead() {
         Path missingTaxonomyFile = tempDir.resolve("missing-taxonomy.txt");
 
@@ -170,6 +192,8 @@ class AiSuggestionEngineImplTest {
     }
 
     @Test
+    @DisplayName("constructor propagates AiSuggestionException thrown by AiProviderFactory.create")
+    @Tag("negative")
     void constructor_propagatesProviderFactoryFailure() throws Exception {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).build();
 

@@ -9,12 +9,29 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+/**
+ * Unit tests for {@link ManualPrepareEngine}.
+ *
+ * <p>
+ * This class verifies that the prepare engine writes work files with the
+ * expected operator instructions and AI prompt sections, creates required
+ * directories automatically, places empty response stubs in the response
+ * directory, does not overwrite existing response files, and correctly handles
+ * shared work/response directories and external taxonomy files.
+ * </p>
+ */
+@Tag("unit")
+@Tag("manual-prepare")
 class ManualPrepareEngineTest {
 
     @Test
+    @DisplayName("prepare creates work file with operator instructions and embedded AI prompt")
+    @Tag("positive")
     void prepare_createsWorkFileWithOperatorInstructionsAndPrompt(@TempDir Path tempDir) throws Exception {
         Path workDir = tempDir.resolve("work");
         Path responseDir = tempDir.resolve("responses");
@@ -49,6 +66,8 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    @DisplayName("prepare creates the work directory if it does not exist")
+    @Tag("positive")
     void prepare_createsWorkDirectoryIfAbsent(@TempDir Path tempDir) throws Exception {
         Path workDir = tempDir.resolve("nested/workdir");
         Path responseDir = tempDir.resolve("nested/responses");
@@ -63,6 +82,8 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    @DisplayName("prepare creates the response directory if it does not exist")
+    @Tag("positive")
     void prepare_createsResponseDirectoryIfAbsent(@TempDir Path tempDir) throws Exception {
         Path workDir = tempDir.resolve("work");
         Path responseDir = tempDir.resolve("nested/responses");
@@ -78,6 +99,8 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    @DisplayName("prepare uses external taxonomy file content in the prompt when configured")
+    @Tag("positive")
     void prepare_usesExternalTaxonomyFileWhenConfigured(@TempDir Path tempDir) throws Exception {
         Path taxonomyFile = tempDir.resolve("taxonomy.txt");
         Files.writeString(taxonomyFile, "custom-taxonomy-content", StandardCharsets.UTF_8);
@@ -94,6 +117,8 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    @DisplayName("prepare returns the path of the written work file")
+    @Tag("positive")
     void prepare_returnsPathOfWrittenFile(@TempDir Path tempDir) throws Exception {
         Path workDir = tempDir.resolve("work");
         Path responseDir = tempDir.resolve("responses");
@@ -107,6 +132,8 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    @DisplayName("prepare writes separate work files for different classes")
+    @Tag("positive")
     void prepare_writesMultipleWorkFilesForDifferentClasses(@TempDir Path tempDir) throws Exception {
         Path workDir = tempDir.resolve("work");
         Path responseDir = tempDir.resolve("responses");
@@ -123,6 +150,8 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    @DisplayName("prepare pre-creates an empty response stub in the response directory")
+    @Tag("positive")
     void prepare_createsEmptyResponseStubInResponseDir(@TempDir Path tempDir) throws Exception {
         Path workDir = tempDir.resolve("work");
         Path responseDir = tempDir.resolve("responses");
@@ -139,6 +168,8 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    @DisplayName("prepare does not overwrite an existing response file")
+    @Tag("edge-case")
     void prepare_doesNotOverwriteExistingResponseFile(@TempDir Path tempDir) throws Exception {
         Path workDir = tempDir.resolve("work");
         Path responseDir = tempDir.resolve("responses");
@@ -156,6 +187,8 @@ class ManualPrepareEngineTest {
     }
 
     @Test
+    @DisplayName("prepare works correctly when work and response directories are the same")
+    @Tag("edge-case")
     void prepare_supportsSameDirForWorkAndResponse(@TempDir Path sharedDir) throws Exception {
         AiOptions options = AiOptions.builder().build();
         ManualPrepareEngine engine = new ManualPrepareEngine(sharedDir, sharedDir, options);

@@ -20,15 +20,31 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Unit tests for {@link OllamaClient}.
+ *
+ * <p>
+ * This class verifies availability detection via the Ollama tags endpoint,
+ * the happy-path JSON parsing and normalization of the suggest-for-class
+ * response, and the error path when the model returns text without a JSON
+ * object. {@link HttpSupport} is mocked via Mockito constructor mocking.
+ * </p>
+ */
+@Tag("unit")
+@Tag("ollama-client")
 class OllamaClientTest {
 
     @Test
+    @DisplayName("isAvailable returns true when the Ollama /api/tags endpoint responds successfully")
+    @Tag("positive")
     void isAvailable_returnsTrueWhenTagsEndpointResponds() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         @SuppressWarnings("unchecked")
@@ -53,6 +69,8 @@ class OllamaClientTest {
     }
 
     @Test
+    @DisplayName("isAvailable returns false when the Ollama /api/tags endpoint throws an IOException")
+    @Tag("negative")
     void isAvailable_returnsFalseWhenTagsEndpointFails() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
 
@@ -72,6 +90,8 @@ class OllamaClientTest {
     }
 
     @Test
+    @DisplayName("suggestForClass parses wrapped JSON, normalizes invalid entries, and builds expected request body")
+    @Tag("positive")
     void suggestForClass_parsesWrappedJson_normalizesInvalidEntries_andBuildsExpectedRequestBody() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -153,6 +173,8 @@ class OllamaClientTest {
     }
 
     @Test
+    @DisplayName("suggestForClass throws AiSuggestionException when model returns text without a JSON object")
+    @Tag("negative")
     void suggestForClass_throwsWhenModelReturnsTextWithoutJsonObject() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 

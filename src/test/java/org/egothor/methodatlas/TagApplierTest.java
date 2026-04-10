@@ -10,6 +10,8 @@ import java.util.Set;
 import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.SuggestionLookup;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.github.javaparser.JavaParser;
@@ -18,6 +20,19 @@ import com.github.javaparser.ParserConfiguration.LanguageLevel;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 
+/**
+ * Unit tests for {@link TagApplier}.
+ *
+ * <p>
+ * This class verifies that AI suggestions are correctly applied as
+ * {@code @DisplayName} and {@code @Tag} annotations to JUnit test methods in
+ * parsed Java source trees. Edge cases include null suggestions, non-security
+ * methods, duplicate tags, blank display names, inner classes, and null tag
+ * lists.
+ * </p>
+ */
+@Tag("unit")
+@Tag("tag-applier")
 class TagApplierTest {
 
     private static final Set<String> TEST_ANNOTATIONS = AnnotationInspector.DEFAULT_TEST_ANNOTATIONS;
@@ -50,6 +65,8 @@ class TagApplierTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("no annotations added when suggestion lookup is null (class-level null suggestion)")
+    @Tag("positive")
     void noAnnotationsAddedWhenSuggestionIsNull() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -64,6 +81,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("no annotations added when suggestion marks method as not security relevant")
+    @Tag("positive")
     void noAnnotationsAddedWhenNotSecurityRelevant() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -77,6 +96,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("@DisplayName and @Tag added for security-relevant method suggestion")
+    @Tag("positive")
     void displayNameAddedForSecurityRelevantMethod() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -98,6 +119,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("@DisplayName not added when method already has @DisplayName annotation")
+    @Tag("edge-case")
     void displayNameNotAddedWhenAlreadyPresent() {
         CompilationUnit cu = parse("""
                 import org.junit.jupiter.api.DisplayName;
@@ -117,6 +140,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("@Tag not added when the tag value already exists on the method")
+    @Tag("edge-case")
     void tagNotAddedWhenAlreadyPresent() {
         CompilationUnit cu = parse("""
                 import org.junit.jupiter.api.Tag;
@@ -134,6 +159,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("multiple tags from suggestion are all added to the method")
+    @Tag("positive")
     void multipleTagsAdded() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -153,6 +180,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("duplicate tag in suggestion list is added only once")
+    @Tag("edge-case")
     void duplicateTagInSuggestionAddedOnlyOnce() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -169,6 +198,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("null and blank tag values in suggestion are ignored")
+    @Tag("edge-case")
     void nullAndBlankTagsIgnored() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -184,6 +215,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("null displayName in suggestion is skipped without adding @DisplayName")
+    @Tag("edge-case")
     void nullDisplayNameSkipped() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -199,6 +232,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("blank displayName in suggestion is skipped without adding @DisplayName")
+    @Tag("edge-case")
     void blankDisplayNameSkipped() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -214,6 +249,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("suggestion for non-test helper method does not add any annotations")
+    @Tag("negative")
     void onlyTestMethodsAnnotated() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -232,6 +269,8 @@ class TagApplierTest {
     }
 
     @Test
+    @DisplayName("inner class methods are not processed when applying to outer class")
+    @Tag("edge-case")
     void innerClassMethodsNotProcessedByOuterClassIteration() {
         CompilationUnit cu = parse("""
                 class OuterTest {
@@ -259,6 +298,8 @@ class TagApplierTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("IMPORT_DISPLAY_NAME and IMPORT_TAG constants have correct fully-qualified values")
+    @Tag("positive")
     void importConstantsAreCorrect() {
         assertEquals("org.junit.jupiter.api.DisplayName", TagApplier.IMPORT_DISPLAY_NAME);
         assertEquals("org.junit.jupiter.api.Tag", TagApplier.IMPORT_TAG);
@@ -269,18 +310,24 @@ class TagApplierTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("ClassResult.modified() returns false when annotationsAdded is zero")
+    @Tag("positive")
     void classResultModifiedFalseWhenZeroAdded() {
         TagApplier.ClassResult r = new TagApplier.ClassResult(0, 0, 0);
         assertFalse(r.modified());
     }
 
     @Test
+    @DisplayName("ClassResult.modified() returns true when annotationsAdded is non-zero")
+    @Tag("positive")
     void classResultModifiedTrueWhenNonZero() {
         TagApplier.ClassResult r = new TagApplier.ClassResult(1, 0, 1);
         assertTrue(r.modified());
     }
 
     @Test
+    @DisplayName("annotationsAdded equals the sum of displayNamesAdded and tagsAdded")
+    @Tag("positive")
     void annotationsAddedEqualsSumOfDisplayNamesAndTags() {
         CompilationUnit cu = parse("""
                 class FooTest {
@@ -293,5 +340,27 @@ class TagApplierTest {
         TagApplier.ClassResult result = TagApplier.applyToClass(firstClass(cu), lookup, TEST_ANNOTATIONS);
 
         assertEquals(result.displayNamesAdded() + result.tagsAdded(), result.annotationsAdded());
+    }
+
+    // -------------------------------------------------------------------------
+    // New edge case: null tags list in AiMethodSuggestion
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("null tags list in AiMethodSuggestion adds no @Tag annotations")
+    @Tag("edge-case")
+    void nullTagListInSuggestion_addsNoTags() {
+        CompilationUnit cu = parse("""
+                class FooTest {
+                    @org.junit.jupiter.api.Test
+                    void testFoo() {}
+                }
+                """);
+        // Create suggestion with null tags (not empty list, but null)
+        AiMethodSuggestion suggestion = new AiMethodSuggestion("testFoo", true, null, null, null, 1.0);
+        SuggestionLookup lookup = lookupWith(suggestion);
+        TagApplier.ClassResult result = TagApplier.applyToClass(firstClass(cu), lookup, TEST_ANNOTATIONS);
+
+        assertEquals(0, result.tagsAdded());
     }
 }

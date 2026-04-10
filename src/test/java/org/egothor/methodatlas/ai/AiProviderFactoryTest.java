@@ -7,12 +7,28 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.when;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
+/**
+ * Unit tests for {@link AiProviderFactory}.
+ *
+ * <p>
+ * This class verifies that the factory creates the correct {@link AiProviderClient}
+ * implementation for each configured {@link AiProvider}, handles availability
+ * checks, and produces the expected {@link AiSuggestionException} messages when
+ * a provider is unavailable or no provider can be selected in AUTO mode.
+ * </p>
+ */
+@Tag("unit")
+@Tag("ai-provider-factory")
 class AiProviderFactoryTest {
 
     @Test
+    @DisplayName("create with OLLAMA provider returns OllamaClient without performing an availability check")
+    @Tag("positive")
     void create_withOllamaProvider_returnsOllamaClientWithoutAvailabilityCheck() throws Exception {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OLLAMA).build();
 
@@ -26,6 +42,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with OPENAI provider returns OpenAiCompatibleClient when isAvailable() is true")
+    @Tag("positive")
     void create_withOpenAiProvider_returnsOpenAiCompatibleClientWhenAvailable() throws Exception {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).apiKey("sk-test-value")
                 .build();
@@ -42,6 +60,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with OPENAI provider throws AiSuggestionException with 'OpenAI API key missing' when unavailable")
+    @Tag("negative")
     void create_withOpenAiProvider_throwsWhenUnavailable() {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).build();
 
@@ -57,6 +77,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with OPENROUTER provider returns OpenAiCompatibleClient when isAvailable() is true")
+    @Tag("positive")
     void create_withOpenRouterProvider_returnsOpenAiCompatibleClientWhenAvailable() throws Exception {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENROUTER).apiKey("or-test-key")
                 .build();
@@ -73,6 +95,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with OPENROUTER provider throws AiSuggestionException with 'OpenRouter API key missing' when unavailable")
+    @Tag("negative")
     void create_withOpenRouterProvider_throwsWhenUnavailable() {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENROUTER).build();
 
@@ -88,6 +112,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with ANTHROPIC provider returns AnthropicClient when isAvailable() is true")
+    @Tag("positive")
     void create_withAnthropicProvider_returnsAnthropicClientWhenAvailable() throws Exception {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.ANTHROPIC)
                 .apiKey("anthropic-test-key").build();
@@ -104,6 +130,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with ANTHROPIC provider throws AiSuggestionException with 'Anthropic API key missing' when unavailable")
+    @Tag("negative")
     void create_withAnthropicProvider_throwsWhenUnavailable() {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.ANTHROPIC).build();
 
@@ -119,6 +147,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with AUTO provider returns OllamaClient when Ollama isAvailable() is true")
+    @Tag("positive")
     void create_withAutoProvider_returnsOllamaWhenAvailable() throws Exception {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.AUTO).modelName("qwen2.5-coder:7b")
                 .baseUrl("http://localhost:11434").build();
@@ -138,6 +168,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with AUTO provider falls back to OpenAiCompatibleClient when Ollama unavailable but API key is present")
+    @Tag("positive")
     void create_withAutoProvider_fallsBackToOpenAiCompatibleWhenOllamaUnavailableAndApiKeyPresent() throws Exception {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.AUTO).modelName("gpt-4o-mini")
                 .baseUrl("https://api.openai.com").apiKey("sk-test-value").build();
@@ -157,6 +189,8 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with AUTO provider throws AiSuggestionException when Ollama unavailable and no API key is configured")
+    @Tag("negative")
     void create_withAutoProvider_throwsWhenOllamaUnavailableAndNoApiKeyConfigured() {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.AUTO).build();
 

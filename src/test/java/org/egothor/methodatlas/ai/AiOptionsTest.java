@@ -7,11 +7,26 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.nio.file.Path;
 import java.time.Duration;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Unit tests for {@link AiOptions} and its builder.
+ *
+ * <p>
+ * This class verifies default values, provider-specific base URLs, explicit
+ * overrides, API key resolution, and canonical constructor validation rules
+ * for null and invalid field values.
+ * </p>
+ */
+@Tag("unit")
+@Tag("ai-options")
 class AiOptionsTest {
 
     @Test
+    @DisplayName("builder defaults are stable and match documented constants")
+    @Tag("positive")
     void builder_defaults_areStableAndValid() {
         AiOptions options = AiOptions.builder().build();
 
@@ -30,6 +45,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("DEFAULT_MODEL constant equals the default model name from builder")
+    @Tag("positive")
     void defaultModel_constantMatchesBuilderDefault() {
         AiOptions options = AiOptions.builder().build();
         assertEquals(AiOptions.DEFAULT_MODEL, options.modelName(),
@@ -37,6 +54,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("builder uses Ollama default base URL for OLLAMA provider")
+    @Tag("positive")
     void builder_usesOllamaDefaultBaseUrl() {
         AiOptions options = AiOptions.builder().provider(AiProvider.OLLAMA).build();
 
@@ -44,6 +63,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("builder uses Ollama default base URL for AUTO provider")
+    @Tag("positive")
     void builder_usesAutoDefaultBaseUrl() {
         AiOptions options = AiOptions.builder().provider(AiProvider.AUTO).build();
 
@@ -51,6 +72,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("builder uses OpenAI default base URL for OPENAI provider")
+    @Tag("positive")
     void builder_usesOpenAiDefaultBaseUrl() {
         AiOptions options = AiOptions.builder().provider(AiProvider.OPENAI).build();
 
@@ -58,6 +81,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("builder uses OpenRouter default base URL for OPENROUTER provider")
+    @Tag("positive")
     void builder_usesOpenRouterDefaultBaseUrl() {
         AiOptions options = AiOptions.builder().provider(AiProvider.OPENROUTER).build();
 
@@ -65,6 +90,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("builder uses Anthropic default base URL for ANTHROPIC provider")
+    @Tag("positive")
     void builder_usesAnthropicDefaultBaseUrl() {
         AiOptions options = AiOptions.builder().provider(AiProvider.ANTHROPIC).build();
 
@@ -72,6 +99,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("builder preserves explicit base URL override regardless of provider")
+    @Tag("positive")
     void builder_preservesExplicitBaseUrl() {
         AiOptions options = AiOptions.builder().provider(AiProvider.OPENAI)
                 .baseUrl("https://internal-gateway.example.test/openai").build();
@@ -80,6 +109,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("builder treats null provider as AUTO with Ollama base URL")
+    @Tag("edge-case")
     void builder_treatsNullProviderAsAuto() {
         AiOptions options = AiOptions.builder().provider(null).build();
 
@@ -88,6 +119,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("resolvedApiKey returns direct key when both apiKey and apiKeyEnv are set")
+    @Tag("positive")
     void resolvedApiKey_prefersDirectApiKey() {
         AiOptions options = AiOptions.builder().apiKey("sk-direct-value").apiKeyEnv("SHOULD_NOT_BE_USED").build();
 
@@ -95,6 +128,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("resolvedApiKey returns null when direct key is blank and env variable is not set")
+    @Tag("negative")
     void resolvedApiKey_returnsNullWhenDirectKeyIsBlankAndEnvIsMissing() {
         AiOptions options = AiOptions.builder().apiKey("   ").apiKeyEnv("METHODATLAS_TEST_ENV_NOT_PRESENT").build();
 
@@ -102,6 +137,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("resolvedApiKey returns null when neither direct key nor env variable are configured")
+    @Tag("negative")
     void resolvedApiKey_returnsNullWhenNeitherDirectNorEnvAreConfigured() {
         AiOptions options = AiOptions.builder().build();
 
@@ -109,6 +146,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("canonical constructor rejects null provider with NullPointerException")
+    @Tag("negative")
     void canonicalConstructor_rejectsNullProvider() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, null, "gpt-4o-mini", "https://api.openai.com", null, null, null,
@@ -118,6 +157,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("canonical constructor rejects null modelName with NullPointerException")
+    @Tag("negative")
     void canonicalConstructor_rejectsNullModelName() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, null, "https://api.openai.com", null, null, null,
@@ -127,6 +168,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("canonical constructor rejects null timeout with NullPointerException")
+    @Tag("negative")
     void canonicalConstructor_rejectsNullTimeout() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
@@ -136,6 +179,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("canonical constructor rejects null taxonomyMode with NullPointerException")
+    @Tag("negative")
     void canonicalConstructor_rejectsNullTaxonomyMode() {
         NullPointerException ex = assertThrows(NullPointerException.class, () -> new AiOptions(true, AiProvider.OPENAI,
                 "gpt-4o-mini", "https://api.openai.com", null, null, null, null, 40_000, Duration.ofSeconds(30), 1,
@@ -145,6 +190,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("canonical constructor rejects blank baseUrl with IllegalArgumentException")
+    @Tag("negative")
     void canonicalConstructor_rejectsBlankBaseUrl() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "   ", null, null, null,
@@ -154,6 +201,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("canonical constructor rejects non-positive maxClassChars with IllegalArgumentException")
+    @Tag("negative")
     void canonicalConstructor_rejectsNonPositiveMaxClassChars() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
@@ -163,6 +212,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("canonical constructor rejects negative maxRetries with IllegalArgumentException")
+    @Tag("negative")
     void canonicalConstructor_rejectsNegativeMaxRetries() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
@@ -172,6 +223,8 @@ class AiOptionsTest {
     }
 
     @Test
+    @DisplayName("builder allows full customization of all fields")
+    @Tag("positive")
     void builder_allowsFullCustomization() {
         Path taxonomyFile = Path.of("src/test/resources/security-taxonomy.yaml");
         Duration timeout = Duration.ofSeconds(15);

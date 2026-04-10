@@ -17,15 +17,32 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Unit tests for {@link OpenAiCompatibleClient}.
+ *
+ * <p>
+ * This class verifies availability detection based on the configured API key,
+ * successful JSON parsing and normalization of a chat completions response,
+ * correct OpenRouter-specific request headers, and error handling for empty
+ * choices arrays or responses without a JSON object. {@link HttpSupport} is
+ * mocked via Mockito constructor mocking.
+ * </p>
+ */
+@Tag("unit")
+@Tag("openai-client")
 class OpenAiCompatibleClientTest {
 
     @Test
+    @DisplayName("isAvailable returns true when an API key is configured")
+    @Tag("positive")
     void isAvailable_returnsTrueWhenApiKeyIsConfigured() {
         AiOptions options = AiOptions.builder().provider(AiProvider.OPENAI).apiKey("sk-test-value").build();
 
@@ -35,6 +52,8 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    @DisplayName("isAvailable returns false when no API key is configured")
+    @Tag("negative")
     void isAvailable_returnsFalseWhenApiKeyIsMissing() {
         AiOptions options = AiOptions.builder().provider(AiProvider.OPENAI).build();
 
@@ -44,6 +63,8 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    @DisplayName("suggestForClass parses wrapped JSON, normalizes invalid entries, and builds correct request body")
+    @Tag("positive")
     void suggestForClass_parsesWrappedJson_normalizesInvalidEntries_andBuildsExpectedRequestBody() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -120,6 +141,8 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    @DisplayName("suggestForClass adds OpenRouter-specific HTTP-Referer and X-Title headers for OPENROUTER provider")
+    @Tag("positive")
     void suggestForClass_addsOpenRouterHeaders() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -162,6 +185,8 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    @DisplayName("suggestForClass throws AiSuggestionException with 'No choices returned by model' when choices array is empty")
+    @Tag("negative")
     void suggestForClass_throwsWhenNoChoicesAreReturned() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -195,6 +220,8 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    @DisplayName("suggestForClass throws AiSuggestionException when model returns text without a JSON object")
+    @Tag("negative")
     void suggestForClass_throwsWhenModelReturnsTextWithoutJsonObject() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 

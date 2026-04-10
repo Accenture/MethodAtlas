@@ -12,14 +12,31 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+/**
+ * Unit tests for {@link ManualConsumeEngine}.
+ *
+ * <p>
+ * This class verifies that the consume engine reads operator-saved JSON
+ * response files, extracts JSON from prose-wrapped responses, normalizes null
+ * method lists and null tags, filters invalid method entries, and returns an
+ * empty suggestion when the response file is absent. Error handling for
+ * malformed responses without any JSON object is also covered.
+ * </p>
+ */
+@Tag("unit")
+@Tag("manual-consume")
 class ManualConsumeEngineTest {
 
     private static final String FQCN = "com.acme.security.AccessControlServiceTest";
 
     @Test
+    @DisplayName("suggestForClass returns empty suggestion with class name when response file is absent")
+    @Tag("edge-case")
     void suggestForClass_returnsEmptySuggestionWhenResponseFileAbsent(@TempDir Path responseDir) throws Exception {
         ManualConsumeEngine engine = new ManualConsumeEngine(responseDir);
 
@@ -35,6 +52,8 @@ class ManualConsumeEngineTest {
     }
 
     @Test
+    @DisplayName("suggestForClass parses a valid JSON response file and returns the correct AiClassSuggestion")
+    @Tag("positive")
     void suggestForClass_parsesValidJsonResponseFile(@TempDir Path responseDir) throws Exception {
         String responseJson = """
                 {
@@ -74,6 +93,8 @@ class ManualConsumeEngineTest {
     }
 
     @Test
+    @DisplayName("suggestForClass extracts JSON from a response file that wraps JSON in prose text")
+    @Tag("positive")
     void suggestForClass_extractsJsonFromWrappedResponse(@TempDir Path responseDir) throws Exception {
         // Simulate an AI response that contains prose around the JSON object
         String responseWithProse = """
@@ -101,6 +122,8 @@ class ManualConsumeEngineTest {
     }
 
     @Test
+    @DisplayName("suggestForClass normalizes null classTags to empty list and filters null/blank method entries")
+    @Tag("edge-case")
     void suggestForClass_normalizesNullMethodsAndTags(@TempDir Path responseDir) throws Exception {
         String responseJson = """
                 {
@@ -145,6 +168,8 @@ class ManualConsumeEngineTest {
     }
 
     @Test
+    @DisplayName("suggestForClass throws AiSuggestionException when response file contains no JSON object")
+    @Tag("negative")
     void suggestForClass_throwsWhenResponseFileContainsNoJson(@TempDir Path responseDir) throws Exception {
         Files.writeString(responseDir.resolve(FQCN + ".response.txt"),
                 "The model refused to return JSON.", StandardCharsets.UTF_8);
@@ -156,6 +181,8 @@ class ManualConsumeEngineTest {
     }
 
     @Test
+    @DisplayName("suggestForClass ignores the classSource parameter and uses only the response file")
+    @Tag("positive")
     void suggestForClass_ignoresClassSourceParameter(@TempDir Path responseDir) throws Exception {
         // Response file present but classSource is empty — engine should not care
         String responseJson = """

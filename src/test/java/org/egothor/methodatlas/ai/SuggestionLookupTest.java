@@ -10,11 +10,28 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Unit tests for {@link SuggestionLookup}.
+ *
+ * <p>
+ * This class verifies that a {@link SuggestionLookup} is correctly built from
+ * an {@link AiClassSuggestion}, handling null class suggestions, null method
+ * lists, empty method lists, invalid method entries (null, blank names), and
+ * duplicate method name deduplication. Look-up by method name and null-safety
+ * of the {@code find} method are also covered.
+ * </p>
+ */
+@Tag("unit")
+@Tag("suggestion-lookup")
 class SuggestionLookupTest {
 
     @Test
+    @DisplayName("from(null) returns a non-null empty lookup that finds nothing")
+    @Tag("edge-case")
     void from_nullSuggestion_returnsEmptyLookup() {
         SuggestionLookup lookup = SuggestionLookup.from(null);
 
@@ -23,6 +40,8 @@ class SuggestionLookupTest {
     }
 
     @Test
+    @DisplayName("from suggestion with null methods list returns empty lookup")
+    @Tag("edge-case")
     void from_nullMethods_returnsEmptyLookup() {
         AiClassSuggestion suggestion = new AiClassSuggestion("com.acme.security.AccessControlServiceTest", Boolean.TRUE,
                 List.of("security", "access-control"), "Class contains access-control related tests.", null);
@@ -34,6 +53,8 @@ class SuggestionLookupTest {
     }
 
     @Test
+    @DisplayName("from suggestion with empty methods list returns empty lookup")
+    @Tag("edge-case")
     void from_emptyMethods_returnsEmptyLookup() {
         AiClassSuggestion suggestion = new AiClassSuggestion("com.acme.security.AccessControlServiceTest", Boolean.TRUE,
                 List.of("security", "access-control"), "Class contains access-control related tests.", List.of());
@@ -45,6 +66,8 @@ class SuggestionLookupTest {
     }
 
     @Test
+    @DisplayName("from filters out null entries, null method names, and blank method names from the methods list")
+    @Tag("positive")
     void from_filtersNullBlankAndMissingMethodNames() {
         AiMethodSuggestion valid = new AiMethodSuggestion("shouldRejectUnauthenticatedRequest", true,
                 "Reject unauthenticated access", List.of("security", "authentication", "access-control"),
@@ -71,6 +94,8 @@ class SuggestionLookupTest {
     }
 
     @Test
+    @DisplayName("from keeps first occurrence when duplicate method names are present")
+    @Tag("edge-case")
     void from_duplicateMethodNames_keepsFirstOccurrence() {
         AiMethodSuggestion first = new AiMethodSuggestion("shouldAllowAdministratorToReadAnyStatement", true,
                 "Allow administrative access", List.of("security", "access-control", "authorization"),
@@ -95,6 +120,8 @@ class SuggestionLookupTest {
     }
 
     @Test
+    @DisplayName("find returns the matching AiMethodSuggestion for an existing method name")
+    @Tag("positive")
     void find_existingMethod_returnsSuggestion() {
         AiMethodSuggestion method = new AiMethodSuggestion("shouldRejectRelativePathTraversalSequence", true,
                 "Reject path traversal payload", List.of("security", "input-validation", "path-traversal"),
@@ -116,6 +143,8 @@ class SuggestionLookupTest {
     }
 
     @Test
+    @DisplayName("find returns empty Optional for a method name that is not in the lookup")
+    @Tag("negative")
     void find_missingMethod_returnsEmptyOptional() {
         AiMethodSuggestion method = new AiMethodSuggestion("shouldWriteAuditEventForPrivilegeChange", true,
                 "Audit privilege changes", List.of("security", "audit", "logging"),
@@ -131,6 +160,8 @@ class SuggestionLookupTest {
     }
 
     @Test
+    @DisplayName("find throws NullPointerException for null method name argument")
+    @Tag("negative")
     void find_nullMethodName_throwsNullPointerException() {
         AiMethodSuggestion method = new AiMethodSuggestion("shouldNotLogRawBearerToken", true,
                 "Redact bearer token in logs", List.of("security", "logging", "secrets-handling"),

@@ -12,11 +12,25 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Unit tests for {@link SarifEmitter}.
+ *
+ * <p>
+ * This class verifies that {@link SarifEmitter} produces well-formed SARIF 2.1.0
+ * output, with correct document structure, result-level fields (ruleId, level,
+ * message, locations, properties), AI enrichment fields, confidence, content
+ * hash, and rule deduplication.
+ * </p>
+ */
+@Tag("unit")
+@Tag("sarif")
 class SarifEmitterTest {
 
     // -------------------------------------------------------------------------
@@ -24,6 +38,8 @@ class SarifEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("flush emits a valid SARIF 2.1.0 document with version and schema")
+    @Tag("positive")
     void flush_emitsValidSarif210Document() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
@@ -38,6 +54,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("flush emits an empty results array when no records have been added")
+    @Tag("edge-case")
     void flush_emitsEmptyResultsArrayWhenNoRecords() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         JsonNode doc = flush(emitter);
@@ -48,6 +66,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("flush tool driver has name 'MethodAtlas'")
+    @Tag("positive")
     void flush_toolDriverHasCorrectName() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         JsonNode doc = flush(emitter);
@@ -61,6 +81,8 @@ class SarifEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("non-security method gets level 'none' and ruleId 'test-method'")
+    @Tag("positive")
     void flush_nonSecurityMethodGetsLevelNoneAndRuleTestMethod() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
@@ -72,6 +94,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("non-security method message text is fully qualified method name")
+    @Tag("positive")
     void flush_nonSecurityMethodMessageIsFullyQualifiedMethodName() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
@@ -85,6 +109,8 @@ class SarifEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("security method with 'auth' tag gets ruleId 'security/auth' and level 'note'")
+    @Tag("positive")
     void flush_securityMethodWithAuthTagGetsRuleSecurityAuth() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests login", 0.9);
@@ -98,6 +124,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("security method displayName from suggestion is used as message text")
+    @Tag("positive")
     void flush_securityMethodDisplayNameUsedAsMessage() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth - login test", List.of("security", "auth"), "Tests login", 1.0);
@@ -109,6 +137,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("security method with only 'security' tag gets ruleId 'security-test'")
+    @Tag("positive")
     void flush_securityMethodWithOnlySecurityTagGetsRuleSecurityTest() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testGeneral", true, "SECURITY: general", List.of("security"), "Security test", 0.7);
@@ -124,6 +154,8 @@ class SarifEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("artifactLocation uri is derived from FQCN with dots replaced by slashes and .java appended")
+    @Tag("positive")
     void flush_artifactUriDerivedFromFqcn() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.auth.AuthTest", "testLogin", 42, 5, null, List.of(), null);
@@ -135,6 +167,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("region startLine is present when beginLine is positive")
+    @Tag("positive")
     void flush_regionStartLinePresent_whenBeginLinePositive() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 42, 5, null, List.of(), null);
@@ -145,6 +179,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("region is absent when beginLine is zero")
+    @Tag("edge-case")
     void flush_regionAbsent_whenBeginLineZero() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 0, 5, null, List.of(), null);
@@ -155,6 +191,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("logicalLocation contains fully qualified method name and kind 'member'")
+    @Tag("positive")
     void flush_logicalLocationContainsFqmn() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
@@ -170,6 +208,8 @@ class SarifEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("properties bag contains loc with correct value")
+    @Tag("positive")
     void flush_propertiesContainLoc() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 7, null, List.of(), null);
@@ -179,6 +219,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("properties bag contains sourceTags joined by semicolon when tags are present")
+    @Tag("positive")
     void flush_propertiesContainSourceTags_whenPresent() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of("security", "auth"), null);
@@ -188,6 +230,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("properties bag sourceTags is absent when tags list is empty")
+    @Tag("edge-case")
     void flush_sourceTagsAbsent_whenEmpty() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
@@ -197,6 +241,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("properties bag contains AI fields when AI is enabled and suggestion is present")
+    @Tag("positive")
     void flush_propertiesContainAiFields_whenAiEnabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests login auth", 0.9);
@@ -211,6 +257,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("aiConfidence is absent in properties when confidence is disabled")
+    @Tag("positive")
     void flush_aiConfidenceAbsent_whenConfidenceDisabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "reason", 0.9);
@@ -222,6 +270,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("aiConfidence is present in properties when confidence is enabled")
+    @Tag("positive")
     void flush_aiConfidencePresent_whenConfidenceEnabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "reason", 0.85);
@@ -238,6 +288,8 @@ class SarifEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("identical security rules are deduplicated across multiple results")
+    @Tag("edge-case")
     void flush_rulesAreDeduplicatedAcrossResults() throws Exception {
         AiMethodSuggestion authSuggestion = new AiMethodSuggestion(
                 "testLogin", true, null, List.of("security", "auth"), null, 1.0);
@@ -262,6 +314,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("all three records are emitted when three methods are recorded")
+    @Tag("positive")
     void flush_multipleResultsAllEmitted() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testA", 1, 3, null, List.of(), null);
@@ -277,6 +331,8 @@ class SarifEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @DisplayName("contentHash is absent from properties when null is passed")
+    @Tag("edge-case")
     void contentHash_absentFromPropertiesWhenNull() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
@@ -287,6 +343,8 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("contentHash is present in properties when a hash value is provided")
+    @Tag("positive")
     void contentHash_presentInPropertiesWhenProvided() throws Exception {
         String hash = "a".repeat(64); // simulate a 64-char hex string
         SarifEmitter emitter = new SarifEmitter(false, false);

@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -46,9 +48,13 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code org.egothor.methodatlas.ai.AiSuggestionEngine}.
  * </p>
  */
+@Tag("integration")
+@Tag("method-atlas-app")
 public class MethodAtlasAppTest {
 
     @Test
+    @DisplayName("CSV mode detects methods with correct LOC and tag values")
+    @Tag("positive")
     public void csvMode_detectsMethodsLocAndTags(@TempDir Path tempDir) throws Exception {
         copyStandardFixtures(tempDir);
 
@@ -72,6 +78,8 @@ public class MethodAtlasAppTest {
     }
 
     @Test
+    @DisplayName("plain mode detects methods with correct LOC and tag values")
+    @Tag("positive")
     public void plainMode_detectsMethodsLocAndTags(@TempDir Path tempDir) throws Exception {
         copyStandardFixtures(tempDir);
 
@@ -93,6 +101,8 @@ public class MethodAtlasAppTest {
     }
 
     @Test
+    @DisplayName("custom test annotation is recognised via -test-annotation flag")
+    @Tag("positive")
     public void testAnnotation_customAnnotationIsRecognised(@TempDir Path tempDir) throws Exception {
         // Fixture with one standard @Test and one custom @MyTest annotation
         String javaSource = """
@@ -134,6 +144,8 @@ public class MethodAtlasAppTest {
     }
 
     @Test
+    @DisplayName("-emit-metadata prepends comment lines before CSV header, and taxonomy says n/a when AI disabled")
+    @Tag("positive")
     public void emitMetadata_prependsCommentLinesBeforeHeader(@TempDir Path tempDir) throws Exception {
         copyStandardFixtures(tempDir);
 
