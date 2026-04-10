@@ -1,13 +1,23 @@
-# Runs OWASP Dependency-Check, SpotBugs SARIF upload, and MethodAtlas
-# self-analysis (dogfooding) every Monday at 03:00 UTC and on manual dispatch.
+# Runs OWASP Dependency-Check and SpotBugs SARIF upload every Monday at
+# 03:00 UTC and on manual dispatch.
 #
-# SpotBugs and MethodAtlas results are uploaded to GitHub Code Scanning so
-# findings appear in the Security tab and as PR diff annotations.
+# SpotBugs results are uploaded to GitHub Code Scanning so findings appear
+# in the Security tab and as PR diff annotations.
 #
-# MethodAtlas self-analysis: the tool classifies its own test methods for
-# security relevance and uploads the SARIF output to Code Scanning.  This
-# exercises the SARIF pipeline and provides a real-world demonstration of the
-# tool's output on a known, well-maintained codebase.
+# MethodAtlas self-analysis note
+# --------------------------------
+# MethodAtlas without -ai produces a plain test-method inventory (name, LOC,
+# existing @Tag values, file location).  Every method becomes an undifferentiated
+# SARIF "result" with no security verdict — uploading that to Code Scanning
+# would drown out real SpotBugs findings with hundreds of noise annotations.
+#
+# Self-analysis is only meaningful when an AI provider is configured via
+# secrets (e.g. ANTHROPIC_API_KEY / OPENAI_API_KEY), in which case the tool
+# classifies each test method for security relevance and the SARIF contains
+# genuine findings worth reviewing in the Security tab.
+#
+# To enable AI-powered self-analysis uncomment the two steps at the bottom
+# and add the appropriate provider secret to the repository settings.
 name: Security scan
 
 on:
@@ -60,7 +70,7 @@ jobs:
           retention-days: 30
 
   code-scanning:
-    name: Code scanning (SpotBugs + MethodAtlas self-analysis)
+    name: Code scanning (SpotBugs)
     runs-on: ubuntu-latest
 
     steps:
@@ -78,24 +88,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Run SpotBugs; the task is configured to emit SARIF alongside HTML.
+      # SpotBugs is configured to emit SARIF alongside HTML (build.gradle).
       - name: Run SpotBugs (produces SARIF)
         run: ./gradlew spotbugsMain
-
-      # Build and install the tool so we can run it on itself.
-      - name: Build and install MethodAtlas
-        run: ./gradlew installDist
-
-      # Run MethodAtlas on its own test sources.  The tool classifies each
-      # JUnit test method for security relevance and outputs a SARIF document
-      # to stdout.  No AI provider is configured, so classification is
-      # rule-based only (the default mode when -ai is absent).
-      - name: Run MethodAtlas self-analysis (dogfooding)
-        run: |
-          build/install/methodatlas/bin/methodatlas \
-            -sarif \
-            src/test/java \
-            > build/reports/methodatlas-self.sarif.json
 
       - name: Upload SpotBugs SARIF to Code Scanning
         uses: github/codeql-action/upload-sarif@v3
@@ -103,8 +98,37 @@ jobs:
           sarif_file: build/reports/spotbugs/main.sarif
           category: spotbugs
 
-      - name: Upload MethodAtlas self-analysis SARIF to Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: build/reports/methodatlas-self.sarif.json
-          category: methodatlas
+      # -----------------------------------------------------------------------
+      # MethodAtlas AI self-analysis (dogfooding) — DISABLED until an AI
+      # provider secret is configured.
+      #
+      # When enabled, the tool classifies each of its own JUnit test methods
+      # for security relevance.  The resulting SARIF surfaces security-related
+      # test methods directly in the GitHub Security tab, providing a live
+      # demonstration of the tool's output on a known codebase.
+      #
+      # To activate:
+      #   1. Add ANTHROPIC_API_KEY (or OPENAI_API_KEY / OLLAMA_BASE_URL) to
+      #      repository secrets.
+      #   2. Uncomment the two steps below and set the correct -ai-provider
+      #      and -ai-api-key-env flags for your provider.
+      # -----------------------------------------------------------------------
+      # - name: Build and install MethodAtlas
+      #   run: ./gradlew installDist
+      #
+      # - name: Run MethodAtlas AI self-analysis
+      #   env:
+      #     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      #   run: |
+      #     build/install/methodatlas/bin/methodatlas \
+      #       -sarif \
+      #       -ai \
+      #       -ai-provider anthropic \
+      #       src/test/java \
+      #       > build/reports/methodatlas-self.sarif.json
+      #
+      # - name: Upload MethodAtlas self-analysis SARIF to Code Scanning
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: build/reports/methodatlas-self.sarif.json
+      #     category: methodatlas
