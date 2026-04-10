@@ -41,8 +41,6 @@ tasks.withType(Pmd) {
 // ---------------------------------------------------------------------------
 spotbugs {
     toolVersion = '4.9.8'
-    effort = com.github.spotbugs.snom.Effort.DEFAULT
-    reportLevel = com.github.spotbugs.snom.Confidence.DEFAULT
     excludeFilter = file('config/spotbugs/excludeFilter.xml')
 }
 
