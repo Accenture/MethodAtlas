@@ -1,0 +1,72 @@
+# Runs on every branch push and on every pull-request to give developers fast
+# feedback before a release tag is cut.  The quality gate executes the Gradle
+# `check` lifecycle, which covers:
+#   - compilation of main and test sources
+#   - all JUnit 5 tests (via `test`)
+#   - JaCoCo instruction coverage ≥ 70 % (via `jacocoTestCoverageVerification`)
+#   - PMD static analysis on the main source set (via `pmdMain`)
+# Reports are uploaded as workflow artifacts so failing runs can be diagnosed
+# without a local checkout.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']   # release tags are handled by release.yml
+  pull_request:
+
+jobs:
+  quality-gate:
+    name: Quality gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history + tags required by com.palantir.git-version
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle home
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      # `check` depends on: test, jacocoTestCoverageVerification, pmdMain.
+      # `test` is finalized by jacocoTestReport, so the HTML coverage report is
+      # always produced regardless of whether the coverage threshold is met.
+      - name: Run quality gate
+        run: ./gradlew check --no-daemon
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report
+          path: build/reports/tests/test/
+          retention-days: 14
+
+      - name: Upload JaCoCo coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/test/html/
+          retention-days: 14
+
+      - name: Upload PMD report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pmd-report
+          path: build/reports/pmd/
+          retention-days: 14

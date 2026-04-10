@@ -31,8 +31,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build
-        run: ./gradlew clean build --no-daemon
+      # Quality gate: all tests must pass, JaCoCo instruction coverage must be
+      # ≥ 70 %, and PMD must report no violations before a release is published.
+      - name: Quality gate
+        run: ./gradlew check --no-daemon
+
+      - name: Build distribution archives
+        run: ./gradlew distZip distTar --no-daemon
 
       - name: Generate release notes
         id: notes

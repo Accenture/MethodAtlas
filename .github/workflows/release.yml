@@ -31,6 +31,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # Quality gate: all tests must pass, JaCoCo instruction coverage must be
+      # ≥ 70 %, and PMD must report no violations before a release is published.
+      - name: Quality gate
+        run: ./gradlew check
+
       - name: Build distribution archives
         run: ./gradlew distZip distTar
 
