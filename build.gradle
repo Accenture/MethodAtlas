@@ -24,6 +24,9 @@ pmd {
 
 tasks.withType(Pmd) {
     maxHeapSize = "512m"
+    reports {
+        html.required = true
+    }
 }
 
 if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {

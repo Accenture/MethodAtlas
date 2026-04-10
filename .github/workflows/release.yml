@@ -1,0 +1,48 @@
+# Triggered automatically when Gitea mirrors a release@x.y.z tag to GitHub.
+# Builds the standard application distribution archives (zip + tar) and
+# publishes them as assets on the corresponding GitHub Release.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'release@*'
+
+permissions:
+  contents: write   # required to create GitHub Releases and upload assets
+
+jobs:
+  build-and-release:
+    name: Build distribution and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history + all tags are required by com.palantir.git-version
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build distribution archives
+        run: ./gradlew distZip distTar
+
+      # The tag name is release@x.y.z; strip the prefix to get the plain version.
+      # The gh CLI is pre-installed on all GitHub-hosted runners.
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#release@}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "MethodAtlas ${VERSION}" \
+            --generate-notes \
+            build/distributions/*.zip \
+            build/distributions/*.tar
