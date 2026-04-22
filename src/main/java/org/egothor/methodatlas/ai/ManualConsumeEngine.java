@@ -105,6 +105,18 @@ public final class ManualConsumeEngine implements AiSuggestionEngine {
         }
     }
 
+    /**
+     * Normalizes a raw provider response into the application's internal result
+     * invariants.
+     *
+     * <p>
+     * Ensures that collection-valued fields are never {@code null} and removes
+     * malformed method entries that do not contain a valid method name.
+     * </p>
+     *
+     * @param input raw suggestion deserialized from the operator-saved response file
+     * @return normalized suggestion instance
+     */
     private static AiClassSuggestion normalize(AiClassSuggestion input) {
         List<AiMethodSuggestion> methods = input.methods() == null ? List.of() : input.methods();
         List<String> classTags = input.classTags() == null ? List.of() : input.classTags();

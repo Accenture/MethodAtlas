@@ -49,7 +49,7 @@ files; change both consistently if you prefer a different label.
 
 | Secret | Feature unlocked | How to obtain |
 |---|---|---|
-| `NVD_API_KEY` | OWASP Dependency-Check uses the authenticated NVD API (higher rate limit, faster scans). Without it the task still runs but is significantly slower. | Register at **https://nvd.nist.gov/developers/request-an-api-key** — free, no organisation required. You receive the key by e-mail within minutes. |
+| `NVD_API_KEY` | Enables the OWASP Dependency-Check scan. When absent, both the scan and the report upload steps are **completely skipped** and the workflow finishes successfully without them. | Register at **https://nvd.nist.gov/developers/request-an-api-key** — free, no organisation required. You receive the key by e-mail within minutes. |
 | `CODECOV_TOKEN` | Coverage data is uploaded to Codecov for trend tracking and PR delta comments. Not required for public repositories (Codecov accepts public-repo uploads without a token). | Log in at **https://codecov.io** with your Gitea account via GitHub OAuth, add the repository, and copy the Upload Token from the repository settings page. |
 
 ---
@@ -86,7 +86,7 @@ The published site will be available at
 
 | Secret | Feature unlocked | How to obtain |
 |---|---|---|
-| `NVD_API_KEY` | Same as Gitea — authenticated NVD API for faster OWASP scans. | See Gitea section above — the same key works on both platforms. |
+| `NVD_API_KEY` | Same as Gitea — enables the OWASP Dependency-Check scan; steps are skipped when absent. | See Gitea section above — the same key works on both platforms. |
 | `OPENROUTER_API_KEY` | Enables MethodAtlas AI self-analysis in `security-scan.yml`. The three MethodAtlas steps (build, analyse, upload SARIF) are **completely skipped** when this secret is absent; no partial results are written. The SARIF output is uploaded to GitHub Code Scanning and appears in the Security tab. | Register at **https://openrouter.ai** — free tier available. Go to **Account → API Keys → Create key**. The default model (`stepfun/step-3.5-flash:free`) is free; no billing setup required unless you switch to a paid model. |
 | `CODECOV_TOKEN` | Same as Gitea — upload token for private repositories. | See Gitea section above. |
 

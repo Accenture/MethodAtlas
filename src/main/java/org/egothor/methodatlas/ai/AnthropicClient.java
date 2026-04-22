@@ -97,7 +97,8 @@ public final class AnthropicClient implements AiProviderClient {
      */
     @Override
     public boolean isAvailable() {
-        return options.resolvedApiKey() != null && !options.resolvedApiKey().isBlank();
+        String key = options.resolvedApiKey();
+        return key != null && !key.isBlank();
     }
 
     /**

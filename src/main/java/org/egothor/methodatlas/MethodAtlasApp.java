@@ -411,6 +411,18 @@ public final class MethodAtlasApp {
     /**
      * Runs the SARIF output path: scans all roots, then serializes the buffered
      * records as a single SARIF document.
+     *
+     * @param cliConfig         full parsed CLI configuration
+     * @param aiEngine          AI engine providing suggestions; may be {@code null}
+     * @param aiEnabled         whether an AI engine is active
+     * @param confidenceEnabled whether the {@code aiConfidence} property should be
+     *                          included in SARIF properties
+     * @param parser            configured JavaParser instance
+     * @param roots             source roots to scan
+     * @param out               writer that receives the serialized SARIF document
+     * @return {@code 0} if all files were processed successfully, {@code 1} if any
+     *         file produced a parse or processing error
+     * @throws IOException if traversing a file tree fails
      */
     private static int runSarif(CliConfig cliConfig, AiSuggestionEngine aiEngine,
             boolean aiEnabled, boolean confidenceEnabled,
@@ -424,7 +436,14 @@ public final class MethodAtlasApp {
     /**
      * Scans all roots and forwards each discovered test method to {@code sink}.
      *
-     * @return {@code 1} if any file produced an error, {@code 0} otherwise
+     * @param roots     source roots to scan
+     * @param cliConfig full parsed CLI configuration
+     * @param aiEngine  AI engine providing suggestions; may be {@code null}
+     * @param parser    configured JavaParser instance
+     * @param sink      receiver of discovered test method records
+     * @return {@code 0} if all files were processed successfully, {@code 1} if any
+     *         file produced a parse or processing error
+     * @throws IOException if traversing a file tree fails
      */
     private static int scan(List<Path> roots, CliConfig cliConfig, AiSuggestionEngine aiEngine,
             JavaParser parser, TestMethodSink sink) throws IOException {
