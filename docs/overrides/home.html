@@ -16,46 +16,46 @@
 
     /* Hero */
     .hero {
-      min-height: 28rem;
+      min-height: 20rem;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 4rem 1.5rem 3rem;
+      padding: 2.75rem 1.5rem 2.25rem;
       background: var(--md-primary-fg-color);
       color: var(--md-primary-bg-color);
     }
 
     .hero h1 {
-      font-size: 2.8rem;
+      font-size: 2.4rem;
       font-weight: 700;
       letter-spacing: -.03em;
-      margin: 0 0 1rem;
+      margin: 0 0 .65rem;
       color: var(--md-primary-bg-color);
     }
 
     .hero p {
-      font-size: 1.15rem;
+      font-size: 1.05rem;
       max-width: 44rem;
       opacity: .9;
       line-height: 1.7;
-      margin: 0 0 2rem;
+      margin: 0 0 1.5rem;
     }
 
     .hero-buttons {
       display: flex;
-      gap: 1rem;
+      gap: .75rem;
       flex-wrap: wrap;
       justify-content: center;
     }
 
     .hero-buttons a {
       display: inline-block;
-      padding: .75rem 2rem;
+      padding: .55rem 1.5rem;
       border-radius: 4px;
       font-weight: 600;
-      font-size: .95rem;
+      font-size: .88rem;
       text-decoration: none;
       transition: opacity .15s;
     }
@@ -72,53 +72,107 @@
       color: var(--md-primary-bg-color);
     }
 
-    /* Feature grid */
-    .features {
-      max-width: 68rem;
-      margin: 4rem auto;
-      padding: 0 1.5rem;
+    /* Two-column body */
+    .body-section {
+      max-width: 72rem;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 4rem;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-      gap: 1.5rem;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: start;
     }
 
-    .feature {
-      padding: 1.5rem;
-      border-radius: 6px;
-      border: 1px solid var(--md-default-fg-color--lightest);
-      background: var(--md-default-bg-color);
+    @media (max-width: 59.9375em) {
+      .body-section { grid-template-columns: 1fr; gap: 2.5rem; }
     }
 
-    .feature-icon {
-      font-size: 2rem;
-      margin-bottom: .75rem;
-    }
-
-    .feature h3 {
+    .section-heading {
       font-size: 1rem;
-      font-weight: 600;
-      margin: 0 0 .5rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--md-primary-fg-color);
+      margin: 0 0 1.4rem;
+      padding-bottom: .45rem;
+      border-bottom: 2px solid var(--md-primary-fg-color);
     }
 
-    .feature p {
-      font-size: .88rem;
-      color: var(--md-default-fg-color--light);
-      line-height: 1.6;
+    /* Feature list */
+    .feature-list {
+      list-style: none;
+      padding: 0;
       margin: 0;
     }
 
-    /* Quick start */
-    .quickstart {
-      max-width: 52rem;
-      margin: 0 auto 4rem;
-      padding: 0 1.5rem;
+    .feature-list li {
+      display: flex;
+      gap: .75rem;
+      margin-bottom: 1.2rem;
     }
 
-    .quickstart h2 {
-      font-size: 1.5rem;
+    .feature-check {
+      color: var(--md-primary-fg-color);
+      font-size: 1rem;
       font-weight: 700;
-      margin-bottom: 1rem;
+      flex-shrink: 0;
+      line-height: 1.5;
     }
+
+    .feature-list strong {
+      display: block;
+      font-size: .92rem;
+      font-weight: 600;
+      margin-bottom: .15rem;
+    }
+
+    .feature-list p {
+      font-size: .82rem;
+      color: var(--md-default-fg-color--light);
+      margin: 0;
+      line-height: 1.55;
+    }
+
+    .feature-list code {
+      font-size: .78rem;
+      background: var(--md-code-bg-color);
+      padding: 0 .3em;
+      border-radius: 2px;
+    }
+
+    /* Quick start */
+    .qs-label {
+      font-size: .73rem;
+      font-weight: 600;
+      color: var(--md-default-fg-color--light);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin: 0 0 .35rem;
+    }
+
+    .qs-pre {
+      background: var(--md-code-bg-color);
+      color: var(--md-code-fg-color);
+      border-radius: 4px;
+      padding: .85rem 1rem;
+      font-size: .78rem;
+      overflow-x: auto;
+      margin: 0 0 1.1rem;
+      font-family: var(--md-code-font);
+      line-height: 1.65;
+      white-space: pre;
+    }
+
+    .qs-comment { opacity: .55 }
+
+    .qs-links {
+      font-size: .82rem;
+      color: var(--md-default-fg-color--light);
+      margin-top: 1rem;
+    }
+
+    .qs-links a { color: var(--md-primary-fg-color); text-decoration: none; }
+    .qs-links a:hover { text-decoration: underline; }
   </style>
 
   <section class="hero">
@@ -129,91 +183,102 @@
     </p>
     <div class="hero-buttons">
       <a class="btn-primary" href="installation/">Get started</a>
-      <a class="btn-secondary" href="cli-reference/">CLI Reference</a>
+      <a class="btn-secondary" href="why-methodatlas/">Why MethodAtlas?</a>
+      <a class="btn-secondary" href="usage-modes/">Usage modes</a>
     </div>
   </section>
 
-  <div class="features">
-    <div class="feature">
-      <div class="feature-icon">&#x1F4CB;</div>
-      <h3>Source-level test inventory</h3>
-      <p>
-        Discovers <code>@Test</code>, <code>@ParameterizedTest</code>,
-        <code>@RepeatedTest</code>, <code>@TestFactory</code>, and
-        <code>@TestTemplate</code> methods using a lexical parser — no compilation
-        required.
-      </p>
+  <div class="body-section">
+    <!-- Left: Feature list -->
+    <div>
+      <p class="section-heading">Capabilities</p>
+      <ul class="feature-list">
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>Source-level test inventory</strong>
+            <p>Discovers <code>@Test</code>, <code>@ParameterizedTest</code>, <code>@TestFactory</code>,
+               and other JUnit&nbsp;5 annotations via lexical parsing &mdash; no compilation required.</p>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>AI security classification</strong>
+            <p>Integrates with Ollama, OpenAI, OpenRouter, and Anthropic to label each test by
+               security relevance, taxonomy tags, and human-readable rationale.</p>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>Multiple output formats</strong>
+            <p>Exports results as CSV (default), plain text, or SARIF&nbsp;2.1.0 for direct
+               integration with GitHub Code Scanning and other SAST tooling.</p>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>Source write-back</strong>
+            <p>The <code>-apply-tags</code> mode inserts AI-suggested <code>@DisplayName</code>
+               and <code>@Tag</code> annotations directly into source files using a
+               lexical-preserving printer.</p>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>Manual AI workflow</strong>
+            <p>Two-phase prepare&nbsp;/ consume mode for air-gapped or policy-restricted
+               environments where direct API calls are not permitted.</p>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>YAML configuration</strong>
+            <p>Shareable configuration files store scan settings; CLI flags override them
+               selectively, eliminating per-run repetition in team or CI workflows.</p>
+          </div>
+        </li>
+      </ul>
     </div>
-    <div class="feature">
-      <div class="feature-icon">&#x1F916;</div>
-      <h3>AI security classification</h3>
-      <p>
-        Submits each test class to Ollama, OpenAI, OpenRouter, or Anthropic and
-        returns per-method security relevance, taxonomy tags, and human-readable
-        rationale.
-      </p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">&#x1F4C4;</div>
-      <h3>Multiple output formats</h3>
-      <p>
-        Exports results as CSV (default), plain text, or SARIF&nbsp;2.1.0 for
-        direct integration with GitHub Code Scanning and other SAST tooling.
-      </p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">&#x270F;&#xFE0F;</div>
-      <h3>Source write-back</h3>
-      <p>
-        The <code>-apply-tags</code> mode inserts AI-generated
-        <code>@DisplayName</code> and <code>@Tag</code> annotations directly
-        into source files using a lexical-preserving printer.
-      </p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">&#x1F4AC;</div>
-      <h3>Manual AI workflow</h3>
-      <p>
-        Two-phase prepare / consume mode for operators who interact with an AI
-        model through a chat interface rather than a direct API connection.
-      </p>
-    </div>
-    <div class="feature">
-      <div class="feature-icon">&#x2699;&#xFE0F;</div>
-      <h3>YAML configuration</h3>
-      <p>
-        Scan settings are stored in a shareable configuration file and can be
-        overridden selectively on the command line — no flags required for
-        repeated runs.
-      </p>
-    </div>
-  </div>
 
-  <div class="quickstart">
-    <h2>Quick start</h2>
-    <div class="highlight">
-<pre><code class="language-bash"><span class="c1"># Scan a project and write CSV to stdout</span>
-java -jar methodatlas.jar -scan /path/to/project/src/test/java
+    <!-- Right: Quick start -->
+    <div>
+      <p class="section-heading">Quick start</p>
 
-<span class="c1"># Enrich with local Ollama and save to file</span>
-java -jar methodatlas.jar \
-  -scan /path/to/project/src/test/java \
+      <p class="qs-label">1 &mdash; Static inventory (no AI)</p>
+      <pre class="qs-pre"><span class="qs-comment"># bin/ script from the distribution archive</span>
+./methodatlas src/test/java</pre>
+
+      <p class="qs-label">2 &mdash; AI enrichment (local Ollama)</p>
+      <pre class="qs-pre">./methodatlas -ai \
   -ai-provider ollama \
-  -ai-model llama3 \
-  -output results.csv
+  -ai-model qwen2.5-coder:7b \
+  src/test/java</pre>
 
-<span class="c1"># SARIF output for GitHub Code Scanning</span>
-java -jar methodatlas.jar \
-  -scan /path/to/project/src/test/java \
-  -format sarif \
-  -output results.sarif</code></pre>
+      <p class="qs-label">3 &mdash; SARIF for GitHub Code Scanning</p>
+      <pre class="qs-pre">./methodatlas -sarif src/test/java \
+  &gt; results.sarif</pre>
+
+      <p class="qs-label">4 &mdash; Cloud AI with API key</p>
+      <pre class="qs-pre">export OPENROUTER_API_KEY=sk-...
+./methodatlas -ai \
+  -ai-provider openrouter \
+  -ai-api-key-env OPENROUTER_API_KEY \
+  src/test/java</pre>
+
+      <p class="qs-links">
+        <a href="installation/">Full installation guide</a>
+        &nbsp;&middot;&nbsp;
+        <a href="usage-modes/">All usage modes</a>
+        &nbsp;&middot;&nbsp;
+        <a href="cli-reference/">CLI reference</a>
+      </p>
     </div>
-    <p style="margin-top:1rem;font-size:.9rem;color:var(--md-default-fg-color--light)">
-      See <a href="installation/">Installation</a> for full setup instructions and
-      <a href="cli-reference/">CLI Reference</a> for all available options.
-    </p>
   </div>
 {% endblock %}
 
 {% block content %}{% endblock %}
-{% block footer %}{% endblock %}
