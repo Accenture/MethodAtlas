@@ -319,7 +319,7 @@ class AnthropicClientTest {
     private static MockedConstruction<HttpSupport> mockHttpSupport(ObjectMapper mapper, String responseBody,
             AtomicReference<String> capturedBody) {
 
-        return mockConstruction(HttpSupport.class, (mock, _) -> {
+        return mockConstruction(HttpSupport.class, (mock, ctx) -> {
             when(mock.objectMapper()).thenReturn(mapper);
             when(mock.jsonPost(any(URI.class), any(String.class), any(Duration.class))).thenAnswer(invocation -> {
                 URI uri = invocation.getArgument(0);

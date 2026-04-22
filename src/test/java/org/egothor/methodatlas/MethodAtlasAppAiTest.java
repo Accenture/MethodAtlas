@@ -40,7 +40,7 @@ class MethodAtlasAppAiTest {
         copyAllFixtures(tempDir);
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
-                (mock, _) -> {
+                (mock, ctx) -> {
                     when(mock.suggestForClass(anyString(), eq("com.acme.tests.SampleOneTest"), anyString(), any()))
                             .thenReturn(sampleOneSuggestion());
                     when(mock.suggestForClass(anyString(), eq("com.acme.other.AnotherTest"), anyString(), any()))
@@ -100,7 +100,7 @@ class MethodAtlasAppAiTest {
         copyAllFixtures(tempDir);
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
-                (mock, _) -> {
+                (mock, ctx) -> {
                     when(mock.suggestForClass(anyString(), eq("com.acme.tests.SampleOneTest"), anyString(), any()))
                             .thenReturn(sampleOneSuggestion());
                     when(mock.suggestForClass(anyString(), eq("com.acme.other.AnotherTest"), anyString(), any()))

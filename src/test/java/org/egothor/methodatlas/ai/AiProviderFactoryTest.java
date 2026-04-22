@@ -49,7 +49,7 @@ class AiProviderFactoryTest {
                 .build();
 
         try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(true))) {
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true))) {
 
             AiProviderClient client = AiProviderFactory.create(options);
 
@@ -66,7 +66,7 @@ class AiProviderFactoryTest {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).build();
 
         try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(false))) {
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false))) {
 
             AiSuggestionException ex = assertThrows(AiSuggestionException.class,
                     () -> AiProviderFactory.create(options));
@@ -84,7 +84,7 @@ class AiProviderFactoryTest {
                 .build();
 
         try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(true))) {
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true))) {
 
             AiProviderClient client = AiProviderFactory.create(options);
 
@@ -101,7 +101,7 @@ class AiProviderFactoryTest {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENROUTER).build();
 
         try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(false))) {
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false))) {
 
             AiSuggestionException ex = assertThrows(AiSuggestionException.class,
                     () -> AiProviderFactory.create(options));
@@ -119,7 +119,7 @@ class AiProviderFactoryTest {
                 .apiKey("anthropic-test-key").build();
 
         try (MockedConstruction<AnthropicClient> mocked = mockConstruction(AnthropicClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(true))) {
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true))) {
 
             AiProviderClient client = AiProviderFactory.create(options);
 
@@ -136,7 +136,7 @@ class AiProviderFactoryTest {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.ANTHROPIC).build();
 
         try (MockedConstruction<AnthropicClient> mocked = mockConstruction(AnthropicClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(false))) {
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false))) {
 
             AiSuggestionException ex = assertThrows(AiSuggestionException.class,
                     () -> AiProviderFactory.create(options));
@@ -154,7 +154,7 @@ class AiProviderFactoryTest {
                 .baseUrl("http://localhost:11434").build();
 
         try (MockedConstruction<OllamaClient> ollamaMocked = mockConstruction(OllamaClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(true));
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true));
                 MockedConstruction<OpenAiCompatibleClient> openAiMocked = mockConstruction(
                         OpenAiCompatibleClient.class)) {
 
@@ -175,7 +175,7 @@ class AiProviderFactoryTest {
                 .baseUrl("https://api.openai.com").apiKey("sk-test-value").build();
 
         try (MockedConstruction<OllamaClient> ollamaMocked = mockConstruction(OllamaClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(false));
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false));
                 MockedConstruction<OpenAiCompatibleClient> openAiMocked = mockConstruction(
                         OpenAiCompatibleClient.class)) {
 
@@ -195,7 +195,7 @@ class AiProviderFactoryTest {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.AUTO).build();
 
         try (MockedConstruction<OllamaClient> ollamaMocked = mockConstruction(OllamaClient.class,
-                (mock, _) -> when(mock.isAvailable()).thenReturn(false));
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false));
                 MockedConstruction<OpenAiCompatibleClient> openAiMocked = mockConstruction(
                         OpenAiCompatibleClient.class)) {
 

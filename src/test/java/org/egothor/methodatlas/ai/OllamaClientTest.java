@@ -52,7 +52,7 @@ class OllamaClientTest {
 
         when(httpClient.send(any(HttpRequest.class), anyVoidBodyHandler())).thenReturn(response);
 
-        try (MockedConstruction<HttpSupport> mocked = mockConstruction(HttpSupport.class, (mock, _) -> {
+        try (MockedConstruction<HttpSupport> mocked = mockConstruction(HttpSupport.class, (mock, ctx) -> {
             when(mock.httpClient()).thenReturn(httpClient);
         })) {
             AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OLLAMA)
@@ -77,7 +77,7 @@ class OllamaClientTest {
         when(httpClient.send(any(HttpRequest.class), anyVoidBodyHandler()))
                 .thenThrow(new java.io.IOException("Connection refused"));
 
-        try (MockedConstruction<HttpSupport> mocked = mockConstruction(HttpSupport.class, (mock, _) -> {
+        try (MockedConstruction<HttpSupport> mocked = mockConstruction(HttpSupport.class, (mock, ctx) -> {
             when(mock.httpClient()).thenReturn(httpClient);
         })) {
             AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OLLAMA)
@@ -118,7 +118,7 @@ class OllamaClientTest {
 
         AtomicReference<String> capturedBody = new AtomicReference<>();
 
-        try (MockedConstruction<HttpSupport> mocked = mockConstruction(HttpSupport.class, (mock, _) -> {
+        try (MockedConstruction<HttpSupport> mocked = mockConstruction(HttpSupport.class, (mock, ctx) -> {
             when(mock.objectMapper()).thenReturn(mapper);
             when(mock.jsonPost(any(URI.class), any(String.class), any(Duration.class))).thenAnswer(invocation -> {
                 URI uri = invocation.getArgument(0);
@@ -193,7 +193,7 @@ class OllamaClientTest {
                 }
                 """;
 
-        try (MockedConstruction<HttpSupport> mocked = mockConstruction(HttpSupport.class, (mock, _) -> {
+        try (MockedConstruction<HttpSupport> mocked = mockConstruction(HttpSupport.class, (mock, ctx) -> {
             when(mock.objectMapper()).thenReturn(mapper);
             when(mock.jsonPost(any(URI.class), any(String.class), any(Duration.class))).thenAnswer(invocation -> {
                 URI uri = invocation.getArgument(0);
