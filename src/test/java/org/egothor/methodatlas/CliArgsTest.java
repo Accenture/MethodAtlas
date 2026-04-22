@@ -15,8 +15,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
-import java.time.Duration;
-
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
 import org.junit.jupiter.api.DisplayName;
