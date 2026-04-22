@@ -228,6 +228,10 @@ javadoc {
     options.version = true
     options.windowTitle = 'MethodAtlas'
     options.docTitle = 'MethodAtlas API'
+    options.overview = 'src/main/javadoc/overview.html'
+    options.bottom = 'Copyright &copy; 2026 Egothor and Accenture. ' +
+            'Licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">' +
+            'Apache License, Version&nbsp;2.0</a>.'
 
     source = sourceSets.main.allJava
 }
