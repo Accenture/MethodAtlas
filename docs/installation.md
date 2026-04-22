@@ -10,7 +10,6 @@
 MethodAtlas parses Java source files without compiling them, so no project build
 tool (Gradle, Maven, etc.) is required at runtime.
 
----
 
 ## Option 1 — Distribution archive (recommended)
 
@@ -59,7 +58,6 @@ The `bin/` scripts handle the classpath automatically. No manual `-cp` flag need
 ./methodatlas --help
 ```
 
----
 
 ## Option 2 — Build from source
 
@@ -83,7 +81,6 @@ To produce a portable archive:
 
 Java 21 or later is required at build time. The build enforces this automatically.
 
----
 
 ## Option 3 — Single executable JAR (alternative)
 
@@ -98,7 +95,6 @@ java -jar build/libs/methodatlas-<version>.jar src/test/java
     This requires you to manage the classpath manually if you add dependencies.
     The distribution archive (Option 1 or 2) is the recommended approach.
 
----
 
 ## Quick start examples
 
@@ -167,11 +163,10 @@ ai:
 
 CLI flags always override values from the configuration file.
 
----
 
 ## Next steps
 
-- [Usage Modes](usage-modes.md) — overview of all operating modes and when to use each
+- [Usage Modes](usage-modes/index.md) — overview of all operating modes and when to use each
 - [CLI Reference](cli-reference.md) — full list of flags and options
 - [AI Enrichment](ai-guide.md) — provider setup, taxonomy, and manual workflow
 - [CI/CD Setup](ci-setup.md) — GitHub Actions and Gitea pipelines

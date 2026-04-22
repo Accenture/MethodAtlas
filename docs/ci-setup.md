@@ -5,7 +5,6 @@ required to make all workflows operational on both **Gitea** and **GitHub**.
 Items are grouped by platform and sorted from mandatory to optional within
 each section.
 
----
 
 ## Gitea
 
@@ -52,7 +51,6 @@ files; change both consistently if you prefer a different label.
 | `NVD_API_KEY` | Enables the OWASP Dependency-Check scan. When absent, both the scan and the report upload steps are **completely skipped** and the workflow finishes successfully without them. | Register at **https://nvd.nist.gov/developers/request-an-api-key** — free, no organisation required. You receive the key by e-mail within minutes. |
 | `CODECOV_TOKEN` | Coverage data is uploaded to Codecov for trend tracking and PR delta comments. Not required for public repositories (Codecov accepts public-repo uploads without a token). | Log in at **https://codecov.io** with your Gitea account via GitHub OAuth, add the repository, and copy the Upload Token from the repository settings page. |
 
----
 
 ## GitHub
 
@@ -108,7 +106,6 @@ configuration is needed beyond the `security-events: write` permission
 already declared in the workflow.  Findings appear automatically under
 **Security → Code scanning** after the first successful workflow run.
 
----
 
 ## Workflow schedule reference
 
@@ -121,7 +118,6 @@ already declared in the workflow.  Findings appear automatically under
 | OWASP Security Scan | Gitea | Every Monday at 03:00 UTC; manual dispatch |
 | PIT Mutation Testing | Gitea + GitHub | Every Sunday at 04:00 UTC; manual dispatch |
 
----
 
 ## Creating a release
 

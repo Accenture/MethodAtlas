@@ -78,11 +78,20 @@ extra:
 
 nav:
   - Home: index.md
-  - Why MethodAtlas: why-methodatlas.md
+  - Why MethodAtlas:
+    - Rationale: why-methodatlas.md
+    - Compliance & Standards: compliance.md
   - Installation: installation.md
   - User Guide:
-    - Usage Modes: usage-modes.md
-    - CLI Reference: cli-reference.md
+    - Usage Modes:
+      - Overview: usage-modes/index.md
+      - Static Inventory: usage-modes/static-inventory.md
+      - API AI Enrichment: usage-modes/api-ai.md
+      - Manual AI Workflow: usage-modes/manual.md
+      - Source Write-back: usage-modes/apply-tags.md
+    - CLI Reference:
+      - Options: cli-reference.md
+      - Examples: cli-examples.md
     - Output Formats: output-formats.md
     - AI Enrichment: ai-guide.md
   - CI/CD Setup: ci-setup.md
