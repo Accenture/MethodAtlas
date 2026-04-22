@@ -23,8 +23,7 @@ with blank AI columns.
 !!! info "What is transmitted to the provider"
     Only the test class source file is submitted. Production source code,
     configuration files, and all other project content are never read or
-    transmitted. See [AI Enrichment — Data scope](../ai-guide.md#data-scope)
-    for the complete statement.
+    transmitted. See [AI Enrichment](../ai-guide.md) for the complete data scope statement.
     For environments where external API calls are not permitted, use the
     [Manual AI workflow](manual.md) instead.
 

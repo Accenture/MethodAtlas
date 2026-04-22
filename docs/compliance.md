@@ -16,7 +16,7 @@ framework demands and how MethodAtlas helps satisfy that demand.
     or any other project content. This limits the data governance review
     required before approving external API use to a single artefact category:
     test source files. For environments where even this is not permitted, the
-    [Manual AI workflow](../usage-modes/manual.md) performs classification
+    [Manual AI workflow](usage-modes/manual.md) performs classification
     without any outbound network calls from the scan host.
 
 ## OWASP SAMM v2 — Security Testing
