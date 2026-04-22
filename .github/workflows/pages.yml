@@ -1,6 +1,7 @@
-# Builds Javadoc, JaCoCo coverage, PMD static-analysis, and JUnit test reports,
-# then assembles them under a shared landing page and deploys the whole site to
-# GitHub Pages.  Runs on every push to main and on manual dispatch.
+# Builds the MkDocs Material documentation site, Javadoc, JaCoCo coverage, PMD
+# static-analysis, and JUnit test reports, then assembles them under a single
+# site/ directory and deploys everything to GitHub Pages.  Runs on every push
+# to main and on manual dispatch.
 name: Pages
 
 on:
@@ -69,12 +70,23 @@ jobs:
       - name: Generate Javadoc
         run: ./gradlew javadoc
 
+      - name: Set up Python (for MkDocs)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install MkDocs Material
+        run: pip install mkdocs-material
+
       # -----------------------------------------------------------------------
-      # Collect all report trees under a single site/ directory, then generate
-      # the landing page using an embedded Python script so that shell heredoc
-      # indentation and special-character escaping are handled cleanly.
+      # Build MkDocs site first (creates a fresh site/ directory), then copy
+      # Java reports into subdirectories so relative links from the Reports page
+      # resolve correctly at runtime.
       # -----------------------------------------------------------------------
-      - name: Assemble Pages site
+      - name: Build MkDocs site
+        run: mkdocs build --strict
+
+      - name: Copy Java reports into site/
         run: |
           mkdir -p site/jacoco site/pmd site/spotbugs site/tests site/javadoc
 
@@ -83,158 +95,6 @@ jobs:
           cp -r build/reports/spotbugs/.          site/spotbugs/ 2>/dev/null || true
           cp -r build/reports/tests/test/.        site/tests/
           cp -r build/docs/javadoc/.              site/javadoc/
-
-          python3 - << 'PYEOF'
-          import os, datetime
-
-          build_date = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
-          short_sha  = os.environ.get('GITHUB_SHA', 'unknown')[:7]
-          ref_name   = os.environ.get('GITHUB_REF_NAME', 'unknown')
-
-          template = """<!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>MethodAtlas \u2014 Reports</title>
-            <style>
-              *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-                             Helvetica, Arial, sans-serif;
-                background: #f6f8fa;
-                color: #1f2328;
-                line-height: 1.5;
-              }
-              header {
-                background: #0d1117;
-                color: #e6edf3;
-                padding: 2.5rem 3rem;
-                border-bottom: 1px solid #30363d;
-              }
-              header h1 {
-                font-size: 1.75rem;
-                font-weight: 700;
-                letter-spacing: -.02em;
-              }
-              header .meta {
-                margin-top: .5rem;
-                font-size: .85rem;
-                color: #8d96a0;
-              }
-              header .meta code {
-                background: #161b22;
-                border: 1px solid #30363d;
-                border-radius: 4px;
-                padding: 1px 5px;
-                font-size: .8rem;
-              }
-              main {
-                max-width: 860px;
-                margin: 2.5rem auto;
-                padding: 0 1.5rem;
-              }
-              h2 {
-                font-size: .85rem;
-                font-weight: 600;
-                color: #57606a;
-                text-transform: uppercase;
-                letter-spacing: .05em;
-                margin-bottom: 1rem;
-              }
-              .grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-                gap: 1rem;
-              }
-              .card {
-                background: #ffffff;
-                border: 1px solid #d0d7de;
-                border-radius: 6px;
-                padding: 1.5rem 1.25rem;
-                text-align: center;
-                text-decoration: none;
-                color: #1f2328;
-                display: block;
-                transition: box-shadow .12s, border-color .12s;
-              }
-              .card:hover {
-                border-color: #0969da;
-                box-shadow: 0 4px 12px rgba(9, 105, 218, .12);
-              }
-              .card .icon { font-size: 2.2rem; display: block; margin-bottom: .75rem; }
-              .card strong { display: block; font-size: .95rem; font-weight: 600; }
-              .card span   { display: block; font-size: .78rem; color: #57606a; margin-top: .3rem; }
-              footer {
-                text-align: center;
-                padding: 2rem;
-                font-size: .78rem;
-                color: #8d96a0;
-                border-top: 1px solid #d0d7de;
-                margin-top: 3rem;
-              }
-            </style>
-          </head>
-          <body>
-            <header>
-              <h1>MethodAtlas</h1>
-              <p class="meta">
-                Built on <strong>BUILD_DATE</strong>
-                &nbsp;&middot;&nbsp;
-                commit <code>SHORT_SHA</code>
-                &nbsp;&middot;&nbsp;
-                ref <code>REF_NAME</code>
-              </p>
-            </header>
-            <main>
-              <h2>Available Reports</h2>
-              <div class="grid">
-                <a class="card" href="javadoc/index.html">
-                  <span class="icon">&#x1F4DA;</span>
-                  <strong>Javadoc</strong>
-                  <span>API reference documentation</span>
-                </a>
-                <a class="card" href="jacoco/index.html">
-                  <span class="icon">&#x1F52C;</span>
-                  <strong>JaCoCo Coverage</strong>
-                  <span>Test code coverage report</span>
-                </a>
-                <a class="card" href="pmd/main.html">
-                  <span class="icon">&#x1F50D;</span>
-                  <strong>PMD Analysis</strong>
-                  <span>Static analysis findings</span>
-                </a>
-                <a class="card" href="tests/index.html">
-                  <span class="icon">&#x2705;</span>
-                  <strong>Test Results</strong>
-                  <span>Unit test execution report</span>
-                </a>
-                <a class="card" href="spotbugs/main.html">
-                  <span class="icon">&#x1F41E;</span>
-                  <strong>SpotBugs</strong>
-                  <span>Bug-pattern detection report</span>
-                </a>
-              </div>
-            </main>
-            <footer>Generated by GitHub Actions &mdash; MethodAtlas</footer>
-          </body>
-          </html>"""
-
-          html = (template
-                  .replace('BUILD_DATE', build_date)
-                  .replace('SHORT_SHA',  short_sha)
-                  .replace('REF_NAME',   ref_name))
-
-          # Strip the uniform leading indentation introduced by the YAML block
-          # scalar – every line in the template above carries 10 extra spaces.
-          import textwrap
-          html = textwrap.dedent(html)
-
-          with open('site/index.html', 'w', encoding='utf-8') as f:
-              f.write(html)
-
-          print('Generated site/index.html')
-          PYEOF
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,219 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+  <style>
+    .md-header { position: initial }
+    .md-main__inner { margin: 0 }
+    .md-content { display: none }
+
+    @media screen and (min-width: 76.25em) {
+      .md-sidebar--secondary { display: none }
+    }
+    @media screen and (min-width: 60em) {
+      .md-sidebar--primary { display: none }
+    }
+
+    /* Hero */
+    .hero {
+      min-height: 28rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 4rem 1.5rem 3rem;
+      background: var(--md-primary-fg-color);
+      color: var(--md-primary-bg-color);
+    }
+
+    .hero h1 {
+      font-size: 2.8rem;
+      font-weight: 700;
+      letter-spacing: -.03em;
+      margin: 0 0 1rem;
+      color: var(--md-primary-bg-color);
+    }
+
+    .hero p {
+      font-size: 1.15rem;
+      max-width: 44rem;
+      opacity: .9;
+      line-height: 1.7;
+      margin: 0 0 2rem;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .hero-buttons a {
+      display: inline-block;
+      padding: .75rem 2rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: .95rem;
+      text-decoration: none;
+      transition: opacity .15s;
+    }
+
+    .hero-buttons a:hover { opacity: .85 }
+
+    .btn-primary {
+      background: var(--md-primary-bg-color);
+      color: var(--md-primary-fg-color);
+    }
+
+    .btn-secondary {
+      border: 2px solid var(--md-primary-bg-color);
+      color: var(--md-primary-bg-color);
+    }
+
+    /* Feature grid */
+    .features {
+      max-width: 68rem;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+      gap: 1.5rem;
+    }
+
+    .feature {
+      padding: 1.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--md-default-fg-color--lightest);
+      background: var(--md-default-bg-color);
+    }
+
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: .75rem;
+    }
+
+    .feature h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0 0 .5rem;
+    }
+
+    .feature p {
+      font-size: .88rem;
+      color: var(--md-default-fg-color--light);
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* Quick start */
+    .quickstart {
+      max-width: 52rem;
+      margin: 0 auto 4rem;
+      padding: 0 1.5rem;
+    }
+
+    .quickstart h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+  </style>
+
+  <section class="hero">
+    <h1>MethodAtlas</h1>
+    <p>
+      Scan Java test sources, extract JUnit&nbsp;5 metadata, and enrich results
+      with AI-generated security classification &mdash; without compiling a single class.
+    </p>
+    <div class="hero-buttons">
+      <a class="btn-primary" href="installation/">Get started</a>
+      <a class="btn-secondary" href="cli-reference/">CLI Reference</a>
+    </div>
+  </section>
+
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon">&#x1F4CB;</div>
+      <h3>Source-level test inventory</h3>
+      <p>
+        Discovers <code>@Test</code>, <code>@ParameterizedTest</code>,
+        <code>@RepeatedTest</code>, <code>@TestFactory</code>, and
+        <code>@TestTemplate</code> methods using a lexical parser — no compilation
+        required.
+      </p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">&#x1F916;</div>
+      <h3>AI security classification</h3>
+      <p>
+        Submits each test class to Ollama, OpenAI, OpenRouter, or Anthropic and
+        returns per-method security relevance, taxonomy tags, and human-readable
+        rationale.
+      </p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">&#x1F4C4;</div>
+      <h3>Multiple output formats</h3>
+      <p>
+        Exports results as CSV (default), plain text, or SARIF&nbsp;2.1.0 for
+        direct integration with GitHub Code Scanning and other SAST tooling.
+      </p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">&#x270F;&#xFE0F;</div>
+      <h3>Source write-back</h3>
+      <p>
+        The <code>-apply-tags</code> mode inserts AI-generated
+        <code>@DisplayName</code> and <code>@Tag</code> annotations directly
+        into source files using a lexical-preserving printer.
+      </p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">&#x1F4AC;</div>
+      <h3>Manual AI workflow</h3>
+      <p>
+        Two-phase prepare / consume mode for operators who interact with an AI
+        model through a chat interface rather than a direct API connection.
+      </p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">&#x2699;&#xFE0F;</div>
+      <h3>YAML configuration</h3>
+      <p>
+        Scan settings are stored in a shareable configuration file and can be
+        overridden selectively on the command line — no flags required for
+        repeated runs.
+      </p>
+    </div>
+  </div>
+
+  <div class="quickstart">
+    <h2>Quick start</h2>
+    <div class="highlight">
+<pre><code class="language-bash"><span class="c1"># Scan a project and write CSV to stdout</span>
+java -jar methodatlas.jar -scan /path/to/project/src/test/java
+
+<span class="c1"># Enrich with local Ollama and save to file</span>
+java -jar methodatlas.jar \
+  -scan /path/to/project/src/test/java \
+  -ai-provider ollama \
+  -ai-model llama3 \
+  -output results.csv
+
+<span class="c1"># SARIF output for GitHub Code Scanning</span>
+java -jar methodatlas.jar \
+  -scan /path/to/project/src/test/java \
+  -format sarif \
+  -output results.sarif</code></pre>
+    </div>
+    <p style="margin-top:1rem;font-size:.9rem;color:var(--md-default-fg-color--light)">
+      See <a href="installation/">Installation</a> for full setup instructions and
+      <a href="cli-reference/">CLI Reference</a> for all available options.
+    </p>
+  </div>
+{% endblock %}
+
+{% block content %}{% endblock %}
+{% block footer %}{% endblock %}
