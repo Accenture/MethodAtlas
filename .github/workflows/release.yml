@@ -76,6 +76,17 @@ jobs:
       # Publish release
       # The tag name is release@x.y.z; strip the prefix to get the plain version.
       # -----------------------------------------------------------------------
+      - name: Locate SBOM
+        run: |
+          BOM=$(find build -name "bom.json" | head -1)
+          if [ -z "$BOM" ]; then
+            echo "bom.json not found; available BOM files:"
+            find build -name "bom*" || true
+            exit 1
+          fi
+          echo "BOM_PATH=$BOM" >> "$GITHUB_ENV"
+          echo "Located SBOM: $BOM"
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -86,4 +97,4 @@ jobs:
             --notes-file /tmp/CHANGELOG_RELEASE.md \
             build/distributions/*.zip \
             build/distributions/*.tar \
-            build/reports/bom.json
+            "$BOM_PATH"
