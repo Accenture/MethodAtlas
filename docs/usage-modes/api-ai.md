@@ -20,6 +20,14 @@ If classification fails for a class (network error, timeout, malformed response)
 MethodAtlas logs a warning and continues. The affected class appears in the output
 with blank AI columns.
 
+!!! info "What is transmitted to the provider"
+    Only the test class source file is submitted. Production source code,
+    configuration files, and all other project content are never read or
+    transmitted. See [AI Enrichment — Data scope](../ai-guide.md#data-scope)
+    for the complete statement.
+    For environments where external API calls are not permitted, use the
+    [Manual AI workflow](manual.md) instead.
+
 ## Local inference — Ollama
 
 [Ollama](https://ollama.com) runs entirely on your machine; no API key is required.

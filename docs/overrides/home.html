@@ -140,6 +140,14 @@
       border-radius: 2px;
     }
 
+    .feature-scope {
+      display: block;
+      font-size: .75rem;
+      color: var(--md-default-fg-color--lighter);
+      font-style: italic;
+      margin-top: .3rem;
+    }
+
     /* Quick start */
     .qs-label {
       font-size: .73rem;
@@ -207,6 +215,7 @@
             <strong>AI security classification</strong>
             <p>Integrates with Ollama, OpenAI, OpenRouter, and Anthropic to label each test by
                security relevance, taxonomy tags, and human-readable rationale.</p>
+            <span class="feature-scope">Only test source files are submitted &mdash; production code is never read or transmitted.</span>
           </div>
         </li>
         <li>

@@ -10,6 +10,15 @@ framework demands and how MethodAtlas helps satisfy that demand.
     be satisfied, requires assessment by a qualified compliance professional.
     Do not rely solely on this page as compliance guidance.
 
+!!! info "Data scope for external AI providers"
+    When an external AI provider is configured, MethodAtlas submits only the
+    test class source file — not production source code, configuration files,
+    or any other project content. This limits the data governance review
+    required before approving external API use to a single artefact category:
+    test source files. For environments where even this is not permitted, the
+    [Manual AI workflow](../usage-modes/manual.md) performs classification
+    without any outbound network calls from the scan host.
+
 ## OWASP SAMM v2 — Security Testing
 
 The [OWASP Software Assurance Maturity Model (SAMM) v2](https://owaspsamm.org/model/verification/security-testing/)

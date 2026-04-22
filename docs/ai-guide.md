@@ -18,6 +18,23 @@ The model is explicitly instructed to classify only the methods that the parser 
 
 If classification fails for a class (network error, timeout, malformed response), MethodAtlas logs a warning and continues scanning. The affected class appears in the output with empty AI columns.
 
+!!! info "Data scope"
+    **Only test source files are submitted to the configured AI provider.**
+    MethodAtlas does not read, access, or transmit production source code,
+    compiled artefacts, configuration files, environment variables, or any
+    other project content outside the configured scan roots.
+
+    The provider receives exactly three items per test class:
+
+    - The security taxonomy that governs the permitted classification tags.
+    - The list of test method names identified by the parser.
+    - The content of the test class source file.
+
+    For environments where transmitting source code to an external service is
+    not permitted, the [manual AI workflow](#manual-ai-workflow) performs the
+    AI interaction through a supervised interface without any outbound API calls
+    from the scan host.
+
 ## Supported providers
 
 | Provider | Value | Authentication |
