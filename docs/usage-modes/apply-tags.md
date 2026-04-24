@@ -23,6 +23,21 @@ It can be combined with [API AI enrichment](api-ai.md) or with the
   -apply-tags src/test/java
 ```
 
+## With an override file
+
+When the codebase has been classified in a previous session and results are
+captured in an override file, apply-tags can use those results directly
+without re-running AI:
+
+```bash
+./methodatlas -override-file .methodatlas-overrides.yaml \
+  -apply-tags src/test/java
+```
+
+This is the most efficient workflow after an initial classification: run AI
+once, review and commit the override file, then use it for subsequent
+annotation write-backs without additional AI calls.
+
 ## What gets written
 
 Only test methods classified as security-relevant receive new annotations.

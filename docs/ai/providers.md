@@ -100,7 +100,7 @@ ai:
   maxRetries: 2
 ```
 
-The `apiVersion` field selects the Azure OpenAI REST API version. The default (`2024-02-01`) targets the generally-available Chat Completions API. Use `2024-08-01-preview` to access preview features such as structured outputs.
+The `apiVersion` YAML field (or `-ai-api-version` CLI flag) selects the Azure OpenAI REST API version. The default (`2024-02-01`) targets the generally-available Chat Completions API. Use `2024-08-01-preview` to access preview features such as structured outputs.
 
 ## OpenAI
 

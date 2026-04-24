@@ -71,35 +71,36 @@ See [docs/cli-reference.md](docs/cli-reference.md) for the complete option refer
 
 For each discovered JUnit test method, MethodAtlas emits one record.
 
-**Source-derived fields** (always present, no AI required):
+**Source-derived fields:**
 
-| Field | Description |
-| --- | --- |
-| `fqcn` | Fully qualified class name |
-| `method` | Test method name |
-| `loc` | Inclusive line count of the method declaration |
-| `tags` | Existing JUnit `@Tag` values declared on the method |
-| `content_hash` | SHA-256 fingerprint of the enclosing class (opt-in via `-content-hash`) |
+| Field | Present when | Description |
+| --- | --- | --- |
+| `fqcn` | Always | Fully qualified class name |
+| `method` | Always | Test method name |
+| `loc` | Always | Inclusive line count of the method declaration |
+| `tags` | Always | Existing JUnit `@Tag` values declared on the method |
+| `content_hash` | `-content-hash` | SHA-256 fingerprint of the enclosing class |
 
 **AI enrichment fields** (present when `-ai` is enabled):
 
-| Field | Description |
-| --- | --- |
-| `ai_security_relevant` | Whether the model classified the test as security-relevant |
-| `ai_display_name` | Suggested security-oriented `@DisplayName` value |
-| `ai_tags` | Suggested security taxonomy tags (e.g. `security;auth`, `security;crypto`) |
-| `ai_reason` | Short rationale for the classification |
-| `ai_confidence` | Model confidence score `0.0–1.0` (opt-in via `-ai-confidence`) |
-| `tag_ai_drift` | Disagreement between source `@Tag("security")` and AI classification (opt-in via `-drift-detect`) |
+| Field | Present when | Description |
+| --- | --- | --- |
+| `ai_security_relevant` | `-ai` | Whether the model classified the test as security-relevant |
+| `ai_display_name` | `-ai` | Suggested security-oriented `@DisplayName` value |
+| `ai_tags` | `-ai` | Suggested security taxonomy tags (e.g. `security;auth`, `security;crypto`) |
+| `ai_reason` | `-ai` | Short rationale for the classification |
+| `ai_interaction_score` | `-ai` | Fraction of assertions that only verify method calls rather than outcomes (`0.0` = all outcome checks, `1.0` = all interaction checks) |
+| `ai_confidence` | `-ai` + `-ai-confidence` | Model confidence score `0.0–1.0` |
+| `tag_ai_drift` | `-ai` + `-drift-detect` | Disagreement between source `@Tag("security")` and AI classification |
 
 ## Output modes
 
 ### CSV (default)
 
 ```csv
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-com.acme.auth.LoginTest,testLoginWithValidCredentials,12,,true,SECURITY: auth - validates session token,security;auth,Verifies session token is issued on successful login.
-com.acme.util.DateTest,format_returnsIso8601,5,,false,,,Tests date formatting only.
+fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+com.acme.auth.LoginTest,testLoginWithValidCredentials,12,,true,SECURITY: auth - validates session token,security;auth,Verifies session token is issued on successful login.,0.0
+com.acme.util.DateTest,format_returnsIso8601,5,,false,,,,0.1
 ```
 
 ### SARIF 2.1.0
@@ -178,8 +179,10 @@ Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method:
 
 ```bash
 ./methodatlas -ai -ai-confidence /path/to/tests | \
-  awk -F',' 'NR==1 || ($9+0) >= 0.7'   # keep only high-confidence findings
+  awk -F',' 'NR==1 || ($10+0) >= 0.7'   # keep only high-confidence findings
 ```
+
+`ai_confidence` is column 10 in standard output (column 11 when `-content-hash` is also passed).
 
 | Score | Meaning |
 | --- | --- |
@@ -188,7 +191,7 @@ Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method:
 | `~0.5` | Plausible but ambiguous; candidate for manual review |
 | `0.0` | Not security-relevant |
 
-See [docs/ai-guide.md](docs/ai-guide.md) for the full interpretation guide.
+See [docs/ai/confidence.md](docs/ai/confidence.md) for the full interpretation guide.
 
 ## Content hash fingerprints
 
@@ -222,7 +225,7 @@ For environments where direct AI API access is blocked by corporate policy, Meth
 
 All taxonomy and confidence flags apply equally in manual mode. The consume phase is incremental — you can process classes as responses arrive rather than waiting for the full batch.
 
-See [docs/ai-guide.md](docs/ai-guide.md#manual-ai-workflow) for the complete workflow.
+See [docs/usage-modes/manual.md](docs/usage-modes/manual.md) for the complete workflow.
 
 ## YAML configuration
 
@@ -261,10 +264,15 @@ The startup scripts in `bin/` configure the classpath automatically to include a
 
 ## Documentation
 
+Full documentation is available at [accenture.github.io/MethodAtlas](https://accenture.github.io/MethodAtlas/).
+
 | Document | Contents |
 | --- | --- |
 | [docs/cli-reference.md](docs/cli-reference.md) | Complete option reference, YAML schema, and example commands |
 | [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, and GitHub Annotations format descriptions |
-| [docs/ai-guide.md](docs/ai-guide.md) | AI providers, confidence scoring, taxonomy, apply-tags workflow, manual workflow |
+| [docs/usage-modes/](docs/usage-modes/index.md) | All operating modes: static inventory, API AI, manual workflow, apply-tags, delta, security-only |
 | [docs/ai/providers.md](docs/ai/providers.md) | Per-provider setup: Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter |
+| [docs/ai/confidence.md](docs/ai/confidence.md) | Confidence scoring: interpretation and threshold guidance |
 | [docs/ai/drift-detection.md](docs/ai/drift-detection.md) | Tag vs AI drift detection: detecting stale `@Tag("security")` annotations |
+| [docs/deployment/](docs/deployment/index.md) | Regulated environment guidance: PCI-DSS, ISO 27001, NIST SSDF, DORA, SOC 2, air-gapped |
+| [docs/concepts/data-governance.md](docs/concepts/data-governance.md) | What data is submitted to AI providers and data residency options |

@@ -44,6 +44,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-ai-max-class-chars <count>` | Skip AI for classes larger than this character count | `40000` |
 | `-ai-timeout-sec <seconds>` | Request timeout for provider calls | `90` |
 | `-ai-max-retries <count>` | Retry limit for AI operations | `1` |
+| `-ai-api-version <version>` | Azure OpenAI REST API version appended as `?api-version=` query parameter; only used when provider is `azure_openai` | `2024-02-01` |
 
 ## Manual AI options
 
@@ -84,6 +85,7 @@ ai:
   timeoutSec: 90
   maxRetries: 1
   confidence: false
+  apiVersion: 2024-02-01   # Azure OpenAI REST API version (azure_openai only)
 driftDetect: false       # append tag_ai_drift column to CSV/plain output  (default: false)
 ```
 

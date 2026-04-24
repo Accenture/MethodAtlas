@@ -58,6 +58,25 @@ com.acme.tests.SampleOneTest,beta,6,param,false,,,,0.2,0.0
 
 `ai_confidence` is `0.0` for methods classified as not security-relevant. `ai_interaction_score` is always present when AI is enabled.
 
+### With drift detection (`-ai -drift-detect`)
+
+Pass `-drift-detect` alongside `-ai` to append a `tag_ai_drift` column at the end of each row:
+
+```text
+fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift
+com.acme.tests.SampleOneTest,alpha,8,security;crypto,true,"SECURITY: crypto - ...",security;crypto,The test exercises...,0.0,none
+com.acme.tests.SampleOneTest,beta,6,,true,"SECURITY: auth - ...",security;auth,Verifies auth...,0.1,ai-only
+com.acme.tests.SampleOneTest,gamma,4,security,,,,, ,tag-only
+```
+
+| `tag_ai_drift` value | Meaning |
+|---|---|
+| `none` | Source annotation and AI classification agree |
+| `ai-only` | AI classifies as security-relevant; no `@Tag("security")` in source |
+| `tag-only` | `@Tag("security")` present in source; AI does not classify as security-relevant |
+
+When `-ai-confidence` is also set, `ai_confidence` appears between `ai_interaction_score` and `tag_ai_drift`.
+
 ### Metadata header
 
 Pass `-emit-metadata` to prepend `# key: value` comment lines before the CSV header:
@@ -103,18 +122,18 @@ com.acme.other.AnotherTest, delta, LOC=3, TAGS=-, HASH=f1c04a8d...
 ### Plain mode with AI enrichment
 
 ```text
-com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property.
-com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param, AI_SECURITY=false, AI_DISPLAY=-, AI_TAGS=-, AI_REASON=-
+com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property., AI_INTERACTION_SCORE=0.0
+com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param, AI_SECURITY=false, AI_DISPLAY=-, AI_TAGS=-, AI_REASON=-, AI_INTERACTION_SCORE=0.2
 ```
 
-Absent AI values are printed as `-` in plain mode.
+Absent AI values are printed as `-` in plain mode. `AI_INTERACTION_SCORE` is always present when AI is enabled.
 
 ### Plain mode with confidence scoring
 
-When `-ai-confidence` is also passed, an `AI_CONFIDENCE` token is appended:
+When `-ai-confidence` is also passed, an `AI_CONFIDENCE` token is appended after `AI_INTERACTION_SCORE`:
 
 ```text
-com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property., AI_CONFIDENCE=0.9
+com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property., AI_INTERACTION_SCORE=0.0, AI_CONFIDENCE=0.9
 ```
 
 ## SARIF mode
