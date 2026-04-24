@@ -22,6 +22,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
 | `-security-only` | Suppress non-security methods from all output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect | Off |
+| `-drift-detect` | Append a `tag_ai_drift` column to CSV/plain output comparing the source-level `@Tag("security")` annotation against the AI security-relevance classification; values are `none`, `tag-only`, or `ai-only`; SARIF and GitHub Annotations always include drift when AI is enabled | Off |
 | `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
 | `-diff <before.csv> <after.csv>` | Compare two MethodAtlas scan outputs and emit a delta report; all other flags are ignored | — |
 | `[path ...]` | One or more root paths to scan | Current directory |
@@ -82,6 +83,7 @@ ai:
   timeoutSec: 90
   maxRetries: 1
   confidence: false
+driftDetect: false       # append tag_ai_drift column to CSV/plain output  (default: false)
 ```
 
 All fields are optional. Unknown fields are silently ignored. This makes it safe to add future fields to a shared configuration file without breaking older versions.
@@ -209,6 +211,26 @@ securityOnly: true
 See [Security-Only Filter](usage-modes/security-only.md) for SDLC integration
 examples including GitHub Code Scanning, CI count gates, audit CSV exports, and
 combining with the delta report.
+
+### `-drift-detect`
+
+Appends a `tag_ai_drift` column to CSV and plain-text output comparing the source-level `@Tag("security")` annotation against the AI security-relevance classification for each method.
+
+```bash
+./methodatlas -ai -drift-detect src/test/java
+```
+
+The column appears at the end of each row, after `ai_confidence` when that flag is also set:
+
+| Value | Meaning |
+|---|---|
+| `none` | Both sources agree |
+| `tag-only` | `@Tag("security")` is present but AI disagrees — the annotation may be stale |
+| `ai-only` | AI classifies as security-relevant but no `@Tag("security")` is present in source |
+
+**SARIF and GitHub Annotations** include drift automatically when AI is enabled — no flag is needed. The column opt-in applies only to CSV/plain output to avoid breaking downstream scripts that don't expect the extra column.
+
+See [Tag vs AI drift detection](ai/drift-detection.md) for use cases, regulated environment context, and a delta report integration example.
 
 ### `-diff`
 

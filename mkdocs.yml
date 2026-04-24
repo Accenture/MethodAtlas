@@ -103,6 +103,7 @@ nav:
       - Result Caching: ai/caching.md
       - Security Taxonomy: ai/taxonomy.md
       - Classification Overrides: ai/overrides.md
+      - Tag vs AI Drift: ai/drift-detection.md
   - CI/CD Setup:
     - Overview: ci-setup.md
     - GitHub Actions: ci/github-actions.md

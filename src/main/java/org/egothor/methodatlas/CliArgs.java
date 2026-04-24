@@ -42,6 +42,7 @@ final class CliArgs {
     private static final String DEFAULT_FILE_SUFFIX = "Test.java";
     private static final String FLAG_CONFIG = "-config";
     private static final String FLAG_AI_CACHE = "-ai-cache";
+    private static final String FLAG_DRIFT_DETECT = "-drift-detect";
 
     /**
      * Prevents instantiation of this utility class.
@@ -90,6 +91,7 @@ final class CliArgs {
         Path overrideFilePath = yamlConfig != null && yamlConfig.overrideFile != null
                 ? Paths.get(yamlConfig.overrideFile) : null;
         boolean securityOnly = yamlConfig != null && yamlConfig.securityOnly;
+        boolean driftDetect = yamlConfig != null && yamlConfig.driftDetect;
         Path aiCacheFile = null;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
@@ -123,6 +125,7 @@ final class CliArgs {
                 case "-test-annotation" -> testAnnotations.add(nextArg(args, ++i, arg));
                 case "-emit-metadata" -> emitMetadata = true;
                 case "-security-only" -> securityOnly = true;
+                case FLAG_DRIFT_DETECT -> driftDetect = true;
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
                 case "-manual-prepare" -> {
                     manualWorkDir = nextArg(args, ++i, arg);
@@ -156,7 +159,8 @@ final class CliArgs {
         Set<String> resolvedAnnotations = testAnnotations.isEmpty()
                 ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
-                emitMetadata, manualMode, applyTags, contentHash, overrideFilePath, securityOnly, aiCacheFile);
+                emitMetadata, manualMode, applyTags, contentHash, overrideFilePath, securityOnly, aiCacheFile,
+                driftDetect);
     }
 
     // -------------------------------------------------------------------------

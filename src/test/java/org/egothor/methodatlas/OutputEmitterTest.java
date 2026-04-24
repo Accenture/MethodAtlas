@@ -317,9 +317,15 @@ class OutputEmitterTest {
 
     private static String captureOutput(EmitterConsumer consumer,
             boolean aiEnabled, boolean confidenceEnabled, boolean contentHashEnabled) {
+        return captureOutput(consumer, aiEnabled, confidenceEnabled, contentHashEnabled, false);
+    }
+
+    private static String captureOutput(EmitterConsumer consumer,
+            boolean aiEnabled, boolean confidenceEnabled, boolean contentHashEnabled, boolean driftDetect) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
-            OutputEmitter emitter = new OutputEmitter(pw, aiEnabled, confidenceEnabled, contentHashEnabled);
+            OutputEmitter emitter = new OutputEmitter(pw, aiEnabled, confidenceEnabled, contentHashEnabled,
+                    driftDetect);
             consumer.accept(emitter);
         } catch (Exception e) {
             throw new RuntimeException(e);

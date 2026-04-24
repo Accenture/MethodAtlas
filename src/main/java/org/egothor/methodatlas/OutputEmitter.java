@@ -36,6 +36,7 @@ final class OutputEmitter {
     private final boolean aiEnabled;
     private final boolean confidenceEnabled;
     private final boolean contentHashEnabled;
+    private final boolean driftDetect;
 
     /**
      * Creates a new output emitter bound to the supplied writer.
@@ -47,13 +48,17 @@ final class OutputEmitter {
      *                           {@code true}
      * @param contentHashEnabled whether the {@code content_hash} column should be
      *                           included
+     * @param driftDetect        whether the {@code tag_ai_drift} column should be
+     *                           included; only meaningful when {@code aiEnabled} is
+     *                           {@code true}
      */
     /* default */ OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled,
-            boolean contentHashEnabled) {
+            boolean contentHashEnabled, boolean driftDetect) {
         this.out = out;
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
         this.contentHashEnabled = contentHashEnabled;
+        this.driftDetect = driftDetect;
     }
 
     /**
@@ -101,6 +106,9 @@ final class OutputEmitter {
             header.append(",ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score");
             if (confidenceEnabled) {
                 header.append(",ai_confidence");
+            }
+            if (driftDetect) {
+                header.append(",tag_ai_drift");
             }
         }
         out.println(header.toString());
@@ -151,7 +159,8 @@ final class OutputEmitter {
         }
 
         if (aiEnabled) {
-            appendAiPlainFields(line, suggestion);
+            TagAiDrift drift = driftDetect ? TagAiDrift.compute(tags, suggestion) : null;
+            appendAiPlainFields(line, suggestion, drift);
         }
 
         out.println(line.toString());
@@ -162,9 +171,11 @@ final class OutputEmitter {
      *
      * @param line       string builder receiving the AI field tokens
      * @param suggestion AI suggestion, or {@code null}
+     * @param drift      computed tag-vs-AI drift, or {@code null} when drift
+     *                   detection is disabled
      */
     @SuppressWarnings("PMD.NPathComplexity")
-    private void appendAiPlainFields(StringBuilder line, AiMethodSuggestion suggestion) {
+    private void appendAiPlainFields(StringBuilder line, AiMethodSuggestion suggestion, TagAiDrift drift) {
         String aiSecurity = suggestion == null ? PLAIN_ABSENT : Boolean.toString(suggestion.securityRelevant());
         String aiDisplayName = suggestion == null || suggestion.displayName() == null
                 ? PLAIN_ABSENT : suggestion.displayName();
@@ -186,6 +197,9 @@ final class OutputEmitter {
             String aiConfidence = suggestion == null ? PLAIN_ABSENT
                     : String.format("%.1f", suggestion.confidence());
             line.append(", AI_CONFIDENCE=").append(aiConfidence);
+        }
+        if (driftDetect) {
+            line.append(", TAG_AI_DRIFT=").append(drift != null ? drift.toValue() : PLAIN_ABSENT);
         }
     }
 
@@ -212,7 +226,8 @@ final class OutputEmitter {
         }
 
         if (aiEnabled) {
-            appendAiCsvFields(line, suggestion);
+            TagAiDrift drift = driftDetect ? TagAiDrift.compute(tags, suggestion) : null;
+            appendAiCsvFields(line, suggestion, drift);
         }
 
         out.println(line.toString());
@@ -223,9 +238,11 @@ final class OutputEmitter {
      *
      * @param line       string builder receiving the AI columns
      * @param suggestion AI suggestion, or {@code null}
+     * @param drift      computed tag-vs-AI drift, or {@code null} when drift
+     *                   detection is disabled
      */
     @SuppressWarnings("PMD.NPathComplexity")
-    private void appendAiCsvFields(StringBuilder line, AiMethodSuggestion suggestion) {
+    private void appendAiCsvFields(StringBuilder line, AiMethodSuggestion suggestion, TagAiDrift drift) {
         String aiSecurity = suggestion == null ? CSV_ABSENT : Boolean.toString(suggestion.securityRelevant());
         String aiDisplayName = suggestion == null || suggestion.displayName() == null
                 ? CSV_ABSENT : suggestion.displayName();
@@ -247,6 +264,9 @@ final class OutputEmitter {
             String aiConfidence = suggestion == null ? CSV_ABSENT
                     : String.format("%.1f", suggestion.confidence());
             line.append(',').append(csvEscape(aiConfidence));
+        }
+        if (driftDetect) {
+            line.append(',').append(drift != null ? drift.toValue() : CSV_ABSENT);
         }
     }
 

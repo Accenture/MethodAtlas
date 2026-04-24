@@ -27,6 +27,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  * outputMode: csv          # csv | plain | sarif  (default: csv)
  * emitMetadata: false      # (default: false)
  * contentHash: false       # (default: false)
+ * securityOnly: false      # (default: false)
+ * driftDetect: false       # (default: false)
  * overrideFile: .methodatlas-overrides.yaml  # optional
  * fileSuffixes:
  *   - Test.java
@@ -123,6 +125,14 @@ final class YamlConfig {
          */
         @JsonProperty("securityOnly")
         /* default */ boolean securityOnly;
+
+        /**
+         * When {@code true}, a {@code tag_ai_drift} column is added to CSV/plain
+         * output comparing the source-level {@code @Tag("security")} annotation
+         * against the AI security-relevance classification.
+         */
+        @JsonProperty("driftDetect")
+        /* default */ boolean driftDetect;
 
         /** AI enrichment settings. */
         @JsonProperty("ai")

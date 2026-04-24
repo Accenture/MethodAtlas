@@ -66,12 +66,13 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
                 ? suggestion.displayName()
                 : fqcn + "#" + method;
 
-        String message = buildMessage(suggestion, isPlacebo);
+        TagAiDrift drift = TagAiDrift.compute(tags, suggestion);
+        String message = buildMessage(suggestion, isPlacebo, drift);
 
         out.println(formatCommand(level, filePath, beginLine, title, message));
     }
 
-    private static String buildMessage(AiMethodSuggestion suggestion, boolean isPlacebo) {
+    private static String buildMessage(AiMethodSuggestion suggestion, boolean isPlacebo, TagAiDrift drift) {
         StringBuilder sb = new StringBuilder(128);
         if (!suggestion.tags().isEmpty()) {
             sb.append("Tags: ").append(String.join(";", suggestion.tags()));
@@ -83,6 +84,17 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
             sb.append("Interaction score ")
               .append(String.format("%.1f", suggestion.interactionScore()))
               .append(": assertions only verify method calls, not output values or state");
+        }
+        if (drift == TagAiDrift.TAG_ONLY) {
+            if (sb.length() > 0) {
+                sb.append(" \u00b7 ");
+            }
+            sb.append("Drift: @Tag(\"security\") present but AI disagrees — annotation may be stale");
+        } else if (drift == TagAiDrift.AI_ONLY) {
+            if (sb.length() > 0) {
+                sb.append(" \u00b7 ");
+            }
+            sb.append("Drift: AI classifies as security-relevant but no @Tag(\"security\") in source");
         }
         if (sb.length() == 0) {
             sb.append("Security test");

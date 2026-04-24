@@ -42,6 +42,9 @@ import java.util.List;
  *                           when the {@code ai_confidence} column was absent
  * @param aiInteractionScore AI interaction score ({@code 0.0–1.0}), or {@code null}
  *                           when the {@code ai_interaction_score} column was absent
+ * @param tagAiDrift         tag-vs-AI drift value ({@code none}, {@code tag-only},
+ *                           or {@code ai-only}), or {@code null} when the
+ *                           {@code tag_ai_drift} column was absent
  *
  * @see DeltaReport
  * @see DeltaEntry
@@ -57,5 +60,6 @@ record ScanRecord(
         List<String> aiTags,
         String aiReason,
         Double aiConfidence,
-        Double aiInteractionScore) {
+        Double aiInteractionScore,
+        String tagAiDrift) {
 }

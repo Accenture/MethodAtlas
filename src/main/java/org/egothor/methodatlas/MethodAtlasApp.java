@@ -301,7 +301,8 @@ public final class MethodAtlasApp {
         }
 
         // CSV / PLAIN mode: emit incrementally.
-        OutputEmitter emitter = new OutputEmitter(out, aiEnabled, confidenceEnabled, contentHashEnabled);
+        OutputEmitter emitter = new OutputEmitter(out, aiEnabled, confidenceEnabled, contentHashEnabled,
+                cliConfig.driftDetect());
 
         if (cliConfig.emitMetadata()) {
             String version = MethodAtlasApp.class.getPackage().getImplementationVersion();
