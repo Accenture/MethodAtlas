@@ -180,7 +180,7 @@ pitest {
     mutationThreshold    = 60
 }
 
-check.dependsOn pitest
+check.dependsOn tasks.named('pitest')
 
 // ---------------------------------------------------------------------------
 // OWASP Dependency-Check (not part of check; run via schedule or on demand)
