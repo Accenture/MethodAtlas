@@ -180,6 +180,7 @@ public final class ClassificationOverride {
      * @return loaded override set; never {@code null}
      * @throws IOException if the file cannot be read or contains invalid YAML
      */
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     public static ClassificationOverride load(Path path) throws IOException {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -253,6 +254,7 @@ public final class ClassificationOverride {
      *         {@code suggestion} is {@code null} and no overrides target
      *         {@code fqcn}
      */
+    @SuppressWarnings("PMD.NPathComplexity")
     public AiClassSuggestion apply(String fqcn, AiClassSuggestion suggestion, List<String> methodNames) {
         List<Entry> entries = byClass.get(fqcn);
 
@@ -315,6 +317,7 @@ public final class ClassificationOverride {
      * @param override override entry to apply; may be {@code null} (no-op)
      * @return resulting method suggestion; never {@code null}
      */
+    @SuppressWarnings("PMD.NPathComplexity")
     private static AiMethodSuggestion mergeMethod(String name, AiMethodSuggestion base, Entry override) {
         if (override == null) {
             // No override — synthesize a neutral record if base is absent.
@@ -324,7 +327,7 @@ public final class ClassificationOverride {
             return new AiMethodSuggestion(name, false, null, List.of(), null, 0.0, 0.0);
         }
 
-        boolean securityRelevant = base != null ? base.securityRelevant() : false;
+        boolean securityRelevant = base != null && base.securityRelevant();
         List<String> tags = (base != null && base.tags() != null) ? base.tags() : List.of();
         String displayName = base != null ? base.displayName() : null;
         String reason = base != null ? base.reason() : null;
@@ -385,6 +388,7 @@ public final class ClassificationOverride {
     // YAML deserialization POJOs
     // -------------------------------------------------------------------------
 
+    /** Root YAML deserialization container holding the list of override entries. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     private static final class OverrideFile {
 
@@ -392,6 +396,7 @@ public final class ClassificationOverride {
         /* default */ List<EntryDto> overrides;
     }
 
+    /** Data transfer object for a single override entry read from YAML. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     private static final class EntryDto {
 

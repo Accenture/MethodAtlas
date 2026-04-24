@@ -96,12 +96,19 @@ public final class DeltaEmitter {
     }
 
     private static String fileSummary(String timestamp, int total, int security) {
-        StringBuilder sb = new StringBuilder("  (");
+        StringBuilder sb = new StringBuilder(64);
+        sb.append("  (");
         if (timestamp != null) {
-            sb.append("scanned: ").append(timestamp).append(" · ");
+            sb.append("scanned: ");
+            sb.append(timestamp);
+            sb.append(" \u00b7 ");
         }
-        sb.append(total).append(" method").append(total == 1 ? "" : "s");
-        sb.append(" · ").append(security).append(" security-relevant)");
+        sb.append(total);
+        sb.append(" method");
+        sb.append(total == 1 ? "" : "s");
+        sb.append(" \u00b7 ");
+        sb.append(security);
+        sb.append(" security-relevant)");
         return sb.toString();
     }
 

@@ -37,7 +37,7 @@ final class AiResultCache {
     }
 
     /** Returns an empty cache that always produces misses. */
-    static AiResultCache empty() {
+    /* default */ static AiResultCache empty() {
         return new AiResultCache(Map.of());
     }
 
@@ -52,7 +52,8 @@ final class AiResultCache {
      * @return loaded cache; never {@code null}
      * @throws IOException if the file cannot be read
      */
-    static AiResultCache load(Path csvPath) throws IOException {
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+    /* default */ static AiResultCache load(Path csvPath) throws IOException {
         List<ScanRecord> records = DeltaReport.loadRecords(csvPath);
 
         Map<String, List<ScanRecord>> grouped = new HashMap<>();
@@ -89,7 +90,7 @@ final class AiResultCache {
      * @param contentHash SHA-256 fingerprint of the class source, or {@code null}
      * @return cached suggestion, or empty on a miss or null hash
      */
-    Optional<AiClassSuggestion> lookup(String contentHash) {
+    /* default */ Optional<AiClassSuggestion> lookup(String contentHash) {
         if (contentHash == null) {
             misses++;
             return Optional.empty();
@@ -109,17 +110,17 @@ final class AiResultCache {
      * <p>When {@code false}, content hashes do not need to be computed for lookups
      * because all results would be misses regardless.</p>
      */
-    boolean isActive() {
+    /* default */ boolean isActive() {
         return !byHash.isEmpty();
     }
 
     /** Returns the number of successful cache lookups so far. */
-    int hits() {
+    /* default */ int hits() {
         return hits;
     }
 
     /** Returns the number of unsuccessful cache lookups so far. */
-    int misses() {
+    /* default */ int misses() {
         return misses;
     }
 }

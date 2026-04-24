@@ -13,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -78,6 +77,9 @@ import java.util.Set;
  * @see DeltaEmitter
  */
 public final class DeltaReport {
+
+    private static final char CSV_QUOTE = '"';
+    private static final char CSV_COMMA = ',';
 
     private DeltaReport() {
     }
@@ -252,35 +254,54 @@ public final class DeltaReport {
      */
     /* default */ static List<String> parseCsvLine(String line) {
         List<String> result = new ArrayList<>();
-        boolean inQuotes = false;
         StringBuilder field = new StringBuilder();
+        int pos = 0;
 
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (inQuotes) {
-                if (c == '"') {
-                    if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                        field.append('"');
-                        i++;
-                    } else {
-                        inQuotes = false;
-                    }
-                } else {
-                    field.append(c);
-                }
+        while (pos < line.length()) {
+            char c = line.charAt(pos);
+            if (c == CSV_QUOTE) {
+                pos = parseQuotedField(line, pos + 1, field);
+                // pos now points one past the closing quote (or end of string)
+            } else if (c == CSV_COMMA) {
+                result.add(field.toString());
+                field.setLength(0);
+                pos++;
             } else {
-                if (c == '"') {
-                    inQuotes = true;
-                } else if (c == ',') {
-                    result.add(field.toString());
-                    field = new StringBuilder();
-                } else {
-                    field.append(c);
-                }
+                field.append(c);
+                pos++;
             }
         }
         result.add(field.toString()); // always add the last (or only) field
         return result;
+    }
+
+    /**
+     * Parses characters of a quoted CSV field starting just after the opening quote,
+     * appending unescaped characters to {@code field}.
+     *
+     * @param line  the full CSV line
+     * @param start position of the first character inside the quoted field
+     * @param field buffer receiving unescaped field content
+     * @return position of the character immediately after the closing quote,
+     *         or {@code line.length()} when the line ends before a closing quote
+     */
+    private static int parseQuotedField(String line, int start, StringBuilder field) {
+        int pos = start;
+        while (pos < line.length()) {
+            char c = line.charAt(pos);
+            if (c == CSV_QUOTE) {
+                if (pos + 1 < line.length() && line.charAt(pos + 1) == CSV_QUOTE) {
+                    field.append(CSV_QUOTE);
+                    pos += 2; // skip both quotes of the escape sequence
+                } else {
+                    return pos + 1; // closing quote consumed; return position after it
+                }
+            } else {
+                field.append(c);
+                pos++;
+            }
+        }
+        return pos; // unterminated quoted field — treat end-of-line as closing
     }
 
     // -------------------------------------------------------------------------
@@ -370,6 +391,7 @@ public final class DeltaReport {
      * falsely reported as modifications.
      * </p>
      */
+    @SuppressWarnings("PMD.NPathComplexity")
     private static Set<String> findChangedFields(ScanRecord before, ScanRecord after) {
         Set<String> changed = new LinkedHashSet<>();
 
@@ -447,6 +469,7 @@ public final class DeltaReport {
         }
     }
 
+    @SuppressWarnings("NP_BOOLEAN_RETURN_NULL")
     private static Boolean parseBoolean(String val) {
         if (val == null) {
             return null;
@@ -490,11 +513,12 @@ public final class DeltaReport {
      * means AI was not run at all, while an empty column value means AI ran but
      * assigned no tags.
      */
+    @SuppressWarnings("PMD.ReturnEmptyCollectionRatherThanNull")
     private static List<String> parseSemicolonListOrNull(List<String> fields,
             Map<String, Integer> colIndex, String col) {
         Integer idx = colIndex.get(col);
         if (idx == null) {
-            return null; // column absent — AI not run
+            return null; // column absent — AI not run; null is semantically distinct from empty list
         }
         String val = idx < fields.size() ? fields.get(idx) : null;
         return parseSemicolonList(val);

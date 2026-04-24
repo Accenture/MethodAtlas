@@ -41,6 +41,7 @@ final class CliArgs {
 
     private static final String DEFAULT_FILE_SUFFIX = "Test.java";
     private static final String FLAG_CONFIG = "-config";
+    private static final String FLAG_AI_CACHE = "-ai-cache";
 
     /**
      * Prevents instantiation of this utility class.
@@ -96,7 +97,7 @@ final class CliArgs {
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
-            if ("-ai-cache".equals(arg)) {
+            if (FLAG_AI_CACHE.equals(arg)) {
                 aiCacheFile = Paths.get(nextArg(args, ++i, arg));
                 continue;
             }

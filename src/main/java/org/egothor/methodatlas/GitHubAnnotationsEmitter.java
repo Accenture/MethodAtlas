@@ -35,7 +35,7 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
 final class GitHubAnnotationsEmitter implements TestMethodSink {
 
     /** Interaction score at or above which a security test is flagged as a potential placebo. */
-    static final double PLACEBO_THRESHOLD = 0.8;
+    /* default */ static final double PLACEBO_THRESHOLD = 0.8;
 
     private final PrintWriter out;
     private final String filePrefix;
@@ -46,7 +46,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
      *                   including a trailing slash (e.g. {@code "src/test/java/"});
      *                   empty string when the scan root is already the repo root
      */
-    GitHubAnnotationsEmitter(PrintWriter out, String filePrefix) {
+    /* default */ GitHubAnnotationsEmitter(PrintWriter out, String filePrefix) {
         this.out = out;
         this.filePrefix = filePrefix;
     }
@@ -72,7 +72,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
     }
 
     private static String buildMessage(AiMethodSuggestion suggestion, boolean isPlacebo) {
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(128);
         if (!suggestion.tags().isEmpty()) {
             sb.append("Tags: ").append(String.join(";", suggestion.tags()));
         }
@@ -92,7 +92,10 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
 
     /* default */ static String formatCommand(String level, String filePath, int beginLine,
             String title, String message) {
-        StringBuilder cmd = new StringBuilder("::").append(level).append(" ");
+        StringBuilder cmd = new StringBuilder(128);
+        cmd.append("::");
+        cmd.append(level);
+        cmd.append(' ');
         cmd.append("file=").append(escapeParam(filePath));
         if (beginLine > 0) {
             cmd.append(",line=").append(beginLine);

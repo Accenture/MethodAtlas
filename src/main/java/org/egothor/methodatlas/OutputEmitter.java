@@ -224,6 +224,7 @@ final class OutputEmitter {
      * @param line       string builder receiving the AI columns
      * @param suggestion AI suggestion, or {@code null}
      */
+    @SuppressWarnings("PMD.NPathComplexity")
     private void appendAiCsvFields(StringBuilder line, AiMethodSuggestion suggestion) {
         String aiSecurity = suggestion == null ? CSV_ABSENT : Boolean.toString(suggestion.securityRelevant());
         String aiDisplayName = suggestion == null || suggestion.displayName() == null

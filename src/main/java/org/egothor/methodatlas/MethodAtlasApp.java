@@ -174,6 +174,7 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
 public final class MethodAtlasApp {
 
     private static final Logger LOG = Logger.getLogger(MethodAtlasApp.class.getName());
+    private static final String FLAG_DIFF = "-diff";
 
     /**
      * Prevents instantiation of this utility class.
@@ -248,7 +249,7 @@ public final class MethodAtlasApp {
     /* default */ static int run(String[] args, PrintWriter out) throws IOException {
         // -diff is handled before full argument parsing; all other flags are ignored.
         for (int i = 0; i < args.length; i++) {
-            if ("-diff".equals(args[i])) {
+            if (FLAG_DIFF.equals(args[i])) {
                 if (i + 2 >= args.length) {
                     throw new IllegalArgumentException(
                             "-diff requires two arguments: -diff <before.csv> <after.csv>");
@@ -705,6 +706,7 @@ public final class MethodAtlasApp {
      * @return {@code true} if any file produced a processing error
      * @throws IOException if traversing the file tree fails
      */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     private static boolean scanRoot(Path root, AiOptions aiOptions, AiSuggestionEngine aiEngine,
             JavaParser parser, TestMethodSink sink, List<String> fileSuffixes,
             Set<String> testAnnotations, boolean contentHashEnabled,
@@ -746,6 +748,7 @@ public final class MethodAtlasApp {
      *                          class source and include it in the records
      * @return {@code true} if the file was processed successfully
      */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     private static boolean processFile(Path root, Path path, AiOptions aiOptions,
             AiSuggestionEngine aiEngine, JavaParser parser, TestMethodSink sink,
             Set<String> testAnnotations, boolean contentHashEnabled, ClassificationOverride override,
