@@ -146,16 +146,30 @@ The first occurrence replaces the built-in default (`Test.java`). Each subsequen
 
 ### `-test-annotation <name>`
 
-Extends or replaces the set of annotation simple names that MethodAtlas uses to identify JUnit test methods. The default set is `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, and `TestTemplate`.
+Extends or replaces the set of annotation simple names that MethodAtlas uses to identify test methods.
 
-The first occurrence of `-test-annotation` replaces the entire default set; subsequent occurrences append to it:
+#### Automatic framework detection
+
+When this flag is not set, MethodAtlas inspects the import declarations of each source file and selects the appropriate annotation set automatically:
+
+| Detected framework | Imports matched | Annotation set used |
+|---|---|---|
+| JUnit 5 (Jupiter) | `org.junit.jupiter.*` | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
+| JUnit 4 | `org.junit.*`, `junit.framework.*` | All JUnit 5 annotations plus `Theory` |
+| TestNG | `org.testng.*` | `Test` |
+
+Detection is per-file and accumulative: a file that imports both JUnit 4 and JUnit 5 (common during migrations) receives the union of both sets. Files with no recognisable test-framework imports fall back to the JUnit 5 default set.
+
+#### Overriding the default set
+
+The first occurrence of `-test-annotation` replaces the entire default set and disables automatic framework detection; subsequent occurrences append to it:
 
 ```bash
-# Recognise only @Test and @MyCustomTest
+# Recognise only @Test and @MyCustomTest (auto-detection disabled)
 ./methodatlas -test-annotation Test -test-annotation MyCustomTest /path/to/tests
 ```
 
-Annotation matching is performed against the simple name only (symbol resolution is not available in source-only parsing mode). False positives are possible if a project defines a custom annotation with the same simple name as a JUnit Jupiter annotation.
+Annotation matching is performed against the simple name only (symbol resolution is not available in source-only parsing mode). False positives are possible if a project defines a custom annotation with the same simple name as a supported test annotation.
 
 ### `-content-hash`
 

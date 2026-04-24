@@ -14,7 +14,8 @@ every test file. That audit is time-consuming, error-prone, and does not stay
 current as the codebase evolves.
 
 MethodAtlas automates the discovery and classification step: it reads source
-files lexically (without compiling them), identifies every JUnit 5 test method,
+files lexically (without compiling them), identifies every test method
+(JUnit 5, JUnit 4, and TestNG are detected automatically from import declarations),
 and asks an AI provider to decide whether each method is security-relevant,
 assign taxonomy tags, and provide a human-readable rationale.
 
@@ -65,7 +66,7 @@ MethodAtlas does not simply forward source files to an AI and ask "which tests a
 
 ### Phase 1 — deterministic method discovery
 
-The parser reads each Java source file lexically, without compiling it, and extracts a precise list of JUnit 5 test methods. This step is entirely rule-based: it finds every method annotated with `@Test`, `@ParameterizedTest`, or any other configured annotation. The result is a canonical, repeatable inventory that does not depend on which AI model is used, which version is current, or whether the AI service is available at all.
+The parser reads each Java source file lexically, without compiling it, and extracts a precise list of test methods. The test framework is detected automatically from the file's import declarations — JUnit 5 Jupiter, JUnit 4 (including `@Theory`), and TestNG are all supported. This step is entirely rule-based: it finds every method carrying a recognised test annotation, or any custom annotation configured via `-test-annotation`. The result is a canonical, repeatable inventory that does not depend on which AI model is used, which version is current, or whether the AI service is available at all.
 
 This matters because AI models are not reliable at structural enumeration. Given a raw source file, a model may:
 

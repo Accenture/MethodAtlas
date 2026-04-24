@@ -10,7 +10,7 @@ It is built for teams that must demonstrate test coverage of security properties
 
 Security-focused teams in regulated industries need more than a passing test suite. They need to demonstrate *which* tests cover *which* security controls, at a level of detail that satisfies external review.
 
-MethodAtlas addresses this by turning an existing JUnit 5 test suite into a structured inventory with minimal setup:
+MethodAtlas addresses this by turning an existing Java test suite (JUnit 5, JUnit 4, or TestNG — detected automatically) into a structured inventory with minimal setup:
 
 | Challenge | What MethodAtlas provides |
 | --- | --- |
