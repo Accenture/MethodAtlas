@@ -327,6 +327,73 @@ class SarifEmitterTest {
     }
 
     // -------------------------------------------------------------------------
+    // Tag-vs-AI drift in SARIF properties
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("tagAiDrift is 'none' when source tag and AI both agree: security-relevant")
+    @Tag("positive")
+    void flush_tagAiDriftNone_whenBothAgreeSecurityRelevant() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Login security", List.of("auth"), "Tests auth", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of("security"), suggestion);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertEquals("none", props.path("tagAiDrift").asText());
+    }
+
+    @Test
+    @DisplayName("tagAiDrift is 'ai-only' when AI says security-relevant but no @Tag(security) in source")
+    @Tag("positive")
+    void flush_tagAiDriftAiOnly_whenAiSecurityButNoSourceTag() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Login security", List.of("auth"), "Tests auth", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), suggestion);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertEquals("ai-only", props.path("tagAiDrift").asText());
+    }
+
+    @Test
+    @DisplayName("tagAiDrift is 'tag-only' when @Tag(security) present but AI says not security-relevant")
+    @Tag("positive")
+    void flush_tagAiDriftTagOnly_whenSourceTagButAiDisagrees() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testFoo", false, "Format check", List.of(), "Not security", 0.1, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false);
+        emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of("security"), suggestion);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertEquals("tag-only", props.path("tagAiDrift").asText());
+    }
+
+    @Test
+    @DisplayName("tagAiDrift is absent from properties when AI is disabled")
+    @Tag("edge-case")
+    void flush_tagAiDriftAbsent_whenAiDisabled() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(false, false);
+        emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of("security"), null);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertTrue(props.path("tagAiDrift").isMissingNode(),
+                "tagAiDrift should be absent when AI is disabled");
+    }
+
+    @Test
+    @DisplayName("tagAiDrift is absent from properties when suggestion is null even if AI is enabled")
+    @Tag("edge-case")
+    void flush_tagAiDriftAbsent_whenSuggestionNull() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(true, false);
+        emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of("security"), null);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertTrue(props.path("tagAiDrift").isMissingNode(),
+                "tagAiDrift should be absent when suggestion is null");
+    }
+
+    // -------------------------------------------------------------------------
     // Content hash in SARIF properties
     // -------------------------------------------------------------------------
 

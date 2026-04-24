@@ -239,6 +239,59 @@ class GitHubAnnotationsEmitterTest {
         assertTrue(output.endsWith("::Security test"), "Default message should be 'Security test'");
     }
 
+    // -------------------------------------------------------------------------
+    // Drift messages in annotations
+    // -------------------------------------------------------------------------
+
+    @Test
+    void record_tagOnlyDrift_appendsDriftNoteToMessage() {
+        // source has @Tag("security") but AI says not security-relevant → tag-only drift
+        String output = recordMethodWithSourceTags(false, List.of("security"), List.of(), "");
+
+        assertTrue(output.contains("annotation may be stale"),
+                "tag-only drift should mention stale annotation");
+        assertTrue(output.contains("@Tag(\"security\") present but AI disagrees"),
+                "tag-only drift message must identify the @Tag source");
+    }
+
+    @Test
+    void record_aiOnlyDrift_appendsDriftNoteToMessage() {
+        // source has no tag but AI says security-relevant → ai-only drift
+        String output = recordMethodWithSourceTags(true, List.of(), List.of(), "");
+
+        assertTrue(output.contains("no @Tag(\"security\") in source"),
+                "ai-only drift should mention missing source tag");
+        assertTrue(output.contains("AI classifies as security-relevant"),
+                "ai-only drift message must identify the AI source");
+    }
+
+    @Test
+    void record_noTagOnlyNorAiOnly_noDriftAppended() {
+        // source has @Tag("security") AND AI says security-relevant → none
+        String output = recordMethodWithSourceTags(true, List.of("security"), List.of("auth"), "");
+
+        assertFalse(output.contains("annotation may be stale"),
+                "no drift should produce no stale-annotation text");
+        assertFalse(output.contains("no @Tag(\"security\") in source"),
+                "no drift should produce no missing-tag text");
+    }
+
+    @Test
+    void record_tagOnlyDriftExactText_doesNotContainAiOnlyText() {
+        String output = recordMethodWithSourceTags(false, List.of("security"), List.of(), "");
+
+        assertFalse(output.contains("no @Tag(\"security\") in source"),
+                "tag-only drift must not contain ai-only message");
+    }
+
+    @Test
+    void record_aiOnlyDriftExactText_doesNotContainTagOnlyText() {
+        String output = recordMethodWithSourceTags(true, List.of(), List.of(), "");
+
+        assertFalse(output.contains("annotation may be stale"),
+                "ai-only drift must not contain tag-only message");
+    }
+
     @Test
     void record_fqcnConvertedToFilePath() {
         String output = recordSecurityMethod(0.5, "Auth", List.of(), "src/test/java/");
@@ -316,6 +369,27 @@ class GitHubAnnotationsEmitterTest {
 
         AiMethodSuggestion suggestion = new AiMethodSuggestion("testLogin", true, displayName, tags, null, 0.0, interactionScore);
         emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), suggestion);
+
+        return baos.toString(StandardCharsets.UTF_8).trim();
+    }
+
+    /**
+     * Helper for drift tests: emits one record with explicit source tags and AI securityRelevant flag.
+     *
+     * @param aiSecurityRelevant AI classification result
+     * @param sourceTags         source-level {@code @Tag} values on the method
+     * @param aiTags             AI-assigned taxonomy tags
+     * @param filePrefix         file path prefix passed to the emitter
+     */
+    private static String recordMethodWithSourceTags(boolean aiSecurityRelevant,
+            List<String> sourceTags, List<String> aiTags, String filePrefix) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
+
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", aiSecurityRelevant, "Security test", aiTags, null, 0.0, 0.3);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, sourceTags, suggestion);
 
         return baos.toString(StandardCharsets.UTF_8).trim();
     }

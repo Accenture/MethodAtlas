@@ -162,8 +162,10 @@ jacocoTestCoverageVerification {
 check.dependsOn jacocoTestCoverageVerification
 
 // ---------------------------------------------------------------------------
-// PIT – mutation testing (not part of check; run on demand or via schedule)
-// ./gradlew pitest
+// PIT – mutation testing
+// Gate: build FAILS if mutation score < 60 % (enforced via check lifecycle).
+// Skip the gate without disabling the report: ./gradlew check -x pitest
+// Full on-demand run: ./gradlew pitest
 // ---------------------------------------------------------------------------
 pitest {
     junit5PluginVersion  = '1.2.1'
@@ -172,8 +174,13 @@ pitest {
     mutators             = ['STRONGER']
     threads              = 2
     timestampedReports   = false
-    outputFormats        = ['HTML']
+    outputFormats        = ['HTML', 'XML']
+    // Minimum mutation score: build fails if killed/total < 60 %.
+    // Mirrors the JaCoCo instruction-coverage gate (70 %) for test quality.
+    mutationThreshold    = 60
 }
+
+check.dependsOn pitest
 
 // ---------------------------------------------------------------------------
 // OWASP Dependency-Check (not part of check; run via schedule or on demand)

@@ -157,6 +157,38 @@ class OutputEmitterTest {
     }
 
     @Test
+    @DisplayName("emitCsvHeader in CSV mode with drift-detect appends tag_ai_drift as last column")
+    @Tag("positive")
+    void emitCsvHeader_csvMode_withDriftDetect_appendsTagAiDriftColumn() {
+        String header = captureOutput(emitter -> emitter.emitCsvHeader(OutputMode.CSV),
+                true, false, false, true).trim();
+        assertTrue(header.endsWith(",tag_ai_drift"),
+                "tag_ai_drift should be the last column: " + header);
+    }
+
+    @Test
+    @DisplayName("emitCsvHeader in CSV mode with drift and confidence: confidence before tag_ai_drift")
+    @Tag("positive")
+    void emitCsvHeader_csvMode_driftAndConfidence_confidenceBeforeDrift() {
+        String header = captureOutput(emitter -> emitter.emitCsvHeader(OutputMode.CSV),
+                true, true, false, true).trim();
+        int confidenceIdx = header.indexOf("ai_confidence");
+        int driftIdx = header.indexOf("tag_ai_drift");
+        assertTrue(confidenceIdx >= 0 && driftIdx >= 0 && confidenceIdx < driftIdx,
+                "ai_confidence must appear before tag_ai_drift: " + header);
+    }
+
+    @Test
+    @DisplayName("emitCsvHeader in CSV mode without drift-detect: tag_ai_drift column absent")
+    @Tag("positive")
+    void emitCsvHeader_csvMode_withoutDriftDetect_tagAiDriftAbsent() {
+        String header = captureOutput(emitter -> emitter.emitCsvHeader(OutputMode.CSV),
+                true, false, false, false).trim();
+        assertFalse(header.contains("tag_ai_drift"),
+                "tag_ai_drift should not appear when drift-detect is disabled: " + header);
+    }
+
+    @Test
     @DisplayName("emitCsvHeader in PLAIN mode emits nothing")
     @Tag("positive")
     void emitCsvHeader_plainMode_emitsNothing() {
@@ -256,6 +288,60 @@ class OutputEmitterTest {
     }
 
     // -------------------------------------------------------------------------
+    // emit() – CSV mode with drift detection
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("emit CSV with drift-detect: 'none' when source tag and AI both agree security-relevant")
+    @Tag("positive")
+    void emit_csvMode_driftNone_whenBothAgreeSecurityRelevant() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Auth test", List.of("auth"), "reason", 0.9, 0.1);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.AuthTest", "testLogin", 5, null,
+                        List.of("security"), suggestion),
+                true, false, false, true).trim();
+        assertTrue(output.endsWith(",none"), "Last CSV field should be 'none' when both agree: " + output);
+    }
+
+    @Test
+    @DisplayName("emit CSV with drift-detect: 'ai-only' when AI says security-relevant but no source tag")
+    @Tag("positive")
+    void emit_csvMode_driftAiOnly_whenAiSecurityButNoSourceTag() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Auth test", List.of("auth"), "reason", 0.9, 0.1);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.AuthTest", "testLogin", 5, null,
+                        List.of(), suggestion),
+                true, false, false, true).trim();
+        assertTrue(output.endsWith(",ai-only"), "Last CSV field should be 'ai-only': " + output);
+    }
+
+    @Test
+    @DisplayName("emit CSV with drift-detect: 'tag-only' when source tag present but AI disagrees")
+    @Tag("positive")
+    void emit_csvMode_driftTagOnly_whenSourceTagButAiDisagrees() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testFoo", false, "Format check", List.of(), "Not security", 0.1, 0.0);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 4, null,
+                        List.of("security"), suggestion),
+                true, false, false, true).trim();
+        assertTrue(output.endsWith(",tag-only"), "Last CSV field should be 'tag-only': " + output);
+    }
+
+    @Test
+    @DisplayName("emit CSV with drift-detect: empty drift cell when suggestion is null")
+    @Tag("edge-case")
+    void emit_csvMode_driftEmpty_whenSuggestionNull() {
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 4, null,
+                        List.of("security"), null),
+                true, false, false, true).trim();
+        assertTrue(output.endsWith(","), "Drift cell should be empty when suggestion is null: " + output);
+    }
+
+    // -------------------------------------------------------------------------
     // emit() – PLAIN mode
     // -------------------------------------------------------------------------
 
@@ -300,6 +386,58 @@ class OutputEmitterTest {
                         List.of(), null),
                 false, false, true);
         assertTrue(output.contains("HASH=deadbeef"), output);
+    }
+
+    @Test
+    @DisplayName("emit PLAIN with drift-detect: TAG_AI_DRIFT=none when both sources agree")
+    @Tag("positive")
+    void emit_plainMode_driftNone_tokenPresent() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Auth", List.of("auth"), "reason", 0.9, 0.1);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.AuthTest", "testLogin", 5, null,
+                        List.of("security"), suggestion),
+                true, false, false, true).trim();
+        assertTrue(output.contains("TAG_AI_DRIFT=none"), "Should contain TAG_AI_DRIFT=none: " + output);
+    }
+
+    @Test
+    @DisplayName("emit PLAIN with drift-detect: TAG_AI_DRIFT=ai-only when AI security but no source tag")
+    @Tag("positive")
+    void emit_plainMode_driftAiOnly_tokenPresent() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Auth", List.of("auth"), "reason", 0.9, 0.0);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.AuthTest", "testLogin", 5, null,
+                        List.of(), suggestion),
+                true, false, false, true).trim();
+        assertTrue(output.contains("TAG_AI_DRIFT=ai-only"), "Should contain TAG_AI_DRIFT=ai-only: " + output);
+    }
+
+    @Test
+    @DisplayName("emit PLAIN with drift-detect: TAG_AI_DRIFT=tag-only when source tag but AI disagrees")
+    @Tag("positive")
+    void emit_plainMode_driftTagOnly_tokenPresent() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testFoo", false, "Check", List.of(), "Not security", 0.1, 0.0);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 4, null,
+                        List.of("security"), suggestion),
+                true, false, false, true).trim();
+        assertTrue(output.contains("TAG_AI_DRIFT=tag-only"), "Should contain TAG_AI_DRIFT=tag-only: " + output);
+    }
+
+    @Test
+    @DisplayName("emit PLAIN without drift-detect: TAG_AI_DRIFT token absent")
+    @Tag("positive")
+    void emit_plainMode_noDriftDetect_tokenAbsent() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Auth", List.of("auth"), "reason", 0.9, 0.0);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.AuthTest", "testLogin", 5, null,
+                        List.of(), suggestion),
+                true, false, false, false).trim();
+        assertFalse(output.contains("TAG_AI_DRIFT"), "TAG_AI_DRIFT should be absent when drift-detect is off: " + output);
     }
 
     // -------------------------------------------------------------------------
