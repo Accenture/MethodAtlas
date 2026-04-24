@@ -15,6 +15,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-config <file>` | Load default option values from a YAML configuration file; command-line flags override YAML values | — |
 | `-plain` | Emit plain text instead of CSV | CSV mode |
 | `-sarif` | Emit SARIF 2.1.0 JSON instead of CSV | CSV mode |
+| `-github-annotations` | Emit GitHub Actions `::notice`/`::warning` workflow commands for security-relevant methods; does not require a GitHub Advanced Security licence | CSV mode |
 | `-emit-metadata` | Prepend `# key: value` comment lines before the CSV header | Off |
 | `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated; first occurrence replaces the default | `Test.java` |
 | `-test-annotation <name>` | Treat methods carrying annotation `name` as test methods; may be repeated; first occurrence replaces the default set | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
@@ -98,6 +99,25 @@ Switches output to a single [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sari
 Security-relevant methods receive SARIF level `note`; all other methods receive level `none`. Rule IDs are derived from AI tags (e.g. `security/auth`, `security/crypto`). Non-security methods use the rule `test-method`.
 
 See [output-formats.md](output-formats.md#sarif-mode) for the full schema description and an example document.
+
+### `-github-annotations`
+
+Switches output to GitHub Actions [workflow commands](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions) that GitHub intercepts and renders as inline annotations on the PR diff.
+
+Only security-relevant methods produce output — non-security methods are silently skipped:
+
+- `::warning` — when `ai_interaction_score >= 0.8`: the test only verifies that methods were called, not what they returned (potential placebo test).
+- `::notice` — otherwise: a well-formed security test worth reviewing.
+
+```bash
+./methodatlas -ai -github-annotations src/test/java
+```
+
+**No GitHub Advanced Security licence is required.** The `::notice`/`::warning` commands are standard GitHub Actions features available on all plan tiers, in contrast to SARIF upload via the `upload-sarif` action which requires GitHub Advanced Security (an additional paid add-on for private repositories).
+
+File paths in the annotations are derived from the scan root and the class FQCN, producing paths such as `src/test/java/com/acme/AuthTest.java` that GitHub resolves to the correct inline position in the PR diff for standard Maven/Gradle source layouts.
+
+See [docs/ci/github-actions.md](ci/github-actions.md) for a complete GitHub Actions workflow example.
 
 ### `-emit-metadata`
 

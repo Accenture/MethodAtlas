@@ -294,6 +294,11 @@ public final class MethodAtlasApp {
             return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, parser, roots, out, override, aiCache);
         }
 
+        // GitHub Annotations mode: emit ::notice/::warning workflow commands.
+        if (cliConfig.outputMode() == OutputMode.GITHUB_ANNOTATIONS) {
+            return runGitHubAnnotations(cliConfig, aiEngine, parser, roots, out, override, aiCache);
+        }
+
         // CSV / PLAIN mode: emit incrementally.
         OutputEmitter emitter = new OutputEmitter(out, aiEnabled, confidenceEnabled, contentHashEnabled);
 
@@ -484,6 +489,60 @@ public final class MethodAtlasApp {
                 filterSink(sarifEmitter, cliConfig.securityOnly()), override, aiCache);
         sarifEmitter.flush(out);
         return result;
+    }
+
+    /**
+     * Runs the GitHub Annotations output path: emits {@code ::notice} and
+     * {@code ::warning} workflow commands for security-relevant test methods.
+     *
+     * @param cliConfig full parsed CLI configuration
+     * @param aiEngine  AI engine providing suggestions; may be {@code null}
+     * @param parser    configured JavaParser instance
+     * @param roots     source roots to scan
+     * @param out       writer that receives the workflow command lines
+     * @return {@code 0} if all files were processed successfully, {@code 1} if any
+     *         file produced a parse or processing error
+     * @throws IOException if traversing a file tree fails
+     */
+    private static int runGitHubAnnotations(CliConfig cliConfig, AiSuggestionEngine aiEngine,
+            JavaParser parser, List<Path> roots, PrintWriter out,
+            ClassificationOverride override, AiResultCache aiCache) throws IOException {
+        String filePrefix = computeFilePrefix(roots);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
+        return scan(roots, cliConfig, aiEngine, parser, emitter, override, aiCache);
+    }
+
+    /**
+     * Derives the file path prefix used in GitHub Actions workflow command
+     * annotations from the first configured scan root.
+     *
+     * <p>
+     * The prefix is made relative to the current working directory so that the
+     * resulting annotation paths (e.g. {@code src/test/java/com/acme/AuthTest.java})
+     * match what GitHub resolves as inline positions in the PR diff.
+     * </p>
+     *
+     * @param roots configured scan roots; may be empty
+     * @return forward-slash path ending with {@code /}, or empty string when
+     *         {@code roots} is empty
+     */
+    /* default */ static String computeFilePrefix(List<Path> roots) {
+        if (roots.isEmpty()) {
+            return "";
+        }
+        Path root = roots.get(0).toAbsolutePath().normalize();
+        String prefix;
+        try {
+            Path cwd = Paths.get("").toAbsolutePath();
+            prefix = cwd.relativize(root).toString().replace('\\', '/');
+        } catch (IllegalArgumentException e) {
+            // Different drive on Windows — fall back to the absolute path.
+            prefix = root.toString().replace('\\', '/');
+        }
+        if (!prefix.isEmpty() && !prefix.endsWith("/")) {
+            prefix += "/";
+        }
+        return prefix;
     }
 
     /**

@@ -1,0 +1,340 @@
+package org.egothor.methodatlas;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import org.egothor.methodatlas.ai.AiMethodSuggestion;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * Unit and integration tests for {@link GitHubAnnotationsEmitter}.
+ */
+class GitHubAnnotationsEmitterTest {
+
+    // -------------------------------------------------------------------------
+    // escapeParam
+    // -------------------------------------------------------------------------
+
+    @Test
+    void escapeParam_encodesPercent() {
+        assertEquals("100%25 done", GitHubAnnotationsEmitter.escapeParam("100% done"));
+    }
+
+    @Test
+    void escapeParam_encodesCarriageReturn() {
+        assertEquals("a%0Db", GitHubAnnotationsEmitter.escapeParam("a\rb"));
+    }
+
+    @Test
+    void escapeParam_encodesNewline() {
+        assertEquals("a%0Ab", GitHubAnnotationsEmitter.escapeParam("a\nb"));
+    }
+
+    @Test
+    void escapeParam_encodesColon() {
+        assertEquals("http%3A//example", GitHubAnnotationsEmitter.escapeParam("http://example"));
+    }
+
+    @Test
+    void escapeParam_encodesComma() {
+        assertEquals("a%2Cb", GitHubAnnotationsEmitter.escapeParam("a,b"));
+    }
+
+    @Test
+    void escapeParam_plainValueUnchanged() {
+        assertEquals("src/test/java/com/acme/AuthTest.java",
+                GitHubAnnotationsEmitter.escapeParam("src/test/java/com/acme/AuthTest.java"));
+    }
+
+    // -------------------------------------------------------------------------
+    // escapeMessage
+    // -------------------------------------------------------------------------
+
+    @Test
+    void escapeMessage_encodesPercent() {
+        assertEquals("100%25", GitHubAnnotationsEmitter.escapeMessage("100%"));
+    }
+
+    @Test
+    void escapeMessage_encodesNewline() {
+        assertEquals("line1%0Aline2", GitHubAnnotationsEmitter.escapeMessage("line1\nline2"));
+    }
+
+    @Test
+    void escapeMessage_colonNotEncoded() {
+        // colons are allowed in the message part
+        assertEquals("Tags: security", GitHubAnnotationsEmitter.escapeMessage("Tags: security"));
+    }
+
+    // -------------------------------------------------------------------------
+    // formatCommand
+    // -------------------------------------------------------------------------
+
+    @Test
+    void formatCommand_noticeLevelProducesCorrectPrefix() {
+        String cmd = GitHubAnnotationsEmitter.formatCommand(
+                "notice", "src/test/java/com/acme/AuthTest.java", 42, "Auth test", "Security test");
+        assertTrue(cmd.startsWith("::notice "), "Should start with ::notice");
+    }
+
+    @Test
+    void formatCommand_warningLevelProducesCorrectPrefix() {
+        String cmd = GitHubAnnotationsEmitter.formatCommand(
+                "warning", "src/test/java/com/acme/AuthTest.java", 42, "Auth test", "Placebo");
+        assertTrue(cmd.startsWith("::warning "), "Should start with ::warning");
+    }
+
+    @Test
+    void formatCommand_includesFileAndLine() {
+        String cmd = GitHubAnnotationsEmitter.formatCommand(
+                "notice", "src/test/java/com/acme/AuthTest.java", 10, "title", "msg");
+        assertTrue(cmd.contains("file=src/test/java/com/acme/AuthTest.java"), "Should contain file=");
+        assertTrue(cmd.contains(",line=10"), "Should contain line=");
+    }
+
+    @Test
+    void formatCommand_lineZeroOmitted() {
+        String cmd = GitHubAnnotationsEmitter.formatCommand(
+                "notice", "some/File.java", 0, "title", "msg");
+        assertFalse(cmd.contains(",line="), "line= should be omitted when beginLine=0");
+    }
+
+    @Test
+    void formatCommand_emptyTitleOmitted() {
+        String cmd = GitHubAnnotationsEmitter.formatCommand(
+                "notice", "some/File.java", 1, "", "msg");
+        assertFalse(cmd.contains("title="), "title= should be omitted when title is empty");
+    }
+
+    @Test
+    void formatCommand_nullTitleOmitted() {
+        String cmd = GitHubAnnotationsEmitter.formatCommand(
+                "notice", "some/File.java", 1, null, "msg");
+        assertFalse(cmd.contains("title="), "title= should be omitted when title is null");
+    }
+
+    @Test
+    void formatCommand_messageAfterDoubleColons() {
+        String cmd = GitHubAnnotationsEmitter.formatCommand(
+                "notice", "f.java", 1, "T", "my message");
+        assertTrue(cmd.endsWith("::my message"), "Message should follow :: terminator");
+    }
+
+    @Test
+    void formatCommand_titleIsEscaped() {
+        String cmd = GitHubAnnotationsEmitter.formatCommand(
+                "notice", "f.java", 1, "title:with,special", "msg");
+        assertTrue(cmd.contains("title=title%3Awith%2Cspecial"), "Title should be escaped");
+    }
+
+    // -------------------------------------------------------------------------
+    // record() — unit tests with direct emitter construction
+    // -------------------------------------------------------------------------
+
+    @Test
+    void record_nullSuggestion_producesNoOutput() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "src/test/java/");
+
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null);
+
+        assertEquals("", baos.toString(StandardCharsets.UTF_8).trim());
+    }
+
+    @Test
+    void record_nonSecuritySuggestion_producesNoOutput() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "src/test/java/");
+
+        AiMethodSuggestion nonSecurity = new AiMethodSuggestion("testLogin", false, null, List.of(), null, 0.0, 0.0);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), nonSecurity);
+
+        assertEquals("", baos.toString(StandardCharsets.UTF_8).trim());
+    }
+
+    @Test
+    void record_securityRelevant_emitsNoticeCommand() {
+        String output = recordSecurityMethod(0.5, "Login security check", List.of("auth"), "src/test/java/");
+
+        assertTrue(output.startsWith("::notice "), "Should emit ::notice");
+        assertTrue(output.contains("file=src/test/java/com/acme/AuthTest.java"));
+        assertTrue(output.contains(",line=5"));
+    }
+
+    @Test
+    void record_interactionScoreAtThreshold_emitsWarning() {
+        String output = recordSecurityMethod(
+                GitHubAnnotationsEmitter.PLACEBO_THRESHOLD, "Placebo test", List.of("auth"), "src/test/java/");
+
+        assertTrue(output.startsWith("::warning "), "Score >= threshold should produce ::warning");
+    }
+
+    @Test
+    void record_interactionScoreAboveThreshold_emitsWarning() {
+        String output = recordSecurityMethod(0.95, "Placebo test", List.of("auth"), "src/test/java/");
+
+        assertTrue(output.startsWith("::warning "), "Score > threshold should produce ::warning");
+    }
+
+    @Test
+    void record_interactionScoreBelowThreshold_emitsNotice() {
+        String output = recordSecurityMethod(0.79, "Good test", List.of("auth"), "src/test/java/");
+
+        assertTrue(output.startsWith("::notice "), "Score < threshold should produce ::notice");
+    }
+
+    @Test
+    void record_displayNameUsedAsTitle() {
+        String output = recordSecurityMethod(0.5, "SECURITY: auth", List.of("auth"), "");
+
+        assertTrue(output.contains("title=SECURITY%3A auth"), "Display name should be used as title");
+    }
+
+    @Test
+    void record_nullDisplayNameFallsBackToFqcnMethod() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
+
+        AiMethodSuggestion suggestion = new AiMethodSuggestion("testLogin", true, null, List.of("auth"), null, 0.0, 0.0);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), suggestion);
+
+        String output = baos.toString(StandardCharsets.UTF_8).trim();
+        assertTrue(output.contains("com.acme.AuthTest#testLogin"), "Should fall back to fqcn#method");
+    }
+
+    @Test
+    void record_tagsIncludedInMessage() {
+        String output = recordSecurityMethod(0.3, "Auth", List.of("security", "auth"), "");
+
+        assertTrue(output.contains("Tags: security;auth"), "Tags should appear in message");
+    }
+
+    @Test
+    void record_placeboMessageIncludesInteractionScore() {
+        String output = recordSecurityMethod(0.9, "Placebo", List.of(), "");
+
+        assertTrue(output.contains("Interaction score 0.9"), "Placebo message should include score");
+        assertTrue(output.contains("assertions only verify method calls"), "Placebo explanation should be present");
+    }
+
+    @Test
+    void record_emptyTagsAndNonPlacebo_messageIsSecurityTest() {
+        String output = recordSecurityMethod(0.2, "Good", List.of(), "");
+
+        assertTrue(output.endsWith("::Security test"), "Default message should be 'Security test'");
+    }
+
+    @Test
+    void record_fqcnConvertedToFilePath() {
+        String output = recordSecurityMethod(0.5, "Auth", List.of(), "src/test/java/");
+
+        assertTrue(output.contains("file=src/test/java/com/acme/AuthTest.java"),
+                "FQCN dots should become slashes with prefix");
+    }
+
+    @Test
+    void record_emptyPrefix_fqcnAsRelativePath() {
+        String output = recordSecurityMethod(0.5, "Auth", List.of(), "");
+
+        assertTrue(output.contains("file=com/acme/AuthTest.java"),
+                "Without prefix, file path should be FQCN-derived only");
+    }
+
+    // -------------------------------------------------------------------------
+    // Integration test via MethodAtlasApp
+    // -------------------------------------------------------------------------
+
+    @Test
+    void app_githubAnnotationsMode_emitsAnnotationsForSecurityMethods(@TempDir Path tempDir) throws Exception {
+        Path sourceDir = tempDir.resolve("src");
+        Files.createDirectories(sourceDir);
+        copyFixture(sourceDir, "AccessControlServiceTest.java");
+
+        // Run without AI; no annotations expected (no security classification)
+        String output = runApp(new String[] { "-github-annotations", sourceDir.toString() });
+
+        // Without AI, no security classifications → no output lines
+        assertEquals("", output.trim(),
+                "Without AI, no security methods are known → no annotation lines");
+    }
+
+    @Test
+    void app_githubAnnotationsMode_emptyDirectoryProducesNoOutput(@TempDir Path tempDir) throws Exception {
+        Path sourceDir = tempDir.resolve("src");
+        Files.createDirectories(sourceDir);
+
+        String output = runApp(new String[] { "-github-annotations", sourceDir.toString() });
+
+        assertEquals("", output.trim());
+    }
+
+    // -------------------------------------------------------------------------
+    // MethodAtlasApp.computeFilePrefix
+    // -------------------------------------------------------------------------
+
+    @Test
+    void computeFilePrefix_emptyList_returnsEmptyString() {
+        assertEquals("", MethodAtlasApp.computeFilePrefix(List.of()));
+    }
+
+    @Test
+    void computeFilePrefix_relativeRoot_endsWithSlash(@TempDir Path tempDir) {
+        String prefix = MethodAtlasApp.computeFilePrefix(List.of(tempDir));
+        assertTrue(prefix.endsWith("/"), "Prefix should end with /");
+    }
+
+    @Test
+    void computeFilePrefix_usesForwardSlashes(@TempDir Path tempDir) {
+        String prefix = MethodAtlasApp.computeFilePrefix(List.of(tempDir));
+        assertFalse(prefix.contains("\\"), "Prefix should use forward slashes only");
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    private static String recordSecurityMethod(double interactionScore, String displayName,
+            List<String> tags, String filePrefix) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
+
+        AiMethodSuggestion suggestion = new AiMethodSuggestion("testLogin", true, displayName, tags, null, 0.0, interactionScore);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), suggestion);
+
+        return baos.toString(StandardCharsets.UTF_8).trim();
+    }
+
+    private static String runApp(String[] args) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
+            MethodAtlasApp.run(args, out);
+        }
+        return baos.toString(StandardCharsets.UTF_8);
+    }
+
+    private static void copyFixture(Path destDir, String fixtureFileName) throws IOException {
+        String resourcePath = "/fixtures/" + fixtureFileName + ".txt";
+        try (InputStream in = GitHubAnnotationsEmitterTest.class.getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new IllegalStateException("Missing test resource: " + resourcePath);
+            }
+            Files.copy(in, destDir.resolve(fixtureFileName));
+        }
+    }
+}

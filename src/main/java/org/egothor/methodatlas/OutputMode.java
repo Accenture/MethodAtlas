@@ -39,5 +39,26 @@ enum OutputMode {
      *
      * @see <a href="https://docs.oasis-open.org/sarif/sarif/v2.1.0/">SARIF 2.1.0 specification</a>
      */
-    SARIF
+    SARIF,
+
+    /**
+     * Emits GitHub Actions workflow commands for inline PR annotations.
+     *
+     * <p>
+     * Only security-relevant methods produce output. Each method becomes one
+     * {@code ::notice} or {@code ::warning} workflow command that GitHub Actions
+     * intercepts and displays as an inline annotation on the PR diff. The level
+     * is {@code warning} when {@code ai_interaction_score >= 0.8} (potential
+     * placebo test) and {@code notice} otherwise.
+     * </p>
+     *
+     * <p>
+     * Non-security methods produce no output. This mode does not require a
+     * GitHub Advanced Security licence, unlike SARIF upload via
+     * {@code upload-sarif}.
+     * </p>
+     *
+     * @see GitHubAnnotationsEmitter
+     */
+    GITHUB_ANNOTATIONS
 }

@@ -107,6 +107,7 @@ final class CliArgs {
             switch (arg) {
                 case "-plain" -> outputMode = OutputMode.PLAIN;
                 case "-sarif" -> outputMode = OutputMode.SARIF;
+                case "-github-annotations" -> outputMode = OutputMode.GITHUB_ANNOTATIONS;
                 case "-apply-tags" -> applyTags = true;
                 case "-content-hash" -> contentHash = true;
                 case FLAG_CONFIG -> i++; // value already consumed in pre-scan; skip here

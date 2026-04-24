@@ -103,5 +103,7 @@ nav:
       - Result Caching: ai/caching.md
       - Security Taxonomy: ai/taxonomy.md
       - Classification Overrides: ai/overrides.md
-  - CI/CD Setup: ci-setup.md
+  - CI/CD Setup:
+    - Overview: ci-setup.md
+    - GitHub Actions: ci/github-actions.md
   - Reports: reports.md
