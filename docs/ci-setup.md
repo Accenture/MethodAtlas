@@ -85,26 +85,62 @@ The published site will be available at
 | Secret | Feature unlocked | How to obtain |
 |---|---|---|
 | `NVD_API_KEY` | Same as Gitea — enables the OWASP Dependency-Check scan; steps are skipped when absent. | See Gitea section above — the same key works on both platforms. |
-| `OPENROUTER_API_KEY` | Enables MethodAtlas AI self-analysis in `security-scan.yml`. The three MethodAtlas steps (build, analyse, upload SARIF) are **completely skipped** when this secret is absent; no partial results are written. The SARIF output is uploaded to GitHub Code Scanning and appears in the Security tab. | Register at **https://openrouter.ai** — free tier available. Go to **Account → API Keys → Create key**. The default model (`stepfun/step-3.5-flash:free`) is free; no billing setup required unless you switch to a paid model. |
 | `CODECOV_TOKEN` | Same as Gitea — upload token for private repositories. | See Gitea section above. |
 
-### 3. Variables (Settings → Secrets and Variables → Actions → Variables)
+### 3. Code Scanning (automatic — no secrets required)
 
-Variables are non-secret configuration values visible in workflow logs.
+`pages.yml` calls the reusable workflow
+[`methodatlas-analysis.yml`](https://github.com/egothor/methodatlas/blob/main/.github/workflows/methodatlas-analysis.yml)
+on every push to `main`.  MethodAtlas classifies its own JUnit test methods
+using **GitHub Models** authenticated with the `GITHUB_TOKEN` that is
+automatically available in every GitHub Actions run — no additional secrets
+or billing setup is required.
 
-#### Optional
+The resulting SARIF is uploaded to GitHub Code Scanning and appears under
+**Security → Code scanning** after the first successful run.  Findings are
+also retained as a downloadable workflow artifact for 30 days.
 
-| Variable | Default when absent | Purpose |
-|---|---|---|
-| `METHODATLAS_AI_MODEL` | `stepfun/step-3.5-flash:free` | Overrides the OpenRouter model used for MethodAtlas AI self-analysis. Set this to switch models (e.g. `openai/gpt-4o-mini`) without editing the workflow YAML or creating a new commit. Has no effect when `OPENROUTER_API_KEY` is not set. |
+The `security-scan.yml` workflow additionally uploads SpotBugs results to
+Code Scanning on a weekly schedule.  No configuration is needed for either
+workflow beyond the `security-events: write` permission already declared in
+`pages.yml`.
 
-### 4. Code Scanning (automatic)
+### 4. Adapting the MethodAtlas analysis workflow for your own project
 
-The `security-scan.yml` workflow uploads SpotBugs and (optionally)
-MethodAtlas SARIF results to GitHub Code Scanning.  No additional
-configuration is needed beyond the `security-events: write` permission
-already declared in the workflow.  Findings appear automatically under
-**Security → Code scanning** after the first successful workflow run.
+The [`methodatlas-analysis.yml`](https://github.com/egothor/methodatlas/blob/main/.github/workflows/methodatlas-analysis.yml)
+workflow is designed to be copied and adapted.  The inline comments mark
+exactly which parts to change:
+
+**Replace build-from-source with a release download** (the most common
+adaptation): in the workflow file, swap the three steps labelled
+"Set up JDK 21", "Setup Gradle", and "Build MethodAtlas from source" for the
+download snippet provided in the comment block inside the
+"Obtain MethodAtlas" section.
+
+**Point to your test sources**: change the `test-source-path` input when
+calling the workflow, or pass a different path in the
+"Run MethodAtlas AI classification" step.
+
+**Use a different AI model or provider**: set the `ai-model` input, or
+replace `-ai-provider github_models` with any of the providers listed in
+[AI providers](ai/providers.md).  Cloud providers other than GitHub Models
+require an API key stored as a repository secret.
+
+To call the reusable workflow from your own `build.yml` or equivalent:
+
+```yaml
+jobs:
+  methodatlas-analysis:
+    needs: build   # run after your own build job
+    uses: egothor/methodatlas/.github/workflows/methodatlas-analysis.yml@main
+    with:
+      test-source-path: src/test/java
+      ai-model: gpt-4o-mini
+    permissions:
+      contents: read
+      security-events: write
+    continue-on-error: true   # informational — never blocks your build
+```
 
 
 ## Workflow schedule reference
@@ -113,8 +149,8 @@ already declared in the workflow.  Findings appear automatically under
 |---|---|---|
 | CI quality gate | Gitea | Every push and pull request |
 | Release | Gitea + GitHub | Push of a `release@x.y.z` tag |
-| GitHub Pages | GitHub | Push to `main` branch |
-| OWASP + Code Scanning | GitHub | Every Monday at 03:00 UTC; manual dispatch |
+| GitHub Pages + MethodAtlas self-analysis | GitHub | Push to `main` branch |
+| OWASP + SpotBugs Code Scanning | GitHub | Every Monday at 03:00 UTC; manual dispatch |
 | OWASP Security Scan | Gitea | Every Monday at 03:00 UTC; manual dispatch |
 | PIT Mutation Testing | Gitea + GitHub | Every Sunday at 04:00 UTC; manual dispatch |
 

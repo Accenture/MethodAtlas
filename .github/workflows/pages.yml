@@ -18,6 +18,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  security-events: write   # passed to the methodatlas-analysis reusable workflow
 
 jobs:
   # -------------------------------------------------------------------------
@@ -107,7 +108,23 @@ jobs:
           path: site/
 
   # -------------------------------------------------------------------------
-  # Job 2: deploy the uploaded artifact to GitHub Pages
+  # Job 2: MethodAtlas AI self-analysis (informational, never blocks deploy)
+  #
+  # Calls the reusable workflow in methodatlas-analysis.yml.  A failure here
+  # is treated as informational — continue-on-error: true ensures it does not
+  # prevent the Pages deployment from proceeding.
+  # -------------------------------------------------------------------------
+  methodatlas-analysis:
+    name: MethodAtlas self-analysis
+    needs: build
+    uses: ./.github/workflows/methodatlas-analysis.yml
+    permissions:
+      contents: read
+      security-events: write
+    continue-on-error: true
+
+  # -------------------------------------------------------------------------
+  # Job 3: deploy the uploaded artifact to GitHub Pages
   # -------------------------------------------------------------------------
   deploy:
     name: Deploy to GitHub Pages

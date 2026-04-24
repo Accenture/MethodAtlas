@@ -4,20 +4,8 @@
 # SpotBugs results are uploaded to GitHub Code Scanning so findings appear
 # in the Security tab and as PR diff annotations.
 #
-# MethodAtlas AI self-analysis (dogfooding)
-# ----------------------------------------
-# When the OPENROUTER_API_KEY repository secret is present, MethodAtlas
-# classifies each of its own JUnit test methods for security relevance using
-# the OpenRouter AI gateway.  The resulting SARIF is uploaded to Code Scanning
-# so security-related test methods surface directly in the Security tab —
-# a live demonstration of the tool's output on a known codebase.
-#
-# Model selection (in priority order):
-#   1. vars.METHODATLAS_AI_MODEL  (repository variable, non-secret)
-#   2. stepfun/step-3.5-flash:free  (built-in default)
-#
-# To activate: add OPENROUTER_API_KEY to repository secrets.
-# To override the model: set METHODATLAS_AI_MODEL in repository variables.
+# MethodAtlas AI self-analysis runs separately on every push to main via
+# pages.yml → methodatlas-analysis.yml using GitHub Models (no secrets needed).
 name: Security scan
 
 on:
@@ -71,10 +59,8 @@ jobs:
           retention-days: 30
 
   code-scanning:
-    name: Code scanning (SpotBugs + MethodAtlas)
+    name: Code scanning (SpotBugs)
     runs-on: ubuntu-latest
-    env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
     steps:
       - name: Checkout repository
@@ -100,31 +86,3 @@ jobs:
         with:
           sarif_file: build/reports/spotbugs/main.sarif
           category: spotbugs
-
-      # -----------------------------------------------------------------------
-      # MethodAtlas AI self-analysis — runs only when OPENROUTER_API_KEY is set.
-      # Both steps are skipped entirely when the secret is absent.
-      # -----------------------------------------------------------------------
-      - name: Build and install MethodAtlas
-        if: ${{ env.OPENROUTER_API_KEY != '' }}
-        run: ./gradlew installDist
-
-      - name: Run MethodAtlas AI self-analysis
-        if: ${{ env.OPENROUTER_API_KEY != '' }}
-        run: |
-          build/install/methodatlas/bin/methodatlas \
-            -sarif \
-            -ai \
-            -ai-provider openrouter \
-            -ai-model "${{ vars.METHODATLAS_AI_MODEL || 'stepfun/step-3.5-flash:free' }}" \
-            -ai-api-key-env OPENROUTER_API_KEY \
-            -ai-confidence \
-            src/test/java \
-            > build/reports/methodatlas-self.sarif.json
-
-      - name: Upload MethodAtlas self-analysis SARIF to Code Scanning
-        if: ${{ env.OPENROUTER_API_KEY != '' }}
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: build/reports/methodatlas-self.sarif.json
-          category: methodatlas

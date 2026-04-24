@@ -1,0 +1,160 @@
+# MethodAtlas AI self-analysis — reusable workflow
+#
+# Classifies this project's own JUnit test methods for security relevance using
+# MethodAtlas and a free AI provider (GitHub Models).  The resulting SARIF is
+# uploaded to GitHub Code Scanning so security-relevant test methods appear in
+# the Security tab and as inline annotations on pull request diffs.
+#
+# This workflow is called from pages.yml on every push to main.  Failures are
+# treated as informational by the caller and do not block the Pages deployment.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADAPTING THIS WORKFLOW FOR YOUR OWN PROJECT
+# ───────────────────────────────────────────
+# This file is designed to be copied and adapted.  There are two sections to
+# change:
+#
+#  1. "Obtain MethodAtlas" — swap the build-from-source steps for a download.
+#     See the comment block inside that section for a ready-made snippet.
+#
+#  2. "Run MethodAtlas" — change the source path to your test directory and
+#     optionally switch the AI model or provider.
+#
+# Everything else (GITHUB_TOKEN auth, SARIF upload, artifact retention) works
+# unchanged in any GitHub repository.
+# ═══════════════════════════════════════════════════════════════════════════════
+name: MethodAtlas self-analysis
+
+on:
+  workflow_call:
+    inputs:
+      test-source-path:
+        description: 'Path to the directory containing JUnit test sources'
+        required: false
+        type: string
+        default: 'src/test/java'
+      ai-model:
+        description: 'GitHub Models model identifier used for classification'
+        required: false
+        type: string
+        default: 'gpt-4o-mini'
+
+# Permissions required by this workflow.
+# The calling workflow must grant at least these two permissions.
+permissions:
+  contents: read
+  security-events: write   # required to upload SARIF to GitHub Code Scanning
+
+jobs:
+  analyze:
+    name: MethodAtlas security classification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # full history + tags required by com.palantir.git-version
+
+      # -----------------------------------------------------------------------
+      # Obtain MethodAtlas
+      #
+      # PROJECT MAINTAINERS: MethodAtlas is built from the current commit so
+      # the analysis always reflects the version under review.  Gradle
+      # dependency caching keeps this fast on repeat runs.
+      #
+      # ───────────────────────────────────────────────────────────────────────
+      # ADAPTING FOR YOUR OWN PROJECT
+      # Replace the three steps below with a single download step:
+      #
+      #   - name: Download MethodAtlas
+      #     run: |
+      #       # Resolve the latest release tag and strip the "release@" prefix
+      #       VERSION=$(curl -fsSL https://api.github.com/repos/egothor/methodatlas/releases/latest \
+      #                 | jq -r '.tag_name | ltrimstr("release@")')
+      #       curl -fsSL \
+      #         "https://github.com/egothor/methodatlas/releases/latest/download/methodatlas-${VERSION}.zip" \
+      #         -o methodatlas.zip
+      #       unzip -q methodatlas.zip
+      #       echo "METHODATLAS=$(pwd)/methodatlas-${VERSION}/bin/methodatlas" >> "$GITHUB_ENV"
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build MethodAtlas from source
+        run: |
+          ./gradlew installDist
+          echo "METHODATLAS=$(pwd)/build/install/methodatlas/bin/methodatlas" >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # Run MethodAtlas AI classification
+      #
+      # Uses GitHub Models (provider: github_models) authenticated with
+      # GITHUB_TOKEN — automatically available in every GitHub Actions run,
+      # no additional secrets or billing setup required.
+      #
+      # Flags used:
+      #   -sarif            emit SARIF 2.1.0 output for Code Scanning upload
+      #   -ai               enable AI security classification
+      #   -ai-provider      github_models (free, uses GITHUB_TOKEN)
+      #   -ai-model         model from github.com/marketplace/models
+      #   -ai-confidence    include per-method confidence scores in output
+      #   -drift-detect     flag @Tag("security") annotations that disagree
+      #                     with the AI classification
+      #
+      # ───────────────────────────────────────────────────────────────────────
+      # ADAPTING FOR YOUR OWN PROJECT
+      # Change the last argument to the path of your test source directory.
+      # To use a different model, set the ai-model input when calling this
+      # workflow, or edit the default value in the on.workflow_call.inputs
+      # section at the top of this file.
+      # To use a different AI provider (Groq, Mistral, OpenAI, …), replace
+      # -ai-provider and -ai-api-key-env — see docs/ai/providers.md for the
+      # full list of supported providers and their authentication requirements.
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Run MethodAtlas AI classification
+        run: |
+          "$METHODATLAS" \
+            -sarif \
+            -ai \
+            -ai-provider github_models \
+            -ai-model "${{ inputs.ai-model }}" \
+            -ai-api-key-env GITHUB_TOKEN \
+            -ai-confidence \
+            -drift-detect \
+            "${{ inputs.test-source-path }}" \
+            > build/reports/methodatlas-sarif.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # Publish results
+      #
+      # SARIF is uploaded to GitHub Code Scanning so findings appear in
+      # Security → Code scanning and as inline annotations on PR diffs.
+      # The same file is also retained as a downloadable workflow artifact for
+      # 30 days so it can be inspected outside of the Code Scanning UI.
+      #
+      # ADAPTING FOR YOUR OWN PROJECT: both steps work unchanged.  The only
+      # requirement is that your calling workflow has security-events: write
+      # permission (needed for the upload-sarif action).
+      # -----------------------------------------------------------------------
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: build/reports/methodatlas-sarif.json
+          category: methodatlas
+
+      - name: Upload SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodatlas-sarif
+          path: build/reports/methodatlas-sarif.json
+          retention-days: 30
