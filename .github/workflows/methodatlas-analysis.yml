@@ -120,6 +120,7 @@ jobs:
       # ───────────────────────────────────────────────────────────────────────
       - name: Run MethodAtlas AI classification
         run: |
+          mkdir -p build/reports
           "$METHODATLAS" \
             -sarif \
             -ai \
