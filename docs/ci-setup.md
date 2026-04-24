@@ -139,7 +139,6 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    continue-on-error: true   # informational — never blocks your build
 ```
 
 

@@ -110,9 +110,9 @@ jobs:
   # -------------------------------------------------------------------------
   # Job 2: MethodAtlas AI self-analysis (informational, never blocks deploy)
   #
-  # Calls the reusable workflow in methodatlas-analysis.yml.  A failure here
-  # is treated as informational — continue-on-error: true ensures it does not
-  # prevent the Pages deployment from proceeding.
+  # Calls the reusable workflow in methodatlas-analysis.yml.  The deploy job
+  # (Job 3) declares needs: build — not needs: methodatlas-analysis — so a
+  # failure here never prevents the Pages deployment from proceeding.
   # -------------------------------------------------------------------------
   methodatlas-analysis:
     name: MethodAtlas self-analysis
@@ -121,7 +121,6 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    continue-on-error: true
 
   # -------------------------------------------------------------------------
   # Job 3: deploy the uploaded artifact to GitHub Pages
