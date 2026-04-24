@@ -113,7 +113,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_securityMethodWithAuthTagGetsRuleSecurityAuth() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests login", 0.9);
+                "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests login", 0.9, 0.0);
         SarifEmitter emitter = new SarifEmitter(true, false);
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), suggestion);
 
@@ -128,7 +128,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_securityMethodDisplayNameUsedAsMessage() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testLogin", true, "SECURITY: auth - login test", List.of("security", "auth"), "Tests login", 1.0);
+                "testLogin", true, "SECURITY: auth - login test", List.of("security", "auth"), "Tests login", 1.0, 0.0);
         SarifEmitter emitter = new SarifEmitter(true, false);
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), suggestion);
 
@@ -141,7 +141,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_securityMethodWithOnlySecurityTagGetsRuleSecurityTest() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testGeneral", true, "SECURITY: general", List.of("security"), "Security test", 0.7);
+                "testGeneral", true, "SECURITY: general", List.of("security"), "Security test", 0.7, 0.0);
         SarifEmitter emitter = new SarifEmitter(true, false);
         emitter.record("com.acme.SomeTest", "testGeneral", 1, 3, null, List.of(), suggestion);
 
@@ -245,7 +245,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_propertiesContainAiFields_whenAiEnabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests login auth", 0.9);
+                "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests login auth", 0.9, 0.0);
         SarifEmitter emitter = new SarifEmitter(true, false);
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), suggestion);
 
@@ -261,7 +261,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_aiConfidenceAbsent_whenConfidenceDisabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "reason", 0.9);
+                "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "reason", 0.9, 0.0);
         SarifEmitter emitter = new SarifEmitter(true, false); // confidenceEnabled=false
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), suggestion);
 
@@ -274,7 +274,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_aiConfidencePresent_whenConfidenceEnabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "reason", 0.85);
+                "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "reason", 0.85, 0.0);
         SarifEmitter emitter = new SarifEmitter(true, true); // confidenceEnabled=true
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), suggestion);
 
@@ -292,9 +292,9 @@ class SarifEmitterTest {
     @Tag("edge-case")
     void flush_rulesAreDeduplicatedAcrossResults() throws Exception {
         AiMethodSuggestion authSuggestion = new AiMethodSuggestion(
-                "testLogin", true, null, List.of("security", "auth"), null, 1.0);
+                "testLogin", true, null, List.of("security", "auth"), null, 1.0, 0.0);
         AiMethodSuggestion authSuggestion2 = new AiMethodSuggestion(
-                "testLogout", true, null, List.of("security", "auth"), null, 1.0);
+                "testLogout", true, null, List.of("security", "auth"), null, 1.0, 0.0);
 
         SarifEmitter emitter = new SarifEmitter(true, false);
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), authSuggestion);

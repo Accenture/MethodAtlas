@@ -40,6 +40,8 @@ import java.util.List;
  *                           when absent
  * @param aiConfidence       AI confidence score ({@code 0.0–1.0}), or {@code null}
  *                           when the {@code ai_confidence} column was absent
+ * @param aiInteractionScore AI interaction score ({@code 0.0–1.0}), or {@code null}
+ *                           when the {@code ai_interaction_score} column was absent
  *
  * @see DeltaReport
  * @see DeltaEntry
@@ -54,5 +56,6 @@ record ScanRecord(
         String aiDisplayName,
         List<String> aiTags,
         String aiReason,
-        Double aiConfidence) {
+        Double aiConfidence,
+        Double aiInteractionScore) {
 }

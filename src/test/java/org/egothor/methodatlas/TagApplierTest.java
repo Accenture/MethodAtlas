@@ -53,11 +53,11 @@ class TagApplierTest {
     }
 
     private static AiMethodSuggestion securitySuggestion(String method, String displayName, List<String> tags) {
-        return new AiMethodSuggestion(method, true, displayName, tags, null, 0.9);
+        return new AiMethodSuggestion(method, true, displayName, tags, null, 0.9, 0.0);
     }
 
     private static AiMethodSuggestion nonSecuritySuggestion(String method) {
-        return new AiMethodSuggestion(method, false, "irrelevant", List.of("auth"), null, 0.0);
+        return new AiMethodSuggestion(method, false, "irrelevant", List.of("auth"), null, 0.0, 0.0);
     }
 
     // -------------------------------------------------------------------------
@@ -357,7 +357,7 @@ class TagApplierTest {
                 }
                 """);
         // Create suggestion with null tags (not empty list, but null)
-        AiMethodSuggestion suggestion = new AiMethodSuggestion("testFoo", true, null, null, null, 1.0);
+        AiMethodSuggestion suggestion = new AiMethodSuggestion("testFoo", true, null, null, null, 1.0, 0.0);
         SuggestionLookup lookup = lookupWith(suggestion);
         TagApplier.ClassResult result = TagApplier.applyToClass(firstClass(cu), lookup, TEST_ANNOTATIONS);
 

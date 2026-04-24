@@ -60,8 +60,8 @@ class MethodAtlasAppApplyTagsTest {
         AiClassSuggestion suggestion = buildSuggestion(
                 new AiMethodSuggestion("testLoginWithValidCredentials", true,
                         "Verifies login with valid credentials is accepted",
-                        List.of("security", "auth"), null, 0.95),
-                new AiMethodSuggestion("testCountItems", false, null, List.of(), null, 0.0));
+                        List.of("security", "auth"), null, 0.95, 0.0),
+                new AiMethodSuggestion("testCountItems", false, null, List.of(), null, 0.0, 0.0));
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, ctx) -> when(mock.suggestForClass(anyString(), eq("com.example.LoginTest"), anyString(), any()))
@@ -83,8 +83,8 @@ class MethodAtlasAppApplyTagsTest {
 
         AiClassSuggestion suggestion = buildSuggestion(
                 new AiMethodSuggestion("testLoginWithValidCredentials", false, "irrelevant",
-                        List.of(), null, 0.0),
-                new AiMethodSuggestion("testCountItems", false, null, List.of(), null, 0.0));
+                        List.of(), null, 0.0, 0.0),
+                new AiMethodSuggestion("testCountItems", false, null, List.of(), null, 0.0, 0.0));
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, ctx) -> when(mock.suggestForClass(anyString(), anyString(), anyString(), any()))
@@ -119,7 +119,7 @@ class MethodAtlasAppApplyTagsTest {
 
         AiClassSuggestion suggestion = buildSuggestion(
                 new AiMethodSuggestion("testLoginWithValidCredentials", true,
-                        "new AI name", List.of("security"), null, 0.9));
+                        "new AI name", List.of("security"), null, 0.9, 0.0));
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, ctx) -> when(mock.suggestForClass(anyString(), eq("com.example.LoginTest"), anyString(), any()))
@@ -165,8 +165,8 @@ class MethodAtlasAppApplyTagsTest {
 
         AiClassSuggestion suggestion = buildSuggestion(
                 new AiMethodSuggestion("testLoginWithValidCredentials", true,
-                        "Verifies login", List.of("security", "auth"), null, 0.9),
-                new AiMethodSuggestion("testCountItems", false, null, List.of(), null, 0.0));
+                        "Verifies login", List.of("security", "auth"), null, 0.9, 0.0),
+                new AiMethodSuggestion("testCountItems", false, null, List.of(), null, 0.0, 0.0));
 
         String output;
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
@@ -201,7 +201,7 @@ class MethodAtlasAppApplyTagsTest {
 
         AiClassSuggestion suggestion = buildSuggestion(
                 new AiMethodSuggestion("testLoginWithValidCredentials", true,
-                        "Security display name", List.of(), null, 0.9));
+                        "Security display name", List.of(), null, 0.9, 0.0));
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, ctx) -> when(mock.suggestForClass(anyString(), eq("com.example.LoginTest"), anyString(), any()))
@@ -220,7 +220,7 @@ class MethodAtlasAppApplyTagsTest {
 
         AiClassSuggestion suggestion = buildSuggestion(
                 new AiMethodSuggestion("testLoginWithValidCredentials", true,
-                        null, List.of("security"), null, 0.9));
+                        null, List.of("security"), null, 0.9, 0.0));
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, ctx) -> when(mock.suggestForClass(anyString(), eq("com.example.LoginTest"), anyString(), any()))
@@ -239,8 +239,8 @@ class MethodAtlasAppApplyTagsTest {
 
         // AI marks everything as non-security → nothing annotated → no imports
         AiClassSuggestion suggestion = buildSuggestion(
-                new AiMethodSuggestion("testLoginWithValidCredentials", false, null, List.of(), null, 0.0),
-                new AiMethodSuggestion("testCountItems", false, null, List.of(), null, 0.0));
+                new AiMethodSuggestion("testLoginWithValidCredentials", false, null, List.of(), null, 0.0, 0.0),
+                new AiMethodSuggestion("testCountItems", false, null, List.of(), null, 0.0, 0.0));
 
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, ctx) -> when(mock.suggestForClass(anyString(), anyString(), anyString(), any()))

@@ -98,7 +98,7 @@ final class OutputEmitter {
             header.append(",content_hash");
         }
         if (aiEnabled) {
-            header.append(",ai_security_relevant,ai_display_name,ai_tags,ai_reason");
+            header.append(",ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score");
             if (confidenceEnabled) {
                 header.append(",ai_confidence");
             }
@@ -173,10 +173,14 @@ final class OutputEmitter {
         String aiReason = suggestion == null || suggestion.reason() == null || suggestion.reason().isBlank()
                 ? PLAIN_ABSENT : suggestion.reason();
 
+        String aiInteractionScore = suggestion == null ? PLAIN_ABSENT
+                : String.format("%.1f", suggestion.interactionScore());
+
         line.append(", AI_SECURITY=").append(aiSecurity)
                 .append(", AI_DISPLAY=").append(aiDisplayName)
                 .append(", AI_TAGS=").append(aiTags)
-                .append(", AI_REASON=").append(aiReason);
+                .append(", AI_REASON=").append(aiReason)
+                .append(", AI_INTERACTION_SCORE=").append(aiInteractionScore);
 
         if (confidenceEnabled) {
             String aiConfidence = suggestion == null ? PLAIN_ABSENT
@@ -229,10 +233,14 @@ final class OutputEmitter {
         String aiReason = suggestion == null || suggestion.reason() == null
                 ? CSV_ABSENT : suggestion.reason();
 
+        String aiInteractionScore = suggestion == null ? CSV_ABSENT
+                : String.format("%.1f", suggestion.interactionScore());
+
         line.append(',').append(csvEscape(aiSecurity))
                 .append(',').append(csvEscape(aiDisplayName))
                 .append(',').append(csvEscape(aiTags))
-                .append(',').append(csvEscape(aiReason));
+                .append(',').append(csvEscape(aiReason))
+                .append(',').append(csvEscape(aiInteractionScore));
 
         if (confidenceEnabled) {
             String aiConfidence = suggestion == null ? CSV_ABSENT

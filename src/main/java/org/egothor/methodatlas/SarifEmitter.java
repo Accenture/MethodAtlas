@@ -226,7 +226,7 @@ final class SarifEmitter implements TestMethodSink {
 
         if (!aiEnabled || s == null) {
             return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
-                    null, null, null, null, null);
+                    null, null, null, null, null, null);
         }
 
         String aiTags = s.tags() == null || s.tags().isEmpty() ? null : String.join(";", s.tags());
@@ -234,7 +234,7 @@ final class SarifEmitter implements TestMethodSink {
         String aiReason = s.reason() == null || s.reason().isBlank() ? null : s.reason();
         Double aiConfidence = confidenceEnabled ? s.confidence() : null;
         return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
-                s.securityRelevant(), aiDisplayName, aiTags, aiReason, aiConfidence);
+                s.securityRelevant(), aiDisplayName, aiTags, aiReason, s.interactionScore(), aiConfidence);
     }
 
     // -------------------------------------------------------------------------
@@ -324,6 +324,7 @@ final class SarifEmitter implements TestMethodSink {
             String aiDisplayName,
             String aiTags,
             String aiReason,
+            Double aiInteractionScore,
             Double aiConfidence) {
     }
 }

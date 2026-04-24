@@ -38,28 +38,38 @@ import java.util.List;
  * method name as the lookup key when emitting enriched scan results.
  * </p>
  *
- * @param methodName       name of the analyzed test method as reported by the
- *                         AI
- * @param securityRelevant {@code true} if the AI classified the test as
- *                         validating a security property
- * @param displayName      suggested {@code @DisplayName} value describing the
- *                         security intent of the test; may be {@code null}
- * @param tags             taxonomy-based security tags suggested for the test
- *                         method; may be empty or {@code null} depending on
- *                         provider response
- * @param reason           explanatory rationale describing why the method was
- *                         classified as security-relevant or why specific tags
- *                         were assigned; may be {@code null}
- * @param confidence       AI confidence score in the range {@code [0.0, 1.0]}
- *                         describing how certain the model is that the method is
- *                         security-relevant; {@code 0.0} when the AI did not
- *                         provide a confidence score or when
- *                         {@code securityRelevant} is {@code false}
+ * @param methodName        name of the analyzed test method as reported by the
+ *                          AI
+ * @param securityRelevant  {@code true} if the AI classified the test as
+ *                          validating a security property
+ * @param displayName       suggested {@code @DisplayName} value describing the
+ *                          security intent of the test; may be {@code null}
+ * @param tags              taxonomy-based security tags suggested for the test
+ *                          method; may be empty or {@code null} depending on
+ *                          provider response
+ * @param reason            explanatory rationale describing why the method was
+ *                          classified as security-relevant or why specific tags
+ *                          were assigned; may be {@code null}
+ * @param confidence        AI confidence score in the range {@code [0.0, 1.0]}
+ *                          describing how certain the model is that the method is
+ *                          security-relevant; {@code 0.0} when the AI did not
+ *                          provide a confidence score or when
+ *                          {@code securityRelevant} is {@code false}
+ * @param interactionScore  score in the range {@code [0.0, 1.0]} measuring what
+ *                          fraction of the test's assertions only verify
+ *                          <em>interactions</em> (that methods were called, in
+ *                          what order, with what arguments) rather than
+ *                          <em>outcomes</em> (return values, computed state,
+ *                          observable side effects); {@code 1.0} means every
+ *                          assertion is an interaction check with no evidence of
+ *                          output correctness; {@code 0.0} means all assertions
+ *                          verify actual results; applies regardless of the
+ *                          mocking framework in use
  *
  * @see org.egothor.methodatlas.MethodAtlasApp
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  * @see org.egothor.methodatlas.ai.SuggestionLookup
  */
 public record AiMethodSuggestion(String methodName, boolean securityRelevant, String displayName, List<String> tags,
-        String reason, double confidence) {
+        String reason, double confidence, double interactionScore) {
 }

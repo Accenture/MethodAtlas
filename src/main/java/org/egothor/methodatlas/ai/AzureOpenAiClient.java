@@ -212,7 +212,7 @@ public final class AzureOpenAiClient implements AiProviderClient {
                 .filter(method -> method != null && method.methodName() != null && !method.methodName().isBlank())
                 .map(method -> new AiMethodSuggestion(method.methodName(), method.securityRelevant(),
                         method.displayName(), method.tags() == null ? List.of() : method.tags(), method.reason(),
-                        method.confidence()))
+                        method.confidence(), method.interactionScore()))
                 .toList();
 
         return new AiClassSuggestion(input.className(), input.classSecurityRelevant(), classTags, input.classReason(),

@@ -324,7 +324,8 @@ public final class DeltaReport {
                 getField(fields, colIndex, "ai_display_name"),
                 parseSemicolonListOrNull(fields, colIndex, "ai_tags"),
                 getField(fields, colIndex, "ai_reason"),
-                parseDouble(getField(fields, colIndex, "ai_confidence")));
+                parseDouble(getField(fields, colIndex, "ai_confidence")),
+                parseDouble(getField(fields, colIndex, "ai_interaction_score")));
     }
 
     private static Map<String, ScanRecord> buildMap(List<ScanRecord> records) {
@@ -375,6 +376,10 @@ public final class DeltaReport {
         if (before.aiTags() != null && after.aiTags() != null
                 && !new HashSet<>(before.aiTags()).equals(new HashSet<>(after.aiTags()))) {
             changed.add("ai_tags");
+        }
+        if (before.aiInteractionScore() != null && after.aiInteractionScore() != null
+                && !before.aiInteractionScore().equals(after.aiInteractionScore())) {
+            changed.add("ai_interaction_score");
         }
 
         return changed;

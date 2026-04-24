@@ -214,7 +214,7 @@ class OutputEmitterTest {
     @Tag("positive")
     void emit_csvMode_aiSuggestionNoConfidence_aiColumnsFilled() {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testFoo", true, "SECURITY: auth - login", List.of("security", "auth"), "Validates auth", 0.9);
+                "testFoo", true, "SECURITY: auth - login", List.of("security", "auth"), "Validates auth", 0.9, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
                         List.of(), suggestion),
@@ -224,7 +224,8 @@ class OutputEmitterTest {
         assertTrue(line.contains("SECURITY: auth - login"), line);
         assertTrue(line.contains("security;auth"), line);
         assertTrue(line.contains("Validates auth"), line);
-        // no confidence column
+        // interaction score present, no confidence column
+        assertTrue(line.endsWith(",0.0"), line);
         assertFalse(line.endsWith(",0.9"), line);
     }
 
@@ -233,11 +234,12 @@ class OutputEmitterTest {
     @Tag("positive")
     void emit_csvMode_aiSuggestionWithConfidence_confidenceAppended() {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testFoo", true, "SECURITY: auth", List.of("security"), "reason", 0.9);
+                "testFoo", true, "SECURITY: auth", List.of("security"), "reason", 0.9, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
                         List.of(), suggestion),
                 true, true, false);
+        // column order: ...,ai_reason,ai_interaction_score,ai_confidence
         assertTrue(output.trim().endsWith(",0.9"), output);
     }
 
@@ -249,8 +251,8 @@ class OutputEmitterTest {
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
                         List.of(), null),
                 true, false, false);
-        // Format: fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-        assertEquals("com.acme.FooTest,testFoo,5,,,,,", output.trim());
+        // Format: fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+        assertEquals("com.acme.FooTest,testFoo,5,,,,,,", output.trim());
     }
 
     // -------------------------------------------------------------------------
@@ -274,7 +276,7 @@ class OutputEmitterTest {
     void emit_plainMode_withTagsAiSuggestionAndConfidence_allFieldsPresent() {
         // Use confidence=1.0 to avoid floating-point rounding ambiguity in %.1f formatting.
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testFoo", true, "SECURITY: auth - login", List.of("security", "auth"), "Validates auth", 1.0);
+                "testFoo", true, "SECURITY: auth - login", List.of("security", "auth"), "Validates auth", 1.0, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 5, null,
                         List.of("fast"), suggestion),

@@ -245,6 +245,20 @@ Enables AI enrichment. Without this flag, MethodAtlas behaves as a pure static s
 
 Instructs the model to include a confidence score for each classification. The score appears as `ai_confidence` in CSV output (or `AI_CONFIDENCE=` in plain mode). Scores range from `0.0` (not security-relevant) to `1.0` (explicitly and unambiguously tests a named security property). See [Confidence scoring](ai/confidence.md) for the full interpretation table.
 
+### AI interaction score
+
+When AI enrichment is enabled, every record carries an `ai_interaction_score` regardless of other flags. The score (0.0–1.0) answers: *what fraction of this test's assertions only verify that methods were called, rather than what they returned or produced?*
+
+| Value | Meaning |
+| --- | --- |
+| `1.0` | Every assertion is an interaction check — the test has no outcome assertion |
+| `0.5` | Mixed: some outcome assertions alongside interaction-only checks |
+| `0.0` | All assertions verify actual outputs or state |
+
+A score of `1.0` on a security-relevant test is a strong signal of a **placebo test**: CI passes, coverage tools see the lines as covered, but no output or state is ever verified. Standard tooling (JaCoCo, PIT, PMD, SpotBugs) cannot detect this because they do not distinguish semantically between `verify(mock).call()` and `assertEquals(expected, actual)`. The AI can because it reads the test body and understands what each assertion checks. See [Interaction Score](ai/interaction-score.md) for a full explanation and CI usage examples.
+
+In CSV output the column is named `ai_interaction_score` and appears immediately after `ai_reason` (before `ai_confidence` when that flag is enabled). In plain-text output it appears as `AI_INTERACTION_SCORE=`. In SARIF it is stored as `properties.aiInteractionScore`.
+
 ### `-ai-provider <provider>`
 
 Selects the provider implementation. Values are case-insensitive.

@@ -340,7 +340,7 @@ class ClassificationOverrideTest {
 
     private static AiMethodSuggestion methodSuggestion(String name, boolean securityRelevant,
             List<String> tags, String reason, double confidence) {
-        return new AiMethodSuggestion(name, securityRelevant, null, tags, reason, confidence);
+        return new AiMethodSuggestion(name, securityRelevant, null, tags, reason, confidence, 0.0);
     }
 
     private static AiMethodSuggestion findMethod(AiClassSuggestion suggestion, String name) {

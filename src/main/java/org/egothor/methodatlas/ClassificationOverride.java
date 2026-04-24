@@ -321,7 +321,7 @@ public final class ClassificationOverride {
             if (base != null) {
                 return base;
             }
-            return new AiMethodSuggestion(name, false, null, List.of(), null, 0.0);
+            return new AiMethodSuggestion(name, false, null, List.of(), null, 0.0, 0.0);
         }
 
         boolean securityRelevant = base != null ? base.securityRelevant() : false;
@@ -343,9 +343,11 @@ public final class ClassificationOverride {
         }
 
         // Human review supersedes any AI confidence score.
+        // Interaction score is AI-generated and is preserved from the base suggestion.
         double confidence = securityRelevant ? 1.0 : 0.0;
+        double interactionScore = base != null ? base.interactionScore() : 0.0;
 
-        return new AiMethodSuggestion(name, securityRelevant, displayName, tags, reason, confidence);
+        return new AiMethodSuggestion(name, securityRelevant, displayName, tags, reason, confidence, interactionScore);
     }
 
     // -------------------------------------------------------------------------

@@ -48,7 +48,7 @@ class AiSuggestionEngineImplTest {
                 List.of("security", "access-control"), "Class validates access-control behavior.",
                 List.of(new AiMethodSuggestion("shouldRejectUnauthenticatedRequest", true,
                         "SECURITY: authentication - reject unauthenticated request", List.of("security", "auth"),
-                        "The test verifies that anonymous access is rejected.", 0.0)));
+                        "The test verifies that anonymous access is rejected.", 0.0, 0.0)));
 
         List<PromptBuilder.TargetMethod> targetMethods = List
                 .of(new PromptBuilder.TargetMethod("shouldAllowOwnerToReadOwnStatement", null, null),
@@ -89,7 +89,7 @@ class AiSuggestionEngineImplTest {
                 List.of(new AiMethodSuggestion("shouldRejectRelativePathTraversalSequence", true,
                         "SECURITY: input validation - reject path traversal sequence",
                         List.of("security", "input-validation", "owasp"),
-                        "The test rejects a classic path traversal payload.", 0.0)));
+                        "The test rejects a classic path traversal payload.", 0.0, 0.0)));
 
         List<PromptBuilder.TargetMethod> targetMethods = List.of(
                 new PromptBuilder.TargetMethod("shouldRejectRelativePathTraversalSequence", null, null),
@@ -138,7 +138,7 @@ class AiSuggestionEngineImplTest {
                 List.of("security", "logging"), "Class verifies security-relevant audit logging behavior.",
                 List.of(new AiMethodSuggestion("shouldNotLogRawBearerToken", true,
                         "SECURITY: logging - redact bearer token", List.of("security", "logging"),
-                        "The test ensures credentials are not written to logs.", 0.0)));
+                        "The test ensures credentials are not written to logs.", 0.0, 0.0)));
 
         List<PromptBuilder.TargetMethod> targetMethods = List.of(
                 new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null),

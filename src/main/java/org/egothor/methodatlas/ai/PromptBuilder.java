@@ -185,7 +185,19 @@ public final class PromptBuilder {
                 - If securityRelevant=false, tags must be [].
                 - If securityRelevant=true, displayName must match:
                   SECURITY: <control/property> - <scenario>
-                - reason should be short and specific.%s
+                - reason should be short and specific.
+                - interactionScore must be a decimal between 0.0 and 1.0 (one decimal place is sufficient).
+                  It measures what fraction of this test's assertions only verify *interactions* (that
+                  methods were called, in what order, with what arguments) rather than *outcomes* (return
+                  values, computed state, thrown exceptions, or observable side effects).
+                  Use these anchor points:
+                    1.0 — EVERY assertion is an interaction check (e.g. verify() only); NO assertion
+                          verifies any return value, output field, database row, or observable outcome.
+                    0.0 — ALL assertions verify actual outputs or state; no interaction-only checks.
+                    0.5 — mixed: some real-output assertions alongside interaction checks.
+                  Score 1.0 only when there is NO assertion on any return value, state change, or
+                  observable outcome. A test that has even one meaningful output assertion scores ≤ 0.5.
+                  This applies regardless of testing framework (Mockito, EasyMock, WireMock, etc.).%s
 
                 JSON SHAPE
                 {
@@ -199,7 +211,8 @@ public final class PromptBuilder {
                       "securityRelevant": true,
                       "displayName": "SECURITY: ...",
                       "tags": ["security", "crypto"],%s
-                      "reason": "string"
+                      "reason": "string",
+                      "interactionScore": 0.0
                     }
                   ]
                 }
