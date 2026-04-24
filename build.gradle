@@ -198,7 +198,7 @@ dependencyCheck {
 // ---------------------------------------------------------------------------
 cyclonedxBom {
     // includeConfigs was removed in 3.x; the task scans runtime configurations automatically.
-    schemaVersion = 'VERSION_15'
+    schemaVersion = org.cyclonedx.Version.VERSION_15
 }
 
 // ---------------------------------------------------------------------------
