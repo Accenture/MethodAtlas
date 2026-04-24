@@ -430,6 +430,7 @@ public final class MethodAtlasApp {
 
         CompilationUnit cu = parseResult.getResult().orElseThrow();
         LexicalPreservingPrinter.setup(cu);
+        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu, cliConfig.testAnnotations());
 
         String packageName = cu.getPackageDeclaration()
                 .map(NodeWithName::getNameAsString).orElse("");
@@ -441,12 +442,12 @@ public final class MethodAtlasApp {
             String fqcn = buildFqcn(packageName, clazz.getNameAsString());
             String fileStem = buildFileStem(root, path, fqcn);
             String lookupHash = aiCache.isActive() ? computeContentHash(clazz) : null;
-            List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, cliConfig.testAnnotations());
+            List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, effective);
             SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
                     cliConfig.aiOptions(), aiEngine, override, aiCache, lookupHash);
 
             TagApplier.ClassResult result = TagApplier.applyToClass(clazz, suggestionLookup,
-                    cliConfig.testAnnotations());
+                    effective);
             displayNamesAdded += result.displayNamesAdded();
             tagsAdded += result.tagsAdded();
         }
@@ -655,6 +656,7 @@ public final class MethodAtlasApp {
             }
 
             CompilationUnit compilationUnit = parseResult.getResult().orElseThrow();
+            Set<String> effective = AnnotationInspector.effectiveAnnotations(compilationUnit, testAnnotations);
             String packageName = compilationUnit.getPackageDeclaration()
                     .map(NodeWithName::getNameAsString).orElse("");
 
@@ -662,7 +664,7 @@ public final class MethodAtlasApp {
             for (ClassOrInterfaceDeclaration clazz : compilationUnit
                     .findAll(ClassOrInterfaceDeclaration.class)) {
                 String fqcn = buildFqcn(packageName, clazz.getNameAsString());
-                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, testAnnotations);
+                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, effective);
 
                 if (testMethods.isEmpty()) {
                     continue;
@@ -766,6 +768,7 @@ public final class MethodAtlasApp {
             }
 
             CompilationUnit compilationUnit = parseResult.getResult().orElseThrow();
+            Set<String> effective = AnnotationInspector.effectiveAnnotations(compilationUnit, testAnnotations);
             String packageName = compilationUnit.getPackageDeclaration()
                     .map(NodeWithName::getNameAsString).orElse("");
 
@@ -777,7 +780,7 @@ public final class MethodAtlasApp {
                         ? computeContentHash(clazz) : null;
                 String outputHash = contentHashEnabled ? lookupHash : null;
 
-                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, testAnnotations);
+                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, effective);
                 SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
                         aiOptions, aiEngine, override, aiCache, lookupHash);
 

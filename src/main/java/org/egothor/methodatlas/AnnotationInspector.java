@@ -1,10 +1,14 @@
 package org.egothor.methodatlas;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.ArrayInitializerExpr;
@@ -12,7 +16,7 @@ import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MemberValuePair;
 
 /**
- * Static utilities for inspecting JUnit 5 annotations on parsed method
+ * Static utilities for inspecting test-framework annotations on parsed method
  * declarations.
  *
  * <p>
@@ -25,8 +29,14 @@ import com.github.javaparser.ast.expr.MemberValuePair;
  * Annotation matching is performed by simple name because fully qualified
  * names require symbol resolution, which is not available in the current
  * source-only parsing configuration. False positives are therefore possible if
- * a project defines a custom annotation with the same simple name as a JUnit
- * Jupiter annotation.
+ * a project defines a custom annotation with the same simple name as a supported
+ * test annotation.
+ * </p>
+ *
+ * <p>
+ * {@link #effectiveAnnotations(CompilationUnit, Set)} performs per-file
+ * framework detection from import declarations and selects the appropriate
+ * annotation set automatically when no custom set has been configured.
  * </p>
  *
  * <p>
@@ -38,8 +48,9 @@ import com.github.javaparser.ast.expr.MemberValuePair;
 final class AnnotationInspector {
 
     /**
-     * Default set of annotation simple names recognised as JUnit Jupiter test
-     * methods when no custom set is configured.
+     * Default annotation simple names recognised as JUnit 5 (Jupiter) test
+     * methods when no custom set is configured and no other framework is
+     * detected from import declarations.
      *
      * <p>
      * The set contains: {@code Test}, {@code ParameterizedTest},
@@ -50,9 +61,98 @@ final class AnnotationInspector {
             "Test", "ParameterizedTest", "RepeatedTest", "TestFactory", "TestTemplate");
 
     /**
+     * Annotation simple names recognised as JUnit 4 test methods.
+     *
+     * <p>
+     * Includes {@code Test} (shared with JUnit 5 and TestNG) and
+     * {@code Theory} from {@code org.junit.experimental.theories}.
+     * </p>
+     */
+    /* default */ static final Set<String> JUNIT4_TEST_ANNOTATIONS = Set.of("Test", "Theory");
+
+    /**
+     * Annotation simple names recognised as TestNG test methods.
+     *
+     * <p>
+     * TestNG uses a single {@code @Test} annotation for all test methods,
+     * including data-driven variants (those specify {@code dataProvider} as
+     * an attribute rather than using a separate annotation).
+     * </p>
+     */
+    /* default */ static final Set<String> TESTNG_TEST_ANNOTATIONS = Set.of("Test");
+
+    /**
      * Prevents instantiation of this utility class.
      */
     private AnnotationInspector() {
+    }
+
+    /**
+     * Returns the effective annotation set to use for test method discovery in
+     * a given compilation unit.
+     *
+     * <p>
+     * When {@code configured} is the {@link #DEFAULT_TEST_ANNOTATIONS default set}
+     * (i.e. the user did not supply a custom {@code -test-annotation} flag or
+     * {@code testAnnotations} YAML entry), the method inspects the compilation
+     * unit's import declarations to detect the test framework and returns the
+     * framework-appropriate annotation set:
+     * </p>
+     *
+     * <ul>
+     *   <li>{@code org.junit.jupiter.*} imports → JUnit 5 ({@link #DEFAULT_TEST_ANNOTATIONS})</li>
+     *   <li>{@code org.junit.*} or {@code junit.framework.*} imports → JUnit 4
+     *       ({@link #JUNIT4_TEST_ANNOTATIONS}, adds {@code Theory})</li>
+     *   <li>{@code org.testng.*} imports → TestNG ({@link #TESTNG_TEST_ANNOTATIONS})</li>
+     * </ul>
+     *
+     * <p>
+     * If multiple frameworks are imported (e.g. during a JUnit 4 → 5 migration),
+     * the union of the matching annotation sets is returned. When no framework
+     * imports are found, {@link #DEFAULT_TEST_ANNOTATIONS} is used as fallback.
+     * </p>
+     *
+     * <p>
+     * When {@code configured} differs from the default set, the caller has
+     * explicitly customised the annotation list; auto-detection is skipped and
+     * {@code configured} is returned unchanged.
+     * </p>
+     *
+     * @param cu         parsed compilation unit whose imports are inspected
+     * @param configured the annotation set from configuration; if equal to
+     *                   {@link #DEFAULT_TEST_ANNOTATIONS}, auto-detection runs
+     * @return effective annotation set for the given file; never {@code null}
+     */
+    /* default */ static Set<String> effectiveAnnotations(CompilationUnit cu, Set<String> configured) {
+        if (!DEFAULT_TEST_ANNOTATIONS.equals(configured)) {
+            return configured;
+        }
+
+        boolean hasJUnit4 = false;
+        boolean hasTestNG = false;
+        for (ImportDeclaration imp : cu.getImports()) {
+            String name = imp.getNameAsString();
+            if (name.startsWith("org.junit.jupiter")) {
+                // JUnit 5 detected — defaults already cover this
+            } else if (name.startsWith("org.junit") || name.startsWith("junit.framework")) {
+                hasJUnit4 = true;
+            } else if (name.startsWith("org.testng")) {
+                hasTestNG = true;
+            }
+        }
+
+        if (!hasJUnit4 && !hasTestNG) {
+            return DEFAULT_TEST_ANNOTATIONS;
+        }
+
+        Set<String> effective = new LinkedHashSet<>(DEFAULT_TEST_ANNOTATIONS);
+        if (hasJUnit4) {
+            effective.addAll(JUNIT4_TEST_ANNOTATIONS);
+        }
+        if (hasTestNG) {
+            effective.addAll(TESTNG_TEST_ANNOTATIONS);
+        }
+        return Collections.unmodifiableSet(effective);
     }
 
     /**

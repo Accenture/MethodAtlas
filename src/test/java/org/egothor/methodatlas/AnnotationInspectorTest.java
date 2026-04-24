@@ -250,6 +250,102 @@ class AnnotationInspectorTest {
     }
 
     // -------------------------------------------------------------------------
+    // effectiveAnnotations — framework auto-detection
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("effectiveAnnotations returns defaults when no test-framework imports are present")
+    @Tag("positive")
+    void effectiveAnnotations_noFrameworkImports_returnsDefaults() {
+        CompilationUnit cu = parse("class C {}");
+        assertEquals(AnnotationInspector.DEFAULT_TEST_ANNOTATIONS,
+                AnnotationInspector.effectiveAnnotations(cu, AnnotationInspector.DEFAULT_TEST_ANNOTATIONS));
+    }
+
+    @Test
+    @DisplayName("effectiveAnnotations returns defaults for JUnit 5 imports")
+    @Tag("positive")
+    void effectiveAnnotations_junit5Imports_returnsDefaults() {
+        CompilationUnit cu = parse("import org.junit.jupiter.api.Test; class C {}");
+        assertEquals(AnnotationInspector.DEFAULT_TEST_ANNOTATIONS,
+                AnnotationInspector.effectiveAnnotations(cu, AnnotationInspector.DEFAULT_TEST_ANNOTATIONS));
+    }
+
+    @Test
+    @DisplayName("effectiveAnnotations includes Theory for JUnit 4 imports")
+    @Tag("positive")
+    void effectiveAnnotations_junit4Imports_includesTheory() {
+        CompilationUnit cu = parse("import org.junit.Test; class C {}");
+        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu,
+                AnnotationInspector.DEFAULT_TEST_ANNOTATIONS);
+        assertTrue(effective.contains("Theory"), "JUnit 4 detection must add Theory");
+        assertTrue(effective.contains("Test"), "Test must remain in effective set");
+    }
+
+    @Test
+    @DisplayName("effectiveAnnotations includes Theory for junit.framework imports")
+    @Tag("positive")
+    void effectiveAnnotations_junitFrameworkImports_includesTheory() {
+        CompilationUnit cu = parse("import junit.framework.TestCase; class C {}");
+        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu,
+                AnnotationInspector.DEFAULT_TEST_ANNOTATIONS);
+        assertTrue(effective.contains("Theory"));
+    }
+
+    @Test
+    @DisplayName("effectiveAnnotations returns Test-only set for TestNG imports")
+    @Tag("positive")
+    void effectiveAnnotations_testNgImports_containsTest() {
+        CompilationUnit cu = parse("import org.testng.annotations.Test; class C {}");
+        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu,
+                AnnotationInspector.DEFAULT_TEST_ANNOTATIONS);
+        assertTrue(effective.contains("Test"));
+    }
+
+    @Test
+    @DisplayName("effectiveAnnotations returns union when both JUnit 4 and JUnit 5 imports are present")
+    @Tag("positive")
+    void effectiveAnnotations_mixedJunit4AndJunit5_returnsUnion() {
+        CompilationUnit cu = parse(
+                "import org.junit.Test; import org.junit.jupiter.api.ParameterizedTest; class C {}");
+        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu,
+                AnnotationInspector.DEFAULT_TEST_ANNOTATIONS);
+        assertTrue(effective.contains("Test"));
+        assertTrue(effective.contains("Theory"), "Union must include JUnit 4's Theory");
+        assertTrue(effective.contains("ParameterizedTest"), "Union must include JUnit 5's ParameterizedTest");
+    }
+
+    @Test
+    @DisplayName("effectiveAnnotations returns custom set unchanged without auto-detection")
+    @Tag("positive")
+    void effectiveAnnotations_customConfigured_returnsCustomWithoutDetection() {
+        CompilationUnit cu = parse("import org.junit.Test; class C {}");
+        Set<String> custom = Set.of("MyTest");
+        assertFalse(AnnotationInspector.effectiveAnnotations(cu, custom).contains("Theory"),
+                "Custom annotation set must be returned as-is, Theory must not be added");
+        assertEquals(custom, AnnotationInspector.effectiveAnnotations(cu, custom));
+    }
+
+    @Test
+    @DisplayName("JUnit 4 @Theory method is detected via auto-detection from imports")
+    @Tag("positive")
+    void effectiveAnnotations_junit4TheoryMethod_isDetected() {
+        CompilationUnit cu = parse(
+                "import org.junit.Test;\n"
+                + "import org.junit.experimental.theories.Theory;\n"
+                + "class AuthTest {\n"
+                + "  @Test public void testLogin() {}\n"
+                + "  @Theory public void loginWithAnyInput(String input) {}\n"
+                + "}");
+        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu,
+                AnnotationInspector.DEFAULT_TEST_ANNOTATIONS);
+        long count = cu.findAll(MethodDeclaration.class).stream()
+                .filter(m -> AnnotationInspector.isJUnitTest(m, effective))
+                .count();
+        assertEquals(2, count, "Both @Test and @Theory methods must be detected");
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
