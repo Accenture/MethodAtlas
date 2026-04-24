@@ -73,7 +73,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
     }
 
     private static String buildMessage(AiMethodSuggestion suggestion, boolean isPlacebo, TagAiDrift drift) {
-        StringBuilder sb = new StringBuilder(128);
+        StringBuilder sb = new StringBuilder(256);
         if (!suggestion.tags().isEmpty()) {
             sb.append("Tags: ").append(String.join(";", suggestion.tags()));
         }

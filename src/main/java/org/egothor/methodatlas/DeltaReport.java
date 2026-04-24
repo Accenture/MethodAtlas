@@ -393,7 +393,6 @@ public final class DeltaReport {
      * falsely reported as modifications.
      * </p>
      */
-    @SuppressWarnings("PMD.NPathComplexity")
     private static Set<String> findChangedFields(ScanRecord before, ScanRecord after) {
         Set<String> changed = new LinkedHashSet<>();
 
@@ -403,28 +402,30 @@ public final class DeltaReport {
         if (!tagsEqual(before.tags(), after.tags())) {
             changed.add("tags");
         }
-        if (before.contentHash() != null && after.contentHash() != null
-                && !before.contentHash().equals(after.contentHash())) {
-            changed.add("source");
-        }
-        if (before.aiSecurityRelevant() != null && after.aiSecurityRelevant() != null
-                && !before.aiSecurityRelevant().equals(after.aiSecurityRelevant())) {
-            changed.add("ai_security_relevant");
-        }
+        addIfBothPresentAndChanged(changed, "source", before.contentHash(), after.contentHash());
+        addIfBothPresentAndChanged(changed, "ai_security_relevant",
+                before.aiSecurityRelevant(), after.aiSecurityRelevant());
         if (before.aiTags() != null && after.aiTags() != null
                 && !new HashSet<>(before.aiTags()).equals(new HashSet<>(after.aiTags()))) {
             changed.add("ai_tags");
         }
-        if (before.aiInteractionScore() != null && after.aiInteractionScore() != null
-                && !before.aiInteractionScore().equals(after.aiInteractionScore())) {
-            changed.add("ai_interaction_score");
-        }
-        if (before.tagAiDrift() != null && after.tagAiDrift() != null
-                && !before.tagAiDrift().equals(after.tagAiDrift())) {
-            changed.add("tag_ai_drift");
-        }
+        addIfBothPresentAndChanged(changed, "ai_interaction_score",
+                before.aiInteractionScore(), after.aiInteractionScore());
+        addIfBothPresentAndChanged(changed, "tag_ai_drift", before.tagAiDrift(), after.tagAiDrift());
 
         return changed;
+    }
+
+    /**
+     * Adds {@code fieldName} to {@code changed} when both values are non-{@code null}
+     * and not equal.  Fields absent from either record (produced by scans with different
+     * flag sets) are skipped so that they are not falsely reported as modifications.
+     */
+    private static void addIfBothPresentAndChanged(Set<String> changed, String fieldName,
+            Object before, Object after) {
+        if (before != null && after != null && !before.equals(after)) {
+            changed.add(fieldName);
+        }
     }
 
     private static boolean tagsEqual(List<String> a, List<String> b) {

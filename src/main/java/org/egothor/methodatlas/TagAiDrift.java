@@ -64,7 +64,7 @@ enum TagAiDrift {
             return null;
         }
         boolean hasTag = sourceTags.stream()
-                .anyMatch(t -> SECURITY_TAG_VALUE.equalsIgnoreCase(t));
+                .anyMatch(SECURITY_TAG_VALUE::equalsIgnoreCase);
         boolean aiSaysSecure = suggestion.securityRelevant();
         if (hasTag == aiSaysSecure) {
             return NONE;
