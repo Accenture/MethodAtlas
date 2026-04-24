@@ -88,6 +88,7 @@ final class CliArgs {
         boolean contentHash = yamlConfig != null && yamlConfig.contentHash;
         Path overrideFilePath = yamlConfig != null && yamlConfig.overrideFile != null
                 ? Paths.get(yamlConfig.overrideFile) : null;
+        boolean securityOnly = yamlConfig != null && yamlConfig.securityOnly;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -114,6 +115,7 @@ final class CliArgs {
                 }
                 case "-test-annotation" -> testAnnotations.add(nextArg(args, ++i, arg));
                 case "-emit-metadata" -> emitMetadata = true;
+                case "-security-only" -> securityOnly = true;
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
                 case "-manual-prepare" -> {
                     manualWorkDir = nextArg(args, ++i, arg);
@@ -147,7 +149,7 @@ final class CliArgs {
         Set<String> resolvedAnnotations = testAnnotations.isEmpty()
                 ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
-                emitMetadata, manualMode, applyTags, contentHash, overrideFilePath);
+                emitMetadata, manualMode, applyTags, contentHash, overrideFilePath, securityOnly);
     }
 
     // -------------------------------------------------------------------------

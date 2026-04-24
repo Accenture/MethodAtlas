@@ -40,8 +40,13 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                        overrides are applied after AI classification (or in
  *                        place of it in static mode) and persist human
  *                        corrections across re-runs
+ * @param securityOnly    when {@code true}, only methods classified as
+ *                        security-relevant (via AI or override) are emitted;
+ *                        methods without an AI suggestion or whose suggestion
+ *                        has {@code securityRelevant=false} are silently
+ *                        dropped from the output
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags,
-        boolean contentHash, Path overrideFile) {
+        boolean contentHash, Path overrideFile, boolean securityOnly) {
 }

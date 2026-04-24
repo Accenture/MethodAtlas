@@ -56,6 +56,7 @@ class CliArgsTest {
         assertFalse(cfg.applyTags());
         assertFalse(cfg.contentHash());
         assertNull(cfg.overrideFile());
+        assertFalse(cfg.securityOnly());
     }
 
     // -------------------------------------------------------------------------
@@ -387,6 +388,27 @@ class CliArgsTest {
         assertEquals(Duration.ofSeconds(30), ai.timeout());
         assertEquals(5, ai.maxRetries());
         assertTrue(ai.confidence());
+    }
+
+    // -------------------------------------------------------------------------
+    // -security-only flag
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("-security-only flag sets securityOnly=true")
+    @Tag("positive")
+    void parse_securityOnlyFlag_setsTrue() {
+        assertTrue(CliArgs.parse("-security-only").securityOnly());
+    }
+
+    @Test
+    @DisplayName("securityOnly from YAML config is applied as default")
+    @Tag("positive")
+    void parse_configWithSecurityOnlyTrue_setsFlag(@TempDir Path tempDir) throws IOException {
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile, "securityOnly: true\n", StandardCharsets.UTF_8);
+
+        assertTrue(CliArgs.parse("-config", configFile.toString()).securityOnly());
     }
 
     // -------------------------------------------------------------------------

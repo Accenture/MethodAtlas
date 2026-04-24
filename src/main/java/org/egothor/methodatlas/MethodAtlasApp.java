@@ -21,6 +21,7 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 import org.egothor.methodatlas.ai.AiClassSuggestion;
+import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.ai.AiSuggestionEngineImpl;
@@ -132,6 +133,10 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * <li>{@code -content-hash} — includes a SHA-256 fingerprint of each class
  * source as a {@code content_hash} column in CSV/plain output and as a SARIF
  * property; useful for detecting which classes changed between scans</li>
+ * <li>{@code -security-only} — suppresses non-security methods from the output;
+ * only methods whose AI classification (or override) has
+ * {@code securityRelevant=true} are emitted; requires AI enrichment or a
+ * classification override file to have any effect</li>
  * <li>{@code -manual-prepare <workdir> <responsedir>} — runs the manual AI
  * prepare phase, writing work files to {@code workdir} and empty response stubs
  * to {@code responsedir}; the two paths may be identical</li>
@@ -299,7 +304,7 @@ public final class MethodAtlasApp {
         TestMethodSink sink = (fqcn, method, beginLine, loc, contentHash, tags, suggestion) ->
                 emitter.emit(mode, fqcn, method, loc, contentHash, tags, suggestion);
 
-        return scan(roots, cliConfig, aiEngine, parser, sink, override);
+        return scan(roots, cliConfig, aiEngine, parser, filterSink(sink, cliConfig.securityOnly()), override);
     }
 
     /**
@@ -463,7 +468,8 @@ public final class MethodAtlasApp {
             JavaParser parser, List<Path> roots, PrintWriter out,
             ClassificationOverride override) throws IOException {
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled);
-        int result = scan(roots, cliConfig, aiEngine, parser, sarifEmitter, override);
+        int result = scan(roots, cliConfig, aiEngine, parser,
+                filterSink(sarifEmitter, cliConfig.securityOnly()), override);
         sarifEmitter.flush(out);
         return result;
     }
@@ -919,6 +925,32 @@ public final class MethodAtlasApp {
             return "file:" + aiOptions.taxonomyFile().toAbsolutePath();
         }
         return "built-in/" + aiOptions.taxonomyMode().name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Wraps a {@link TestMethodSink} so that only security-relevant records are
+     * forwarded to {@code delegate}.
+     *
+     * <p>
+     * When {@code securityOnly} is {@code false} the original {@code delegate} is
+     * returned unchanged (zero overhead). When {@code true}, a wrapper is returned
+     * that drops any record whose {@link AiMethodSuggestion} is {@code null} or
+     * has {@code securityRelevant=false}.
+     * </p>
+     *
+     * @param delegate     the underlying sink to forward matching records to
+     * @param securityOnly whether to enable the filter
+     * @return filtered sink, or {@code delegate} unchanged when filtering is off
+     */
+    private static TestMethodSink filterSink(TestMethodSink delegate, boolean securityOnly) {
+        if (!securityOnly) {
+            return delegate;
+        }
+        return (fqcn, method, beginLine, loc, contentHash, tags, suggestion) -> {
+            if (suggestion != null && suggestion.securityRelevant()) {
+                delegate.record(fqcn, method, beginLine, loc, contentHash, tags, suggestion);
+            }
+        };
     }
 
     /**

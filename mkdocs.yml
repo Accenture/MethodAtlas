@@ -90,6 +90,7 @@ nav:
       - Manual AI Workflow: usage-modes/manual.md
       - Source Write-back: usage-modes/apply-tags.md
       - Delta Report: usage-modes/delta.md
+      - Security-Only Filter: usage-modes/security-only.md
     - CLI Reference:
       - Options: cli-reference.md
       - Examples: cli-examples.md

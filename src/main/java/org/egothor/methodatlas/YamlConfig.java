@@ -117,6 +117,13 @@ final class YamlConfig {
         @JsonProperty("overrideFile")
         /* default */ String overrideFile;
 
+        /**
+         * When {@code true}, only security-relevant methods are emitted; all
+         * other methods are silently dropped from the output.
+         */
+        @JsonProperty("securityOnly")
+        /* default */ boolean securityOnly;
+
         /** AI enrichment settings. */
         @JsonProperty("ai")
         /* default */ YamlAiConfig ai;

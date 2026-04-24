@@ -20,6 +20,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-test-annotation <name>` | Treat methods carrying annotation `name` as test methods; may be repeated; first occurrence replaces the default set | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
 | `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
+| `-security-only` | Suppress non-security methods from all output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect | Off |
 | `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
 | `-diff <before.csv> <after.csv>` | Compare two MethodAtlas scan outputs and emit a delta report; all other flags are ignored | — |
 | `[path ...]` | One or more root paths to scan | Current directory |
@@ -161,6 +162,33 @@ A command-line `-content-hash` flag always overrides the YAML setting.
 - **Incremental scanning** — compare hashes across runs to skip classes that have not changed.
 - **Result traceability** — correlate a SARIF finding back to the exact class revision that produced it.
 - **Change detection in CI** — detect when a class is modified between two pipeline runs without diffing source files.
+
+### `-security-only`
+
+Suppresses all non-security-relevant methods from the output. Only test methods
+whose AI classification (or human override) has `securityRelevant=true` are
+emitted; all others are silently dropped before writing to CSV, plain text, or
+SARIF.
+
+```bash
+# Compact CSV — only security tests
+./methodatlas -ai -security-only src/test/java
+
+# SARIF for GitHub Code Scanning — no level:none noise
+./methodatlas -ai -sarif -security-only src/test/java > security.sarif
+```
+
+The filter requires a source of security classifications. Without `-ai` or
+`-override-file`, every method has `securityRelevant=false` and the output will
+be empty. The flag can also be enabled via YAML configuration:
+
+```yaml
+securityOnly: true
+```
+
+See [Security-Only Filter](usage-modes/security-only.md) for SDLC integration
+examples including GitHub Code Scanning, CI count gates, audit CSV exports, and
+combining with the delta report.
 
 ### `-diff`
 
