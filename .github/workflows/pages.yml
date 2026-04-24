@@ -70,6 +70,10 @@ jobs:
       - name: Generate Javadoc
         run: ./gradlew javadoc
 
+      - name: Run PIT mutation testing
+        run: ./gradlew pitest
+        continue-on-error: true
+
       - name: Set up Python (for MkDocs)
         uses: actions/setup-python@v5
         with:
@@ -88,13 +92,14 @@ jobs:
 
       - name: Copy Java reports into site/
         run: |
-          mkdir -p site/jacoco site/pmd site/spotbugs site/tests site/javadoc
+          mkdir -p site/jacoco site/pmd site/spotbugs site/tests site/javadoc site/pitest
 
           cp -r build/reports/jacoco/test/html/. site/jacoco/
           cp -r build/reports/pmd/.               site/pmd/
           cp -r build/reports/spotbugs/.          site/spotbugs/ 2>/dev/null || true
           cp -r build/reports/tests/test/.        site/tests/
           cp -r build/docs/javadoc/.              site/javadoc/
+          cp -r build/reports/pitest/.            site/pitest/ 2>/dev/null || true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
