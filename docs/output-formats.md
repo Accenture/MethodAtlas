@@ -35,12 +35,12 @@ The hash is a 64-character lowercase hexadecimal string (SHA-256). It is compute
 ### With AI enrichment (`-ai`)
 
 ```text
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.
-com.acme.tests.SampleOneTest,beta,6,param,false,,,
+fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0
+com.acme.tests.SampleOneTest,beta,6,param,false,,,,0.2
 ```
 
-Fields `ai_display_name`, `ai_tags`, and `ai_reason` are empty for non-security-relevant methods.
+Fields `ai_display_name`, `ai_tags`, and `ai_reason` are empty for non-security-relevant methods. `ai_interaction_score` is always present when AI is enabled — see [Interaction Score](ai/interaction-score.md) for its meaning and use in CI gates.
 
 When `-content-hash` is combined with `-ai`, the `content_hash` column appears between `tags` and `ai_security_relevant`:
 
@@ -51,12 +51,12 @@ fqcn,method,loc,tags,content_hash,ai_security_relevant,ai_display_name,ai_tags,a
 ### With AI enrichment and confidence scoring (`-ai -ai-confidence`)
 
 ```text
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_confidence
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.9
-com.acme.tests.SampleOneTest,beta,6,param,false,,,,0.0
+fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_confidence
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0,0.9
+com.acme.tests.SampleOneTest,beta,6,param,false,,,,0.2,0.0
 ```
 
-`ai_confidence` is `0.0` for methods classified as not security-relevant.
+`ai_confidence` is `0.0` for methods classified as not security-relevant. `ai_interaction_score` is always present when AI is enabled.
 
 ### Metadata header
 
@@ -167,6 +167,7 @@ AI enrichment fields are stored in the result `properties` object when AI is ena
 | `aiDisplayName` | Suggested `@DisplayName` text, or omitted |
 | `aiTags` | Semicolon-separated security taxonomy tags, or omitted |
 | `aiReason` | Explanatory rationale from the AI, or omitted |
+| `aiInteractionScore` | Interaction score `0.0–1.0`; present whenever AI is enabled |
 | `aiConfidence` | Confidence score `0.0–1.0`, or omitted when `-ai-confidence` was not passed |
 
 Properties with `null` or absent values are omitted from the JSON output entirely.

@@ -1,4 +1,4 @@
-# Why MethodAtlas
+# What is MethodAtlas
 
 ## The problem
 

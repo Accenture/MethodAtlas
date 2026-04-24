@@ -96,3 +96,7 @@ the per-standard pages for guidance:
 - [ISO/IEC 27001:2022](iso-27001.md)
 - [NIST SP 800-218 (SSDF)](nist-ssdf.md)
 - [DORA](dora.md)
+- [SOC 2](soc2.md)
+
+For environments where outbound connections to an AI provider are not permitted,
+see [Air-Gapped Deployment](air-gapped.md).

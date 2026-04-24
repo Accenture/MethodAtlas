@@ -40,6 +40,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-ai-api-key-env <name>` | Read API key from an environment variable | — |
 | `-ai-taxonomy <path>` | Load taxonomy text from an external file | Built-in taxonomy |
 | `-ai-taxonomy-mode <mode>` | Select built-in taxonomy variant: `default` or `optimized` | `default` |
+| `-ai-cache <file>` | Use a previous scan's CSV as a classification cache; classes whose SHA-256 hash matches are reused without calling the AI provider | — |
 | `-ai-max-class-chars <count>` | Skip AI for classes larger than this character count | `40000` |
 | `-ai-timeout-sec <seconds>` | Request timeout for provider calls | `90` |
 | `-ai-max-retries <count>` | Retry limit for AI operations | `1` |

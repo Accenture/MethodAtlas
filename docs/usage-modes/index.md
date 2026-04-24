@@ -14,8 +14,9 @@ Choose the mode that fits your infrastructure constraints:
 
 - **No AI access at all** → Static inventory gives you the method list; tags can
   be added manually or in a later enrichment step.
-- **Direct API access** → API AI enrichment is the simplest path; all four hosted
-  providers (Ollama, OpenAI, OpenRouter, Anthropic) are supported.
+- **Direct API access** → API AI enrichment is the simplest path; ten providers
+  are supported (Ollama, OpenAI, Anthropic, Azure OpenAI, Mistral, Groq, xAI,
+  GitHub Models, OpenRouter, and `auto`). See [AI Providers](../ai/providers.md).
 - **Air-gapped or policy-restricted** → Manual AI workflow lets you use a
   supervised chat interface without any outbound network calls from the scan host.
 

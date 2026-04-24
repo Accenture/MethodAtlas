@@ -21,28 +21,28 @@ These columns are derived directly from the source code, without any AI
 involvement. They are deterministic and do not change between runs unless
 the source changes.
 
-| Column | Meaning |
-|---|---|
-| `fqcn` | Fully qualified class name — the Java package and class that contains this test |
-| `method` | The name of the test method |
-| `loc` | Inclusive line count of the method declaration |
-| `tags` | JUnit `@Tag` values declared in source (e.g. `security`, `auth`) |
-| `content_hash` | SHA-256 fingerprint of the enclosing class source — enables revision traceability |
+| Column | Present when | Meaning |
+|---|---|---|
+| `fqcn` | Always | Fully qualified class name — the Java package and class that contains this test |
+| `method` | Always | The name of the test method |
+| `loc` | Always | Inclusive line count of the method declaration |
+| `tags` | Always | JUnit `@Tag` values declared in source (e.g. `security`, `auth`) |
+| `content_hash` | `-content-hash` flag | SHA-256 fingerprint of the enclosing class source — enables revision traceability |
 
 ### AI enrichment (present when AI classification is enabled)
 
 These columns are produced by an AI model that reads the test method body
 and classifies it according to a security taxonomy.
 
-| Column | Meaning |
-|---|---|
-| `ai_security_relevant` | `true` if the AI determined this method tests a security property; `false` otherwise |
-| `ai_display_name` | A human-readable description of what the test is verifying (e.g. `SECURITY: auth — login rejects expired tokens`) |
-| `ai_tags` | Security taxonomy tags assigned by the AI (e.g. `auth`, `crypto`, `injection`) |
-| `ai_reason` | The AI's rationale for its classification — one or two sentences explaining why the method is or is not security-relevant |
-| `ai_confidence` | The AI model's certainty in its classification, from `0.0` (uncertain) to `1.0` (certain) |
-| `ai_interaction_score` | A measure of test quality; see below |
-| `tag_ai_drift` | Present when drift detection is enabled; see below |
+| Column | Present when | Meaning |
+|---|---|---|
+| `ai_security_relevant` | AI enabled | `true` if the AI determined this method tests a security property; `false` otherwise |
+| `ai_display_name` | AI enabled | A human-readable description of what the test is verifying (e.g. `SECURITY: auth — login rejects expired tokens`) |
+| `ai_tags` | AI enabled | Security taxonomy tags assigned by the AI (e.g. `auth`, `crypto`, `injection`) |
+| `ai_reason` | AI enabled | The AI's rationale for its classification — one or two sentences explaining why the method is or is not security-relevant |
+| `ai_interaction_score` | AI enabled | A measure of test quality; see below |
+| `ai_confidence` | AI enabled + `-ai-confidence` | The AI model's certainty in its classification, from `0.0` (uncertain) to `1.0` (certain) |
+| `tag_ai_drift` | `-drift-detect` flag | Compares source `@Tag("security")` annotation against AI classification; see below |
 
 ## Understanding the interaction score
 
