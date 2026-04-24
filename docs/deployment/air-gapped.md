@@ -245,6 +245,6 @@ Nexus, or equivalent) so that all scan hosts use the same verified binary.
 
 - [Manual AI Workflow](../usage-modes/manual.md) — complete phase reference
 - [AI Providers — Ollama](../ai/providers.md) — provider configuration details
-- [Regulated Deployment — DORA](dora.md) — DORA Article 25 air-gapped guidance
+- [DORA](dora.md) — DORA Article 25 air-gapped guidance
 - [Data Governance](../concepts/data-governance.md) — what data MethodAtlas
   processes and when

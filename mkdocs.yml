@@ -79,10 +79,11 @@ extra:
 
 nav:
   - Home: index.md
-  - Why MethodAtlas:
-    - Rationale: why-methodatlas.md
+  - Introduction:
+    - What is MethodAtlas: why-methodatlas.md
+    - MethodAtlas and SAST Tools: concepts/vs-sast.md
     - Compliance & Standards: compliance.md
-  - Installation: installation.md
+    - Installation: installation.md
   - User Guide:
     - Usage Modes:
       - Overview: usage-modes/index.md
@@ -92,10 +93,6 @@ nav:
       - Source Write-back: usage-modes/apply-tags.md
       - Delta Report: usage-modes/delta.md
       - Security-Only Filter: usage-modes/security-only.md
-    - CLI Reference:
-      - Options: cli-reference.md
-      - Examples: cli-examples.md
-    - Output Formats: output-formats.md
     - AI Enrichment:
       - Overview: ai/index.md
       - Providers: ai/providers.md
@@ -106,26 +103,30 @@ nav:
       - Custom Taxonomy: ai/custom-taxonomy.md
       - Classification Overrides: ai/overrides.md
       - Tag vs AI Drift: ai/drift-detection.md
-  - Concepts:
-    - MethodAtlas and SAST Tools: concepts/vs-sast.md
-    - Guide for Security Teams: concepts/for-security-teams.md
-    - Developer Remediation Guide: concepts/remediation.md
-    - Data Governance: concepts/data-governance.md
-    - OWASP ASVS Mapping: concepts/asvs-mapping.md
-  - CI/CD:
-    - Overview: ci-setup.md
+    - Remediating Findings: concepts/remediation.md
+  - CI/CD Integration:
+    - Platform Prerequisites: ci-setup.md
     - GitHub Actions: ci/github-actions.md
     - GitLab CI: ci/gitlab.md
-    - Azure DevOps: ci/azure-devops.md
+    - Azure DevOps Pipelines: ci/azure-devops.md
     - Release Gating: ci/release-gating.md
-    - Multi-Module and Monorepo: ci/monorepo.md
-  - Regulated Deployment:
-    - Overview: deployment/index.md
-    - PCI-DSS v4.0: deployment/pci-dss.md
-    - ISO/IEC 27001:2022: deployment/iso-27001.md
-    - NIST SP 800-218 (SSDF): deployment/nist-ssdf.md
-    - DORA: deployment/dora.md
-    - SOC 2: deployment/soc2.md
+    - Multi-Module Projects: ci/monorepo.md
+  - Deployment:
+    - Data Governance: concepts/data-governance.md
     - Air-Gapped Deployment: deployment/air-gapped.md
+    - Regulated Environments:
+      - Overview: deployment/index.md
+      - PCI-DSS v4.0: deployment/pci-dss.md
+      - ISO/IEC 27001:2022: deployment/iso-27001.md
+      - NIST SP 800-218 (SSDF): deployment/nist-ssdf.md
+      - DORA: deployment/dora.md
+      - SOC 2: deployment/soc2.md
+  - Security Teams:
+    - Reading MethodAtlas Reports: concepts/for-security-teams.md
+    - OWASP ASVS Mapping: concepts/asvs-mapping.md
+  - Reference:
+    - CLI Options: cli-reference.md
+    - Output Formats: output-formats.md
+    - CLI Examples: cli-examples.md
+    - Build Reports: reports.md
   - Troubleshooting: troubleshooting.md
-  - Reports: reports.md
