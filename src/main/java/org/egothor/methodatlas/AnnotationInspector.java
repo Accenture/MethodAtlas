@@ -132,8 +132,7 @@ final class AnnotationInspector {
         boolean hasTestNG = false;
         for (ImportDeclaration imp : cu.getImports()) {
             String name = imp.getNameAsString();
-            if (name.startsWith("org.junit.jupiter")) {
-                // JUnit 5 detected — defaults already cover this
+            if (name.startsWith("org.junit.jupiter")) { // NOPMD EmptyControlStatement — JUnit 5 is the default; no action needed
             } else if (name.startsWith("org.junit") || name.startsWith("junit.framework")) {
                 hasJUnit4 = true;
             } else if (name.startsWith("org.testng")) {
