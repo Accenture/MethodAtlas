@@ -107,10 +107,13 @@ nav:
       - Tag vs AI Drift: ai/drift-detection.md
   - Concepts:
     - MethodAtlas and SAST Tools: concepts/vs-sast.md
+    - Guide for Security Teams: concepts/for-security-teams.md
   - CI/CD:
     - Overview: ci-setup.md
     - GitHub Actions: ci/github-actions.md
     - GitLab CI: ci/gitlab.md
+    - Azure DevOps: ci/azure-devops.md
+    - Release Gating: ci/release-gating.md
   - Regulated Deployment:
     - Overview: deployment/index.md
     - PCI-DSS v4.0: deployment/pci-dss.md
