@@ -86,6 +86,9 @@ public final class AiProviderFactory {
             case ANTHROPIC -> requireAvailable(new AnthropicClient(options), "Anthropic API key missing");
             case AZURE_OPENAI -> requireAvailable(new AzureOpenAiClient(options), "Azure OpenAI API key missing");
             case GROQ -> requireAvailable(new OpenAiCompatibleClient(options), "Groq API key missing");
+            case XAI -> requireAvailable(new OpenAiCompatibleClient(options), "xAI API key missing");
+            case GITHUB_MODELS -> requireAvailable(new OpenAiCompatibleClient(options), "GitHub token missing");
+            case MISTRAL -> requireAvailable(new OpenAiCompatibleClient(options), "Mistral API key missing");
             case AUTO -> auto(options);
         };
     }

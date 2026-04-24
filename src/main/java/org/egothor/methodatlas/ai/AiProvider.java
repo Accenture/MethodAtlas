@@ -139,5 +139,45 @@ public enum AiProvider {
      * providers.
      * </p>
      */
-    GROQ
+    GROQ,
+    /**
+     * Uses the <a href="https://x.ai/">xAI</a> API to access Grok models.
+     *
+     * <p>
+     * The xAI platform exposes an OpenAI-compatible REST endpoint at
+     * {@code https://api.x.ai/v1}. Authentication uses a Bearer token.
+     * API keys are available at <a href="https://console.x.ai/">console.x.ai</a>.
+     * </p>
+     */
+    XAI,
+    /**
+     * Uses the <a href="https://github.com/marketplace/models">GitHub Models</a>
+     * free inference service.
+     *
+     * <p>
+     * GitHub Models exposes an OpenAI-compatible endpoint at
+     * {@code https://models.inference.ai.azure.com} and authenticates with a
+     * standard GitHub personal access token ({@code GITHUB_TOKEN}). The free
+     * tier is available to any GitHub account and covers a broad selection of
+     * models from multiple providers (OpenAI, Meta Llama, Mistral, and others).
+     * </p>
+     *
+     * <p>
+     * This provider is well-suited for CI pipelines in open-source projects
+     * where {@code GITHUB_TOKEN} is already available as an environment
+     * variable without additional secret management.
+     * </p>
+     */
+    GITHUB_MODELS,
+    /**
+     * Uses the <a href="https://mistral.ai/">Mistral AI</a> API for inference.
+     *
+     * <p>
+     * Mistral exposes an OpenAI-compatible REST endpoint at
+     * {@code https://api.mistral.ai/v1}. Authentication uses a Bearer token.
+     * A free tier is available at
+     * <a href="https://console.mistral.ai/">console.mistral.ai</a>.
+     * </p>
+     */
+    MISTRAL
 }

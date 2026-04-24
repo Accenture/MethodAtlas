@@ -37,7 +37,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  *   - ParameterizedTest
  * ai:
  *   enabled: true
- *   provider: ollama       # auto | ollama | openai | openrouter | anthropic | azure_openai | groq
+ *   provider: ollama       # auto | ollama | openai | openrouter | anthropic | azure_openai | groq | xai | github_models | mistral
  *   model: qwen2.5-coder:7b
  *   baseUrl: http://localhost:11434
  *   apiKey: sk-...
@@ -151,7 +151,8 @@ final class YamlConfig {
 
         /**
          * AI provider: {@code auto}, {@code ollama}, {@code openai},
-         * {@code openrouter}, {@code anthropic}, {@code azure_openai}, or {@code groq}.
+         * {@code openrouter}, {@code anthropic}, {@code azure_openai},
+         * {@code groq}, {@code xai}, {@code github_models}, or {@code mistral}.
          */
         @JsonProperty("provider")
         /* default */ String provider;

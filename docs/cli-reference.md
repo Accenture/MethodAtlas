@@ -33,7 +33,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | --- | --- | --- |
 | `-ai` | Enable AI enrichment | Off |
 | `-ai-confidence` | Ask the model to include a confidence score (`0.0–1.0`) per classification | Off |
-| `-ai-provider <provider>` | Select provider: `auto`, `ollama`, `openai`, `openrouter`, `anthropic`, `groq` | `auto` |
+| `-ai-provider <provider>` | Select provider: `auto`, `ollama`, `openai`, `openrouter`, `anthropic`, `azure_openai`, `groq`, `xai`, `github_models`, `mistral` | `auto` |
 | `-ai-model <model>` | Provider-specific model identifier | `qwen2.5-coder:7b` |
 | `-ai-base-url <url>` | Override provider base URL | Provider default |
 | `-ai-api-key <key>` | Supply API key directly on the command line | — |
@@ -328,6 +328,9 @@ Selects the provider implementation. Values are case-insensitive.
 | `anthropic` | Anthropic API |
 | `azure_openai` | Azure OpenAI Service deployment (requires `baseUrl` and `model` = deployment name) |
 | `groq` | Groq cloud inference (LPU hardware, OpenAI-compatible API) |
+| `xai` | xAI API — Grok models |
+| `github_models` | GitHub Models free inference (authenticate with `GITHUB_TOKEN`) |
+| `mistral` | Mistral AI API |
 
 ### `-ai-model <model>`
 
@@ -344,6 +347,9 @@ Overrides the provider's default base URL. Useful for self-hosted gateways, prox
 | `openrouter` | `https://openrouter.ai/api` |
 | `anthropic` | `https://api.anthropic.com` |
 | `groq` | `https://api.groq.com/openai` |
+| `xai` | `https://api.x.ai/v1` |
+| `github_models` | `https://models.inference.ai.azure.com` |
+| `mistral` | `https://api.mistral.ai/v1` |
 | `azure_openai` | *(required — no default; set to your resource endpoint)* |
 
 ### `-ai-api-key <key>`

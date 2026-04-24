@@ -6,8 +6,6 @@ MethodAtlas is a CLI tool that scans Java source trees for JUnit test methods an
 
 It is built for teams that must demonstrate test coverage of security properties to auditors, regulators, or security review boards: it separates **deterministic source analysis** from **optional AI interpretation** so that every result is traceable, repeatable, and defensible.
 
----
-
 ## Why MethodAtlas
 
 Security-focused teams in regulated industries need more than a passing test suite. They need to demonstrate *which* tests cover *which* security controls, at a level of detail that satisfies external review.
@@ -23,24 +21,23 @@ MethodAtlas addresses this by turning an existing JUnit 5 test suite into a stru
 | "Classification must be consistent and auditable" | Closed, versioned **security taxonomy** with optional custom taxonomy aligned to your controls framework |
 | "We need confidence scores, not just yes/no" | Per-method AI **confidence scores** (`0.0–1.0`) for threshold-based filtering and human-review queues |
 | "Annotate the source files for us" | **Apply-tags mode** writes `@DisplayName` and `@Tag` annotations directly into source files |
-
----
+| "Our @Tag annotations look stale" | **Tag vs AI drift detection** flags disagreements between source annotations and AI classification |
 
 ## Key capabilities
 
 - **Deterministic test discovery** — JavaParser AST analysis; no inference, no false positives on method existence
 - **SARIF 2.1.0 output** — first-class integration with static analysis platforms and IDE tooling
-- **AI security classification** — classifies each test method against a closed security taxonomy; supports Ollama, OpenAI, OpenRouter, and Anthropic
+- **AI security classification** — classifies each test method against a closed security taxonomy; supports Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, and OpenRouter
 - **Confidence scoring** — per-method decimal score (`-ai-confidence`); filter by threshold for audit packages
 - **Content hash fingerprints** — SHA-256 of the class AST text (`-content-hash`); all methods in the same class share the same hash; enables incremental scanning and change detection
+- **Tag vs AI drift detection** — `-drift-detect` flags methods where `@Tag("security")` in source disagrees with the AI classification
+- **GitHub Actions annotations** — `-github-annotations` emits inline PR annotations for security-relevant methods without requiring a GitHub Advanced Security licence
 - **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent
 - **Manual AI workflow** — two-phase prepare/consume workflow for environments where API access is blocked
 - **Local inference** — Ollama support keeps source code entirely within your network
 - **YAML configuration** — share scan settings across a team or CI pipeline without repeating CLI flags
 - **Custom taxonomy** — supply an external taxonomy file aligned to ISO 27001, NIST SP 800-53, PCI DSS, or your own controls framework
-- **Multiple output modes** — CSV (default), plain text, and SARIF
-
----
+- **Multiple output modes** — CSV (default), plain text, SARIF, and GitHub Actions annotations
 
 ## Quick start
 
@@ -63,11 +60,12 @@ cd methodatlas-<version>/bin
 
 # Apply AI-suggested annotations back into source files
 ./methodatlas -ai -apply-tags /path/to/tests
+
+# GitHub Actions inline PR annotations
+./methodatlas -ai -github-annotations /path/to/tests
 ```
 
 See [docs/cli-reference.md](docs/cli-reference.md) for the complete option reference.
-
----
 
 ## What MethodAtlas reports
 
@@ -92,8 +90,7 @@ For each discovered JUnit test method, MethodAtlas emits one record.
 | `ai_tags` | Suggested security taxonomy tags (e.g. `security;auth`, `security;crypto`) |
 | `ai_reason` | Short rationale for the classification |
 | `ai_confidence` | Model confidence score `0.0–1.0` (opt-in via `-ai-confidence`) |
-
----
+| `tag_ai_drift` | Disagreement between source `@Tag("security")` and AI classification (opt-in via `-drift-detect`) |
 
 ## Output modes
 
@@ -127,9 +124,15 @@ SARIF is natively consumed by:
 
 Human-readable line-oriented output, useful for terminal inspection and shell scripting.
 
-See [docs/output-formats.md](docs/output-formats.md) for full format descriptions and examples.
+### GitHub Actions annotations
 
----
+```bash
+./methodatlas -ai -github-annotations /path/to/tests
+```
+
+Emits `::notice` / `::warning` workflow commands that GitHub Actions renders as inline annotations on the PR diff. Does not require a GitHub Advanced Security licence.
+
+See [docs/output-formats.md](docs/output-formats.md) for full format descriptions and examples.
 
 ## SARIF for regulated environments
 
@@ -138,11 +141,9 @@ SARIF is the OASIS standard interchange format for static analysis results. Adop
 A SARIF result from MethodAtlas includes:
 - **Physical location** — source file path relative to `%SRCROOT%` and the method's start line
 - **Logical location** — fully qualified method name (`com.acme.auth.LoginTest.testLoginWithValidCredentials`) with kind `member`
-- **Properties bag** — `loc`, optional `contentHash`, and all AI enrichment fields
+- **Properties bag** — `loc`, optional `contentHash`, and all AI enrichment fields including `tagAiDrift`
 
 This makes each SARIF finding independently traceable to a specific method in a specific class at a specific revision.
-
----
 
 ## AI security classification
 
@@ -156,13 +157,20 @@ Because discovery is AST-based and AI classification is constrained by a fixed t
 
 ### Supported providers
 
-| Provider | Value | Deployment |
-| --- | --- | --- |
-| Ollama | `ollama` | Local; source code stays on-premises |
-| Auto | `auto` | Tries Ollama first; falls back to API-key provider |
-| OpenAI | `openai` | Cloud |
-| OpenRouter | `openrouter` | Cloud (access to many models) |
-| Anthropic | `anthropic` | Cloud |
+| Provider value | AI product / platform | Deployment | Free tier |
+| --- | --- | --- | --- |
+| `ollama` | Any locally installed model | Local — source never leaves the machine | — |
+| `auto` | Ollama → API key fallback | Local first, cloud fallback | — |
+| `openai` | ChatGPT / OpenAI API | Cloud | No |
+| `anthropic` | Claude / Anthropic API | Cloud | No |
+| `xai` | Grok / xAI API | Cloud | Limited |
+| `groq` | Groq (fast LPU inference) | Cloud | Yes |
+| `github_models` | GitHub Models | Cloud | Yes (GitHub account) |
+| `mistral` | Mistral AI | Cloud (EU) | Limited |
+| `openrouter` | Many models via OpenRouter | Cloud | Yes (free models) |
+| `azure_openai` | Azure OpenAI Service | Customer's Azure tenant | No |
+
+See [docs/ai/providers.md](docs/ai/providers.md) for per-provider setup instructions, including which well-known AI assistant corresponds to which provider value.
 
 ### Confidence scoring
 
@@ -182,8 +190,6 @@ Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method:
 
 See [docs/ai-guide.md](docs/ai-guide.md) for the full interpretation guide.
 
----
-
 ## Content hash fingerprints
 
 Pass `-content-hash` to append a SHA-256 fingerprint of each class to every emitted record:
@@ -198,8 +204,6 @@ Practical applications:
 - **Incremental scanning** — skip classes whose hash has not changed since the last run
 - **Audit traceability** — correlate a SARIF finding back to the exact class revision that produced it
 - **CI change detection** — detect modified test classes between two pipeline stages without diffing source files
-
----
 
 ## Manual AI workflow
 
@@ -219,8 +223,6 @@ For environments where direct AI API access is blocked by corporate policy, Meth
 All taxonomy and confidence flags apply equally in manual mode. The consume phase is incremental — you can process classes as responses arrive rather than waiting for the full batch.
 
 See [docs/ai-guide.md](docs/ai-guide.md#manual-ai-workflow) for the complete workflow.
-
----
 
 ## YAML configuration
 
@@ -243,8 +245,6 @@ ai:
 
 Command-line flags always override YAML values. See [docs/cli-reference.md](docs/cli-reference.md#-config-file) for the complete field reference.
 
----
-
 ## Distribution layout
 
 ```text
@@ -259,12 +259,12 @@ methodatlas-<version>/
 
 The startup scripts in `bin/` configure the classpath automatically to include all JARs in `lib/`, so no manual setup is required after extraction.
 
----
-
 ## Documentation
 
 | Document | Contents |
 | --- | --- |
 | [docs/cli-reference.md](docs/cli-reference.md) | Complete option reference, YAML schema, and example commands |
-| [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, and SARIF output format descriptions |
+| [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, and GitHub Annotations format descriptions |
 | [docs/ai-guide.md](docs/ai-guide.md) | AI providers, confidence scoring, taxonomy, apply-tags workflow, manual workflow |
+| [docs/ai/providers.md](docs/ai/providers.md) | Per-provider setup: Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter |
+| [docs/ai/drift-detection.md](docs/ai/drift-detection.md) | Tag vs AI drift detection: detecting stale `@Tag("security")` annotations |

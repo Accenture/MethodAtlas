@@ -2,6 +2,29 @@
 
 Each provider differs in where requests are sent, what authentication is required, and what data-sovereignty guarantees it offers. This page covers each provider in detail.
 
+## Which AI product uses which provider?
+
+Many well-known AI assistants are end-user products — not developer APIs. When users encounter them as colleagues' tools (ChatGPT, Claude, Copilot, Grok), they may not know which underlying API to configure in MethodAtlas. This table maps the most common AI products to the correct provider value.
+
+| AI assistant / product | Underlying platform | MethodAtlas provider | Free tier |
+| --- | --- | --- | --- |
+| **ChatGPT** (OpenAI) | OpenAI API | `openai` | No |
+| **Claude** (Anthropic) | Anthropic API | `anthropic` | No |
+| **Grok** (xAI) | xAI API (OpenAI-compatible) | `xai` | Limited |
+| **GitHub Copilot** | GitHub proprietary — IDE tool | *not applicable* | — |
+| **Microsoft Copilot / M365 Copilot** | Microsoft Graph — enterprise product | *not applicable* | — |
+| **Gemini** (Google) | Google AI / Vertex AI | *not yet supported* | Yes |
+| **GitHub Models** | OpenAI-compatible inference by GitHub | `github_models` | Yes (GitHub account) |
+| **Meta Llama** (any platform) | Varies — use a hosting service | `groq`, `openrouter`, `ollama` | Via partner |
+| **Mistral Le Chat** | Mistral AI API | `mistral` | Limited |
+| **Local models** (LM Studio, Ollama, etc.) | Local HTTP | `ollama` | — |
+
+**GitHub Copilot** and **Microsoft Copilot / M365 Copilot** are end-user productivity assistants embedded in IDEs, Office, and Teams. They do not expose a public inference API that external tools can call. There is no MethodAtlas provider for them because they cannot be used programmatically for custom classification tasks.
+
+**Google Gemini** uses a proprietary API format that differs from the OpenAI-compatible interface used by all other providers on this list. A native Gemini client is not yet implemented in MethodAtlas. As a workaround, Gemini models are available through OpenRouter (use `openrouter` with a Gemini model identifier).
+
+**Meta Llama** models have no official hosted API. They are available through third-party services: Groq hosts several Llama variants on free-tier LPU hardware (`groq`), OpenRouter aggregates Llama access across many providers (`openrouter`), and Ollama runs them locally (`ollama`).
+
 ## Ollama — local inference
 
 **What it is:** [Ollama](https://ollama.ai/) is an open-source runtime that runs large language models entirely on your local machine. No data leaves the host, no API key is required, and no account is needed.
@@ -194,6 +217,80 @@ ai:
 ```
 
 **Recommended models:** `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`. Check [console.groq.com/docs/models](https://console.groq.com/docs/models) for the current list.
+
+## xAI — Grok models
+
+**What it is:** [xAI](https://x.ai/) is the company behind the Grok family of language models. It exposes an OpenAI-compatible REST API at `https://api.x.ai/v1`. API keys are available at [console.x.ai](https://console.x.ai/).
+
+**Data residency:** Requests are sent to xAI's infrastructure. Data leaves the organization's control.
+
+**Regulatory perspective:** Not suitable for environments that prohibit transmitting source code to external services.
+
+**Credentials:** An xAI API key from [console.x.ai](https://console.x.ai/).
+
+**Configuration:**
+
+```bash
+export XAI_API_KEY=xai-...
+./methodatlas -ai -ai-provider xai \
+  -ai-api-key-env XAI_API_KEY \
+  -ai-model grok-3-mini \
+  /path/to/tests
+```
+
+**Recommended models:** `grok-3`, `grok-3-mini`, `grok-2`. Check [x.ai/api](https://x.ai/api) for the current list.
+
+## GitHub Models — free inference with a GitHub account
+
+**What it is:** [GitHub Models](https://github.com/marketplace/models) is a free inference service that makes a broad selection of models available to any GitHub account holder. It uses an OpenAI-compatible endpoint and authenticates with a standard GitHub personal access token or the `GITHUB_TOKEN` available in every GitHub Actions workflow — no separate API key or billing setup is required.
+
+**Data residency:** Requests are processed on Microsoft Azure infrastructure on behalf of GitHub. Data leaves the organization's control.
+
+**Regulatory perspective:** Suitable for open-source projects and public CI pipelines. Not suitable for environments that prohibit transmitting source code to cloud services.
+
+**Credentials:** A GitHub personal access token or the `GITHUB_TOKEN` Actions secret.
+
+**Configuration:**
+
+```bash
+./methodatlas -ai -ai-provider github_models \
+  -ai-api-key-env GITHUB_TOKEN \
+  -ai-model gpt-4o-mini \
+  /path/to/tests
+```
+
+In a GitHub Actions workflow, `GITHUB_TOKEN` is injected automatically:
+
+```yaml
+- name: Run MethodAtlas
+  run: ./methodatlas -ai -ai-provider github_models -ai-model gpt-4o-mini ${{ github.workspace }}/src/test
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**Available models:** GPT-4o, GPT-4o mini, Meta Llama 3.x, Mistral Large, Phi-4, and others. See [github.com/marketplace/models](https://github.com/marketplace/models) for the current list.
+
+## Mistral AI
+
+**What it is:** [Mistral AI](https://mistral.ai/) is a European AI company offering a family of open-weight models with an OpenAI-compatible API at `https://api.mistral.ai/v1`. A free tier is available at [console.mistral.ai](https://console.mistral.ai/).
+
+**Data residency:** Requests are processed within the European Union on Mistral's infrastructure. This makes Mistral one of the few cloud providers suitable for organizations with EU-only data residency requirements that cannot host models locally.
+
+**Regulatory perspective:** The EU data residency may satisfy GDPR-based restrictions on data transfers outside the EU, but confirm with your legal team. Mistral's enterprise agreements may offer additional guarantees.
+
+**Credentials:** A Mistral API key from [console.mistral.ai](https://console.mistral.ai/).
+
+**Configuration:**
+
+```bash
+export MISTRAL_API_KEY=...
+./methodatlas -ai -ai-provider mistral \
+  -ai-api-key-env MISTRAL_API_KEY \
+  -ai-model mistral-small-latest \
+  /path/to/tests
+```
+
+**Recommended models:** `mistral-small-latest`, `mistral-large-latest`, `codestral-latest` (code-specialized). Check [docs.mistral.ai/getting-started/models](https://docs.mistral.ai/getting-started/models/) for the current list.
 
 ## Auto mode
 

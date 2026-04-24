@@ -240,6 +240,108 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with XAI provider returns OpenAiCompatibleClient when isAvailable() is true")
+    @Tag("positive")
+    void create_withXaiProvider_returnsOpenAiCompatibleClientWhenAvailable() throws Exception {
+        AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.XAI).apiKey("xai-test-key")
+                .build();
+
+        try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true))) {
+
+            AiProviderClient client = AiProviderFactory.create(options);
+
+            assertInstanceOf(OpenAiCompatibleClient.class, client);
+            assertEquals(1, mocked.constructed().size());
+            assertSame(mocked.constructed().get(0), client);
+        }
+    }
+
+    @Test
+    @DisplayName("create with XAI provider throws AiSuggestionException with 'xAI API key missing' when unavailable")
+    @Tag("negative")
+    void create_withXaiProvider_throwsWhenUnavailable() {
+        AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.XAI).build();
+
+        try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false))) {
+
+            AiSuggestionException ex = assertThrows(AiSuggestionException.class,
+                    () -> AiProviderFactory.create(options));
+
+            assertEquals("xAI API key missing", ex.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("create with GITHUB_MODELS provider returns OpenAiCompatibleClient when isAvailable() is true")
+    @Tag("positive")
+    void create_withGithubModelsProvider_returnsOpenAiCompatibleClientWhenAvailable() throws Exception {
+        AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.GITHUB_MODELS)
+                .apiKey("ghp_test_token").build();
+
+        try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true))) {
+
+            AiProviderClient client = AiProviderFactory.create(options);
+
+            assertInstanceOf(OpenAiCompatibleClient.class, client);
+            assertEquals(1, mocked.constructed().size());
+            assertSame(mocked.constructed().get(0), client);
+        }
+    }
+
+    @Test
+    @DisplayName("create with GITHUB_MODELS provider throws AiSuggestionException with 'GitHub token missing' when unavailable")
+    @Tag("negative")
+    void create_withGithubModelsProvider_throwsWhenUnavailable() {
+        AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.GITHUB_MODELS).build();
+
+        try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false))) {
+
+            AiSuggestionException ex = assertThrows(AiSuggestionException.class,
+                    () -> AiProviderFactory.create(options));
+
+            assertEquals("GitHub token missing", ex.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("create with MISTRAL provider returns OpenAiCompatibleClient when isAvailable() is true")
+    @Tag("positive")
+    void create_withMistralProvider_returnsOpenAiCompatibleClientWhenAvailable() throws Exception {
+        AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.MISTRAL).apiKey("mistral-test-key")
+                .build();
+
+        try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true))) {
+
+            AiProviderClient client = AiProviderFactory.create(options);
+
+            assertInstanceOf(OpenAiCompatibleClient.class, client);
+            assertEquals(1, mocked.constructed().size());
+            assertSame(mocked.constructed().get(0), client);
+        }
+    }
+
+    @Test
+    @DisplayName("create with MISTRAL provider throws AiSuggestionException with 'Mistral API key missing' when unavailable")
+    @Tag("negative")
+    void create_withMistralProvider_throwsWhenUnavailable() {
+        AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.MISTRAL).build();
+
+        try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false))) {
+
+            AiSuggestionException ex = assertThrows(AiSuggestionException.class,
+                    () -> AiProviderFactory.create(options));
+
+            assertEquals("Mistral API key missing", ex.getMessage());
+        }
+    }
+
+    @Test
     @DisplayName("create with GROQ provider returns OpenAiCompatibleClient when isAvailable() is true")
     @Tag("positive")
     void create_withGroqProvider_returnsOpenAiCompatibleClientWhenAvailable() throws Exception {
