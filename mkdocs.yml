@@ -89,6 +89,7 @@ nav:
       - API AI Enrichment: usage-modes/api-ai.md
       - Manual AI Workflow: usage-modes/manual.md
       - Source Write-back: usage-modes/apply-tags.md
+      - Delta Report: usage-modes/delta.md
     - CLI Reference:
       - Options: cli-reference.md
       - Examples: cli-examples.md

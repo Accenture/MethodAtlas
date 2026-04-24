@@ -21,6 +21,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
 | `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
+| `-diff <before.csv> <after.csv>` | Compare two MethodAtlas scan outputs and emit a delta report; all other flags are ignored | — |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
 ## AI options
@@ -160,6 +161,27 @@ A command-line `-content-hash` flag always overrides the YAML setting.
 - **Incremental scanning** — compare hashes across runs to skip classes that have not changed.
 - **Result traceability** — correlate a SARIF finding back to the exact class revision that produced it.
 - **Change detection in CI** — detect when a class is modified between two pipeline runs without diffing source files.
+
+### `-diff`
+
+Compares two MethodAtlas CSV scan outputs and emits a delta report showing which
+test methods were added, removed, or modified between the two runs. All other
+flags are ignored when `-diff` is present.
+
+```bash
+./methodatlas -diff scan-before.csv scan-after.csv
+```
+
+Change-type indicators: `+` added, `-` removed, `~` modified (with a bracketed
+summary of which fields changed). A summary line at the end shows counts and the
+change in security-relevant method count.
+
+The flag accepts only CSV files produced by MethodAtlas. For the richest output,
+produce both input files with `-content-hash` (enables source-change detection)
+and `-ai` (enables classification-change detection).
+
+See [Delta Report](usage-modes/delta.md) for the full workflow, CI integration
+examples, and regulatory context.
 
 ### `-override-file`
 

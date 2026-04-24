@@ -138,6 +138,9 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * <li>{@code -manual-consume <workdir> <responsedir>} — runs the manual AI
  * consume phase, reading response files from {@code responsedir} and emitting
  * the final enriched CSV</li>
+ * <li>{@code -diff <before.csv> <after.csv>} — compares two MethodAtlas scan
+ * outputs and emits a delta report showing added, removed, and modified test
+ * methods; all other flags are ignored when {@code -diff} is present</li>
  * </ul>
  *
  * <p>
@@ -234,6 +237,17 @@ public final class MethodAtlasApp {
      *                                  cannot be created successfully
      */
     /* default */ static int run(String[] args, PrintWriter out) throws IOException {
+        // -diff is handled before full argument parsing; all other flags are ignored.
+        for (int i = 0; i < args.length; i++) {
+            if ("-diff".equals(args[i])) {
+                if (i + 2 >= args.length) {
+                    throw new IllegalArgumentException(
+                            "-diff requires two arguments: -diff <before.csv> <after.csv>");
+                }
+                return runDiff(Path.of(args[i + 1]), Path.of(args[i + 2]), out);
+            }
+        }
+
         ParserConfiguration parserConfiguration = new ParserConfiguration();
         parserConfiguration.setLanguageLevel(LanguageLevel.JAVA_21);
         JavaParser parser = new JavaParser(parserConfiguration);
@@ -286,6 +300,23 @@ public final class MethodAtlasApp {
                 emitter.emit(mode, fqcn, method, loc, contentHash, tags, suggestion);
 
         return scan(roots, cliConfig, aiEngine, parser, sink, override);
+    }
+
+    /**
+     * Runs the delta report path: compares two scan CSV outputs and emits the
+     * difference.
+     *
+     * @param before path to the <em>before</em> scan CSV
+     * @param after  path to the <em>after</em> scan CSV
+     * @param out    writer that receives the delta report
+     * @return {@code 0} always; errors reading the files propagate as exceptions
+     * @throws IOException              if either file cannot be read
+     * @throws IllegalArgumentException if a required CSV column is absent
+     */
+    private static int runDiff(Path before, Path after, PrintWriter out) throws IOException {
+        DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
+        DeltaEmitter.emit(result, out);
+        return 0;
     }
 
     /**
