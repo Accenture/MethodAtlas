@@ -169,7 +169,7 @@ A summary line is always printed to standard output:
 Apply-tags complete: 12 annotation(s) added to 3 file(s)
 ```
 
-See [ai-guide.md](ai-guide.md#apply-tags-workflow) for the complete workflow and formatting guarantees.
+See [Source Write-back](usage-modes/apply-tags.md) for the complete workflow and formatting guarantees.
 
 ### `-ai`
 
@@ -177,7 +177,7 @@ Enables AI enrichment. Without this flag, MethodAtlas behaves as a pure static s
 
 ### `-ai-confidence`
 
-Instructs the model to include a confidence score for each classification. The score appears as `ai_confidence` in CSV output (or `AI_CONFIDENCE=` in plain mode). Scores range from `0.0` (not security-relevant) to `1.0` (explicitly and unambiguously tests a named security property). See [ai-guide.md](ai-guide.md#ai-confidence-scoring) for the full interpretation table.
+Instructs the model to include a confidence score for each classification. The score appears as `ai_confidence` in CSV output (or `AI_CONFIDENCE=` in plain mode). Scores range from `0.0` (not security-relevant) to `1.0` (explicitly and unambiguously tests a named security property). See [Confidence scoring](ai/confidence.md) for the full interpretation table.
 
 ### `-ai-provider <provider>`
 
@@ -190,6 +190,7 @@ Selects the provider implementation. Values are case-insensitive.
 | `openai` | OpenAI API |
 | `openrouter` | OpenRouter API |
 | `anthropic` | Anthropic API |
+| `azure_openai` | Azure OpenAI Service deployment (requires `baseUrl` and `model` = deployment name) |
 
 ### `-ai-model <model>`
 
@@ -205,6 +206,7 @@ Overrides the provider's default base URL. Useful for self-hosted gateways, prox
 | `openai` | `https://api.openai.com` |
 | `openrouter` | `https://openrouter.ai/api` |
 | `anthropic` | `https://api.anthropic.com` |
+| `azure_openai` | *(required — no default; set to your resource endpoint)* |
 
 ### `-ai-api-key <key>`
 
@@ -246,7 +248,7 @@ Sets the retry limit for failed AI operations. The default is 1.
 
 ### `-manual-prepare <workdir> <responsedir>`
 
-Runs the prepare phase of the manual AI workflow. For each test class MethodAtlas writes a work file containing the AI prompt and creates an empty response placeholder. No CSV is emitted. See [ai-guide.md](ai-guide.md#manual-ai-workflow) for the full workflow.
+Runs the prepare phase of the manual AI workflow. For each test class MethodAtlas writes a work file containing the AI prompt and creates an empty response placeholder. No CSV is emitted. See [Manual AI workflow](usage-modes/manual.md) for the full workflow.
 
 ### `-manual-consume <workdir> <responsedir>`
 

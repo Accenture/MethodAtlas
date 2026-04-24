@@ -34,7 +34,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  *   - ParameterizedTest
  * ai:
  *   enabled: true
- *   provider: ollama       # auto | ollama | openai | openrouter | anthropic
+ *   provider: ollama       # auto | ollama | openai | openrouter | anthropic | azure_openai
  *   model: qwen2.5-coder:7b
  *   baseUrl: http://localhost:11434
  *   apiKey: sk-...
@@ -45,6 +45,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  *   timeoutSec: 30
  *   maxRetries: 3
  *   confidence: false
+ *   apiVersion: 2024-02-01 # Azure OpenAI REST API version (azure_openai only)
  * </pre>
  *
  * <p>
@@ -125,7 +126,7 @@ final class YamlConfig {
 
         /**
          * AI provider: {@code auto}, {@code ollama}, {@code openai},
-         * {@code openrouter}, or {@code anthropic}.
+         * {@code openrouter}, {@code anthropic}, or {@code azure_openai}.
          */
         @JsonProperty("provider")
         /* default */ String provider;
@@ -169,5 +170,12 @@ final class YamlConfig {
         /** Whether to request a confidence score for each classification. */
         @JsonProperty("confidence")
         /* default */ Boolean confidence;
+
+        /**
+         * Azure OpenAI REST API version appended as the {@code api-version} query
+         * parameter; only used when {@code provider: azure_openai} is set.
+         */
+        @JsonProperty("apiVersion")
+        /* default */ String apiVersion;
     }
 }

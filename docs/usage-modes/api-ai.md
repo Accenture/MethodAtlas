@@ -23,7 +23,7 @@ with blank AI columns.
 !!! info "What is transmitted to the provider"
     Only the test class source file is submitted. Production source code,
     configuration files, and all other project content are never read or
-    transmitted. See [AI Enrichment](../ai-guide.md) for the complete data scope statement.
+    transmitted. See [AI Enrichment overview](../ai/index.md) for the complete data scope statement.
     For environments where external API calls are not permitted, use the
     [Manual AI workflow](manual.md) instead.
 
@@ -46,6 +46,22 @@ When `-ai-provider auto` (the default) is used, MethodAtlas probes Ollama first
 and falls back to an API-key provider if Ollama is unreachable.
 
 ## Hosted providers
+
+### Azure OpenAI
+
+Azure OpenAI runs inside your organization's Azure tenant. Data does not leave the tenant boundary.
+
+```bash
+export AZURE_OPENAI_KEY=<your-key>
+./methodatlas -ai \
+  -ai-provider azure_openai \
+  -ai-base-url https://contoso.openai.azure.com \
+  -ai-model gpt-4o-prod \
+  -ai-api-key-env AZURE_OPENAI_KEY \
+  src/test/java
+```
+
+`model` is the **deployment name** as configured in the Azure portal, not the underlying model family name. See [Providers — Azure OpenAI](../ai/providers.md#azure-openai-corporate-cloud-inference) for credential setup instructions.
 
 ### OpenRouter
 
@@ -93,8 +109,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 Adds an `ai_confidence` column (values `0.0`–`1.0`). See
-[AI Enrichment — Confidence scoring](../ai-guide.md#ai-confidence-scoring) for
-the interpretation table.
+[Confidence scoring](../ai/confidence.md) for the interpretation table.
 
 ## Output columns (CSV)
 
@@ -123,4 +138,4 @@ the interpretation table.
 ./methodatlas -ai -ai-max-class-chars 20000 src/test/java
 ```
 
-See [AI Enrichment](../ai-guide.md) for the full provider configuration guide.
+See [Providers](../ai/providers.md) for the full provider configuration guide.

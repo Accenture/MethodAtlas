@@ -168,5 +168,5 @@ CLI flags always override values from the configuration file.
 
 - [Usage Modes](usage-modes/index.md) — overview of all operating modes and when to use each
 - [CLI Reference](cli-reference.md) — full list of flags and options
-- [AI Enrichment](ai-guide.md) — provider setup, taxonomy, and manual workflow
+- [AI Enrichment](ai/index.md) — provider setup, taxonomy, and manual workflow
 - [CI/CD Setup](ci-setup.md) — GitHub Actions and Gitea pipelines

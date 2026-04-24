@@ -54,13 +54,17 @@ import java.util.Objects;
  *                      confidence score for each security-relevant method
  *                      classification; requires model support and increases
  *                      token usage slightly
+ * @param apiVersion    Azure OpenAI REST API version used to construct the
+ *                      deployment endpoint; only consulted when
+ *                      {@link AiProvider#AZURE_OPENAI} is selected; defaults
+ *                      to {@link #DEFAULT_API_VERSION}
  *
  * @see AiSuggestionEngine
  * @see Builder
  */
 public record AiOptions(boolean enabled, AiProvider provider, String modelName, String baseUrl, String apiKey,
         String apiKeyEnv, Path taxonomyFile, TaxonomyMode taxonomyMode, int maxClassChars, Duration timeout,
-        int maxRetries, boolean confidence) {
+        int maxRetries, boolean confidence, String apiVersion) {
     /**
      * Built-in taxonomy modes used for security classification.
      *
@@ -99,6 +103,19 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
     public static final String DEFAULT_MODEL = "qwen2.5-coder:7b";
 
     /**
+     * Default Azure OpenAI REST API version used when {@link AiProvider#AZURE_OPENAI}
+     * is selected and no explicit version is configured.
+     *
+     * <p>
+     * This value targets the generally-available Chat Completions API. Newer
+     * preview versions may be required to access features such as structured
+     * outputs or reasoning models; override via {@link Builder#apiVersion(String)}
+     * or the {@code apiVersion} YAML field when needed.
+     * </p>
+     */
+    public static final String DEFAULT_API_VERSION = "2024-02-01";
+
+    /**
      * Canonical constructor performing validation of configuration parameters.
      *
      * <p>
@@ -128,6 +145,9 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         }
         if (maxRetries < 0) {
             throw new IllegalArgumentException("maxRetries must be >= 0");
+        }
+        if (apiVersion == null || apiVersion.isBlank()) {
+            throw new IllegalArgumentException("apiVersion must not be blank");
         }
     }
 
@@ -202,6 +222,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         private Duration timeout = Duration.ofSeconds(90);
         private int maxRetries = 1;
         private boolean confidence;
+        private String apiVersion = DEFAULT_API_VERSION;
 
         /**
          * Enables or disables AI enrichment.
@@ -342,6 +363,24 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         }
 
         /**
+         * Sets the Azure OpenAI REST API version used to construct the deployment
+         * endpoint.
+         *
+         * <p>
+         * This value is only used when {@link AiProvider#AZURE_OPENAI} is selected.
+         * It is appended as the {@code api-version} query parameter to the chat
+         * completions URL. The default value is {@link AiOptions#DEFAULT_API_VERSION}.
+         * </p>
+         *
+         * @param apiVersion REST API version string, for example {@code 2024-02-01}
+         * @return this builder
+         */
+        public Builder apiVersion(String apiVersion) {
+            this.apiVersion = apiVersion;
+            return this;
+        }
+
+        /**
          * Builds the final immutable {@link AiOptions} configuration.
          *
          * <p>
@@ -361,11 +400,13 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
                     case OPENAI -> "https://api.openai.com";
                     case OPENROUTER -> "https://openrouter.ai/api";
                     case ANTHROPIC -> "https://api.anthropic.com";
+                    case AZURE_OPENAI -> throw new IllegalArgumentException(
+                            "baseUrl is required for AZURE_OPENAI: set it to https://<resource>.openai.azure.com");
                 };
             }
 
             return new AiOptions(enabled, effectiveProvider, modelName, effectiveBaseUrl, apiKey, apiKeyEnv,
-                    taxonomyFile, taxonomyMode, maxClassChars, timeout, maxRetries, confidence);
+                    taxonomyFile, taxonomyMode, maxClassChars, timeout, maxRetries, confidence, apiVersion);
         }
     }
 }

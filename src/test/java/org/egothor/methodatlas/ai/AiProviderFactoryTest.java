@@ -21,6 +21,13 @@ import org.mockito.MockedConstruction;
  * checks, and produces the expected {@link AiSuggestionException} messages when
  * a provider is unavailable or no provider can be selected in AUTO mode.
  * </p>
+ *
+ * <p>
+ * Coverage includes all explicit providers ({@link AiProvider#OLLAMA},
+ * {@link AiProvider#OPENAI}, {@link AiProvider#OPENROUTER},
+ * {@link AiProvider#ANTHROPIC}, {@link AiProvider#AZURE_OPENAI}) and the
+ * automatic provider selection strategy ({@link AiProvider#AUTO}).
+ * </p>
  */
 @Tag("unit")
 @Tag("ai-provider-factory")
@@ -206,6 +213,50 @@ class AiProviderFactoryTest {
                     ex.getMessage());
             assertEquals(1, ollamaMocked.constructed().size());
             assertEquals(0, openAiMocked.constructed().size());
+        }
+    }
+
+    @Test
+    @DisplayName("create with AZURE_OPENAI provider returns AzureOpenAiClient when isAvailable() is true")
+    @Tag("positive")
+    void create_withAzureOpenAiProvider_returnsAzureOpenAiClientWhenAvailable() throws Exception {
+        AiOptions options = AiOptions.builder()
+                .enabled(true)
+                .provider(AiProvider.AZURE_OPENAI)
+                .baseUrl("https://contoso.openai.azure.com")
+                .modelName("my-gpt4o-deployment")
+                .apiKey("azure-test-key")
+                .build();
+
+        try (MockedConstruction<AzureOpenAiClient> mocked = mockConstruction(AzureOpenAiClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true))) {
+
+            AiProviderClient client = AiProviderFactory.create(options);
+
+            assertInstanceOf(AzureOpenAiClient.class, client);
+            assertEquals(1, mocked.constructed().size());
+            assertSame(mocked.constructed().get(0), client);
+        }
+    }
+
+    @Test
+    @DisplayName("create with AZURE_OPENAI provider throws AiSuggestionException with 'Azure OpenAI API key missing' when unavailable")
+    @Tag("negative")
+    void create_withAzureOpenAiProvider_throwsWhenUnavailable() {
+        AiOptions options = AiOptions.builder()
+                .enabled(true)
+                .provider(AiProvider.AZURE_OPENAI)
+                .baseUrl("https://contoso.openai.azure.com")
+                .build();
+
+        try (MockedConstruction<AzureOpenAiClient> mocked = mockConstruction(AzureOpenAiClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false))) {
+
+            AiSuggestionException ex = assertThrows(AiSuggestionException.class,
+                    () -> AiProviderFactory.create(options));
+
+            assertEquals("Azure OpenAI API key missing", ex.getMessage());
+            assertEquals(1, mocked.constructed().size());
         }
     }
 }

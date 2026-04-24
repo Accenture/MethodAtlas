@@ -28,6 +28,16 @@ package org.egothor.methodatlas.ai;
  * thrown.</li>
  * </ol>
  *
+ * <h2>Azure OpenAI</h2>
+ *
+ * <p>
+ * {@link AiProvider#AZURE_OPENAI} constructs an {@link AzureOpenAiClient}.
+ * This provider is never selected automatically; it must be configured
+ * explicitly. The {@link AiOptions#baseUrl()} must point to the Azure OpenAI
+ * resource endpoint and {@link AiOptions#modelName()} must match the
+ * deployment name as shown in the Azure portal.
+ * </p>
+ *
  * <p>
  * The factory ensures that returned clients are usable by verifying provider
  * availability when required.
@@ -74,6 +84,7 @@ public final class AiProviderFactory {
             case OPENAI -> requireAvailable(new OpenAiCompatibleClient(options), "OpenAI API key missing");
             case OPENROUTER -> requireAvailable(new OpenAiCompatibleClient(options), "OpenRouter API key missing");
             case ANTHROPIC -> requireAvailable(new AnthropicClient(options), "Anthropic API key missing");
+            case AZURE_OPENAI -> requireAvailable(new AzureOpenAiClient(options), "Azure OpenAI API key missing");
             case AUTO -> auto(options);
         };
     }

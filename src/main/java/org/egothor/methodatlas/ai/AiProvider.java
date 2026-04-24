@@ -84,5 +84,42 @@ public enum AiProvider {
      * Uses the <a href="https://www.anthropic.com/">Anthropic</a> API for AI
      * inference, typically through models in the Claude family.
      */
-    ANTHROPIC
+    ANTHROPIC,
+    /**
+     * Uses an <a href="https://azure.microsoft.com/en-us/products/ai-services/openai-service">Azure
+     * OpenAI Service</a> deployment for AI inference.
+     *
+     * <p>
+     * Azure OpenAI is a managed cloud service operated by Microsoft inside a
+     * customer-controlled Azure tenant. Unlike the public OpenAI API, requests never
+     * leave the organization's Azure environment, making this provider suitable for
+     * regulated industries and corporate environments with data-sovereignty
+     * requirements.
+     * </p>
+     *
+     * <p>
+     * Authentication uses a static resource-scoped API key supplied via the
+     * {@code api-key} HTTP header. Entra ID token-based authentication is not
+     * currently supported.
+     * </p>
+     *
+     * <p>
+     * The request endpoint is constructed from three configuration values:
+     * </p>
+     *
+     * <ul>
+     * <li>{@code baseUrl} — the Azure OpenAI resource endpoint, for example
+     *     {@code https://contoso.openai.azure.com}</li>
+     * <li>{@code modelName} — the <em>deployment name</em> configured in the Azure
+     *     portal (not the underlying model family name)</li>
+     * <li>{@code apiVersion} — the Azure OpenAI REST API version, for example
+     *     {@code 2024-02-01}</li>
+     * </ul>
+     *
+     * <p>
+     * The resulting endpoint takes the form:<br>
+     * {@code {baseUrl}/openai/deployments/{modelName}/chat/completions?api-version={apiVersion}}
+     * </p>
+     */
+    AZURE_OPENAI
 }

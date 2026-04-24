@@ -59,6 +59,41 @@ The taxonomy applied by MethodAtlas covers categories that align with the
 OWASP Testing Guide and common CWE groupings: authentication, authorisation,
 cryptography, input validation, session management, and others.
 
+## The two-phase design
+
+MethodAtlas does not simply forward source files to an AI and ask "which tests are security-relevant?". Instead it separates the work into two distinct phases: a deterministic parsing step that establishes the structural ground truth, followed by an AI classification step that adds semantic meaning.
+
+### Phase 1 — deterministic method discovery
+
+The parser reads each Java source file lexically, without compiling it, and extracts a precise list of JUnit 5 test methods. This step is entirely rule-based: it finds every method annotated with `@Test`, `@ParameterizedTest`, or any other configured annotation. The result is a canonical, repeatable inventory that does not depend on which AI model is used, which version is current, or whether the AI service is available at all.
+
+This matters because AI models are not reliable at structural enumeration. Given a raw source file, a model may:
+
+- silently skip a method that is hard to classify
+- merge two methods into a single response entry
+- hallucinate a method name that does not exist
+- produce a different count on repeated invocations of the same prompt
+
+None of these failure modes are possible when the method list is established by the parser first.
+
+### Phase 2 — AI classification against a fixed list
+
+The prompt sent to the AI provider contains the taxonomy, the class source, and — critically — the exact list of method names the parser found. The model is instructed to classify *only* those methods and to return one entry per name. It cannot add entries or omit them without the mismatch being detectable.
+
+This constraint produces several practical benefits:
+
+| Property | Effect |
+|---|---|
+| **Structural determinism** | The same set of methods is always discovered regardless of model choice or prompt variation |
+| **Cost efficiency** | The model does not spend tokens searching for test methods — that work is already done |
+| **Graceful degradation** | If AI classification fails for a class, the structural data (method names, line counts) is still emitted with blank AI columns; the scan is never aborted |
+| **Auditability** | The method inventory can be verified independently of the AI output, which is important when the CSV is used as audit evidence |
+| **Taxonomy control** | The permitted tag set is injected explicitly into every prompt, so the model cannot invent categories outside the defined taxonomy |
+
+### Why not just use AI for everything?
+
+Sending raw source trees to an AI and asking for a security-test inventory is superficially simpler but produces output that is difficult to trust in regulated contexts. There is no structural guarantee that every method was considered, no way to verify completeness without re-running the scan, and no stable output format if the model changes. MethodAtlas treats AI as a semantic enrichment layer on top of a foundation that is already correct by construction.
+
 ## Regulatory context
 
 Multiple standards and frameworks require evidence of security testing as part

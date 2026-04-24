@@ -93,6 +93,10 @@ nav:
       - Options: cli-reference.md
       - Examples: cli-examples.md
     - Output Formats: output-formats.md
-    - AI Enrichment: ai-guide.md
+    - AI Enrichment:
+      - Overview: ai/index.md
+      - Providers: ai/providers.md
+      - Confidence Scoring: ai/confidence.md
+      - Security Taxonomy: ai/taxonomy.md
   - CI/CD Setup: ci-setup.md
   - Reports: reports.md

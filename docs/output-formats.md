@@ -296,7 +296,7 @@ void testLoginWithValidCredentials() { ... }
 
 Only security-relevant methods are annotated. Existing `@DisplayName` or `@Tag` annotations are never overwritten or duplicated. Required imports (`org.junit.jupiter.api.DisplayName`, `org.junit.jupiter.api.Tag`) are added automatically when at least one annotation of that type is inserted. Unrelated formatting is preserved through lexical-preserving pretty printing.
 
-See [ai-guide.md](ai-guide.md#apply-tags-workflow) for the complete workflow, including how to combine it with the manual AI workflow.
+See [Source Write-back](usage-modes/apply-tags.md) for the complete workflow, including how to combine it with the manual AI workflow.
 
 ## Choosing between modes
 

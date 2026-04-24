@@ -42,6 +42,7 @@ class AiOptionsTest {
         assertEquals(Duration.ofSeconds(90), options.timeout());
         assertEquals(1, options.maxRetries());
         assertEquals(false, options.confidence());
+        assertEquals(AiOptions.DEFAULT_API_VERSION, options.apiVersion());
     }
 
     @Test
@@ -151,7 +152,8 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullProvider() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, null, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
+                        AiOptions.DEFAULT_API_VERSION));
 
         assertEquals("provider", ex.getMessage());
     }
@@ -162,7 +164,8 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullModelName() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, null, "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
+                        AiOptions.DEFAULT_API_VERSION));
 
         assertEquals("modelName", ex.getMessage());
     }
@@ -173,7 +176,8 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullTimeout() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, null, 1, false));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, null, 1, false,
+                        AiOptions.DEFAULT_API_VERSION));
 
         assertEquals("timeout", ex.getMessage());
     }
@@ -184,7 +188,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullTaxonomyMode() {
         NullPointerException ex = assertThrows(NullPointerException.class, () -> new AiOptions(true, AiProvider.OPENAI,
                 "gpt-4o-mini", "https://api.openai.com", null, null, null, null, 40_000, Duration.ofSeconds(30), 1,
-                false));
+                false, AiOptions.DEFAULT_API_VERSION));
 
         assertEquals("taxonomyMode", ex.getMessage());
     }
@@ -195,7 +199,8 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsBlankBaseUrl() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "   ", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
+                        AiOptions.DEFAULT_API_VERSION));
 
         assertEquals("baseUrl must not be blank", ex.getMessage());
     }
@@ -206,7 +211,8 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNonPositiveMaxClassChars() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 0, Duration.ofSeconds(30), 1, false));
+                        AiOptions.TaxonomyMode.DEFAULT, 0, Duration.ofSeconds(30), 1, false,
+                        AiOptions.DEFAULT_API_VERSION));
 
         assertEquals("maxClassChars must be > 0", ex.getMessage());
     }
@@ -217,7 +223,8 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNegativeMaxRetries() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), -1, false));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), -1, false,
+                        AiOptions.DEFAULT_API_VERSION));
 
         assertEquals("maxRetries must be >= 0", ex.getMessage());
     }
@@ -246,5 +253,57 @@ class AiOptionsTest {
         assertEquals(timeout, options.timeout());
         assertEquals(4, options.maxRetries());
         assertEquals(true, options.confidence());
+        assertEquals(AiOptions.DEFAULT_API_VERSION, options.apiVersion());
+    }
+
+    @Test
+    @DisplayName("builder accepts explicit apiVersion override")
+    @Tag("positive")
+    void builder_acceptsApiVersionOverride() {
+        AiOptions options = AiOptions.builder()
+                .provider(AiProvider.AZURE_OPENAI)
+                .baseUrl("https://contoso.openai.azure.com")
+                .apiKey("secret-key")
+                .apiVersion("2024-08-01-preview")
+                .build();
+
+        assertEquals("2024-08-01-preview", options.apiVersion());
+    }
+
+    @Test
+    @DisplayName("builder uses default apiVersion when none is set")
+    @Tag("positive")
+    void builder_usesDefaultApiVersion() {
+        AiOptions options = AiOptions.builder()
+                .provider(AiProvider.AZURE_OPENAI)
+                .baseUrl("https://contoso.openai.azure.com")
+                .apiKey("secret-key")
+                .build();
+
+        assertEquals(AiOptions.DEFAULT_API_VERSION, options.apiVersion());
+    }
+
+    @Test
+    @DisplayName("builder throws IllegalArgumentException for AZURE_OPENAI when no baseUrl is provided")
+    @Tag("negative")
+    void builder_throwsForAzureOpenAiWithoutBaseUrl() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> AiOptions.builder().provider(AiProvider.AZURE_OPENAI).build());
+
+        assertEquals(
+                "baseUrl is required for AZURE_OPENAI: set it to https://<resource>.openai.azure.com",
+                ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("canonical constructor rejects blank apiVersion with IllegalArgumentException")
+    @Tag("negative")
+    void canonicalConstructor_rejectsBlankApiVersion() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> new AiOptions(true, AiProvider.AZURE_OPENAI, "my-deployment",
+                        "https://contoso.openai.azure.com", null, null, null,
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false, ""));
+
+        assertEquals("apiVersion must not be blank", ex.getMessage());
     }
 }

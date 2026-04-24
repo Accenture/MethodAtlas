@@ -236,6 +236,9 @@ final class CliArgs {
         if (Boolean.TRUE.equals(aiConfig.confidence)) {
             builder.confidence(true);
         }
+        if (aiConfig.apiVersion != null) {
+            builder.apiVersion(aiConfig.apiVersion);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -278,6 +281,7 @@ final class CliArgs {
             case "-ai-timeout-sec" ->
                 builder.timeout(Duration.ofSeconds(Long.parseLong(nextArg(args, ++idx, arg))));
             case "-ai-max-retries" -> builder.maxRetries(Integer.parseInt(nextArg(args, ++idx, arg)));
+            case "-ai-api-version" -> builder.apiVersion(nextArg(args, ++idx, arg));
             default -> throw new IllegalArgumentException("Unknown AI argument: " + arg);
         }
         return idx;

@@ -63,5 +63,5 @@ AI-generated annotations are a starting point. Review the suggested `@DisplayNam
 values and `@Tag` assignments for accuracy before merging them into the main
 branch.
 
-See [AI Enrichment — apply-tags workflow](../ai-guide.md#apply-tags-workflow)
+See [CLI reference — -apply-tags](../cli-reference.md#-apply-tags)
 for annotation placement guarantees and formatting details.
