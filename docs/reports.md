@@ -54,11 +54,11 @@ These reports are generated on a weekly schedule or at release time. They are no
 
 ### OWASP Dependency-Check
 
-Scans runtime dependencies against the NVD vulnerability database. Runs every Monday. Results are uploaded as a GitHub Actions artifact (`dependency-check-report`) retained for 30 days.
+Scans runtime dependencies against the NVD vulnerability database. This report is **not generated on every build** — it runs only when the `NVD_API_KEY` repository secret is set, triggered every Monday by the Security scan workflow or on manual dispatch (`./gradlew dependencyCheckAnalyze`).
 
-Build gate: CVSS score < 7.0 (requires `NVD_API_KEY` secret to be set).
+When it runs, results are uploaded as a GitHub Actions artifact (`dependency-check-report`) retained for 30 days. The CVSS threshold of 7.0 is enforced only during those runs, not on every commit.
 
-To access: go to the **Security scan** workflow run in the Actions tab and download the `dependency-check-report` artifact.
+To access: go to the **Security scan** workflow run in the Actions tab and download the `dependency-check-report` artifact. If no recent run exists with the artifact, the `NVD_API_KEY` secret may not be configured.
 
 ### CycloneDX SBOM
 
@@ -82,6 +82,6 @@ When the `OPENROUTER_API_KEY` repository secret is set, MethodAtlas classifies i
 | Mutation score | PIT | ≥ 60 % | Every push (`./gradlew check`) |
 | Static analysis | PMD | configured ruleset | Every push |
 | Bug patterns | SpotBugs | configured exclusions | Every push |
-| Dependency vulnerabilities | OWASP Dependency-Check | CVSS < 7.0 | Weekly (requires `NVD_API_KEY`) |
+| Dependency vulnerabilities | OWASP Dependency-Check | CVSS < 7.0 | On demand / weekly — only when `NVD_API_KEY` is set |
 
 See [CI/CD Setup](ci-setup.md) for the full workflow configuration.
