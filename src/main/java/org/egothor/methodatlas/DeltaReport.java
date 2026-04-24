@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -355,7 +356,7 @@ public final class DeltaReport {
                 parseInt(getField(fields, colIndex, "loc"), 0),
                 parseSemicolonList(getField(fields, colIndex, "tags")),
                 getField(fields, colIndex, "content_hash"),
-                parseBoolean(getField(fields, colIndex, "ai_security_relevant")),
+                parseBoolean(getField(fields, colIndex, "ai_security_relevant")).orElse(null),
                 getField(fields, colIndex, "ai_display_name"),
                 parseSemicolonListOrNull(fields, colIndex, "ai_tags"),
                 getField(fields, colIndex, "ai_reason"),
@@ -469,12 +470,11 @@ public final class DeltaReport {
         }
     }
 
-    @SuppressWarnings("NP_BOOLEAN_RETURN_NULL")
-    private static Boolean parseBoolean(String val) {
-        if (val == null) {
-            return null;
+    private static Optional<Boolean> parseBoolean(String val) {
+        if (val == null || val.isEmpty()) {
+            return Optional.empty();
         }
-        return Boolean.parseBoolean(val.trim());
+        return Optional.of(Boolean.parseBoolean(val.trim()));
     }
 
     private static Double parseDouble(String val) {

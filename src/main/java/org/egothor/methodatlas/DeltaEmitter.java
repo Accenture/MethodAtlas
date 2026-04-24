@@ -99,16 +99,10 @@ public final class DeltaEmitter {
         StringBuilder sb = new StringBuilder(64);
         sb.append("  (");
         if (timestamp != null) {
-            sb.append("scanned: ");
-            sb.append(timestamp);
-            sb.append(" \u00b7 ");
+            sb.append("scanned: ").append(timestamp).append(" \u00b7 ");
         }
-        sb.append(total);
-        sb.append(" method");
-        sb.append(total == 1 ? "" : "s");
-        sb.append(" \u00b7 ");
-        sb.append(security);
-        sb.append(" security-relevant)");
+        sb.append(total).append(" method").append(total == 1 ? "" : "s")
+          .append(" \u00b7 ").append(security).append(" security-relevant)");
         return sb.toString();
     }
 

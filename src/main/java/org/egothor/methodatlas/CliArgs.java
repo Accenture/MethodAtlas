@@ -64,7 +64,7 @@ final class CliArgs {
      *                                  or unsupported, or if the config file
      *                                  cannot be read
      */
-    @SuppressWarnings({"PMD.AvoidReassigningLoopVariables", "PMD.CyclomaticComplexity", "PMD.NPathComplexity"})
+    @SuppressWarnings({"PMD.AvoidReassigningLoopVariables", "PMD.CyclomaticComplexity", "PMD.NPathComplexity", "PMD.NcssCount"})
     /* default */ static CliConfig parse(String... args) {
         // Pre-scan for -config to load YAML defaults before processing other flags.
         YamlConfig.YamlConfigFile yamlConfig = loadYamlConfigFromArgs(args);

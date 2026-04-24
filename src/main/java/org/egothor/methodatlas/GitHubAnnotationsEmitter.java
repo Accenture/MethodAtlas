@@ -93,10 +93,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
     /* default */ static String formatCommand(String level, String filePath, int beginLine,
             String title, String message) {
         StringBuilder cmd = new StringBuilder(128);
-        cmd.append("::");
-        cmd.append(level);
-        cmd.append(' ');
-        cmd.append("file=").append(escapeParam(filePath));
+        cmd.append("::").append(level).append(" file=").append(escapeParam(filePath));
         if (beginLine > 0) {
             cmd.append(",line=").append(beginLine);
         }
