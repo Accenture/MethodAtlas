@@ -259,6 +259,20 @@ A score of `1.0` on a security-relevant test is a strong signal of a **placebo t
 
 In CSV output the column is named `ai_interaction_score` and appears immediately after `ai_reason` (before `ai_confidence` when that flag is enabled). In plain-text output it appears as `AI_INTERACTION_SCORE=`. In SARIF it is stored as `properties.aiInteractionScore`.
 
+### `-ai-cache <file>`
+
+Loads a previous MethodAtlas scan output as an AI result cache. Before calling the AI provider for a class, MethodAtlas computes the class's SHA-256 content fingerprint and checks whether that hash appears in `<file>`. If it does, the stored classification is reused directly — no API call is made. Classes with a changed or new hash are classified normally.
+
+```bash
+# Build the cache on first run
+./methodatlas -ai -content-hash src/test/java > scan.csv
+
+# Subsequent runs: unchanged classes are free
+./methodatlas -ai -content-hash -ai-cache scan.csv src/test/java > scan-new.csv
+```
+
+The cache file must have been produced with `-content-hash -ai`; if either column is absent the cache degrades silently to a no-op. See [Result Caching](ai/caching.md) for a CI pipeline example.
+
 ### `-ai-provider <provider>`
 
 Selects the provider implementation. Values are case-insensitive.

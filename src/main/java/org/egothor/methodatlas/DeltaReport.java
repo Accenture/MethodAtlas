@@ -224,6 +224,20 @@ public final class DeltaReport {
     // -------------------------------------------------------------------------
 
     /**
+     * Returns all scan records from the given MethodAtlas CSV file.
+     *
+     * <p>Used by {@link AiResultCache} to build an in-memory lookup from a previous
+     * scan output without going through the full delta-comparison path.</p>
+     *
+     * @param csvPath path to a MethodAtlas CSV output file
+     * @return unmodifiable list of parsed records; empty when the file has no data rows
+     * @throws IOException if the file cannot be read
+     */
+    /* default */ static List<ScanRecord> loadRecords(Path csvPath) throws IOException {
+        return parseCsv(csvPath).records();
+    }
+
+    /**
      * Parses one line of a MethodAtlas CSV file according to RFC 4180.
      *
      * <p>

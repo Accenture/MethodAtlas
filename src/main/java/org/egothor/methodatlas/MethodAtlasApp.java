@@ -117,6 +117,10 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * <li>{@code -ai-confidence} — requests a confidence score for each AI
  * security classification; adds an {@code ai_confidence} column to the
  * output</li>
+ * <li>{@code -ai-cache <path>} — loads a previous scan CSV produced with
+ * {@code -content-hash -ai} as an AI result cache; classes whose
+ * {@code content_hash} matches a cache entry are classified without an API
+ * call; changed and new classes are classified normally</li>
  * <li>{@code -file-suffix <suffix>} — matches source files by name suffix
  * (default: {@code Test.java}); may be repeated to match multiple patterns,
  * e.g. {@code -file-suffix Test.java -file-suffix IT.java}; the first
@@ -259,6 +263,7 @@ public final class MethodAtlasApp {
 
         CliConfig cliConfig = CliArgs.parse(args);
         ClassificationOverride override = loadClassificationOverride(cliConfig.overrideFile());
+        AiResultCache aiCache = buildAiCache(cliConfig.aiCacheFile());
 
         // Manual prepare phase: write AI prompt work files; no CSV output.
         if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {
@@ -281,12 +286,12 @@ public final class MethodAtlasApp {
 
         // Apply-tags mode: annotate source files; no report emitted.
         if (cliConfig.applyTags()) {
-            return runApplyTags(cliConfig, aiEngine, parser, roots, out, override);
+            return runApplyTags(cliConfig, aiEngine, parser, roots, out, override, aiCache);
         }
 
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
-            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, parser, roots, out, override);
+            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, parser, roots, out, override, aiCache);
         }
 
         // CSV / PLAIN mode: emit incrementally.
@@ -304,7 +309,13 @@ public final class MethodAtlasApp {
         TestMethodSink sink = (fqcn, method, beginLine, loc, contentHash, tags, suggestion) ->
                 emitter.emit(mode, fqcn, method, loc, contentHash, tags, suggestion);
 
-        return scan(roots, cliConfig, aiEngine, parser, filterSink(sink, cliConfig.securityOnly()), override);
+        int result = scan(roots, cliConfig, aiEngine, parser, filterSink(sink, cliConfig.securityOnly()), override,
+                aiCache);
+        if (aiCache.isActive() && LOG.isLoggable(Level.INFO)) {
+            LOG.log(Level.INFO, "AI cache: {0} hit(s), {1} miss(es)",
+                    new Object[] { aiCache.hits(), aiCache.misses() });
+        }
+        return result;
     }
 
     /**
@@ -347,7 +358,7 @@ public final class MethodAtlasApp {
      */
     private static int runApplyTags(CliConfig cliConfig, AiSuggestionEngine aiEngine,
             JavaParser parser, List<Path> roots, PrintWriter log,
-            ClassificationOverride override) throws IOException {
+            ClassificationOverride override, AiResultCache aiCache) throws IOException {
         boolean hadErrors = false;
         int modifiedFiles = 0;
         int totalAnnotations = 0;
@@ -360,7 +371,7 @@ public final class MethodAtlasApp {
                         .toList();
                 for (Path path : files) {
                     try {
-                        int added = applyTagsToFile(root, path, cliConfig, aiEngine, parser, log, override);
+                        int added = applyTagsToFile(root, path, cliConfig, aiEngine, parser, log, override, aiCache);
                         if (added > 0) {
                             modifiedFiles++;
                             totalAnnotations += added;
@@ -400,7 +411,7 @@ public final class MethodAtlasApp {
      */
     private static int applyTagsToFile(Path root, Path path, CliConfig cliConfig,
             AiSuggestionEngine aiEngine, JavaParser parser, PrintWriter log,
-            ClassificationOverride override) throws IOException {
+            ClassificationOverride override, AiResultCache aiCache) throws IOException {
         ParseResult<CompilationUnit> parseResult = parser.parse(path);
         if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
             if (LOG.isLoggable(Level.WARNING)) {
@@ -422,9 +433,10 @@ public final class MethodAtlasApp {
         for (ClassOrInterfaceDeclaration clazz : cu.findAll(ClassOrInterfaceDeclaration.class)) {
             String fqcn = buildFqcn(packageName, clazz.getNameAsString());
             String fileStem = buildFileStem(root, path, fqcn);
+            String lookupHash = aiCache.isActive() ? computeContentHash(clazz) : null;
             List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, cliConfig.testAnnotations());
             SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
-                    cliConfig.aiOptions(), aiEngine, override);
+                    cliConfig.aiOptions(), aiEngine, override, aiCache, lookupHash);
 
             TagApplier.ClassResult result = TagApplier.applyToClass(clazz, suggestionLookup,
                     cliConfig.testAnnotations());
@@ -466,10 +478,10 @@ public final class MethodAtlasApp {
     private static int runSarif(CliConfig cliConfig, AiSuggestionEngine aiEngine,
             boolean aiEnabled, boolean confidenceEnabled,
             JavaParser parser, List<Path> roots, PrintWriter out,
-            ClassificationOverride override) throws IOException {
+            ClassificationOverride override, AiResultCache aiCache) throws IOException {
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled);
         int result = scan(roots, cliConfig, aiEngine, parser,
-                filterSink(sarifEmitter, cliConfig.securityOnly()), override);
+                filterSink(sarifEmitter, cliConfig.securityOnly()), override, aiCache);
         sarifEmitter.flush(out);
         return result;
     }
@@ -487,11 +499,13 @@ public final class MethodAtlasApp {
      * @throws IOException if traversing a file tree fails
      */
     private static int scan(List<Path> roots, CliConfig cliConfig, AiSuggestionEngine aiEngine,
-            JavaParser parser, TestMethodSink sink, ClassificationOverride override) throws IOException {
+            JavaParser parser, TestMethodSink sink, ClassificationOverride override,
+            AiResultCache aiCache) throws IOException {
         boolean hadErrors = false;
         for (Path root : roots) {
             if (scanRoot(root, cliConfig.aiOptions(), aiEngine, parser, sink,
-                    cliConfig.fileSuffixes(), cliConfig.testAnnotations(), cliConfig.contentHash(), override)) {
+                    cliConfig.fileSuffixes(), cliConfig.testAnnotations(), cliConfig.contentHash(), override,
+                    aiCache)) {
                 hadErrors = true;
             }
         }
@@ -635,7 +649,7 @@ public final class MethodAtlasApp {
     private static boolean scanRoot(Path root, AiOptions aiOptions, AiSuggestionEngine aiEngine,
             JavaParser parser, TestMethodSink sink, List<String> fileSuffixes,
             Set<String> testAnnotations, boolean contentHashEnabled,
-            ClassificationOverride override) throws IOException {
+            ClassificationOverride override, AiResultCache aiCache) throws IOException {
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "Scanning {0} for files matching {1}", new Object[] { root, fileSuffixes });
         }
@@ -648,7 +662,7 @@ public final class MethodAtlasApp {
                     .toList();
             for (Path path : files) {
                 if (!processFile(root, path, aiOptions, aiEngine, parser, sink, testAnnotations,
-                        contentHashEnabled, override)) {
+                        contentHashEnabled, override, aiCache)) {
                     hadErrors = true;
                 }
             }
@@ -675,7 +689,8 @@ public final class MethodAtlasApp {
      */
     private static boolean processFile(Path root, Path path, AiOptions aiOptions,
             AiSuggestionEngine aiEngine, JavaParser parser, TestMethodSink sink,
-            Set<String> testAnnotations, boolean contentHashEnabled, ClassificationOverride override) {
+            Set<String> testAnnotations, boolean contentHashEnabled, ClassificationOverride override,
+            AiResultCache aiCache) {
         try {
             ParseResult<CompilationUnit> parseResult = parser.parse(path);
 
@@ -694,17 +709,20 @@ public final class MethodAtlasApp {
             compilationUnit.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
                 String fqcn = buildFqcn(packageName, clazz.getNameAsString());
                 String fileStem = buildFileStem(root, path, fqcn);
-                String contentHash = contentHashEnabled ? computeContentHash(clazz) : null;
+                // Compute hash when needed for output OR for cache lookup.
+                String lookupHash = (contentHashEnabled || aiCache.isActive())
+                        ? computeContentHash(clazz) : null;
+                String outputHash = contentHashEnabled ? lookupHash : null;
 
                 List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, testAnnotations);
                 SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
-                        aiOptions, aiEngine, override);
+                        aiOptions, aiEngine, override, aiCache, lookupHash);
 
                 for (MethodDeclaration method : testMethods) {
                     int beginLine = method.getRange().map(range -> range.begin.line).orElse(0);
                     int loc = AnnotationInspector.countLOC(method);
                     List<String> tags = AnnotationInspector.getTagValues(method);
-                    sink.record(fqcn, method.getNameAsString(), beginLine, loc, contentHash, tags,
+                    sink.record(fqcn, method.getNameAsString(), beginLine, loc, outputHash, tags,
                             suggestionLookup.find(method.getNameAsString()).orElse(null));
                 }
             });
@@ -840,7 +858,7 @@ public final class MethodAtlasApp {
      */
     private static SuggestionLookup resolveSuggestionLookup(String fileStem, ClassOrInterfaceDeclaration clazz,
             String fqcn, List<MethodDeclaration> testMethods, AiOptions aiOptions, AiSuggestionEngine aiEngine,
-            ClassificationOverride override) {
+            ClassificationOverride override, AiResultCache aiCache, String contentHash) {
         if (testMethods.isEmpty()) {
             return SuggestionLookup.from(null);
         }
@@ -849,6 +867,12 @@ public final class MethodAtlasApp {
 
         if (aiEngine == null) {
             return SuggestionLookup.from(override.apply(fqcn, null, methodNames));
+        }
+
+        // Check the cache before making an API call.
+        AiClassSuggestion cached = aiCache.lookup(contentHash).orElse(null);
+        if (cached != null) {
+            return SuggestionLookup.from(override.apply(fqcn, cached, methodNames));
         }
 
         String classSource = clazz.toString();
@@ -951,6 +975,25 @@ public final class MethodAtlasApp {
                 delegate.record(fqcn, method, beginLine, loc, contentHash, tags, suggestion);
             }
         };
+    }
+
+    /**
+     * Loads the AI result cache from the given CSV file, or returns the empty no-op
+     * cache when no cache file is configured.
+     *
+     * @param cacheFile path to a previous MethodAtlas CSV output, or {@code null}
+     * @return loaded cache; never {@code null}
+     * @throws IllegalArgumentException if the file exists but cannot be read or parsed
+     */
+    private static AiResultCache buildAiCache(Path cacheFile) {
+        if (cacheFile == null) {
+            return AiResultCache.empty();
+        }
+        try {
+            return AiResultCache.load(cacheFile);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot load AI cache file: " + cacheFile, e);
+        }
     }
 
     /**

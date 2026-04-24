@@ -380,6 +380,73 @@ class MethodAtlasAppAiTest {
         assertEquals(expectedAiReason, fields.get(7), "AI reason mismatch for " + fqcn + "#" + method);
     }
 
+    @Test
+    void aiCache_hit_engineNotCalledForUnchangedClass(@TempDir Path tempDir) throws Exception {
+        // Arrange: one test file, AI engine returns a fixed suggestion.
+        copyFixtures(tempDir, "SampleOneTest.java");
+        AiClassSuggestion suggestion = sampleOneSuggestion();
+
+        // Run 1: normal scan with -content-hash; capture the CSV output as the cache.
+        Path cacheFile = tempDir.resolve("cache.csv");
+        try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
+                (mock, ctx) -> when(mock.suggestForClass(anyString(), anyString(), anyString(), any()))
+                        .thenReturn(suggestion))) {
+
+            String csv = runAppCapturingStdout(
+                    new String[] { "-ai", "-content-hash", tempDir.toString() });
+            Files.writeString(cacheFile, csv, java.nio.charset.StandardCharsets.UTF_8);
+
+            assertEquals(1, mocked.constructed().size());
+            verify(mocked.constructed().get(0)).suggestForClass(anyString(), anyString(), anyString(), any());
+        }
+
+        // Run 2: same source file (unchanged hash) + -ai-cache → engine must NOT call suggestForClass.
+        try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
+                (mock, ctx) -> when(mock.suggestForClass(anyString(), anyString(), anyString(), any()))
+                        .thenReturn(suggestion))) {
+
+            String cachedOutput = runAppCapturingStdout(
+                    new String[] { "-ai", "-content-hash", "-ai-cache", cacheFile.toString(),
+                            tempDir.toString() });
+
+            // CSV structure should be identical (same AI data, same hash).
+            assertEquals(nonEmptyLines(Files.readString(cacheFile, java.nio.charset.StandardCharsets.UTF_8)),
+                    nonEmptyLines(cachedOutput), "Cached run should produce the same output");
+
+            if (!mocked.constructed().isEmpty()) {
+                verify(mocked.constructed().get(0), never())
+                        .suggestForClass(anyString(), anyString(), anyString(), any());
+            }
+        }
+    }
+
+    @Test
+    void aiCache_miss_engineCalledForUnknownHash(@TempDir Path tempDir) throws Exception {
+        // Cache CSV that references a hash different from the actual source file.
+        Path cacheFile = tempDir.resolve("stale-cache.csv");
+        Files.writeString(cacheFile,
+                "fqcn,method,loc,tags,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
+                        + "com.acme.tests.SampleOneTest,alpha,5,fast;crypto," + "0".repeat(64)
+                        + ",true,SECURITY: cached,security;crypto,Cached reason.,0.0\n",
+                java.nio.charset.StandardCharsets.UTF_8);
+
+        copyFixtures(tempDir, "SampleOneTest.java");
+        AiClassSuggestion suggestion = sampleOneSuggestion();
+
+        try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
+                (mock, ctx) -> when(mock.suggestForClass(anyString(), anyString(), anyString(), any()))
+                        .thenReturn(suggestion))) {
+
+            runAppCapturingStdout(
+                    new String[] { "-ai", "-content-hash", "-ai-cache", cacheFile.toString(),
+                            tempDir.toString() });
+
+            assertEquals(1, mocked.constructed().size(), "Engine should have been constructed");
+            // Hash mismatch → cache miss → AI was called.
+            verify(mocked.constructed().get(0)).suggestForClass(anyString(), anyString(), anyString(), any());
+        }
+    }
+
     private static Map<String, List<String>> parseCsvAiRows(List<String> lines) {
         Map<String, List<String>> rows = new HashMap<>();
         for (int i = 1; i < lines.size(); i++) {

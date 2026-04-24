@@ -89,12 +89,17 @@ final class CliArgs {
         Path overrideFilePath = yamlConfig != null && yamlConfig.overrideFile != null
                 ? Paths.get(yamlConfig.overrideFile) : null;
         boolean securityOnly = yamlConfig != null && yamlConfig.securityOnly;
+        Path aiCacheFile = null;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
+            if ("-ai-cache".equals(arg)) {
+                aiCacheFile = Paths.get(nextArg(args, ++i, arg));
+                continue;
+            }
             if (arg.startsWith("-ai")) {
                 i = applyAiArg(arg, args, i, aiBuilder);
                 continue;
@@ -149,7 +154,7 @@ final class CliArgs {
         Set<String> resolvedAnnotations = testAnnotations.isEmpty()
                 ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
-                emitMetadata, manualMode, applyTags, contentHash, overrideFilePath, securityOnly);
+                emitMetadata, manualMode, applyTags, contentHash, overrideFilePath, securityOnly, aiCacheFile);
     }
 
     // -------------------------------------------------------------------------

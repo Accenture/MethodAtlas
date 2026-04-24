@@ -45,8 +45,13 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                        methods without an AI suggestion or whose suggestion
  *                        has {@code securityRelevant=false} are silently
  *                        dropped from the output
+ * @param aiCacheFile     path to a MethodAtlas CSV produced by a previous scan
+ *                        with {@code -content-hash -ai}; when present, classes
+ *                        whose {@code content_hash} matches an entry in that
+ *                        file are classified from the cache instead of calling
+ *                        the AI provider; {@code null} when no cache is configured
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags,
-        boolean contentHash, Path overrideFile, boolean securityOnly) {
+        boolean contentHash, Path overrideFile, boolean securityOnly, Path aiCacheFile) {
 }

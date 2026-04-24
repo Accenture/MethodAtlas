@@ -100,6 +100,7 @@ nav:
       - Providers: ai/providers.md
       - Confidence Scoring: ai/confidence.md
       - Interaction Score: ai/interaction-score.md
+      - Result Caching: ai/caching.md
       - Security Taxonomy: ai/taxonomy.md
       - Classification Overrides: ai/overrides.md
   - CI/CD Setup: ci-setup.md
