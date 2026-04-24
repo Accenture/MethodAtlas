@@ -8,6 +8,28 @@ The workflow produces the same CSV output as [API AI enrichment](api-ai.md).
 The only difference is that the AI interaction is performed manually by an operator
 between the two phases.
 
+```mermaid
+sequenceDiagram
+    actor OP as Operator
+    participant SH as Scan host<br/>(MethodAtlas)
+    participant AI as AI chat interface
+
+    Note over SH: Phase 1 — Prepare
+    SH->>SH: -manual-prepare
+    SH-->>OP: work/ prompt files<br/>responses/ empty stubs
+
+    Note over OP,AI: Operator phase (no scan-host network required)
+    loop for each test class
+        OP->>AI: paste prompt
+        AI-->>OP: JSON response
+        OP->>SH: save .response.txt
+    end
+
+    Note over SH: Phase 2 — Consume
+    SH->>SH: -manual-consume
+    SH-->>OP: CSV · SARIF · plain text
+```
+
 ## Phase 1 — Prepare
 
 Generate prompt files for every test class in the scan roots.

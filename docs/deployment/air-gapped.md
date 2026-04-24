@@ -15,6 +15,44 @@ is appropriate.
 
 Both approaches produce output identical in format to an API-connected scan.
 
+**Approach 1 — Local inference (Ollama)**
+
+```mermaid
+flowchart LR
+    subgraph org["Organisation network (no public internet required)"]
+        direction LR
+        SH["Scan host\nMethodAtlas"] -->|"HTTP :11434\ninternal only"| OL[("Ollama server\nopen-weight model")]
+    end
+    EXT["Public internet"]
+    org -.->|"no connection"| EXT
+    style SH  fill:#e8eaf6,stroke:#3f51b5
+    style OL  fill:#3f51b5,color:#fff,stroke:#283593
+    style EXT fill:#ffebee,stroke:#ef9a9a,color:#bdbdbd
+    style org fill:#f9f9f9,stroke:#9e9e9e
+```
+
+**Approach 2 — Manual AI workflow**
+
+```mermaid
+flowchart LR
+    subgraph controlled["Controlled environment"]
+        SH["Scan host\n-manual-prepare\n-manual-consume"]
+    end
+    XFER[/"Encrypted\ntransfer medium"/]
+    subgraph auth["Authorised workstation"]
+        OP["Operator\n+ approved AI interface"]
+    end
+    SH -->|"prompt files"| XFER
+    XFER -->|"prompts"| OP
+    OP -->|"response files"| XFER
+    XFER -->|"responses"| SH
+    style SH       fill:#e8eaf6,stroke:#3f51b5
+    style OP       fill:#3f51b5,color:#fff,stroke:#283593
+    style XFER     fill:#fff8e1,stroke:#ffc107
+    style controlled fill:#f9f9f9,stroke:#9e9e9e
+    style auth     fill:#f9f9f9,stroke:#9e9e9e
+```
+
 ## Approach 1: local inference with Ollama
 
 [Ollama](https://ollama.com) runs open-weight language models locally.

@@ -26,10 +26,13 @@ Life Cycle. It is not a replacement for static analysis, penetration testing, or
 threat modelling — it complements those activities by maintaining a continuously
 updated, machine-readable inventory of the security-test layer of a project.
 
-```
-Plan → Design → Implement → Test ← MethodAtlas → Deploy → Operate
-                                   (classify tests,
-                                    emit SARIF, apply tags)
+```mermaid
+flowchart LR
+    A([Plan]) --> B([Design]) --> C([Implement]) --> D([Test]) --> E([Deploy]) --> F([Operate])
+    MA[MethodAtlas]
+    MA -. classify tests\nemit SARIF · apply tags .-> D
+    style MA fill:#3f51b5,color:#fff,stroke:#283593
+    style D  fill:#e8eaf6,stroke:#3f51b5
 ```
 
 Typical integration points:
@@ -63,6 +66,27 @@ cryptography, input validation, session management, and others.
 ## The two-phase design
 
 MethodAtlas does not simply forward source files to an AI and ask "which tests are security-relevant?". Instead it separates the work into two distinct phases: a deterministic parsing step that establishes the structural ground truth, followed by an AI classification step that adds semantic meaning.
+
+```mermaid
+flowchart LR
+    subgraph p1["Phase 1 — Deterministic parser"]
+        direction TB
+        SRC[/"Java source files"/] --> AST["JavaParser AST"]
+        AST --> ML(["Method inventory\n(complete · stable · repeatable)"])
+    end
+    subgraph p2["Phase 2 — AI classification"]
+        direction TB
+        PRM["Prompt\ntaxonomy + method list + source"] --> AI[("AI provider")]
+        AI --> CL(["Classifications\nper method name"])
+    end
+    ML -->|"fixed method list"| PRM
+    CL --> OUT[/"CSV · SARIF · plain text"/]
+    style p1 fill:#f5f5f5,stroke:#9e9e9e
+    style p2 fill:#e8eaf6,stroke:#3f51b5
+    style ML fill:#e8eaf6,stroke:#3f51b5
+    style CL fill:#e8eaf6,stroke:#3f51b5
+    style OUT fill:#3f51b5,color:#fff,stroke:#283593
+```
 
 ### Phase 1 — deterministic method discovery
 
