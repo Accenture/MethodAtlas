@@ -233,10 +233,20 @@ class GitHubAnnotationsEmitterTest {
     }
 
     @Test
-    void record_emptyTagsAndNonPlacebo_messageIsSecurityTest() {
+    void record_emptyTagsAndNonPlacebo_noSourceTag_messageIsAiOnlyDrift() {
+        // no source tag, AI says security-relevant → AI_ONLY drift → drift text replaces default
         String output = recordSecurityMethod(0.2, "Good", List.of(), "");
 
-        assertTrue(output.endsWith("::Security test"), "Default message should be 'Security test'");
+        assertTrue(output.contains("AI classifies as security-relevant"),
+                "AI_ONLY drift text should appear when source tag is missing");
+    }
+
+    @Test
+    void record_emptyTagsAndNonPlacebo_withMatchingSourceTag_messageIsSecurityTest() {
+        // source tag agrees with AI → NONE drift → fallback "Security test" applies
+        String output = recordMethodWithSourceTags(true, List.of("security"), List.of(), "");
+
+        assertTrue(output.endsWith("::Security test"), "Default message should be 'Security test' when drift is none");
     }
 
     // -------------------------------------------------------------------------
@@ -244,14 +254,13 @@ class GitHubAnnotationsEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void record_tagOnlyDrift_appendsDriftNoteToMessage() {
-        // source has @Tag("security") but AI says not security-relevant → tag-only drift
+    void record_tagOnlyDrift_producesNoOutput() {
+        // TAG_ONLY drift: source has @Tag("security") but AI says NOT security-relevant.
+        // GitHubAnnotationsEmitter filters out non-security methods before drift is evaluated,
+        // so TAG_ONLY drift never produces annotation output.
         String output = recordMethodWithSourceTags(false, List.of("security"), List.of(), "");
 
-        assertTrue(output.contains("annotation may be stale"),
-                "tag-only drift should mention stale annotation");
-        assertTrue(output.contains("@Tag(\"security\") present but AI disagrees"),
-                "tag-only drift message must identify the @Tag source");
+        assertEquals("", output, "TAG_ONLY drift produces no annotation — AI disagrees on security-relevance");
     }
 
     @Test
