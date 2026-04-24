@@ -110,6 +110,8 @@ nav:
     - MethodAtlas and SAST Tools: concepts/vs-sast.md
     - Guide for Security Teams: concepts/for-security-teams.md
     - Developer Remediation Guide: concepts/remediation.md
+    - Data Governance: concepts/data-governance.md
+    - OWASP ASVS Mapping: concepts/asvs-mapping.md
   - CI/CD:
     - Overview: ci-setup.md
     - GitHub Actions: ci/github-actions.md
@@ -123,4 +125,7 @@ nav:
     - ISO/IEC 27001:2022: deployment/iso-27001.md
     - NIST SP 800-218 (SSDF): deployment/nist-ssdf.md
     - DORA: deployment/dora.md
+    - SOC 2: deployment/soc2.md
+    - Air-Gapped Deployment: deployment/air-gapped.md
+  - Troubleshooting: troubleshooting.md
   - Reports: reports.md
