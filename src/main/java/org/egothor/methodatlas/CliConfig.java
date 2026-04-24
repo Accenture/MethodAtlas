@@ -35,8 +35,13 @@ import org.egothor.methodatlas.ai.AiOptions;
  * @param contentHash     when {@code true}, a SHA-256 fingerprint of each
  *                        class source is included as a {@code content_hash}
  *                        column in CSV/plain output and as a SARIF property
+ * @param overrideFile    path to a YAML classification override file, or
+ *                        {@code null} when no override file is configured;
+ *                        overrides are applied after AI classification (or in
+ *                        place of it in static mode) and persist human
+ *                        corrections across re-runs
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags,
-        boolean contentHash) {
+        boolean contentHash, Path overrideFile) {
 }

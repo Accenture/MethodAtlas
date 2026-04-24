@@ -27,6 +27,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  * outputMode: csv          # csv | plain | sarif  (default: csv)
  * emitMetadata: false      # (default: false)
  * contentHash: false       # (default: false)
+ * overrideFile: .methodatlas-overrides.yaml  # optional
  * fileSuffixes:
  *   - Test.java
  * testAnnotations:
@@ -108,6 +109,13 @@ final class YamlConfig {
          */
         @JsonProperty("contentHash")
         /* default */ boolean contentHash;
+
+        /**
+         * Path to a YAML classification override file. When set, human-authored
+         * corrections are applied after AI classification on every run.
+         */
+        @JsonProperty("overrideFile")
+        /* default */ String overrideFile;
 
         /** AI enrichment settings. */
         @JsonProperty("ai")

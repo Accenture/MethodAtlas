@@ -55,6 +55,7 @@ class CliArgsTest {
         assertNull(cfg.manualMode());
         assertFalse(cfg.applyTags());
         assertFalse(cfg.contentHash());
+        assertNull(cfg.overrideFile());
     }
 
     // -------------------------------------------------------------------------
@@ -386,6 +387,52 @@ class CliArgsTest {
         assertEquals(Duration.ofSeconds(30), ai.timeout());
         assertEquals(5, ai.maxRetries());
         assertTrue(ai.confidence());
+    }
+
+    // -------------------------------------------------------------------------
+    // -override-file flag
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("-override-file /tmp/overrides.yaml sets overrideFile path")
+    @Tag("positive")
+    void parse_overrideFileFlag_setsPath() {
+        CliConfig cfg = CliArgs.parse("-override-file", "/tmp/overrides.yaml");
+        assertEquals(Path.of("/tmp/overrides.yaml"), cfg.overrideFile());
+    }
+
+    @Test
+    @DisplayName("overrideFile from YAML config is applied as default")
+    @Tag("positive")
+    void parse_configWithOverrideFile_setsPath(@TempDir Path tempDir) throws IOException {
+        Path overrides = tempDir.resolve("overrides.yaml");
+        String overridesYamlPath = overrides.toString().replace('\\', '/');
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile,
+                "overrideFile: " + overridesYamlPath + "\n", StandardCharsets.UTF_8);
+
+        CliConfig cfg = CliArgs.parse("-config", configFile.toString());
+
+        assertEquals(overrides.toAbsolutePath().normalize(),
+                cfg.overrideFile().toAbsolutePath().normalize());
+    }
+
+    @Test
+    @DisplayName("CLI -override-file overrides YAML overrideFile value")
+    @Tag("positive")
+    void parse_cliOverrideFileOverridesYaml(@TempDir Path tempDir) throws IOException {
+        Path yamlOverride = tempDir.resolve("yaml-overrides.yaml");
+        Path cliOverride = tempDir.resolve("cli-overrides.yaml");
+        String yamlPath = yamlOverride.toString().replace('\\', '/');
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile,
+                "overrideFile: " + yamlPath + "\n", StandardCharsets.UTF_8);
+
+        CliConfig cfg = CliArgs.parse("-config", configFile.toString(),
+                "-override-file", cliOverride.toString());
+
+        assertEquals(cliOverride.toAbsolutePath().normalize(),
+                cfg.overrideFile().toAbsolutePath().normalize());
     }
 
     @Test

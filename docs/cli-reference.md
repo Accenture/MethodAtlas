@@ -20,6 +20,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-test-annotation <name>` | Treat methods carrying annotation `name` as test methods; may be repeated; first occurrence replaces the default set | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
 | `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
+| `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
 ## AI options
@@ -58,6 +59,7 @@ Loads default option values from a YAML configuration file before processing any
 outputMode: sarif          # csv | plain | sarif  (default: csv)
 emitMetadata: false
 contentHash: false         # append SHA-256 fingerprint column  (default: false)
+overrideFile: .methodatlas-overrides.yaml   # optional
 fileSuffixes:
   - Test.java
   - IT.java
@@ -158,6 +160,20 @@ A command-line `-content-hash` flag always overrides the YAML setting.
 - **Incremental scanning** — compare hashes across runs to skip classes that have not changed.
 - **Result traceability** — correlate a SARIF finding back to the exact class revision that produced it.
 - **Change detection in CI** — detect when a class is modified between two pipeline runs without diffing source files.
+
+### `-override-file`
+
+Loads a YAML classification override file before the scan begins. The file records human-reviewed corrections to AI classifications and is applied after AI classification (or in place of it in static mode) on every run.
+
+```bash
+./methodatlas -ai -override-file .methodatlas-overrides.yaml src/test/java
+```
+
+Overrides can correct false positives and false negatives, supply corrected taxonomy tags, add human-authored rationales, and attach reviewer notes that are never emitted in any output format. When an override is applied, confidence is set to `1.0` (security-relevant) or `0.0` (not security-relevant) to reflect the higher certainty of a human decision.
+
+The flag can also be set via YAML configuration as a top-level `overrideFile` field.
+
+See [Classification Overrides](ai/overrides.md) for the full file format, field reference, and CI integration examples.
 
 ### `-apply-tags`
 
