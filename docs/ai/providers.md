@@ -155,6 +155,46 @@ export OPENROUTER_API_KEY=sk-or-...
   /path/to/tests
 ```
 
+## Groq
+
+**What it is:** [Groq](https://groq.com/) is a cloud inference service built on custom LPU (Language Processing Unit) hardware that delivers very low latency responses. It exposes an OpenAI-compatible REST API and offers a free tier suitable for CI pipelines and experimentation.
+
+**Data residency:** Requests are sent to `https://api.groq.com` and processed on Groq's infrastructure. Data leaves the organization's control.
+
+**Regulatory perspective:** Same considerations as OpenAI and Anthropic — not suitable where source code must remain within the organization. Acceptable for teams with explicit approval for external cloud AI usage. The free tier makes it particularly convenient for open-source projects and public CI pipelines.
+
+**Credentials:** A Groq API key from [console.groq.com](https://console.groq.com/).
+
+**How to obtain:**
+
+1. Create an account at [console.groq.com](https://console.groq.com/)
+2. Go to *API Keys → Create API key*
+3. The free tier provides generous rate limits for development and CI use
+
+**Configuration:**
+
+```bash
+export GROQ_API_KEY=gsk_...
+./methodatlas -ai -ai-provider groq \
+  -ai-api-key-env GROQ_API_KEY \
+  -ai-model llama-3.3-70b-versatile \
+  /path/to/tests
+```
+
+Or via YAML:
+
+```yaml
+ai:
+  enabled: true
+  provider: groq
+  model: llama-3.3-70b-versatile
+  apiKeyEnv: GROQ_API_KEY
+  timeoutSec: 60
+  maxRetries: 1
+```
+
+**Recommended models:** `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`. Check [console.groq.com/docs/models](https://console.groq.com/docs/models) for the current list.
+
 ## Auto mode
 
 `auto` first probes the local Ollama endpoint (`http://localhost:11434`). If Ollama is reachable, it is used and no data leaves the machine. If Ollama is not available and an API key has been configured, an OpenAI-compatible provider is used instead.

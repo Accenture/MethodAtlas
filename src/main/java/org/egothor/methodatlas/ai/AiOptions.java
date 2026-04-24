@@ -400,6 +400,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
                     case OPENAI -> "https://api.openai.com";
                     case OPENROUTER -> "https://openrouter.ai/api";
                     case ANTHROPIC -> "https://api.anthropic.com";
+                    case GROQ -> "https://api.groq.com/openai";
                     case AZURE_OPENAI -> throw new IllegalArgumentException(
                             "baseUrl is required for AZURE_OPENAI: set it to https://<resource>.openai.azure.com");
                 };

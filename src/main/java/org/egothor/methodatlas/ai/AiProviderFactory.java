@@ -85,6 +85,7 @@ public final class AiProviderFactory {
             case OPENROUTER -> requireAvailable(new OpenAiCompatibleClient(options), "OpenRouter API key missing");
             case ANTHROPIC -> requireAvailable(new AnthropicClient(options), "Anthropic API key missing");
             case AZURE_OPENAI -> requireAvailable(new AzureOpenAiClient(options), "Azure OpenAI API key missing");
+            case GROQ -> requireAvailable(new OpenAiCompatibleClient(options), "Groq API key missing");
             case AUTO -> auto(options);
         };
     }

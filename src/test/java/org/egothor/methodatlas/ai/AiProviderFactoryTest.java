@@ -240,6 +240,41 @@ class AiProviderFactoryTest {
     }
 
     @Test
+    @DisplayName("create with GROQ provider returns OpenAiCompatibleClient when isAvailable() is true")
+    @Tag("positive")
+    void create_withGroqProvider_returnsOpenAiCompatibleClientWhenAvailable() throws Exception {
+        AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.GROQ).apiKey("gsk-test-key")
+                .build();
+
+        try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(true))) {
+
+            AiProviderClient client = AiProviderFactory.create(options);
+
+            assertInstanceOf(OpenAiCompatibleClient.class, client);
+            assertEquals(1, mocked.constructed().size());
+            assertSame(mocked.constructed().get(0), client);
+        }
+    }
+
+    @Test
+    @DisplayName("create with GROQ provider throws AiSuggestionException with 'Groq API key missing' when unavailable")
+    @Tag("negative")
+    void create_withGroqProvider_throwsWhenUnavailable() {
+        AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.GROQ).build();
+
+        try (MockedConstruction<OpenAiCompatibleClient> mocked = mockConstruction(OpenAiCompatibleClient.class,
+                (mock, ctx) -> when(mock.isAvailable()).thenReturn(false))) {
+
+            AiSuggestionException ex = assertThrows(AiSuggestionException.class,
+                    () -> AiProviderFactory.create(options));
+
+            assertEquals("Groq API key missing", ex.getMessage());
+            assertEquals(1, mocked.constructed().size());
+        }
+    }
+
+    @Test
     @DisplayName("create with AZURE_OPENAI provider throws AiSuggestionException with 'Azure OpenAI API key missing' when unavailable")
     @Tag("negative")
     void create_withAzureOpenAiProvider_throwsWhenUnavailable() {

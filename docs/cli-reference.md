@@ -33,7 +33,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | --- | --- | --- |
 | `-ai` | Enable AI enrichment | Off |
 | `-ai-confidence` | Ask the model to include a confidence score (`0.0–1.0`) per classification | Off |
-| `-ai-provider <provider>` | Select provider: `auto`, `ollama`, `openai`, `openrouter`, `anthropic` | `auto` |
+| `-ai-provider <provider>` | Select provider: `auto`, `ollama`, `openai`, `openrouter`, `anthropic`, `groq` | `auto` |
 | `-ai-model <model>` | Provider-specific model identifier | `qwen2.5-coder:7b` |
 | `-ai-base-url <url>` | Override provider base URL | Provider default |
 | `-ai-api-key <key>` | Supply API key directly on the command line | — |
@@ -327,6 +327,7 @@ Selects the provider implementation. Values are case-insensitive.
 | `openrouter` | OpenRouter API |
 | `anthropic` | Anthropic API |
 | `azure_openai` | Azure OpenAI Service deployment (requires `baseUrl` and `model` = deployment name) |
+| `groq` | Groq cloud inference (LPU hardware, OpenAI-compatible API) |
 
 ### `-ai-model <model>`
 
@@ -342,6 +343,7 @@ Overrides the provider's default base URL. Useful for self-hosted gateways, prox
 | `openai` | `https://api.openai.com` |
 | `openrouter` | `https://openrouter.ai/api` |
 | `anthropic` | `https://api.anthropic.com` |
+| `groq` | `https://api.groq.com/openai` |
 | `azure_openai` | *(required — no default; set to your resource endpoint)* |
 
 ### `-ai-api-key <key>`

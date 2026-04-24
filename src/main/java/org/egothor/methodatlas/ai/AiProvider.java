@@ -121,5 +121,23 @@ public enum AiProvider {
      * {@code {baseUrl}/openai/deployments/{modelName}/chat/completions?api-version={apiVersion}}
      * </p>
      */
-    AZURE_OPENAI
+    AZURE_OPENAI,
+    /**
+     * Uses the <a href="https://console.groq.com/">Groq</a> cloud inference
+     * service for AI-based security classification.
+     *
+     * <p>
+     * Groq exposes an OpenAI-compatible REST API served by custom LPU hardware,
+     * resulting in very low latency and high throughput. The endpoint is
+     * {@code https://api.groq.com/openai}. A free tier is available at
+     * <a href="https://console.groq.com/">console.groq.com</a>.
+     * </p>
+     *
+     * <p>
+     * Authentication uses a Bearer token supplied via the standard
+     * {@code Authorization} header, identical to the OpenAI and OpenRouter
+     * providers.
+     * </p>
+     */
+    GROQ
 }
