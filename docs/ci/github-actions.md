@@ -1,24 +1,31 @@
-# GitHub Actions Integration
+# GitHub Actions
 
-This page shows how to integrate MethodAtlas into a GitHub Actions workflow.
-It covers three complementary techniques you can combine:
+This page describes how to integrate MethodAtlas into a GitHub Actions
+workflow. The techniques can be used individually or combined:
 
-1. **PR annotations** — inline `::notice`/`::warning` markers on the PR diff (no licence required)
-2. **SARIF upload** — findings appear in the GitHub Code Scanning tab (requires GitHub Advanced Security)
-3. **Security test count gate** — pipeline fails when the security test count drops
+- **PR annotations** — inline findings on the pull request diff (no licence required)
+- **SARIF upload** — findings in the GitHub Code Scanning tab (requires GitHub Advanced Security)
+- **AI result caching** — skips re-classification of unchanged test classes
+- **Security test count gate** — pipeline fails when security test coverage drops
 
----
+## Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Java runtime | Java 21 or later; the examples use `actions/setup-java` with Eclipse Temurin |
+| MethodAtlas | Downloaded at runtime from the GitHub release; no build step required |
+| AI provider API key | Stored as a repository secret; not required for static inventory mode |
+| GitHub Advanced Security | Required only for SARIF upload to Code Scanning; not required for annotations |
 
 ## Minimal workflow: PR annotations
 
-The simplest way to surface MethodAtlas findings is with the `-github-annotations`
-flag. Each security-relevant test method emits a
-[GitHub workflow command](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions)
-that GitHub renders as an inline annotation on the PR diff:
+The simplest integration uses the `-github-annotations` flag to emit
+[GitHub workflow commands](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions)
+that GitHub renders as inline annotations on the pull request diff:
 
-- `::warning` when `ai_interaction_score >= 0.8` — the test only verifies that
-  methods were called, not what they returned (potential placebo test).
-- `::notice` otherwise — a well-formed security test worth reviewing.
+- `::warning` when `ai_interaction_score >= 0.8` — the test only verifies
+  that methods were called, not what they returned.
+- `::notice` for all other security-relevant methods.
 
 ```yaml
 name: Security test scan
@@ -42,7 +49,7 @@ jobs:
           curl -fsSL -o methodatlas.jar \
             https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
 
-      - name: Scan security tests (PR annotations)
+      - name: Scan security tests
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
@@ -53,22 +60,17 @@ jobs:
 ```
 
 !!! tip "No GitHub Advanced Security licence required"
-    The `::notice` and `::warning` workflow commands are standard GitHub Actions
-    features available on **all plan tiers** — free, Team, and Enterprise — for
-    both public and private repositories.
-    This is in contrast to SARIF upload via the `upload-sarif` action, which
-    requires GitHub Advanced Security (an additional paid add-on for private
-    repositories on GitHub Enterprise).
-    If your organisation has not purchased Advanced Security, `-github-annotations`
-    gives you inline PR feedback at zero additional cost.
-
----
+    The `::notice` and `::warning` workflow commands are standard GitHub
+    Actions features available on all plan tiers — Free, Team, and Enterprise
+    — for both public and private repositories. SARIF upload via the
+    `upload-sarif` action requires GitHub Advanced Security; annotation output
+    does not.
 
 ## Caching AI results across runs
 
-AI classification is the most expensive step. Use `-ai-cache` together with
-`actions/cache` to skip classification for classes that have not changed since
-the last scan:
+AI classification is the most expensive step in each scan. Use `-ai-cache`
+together with `actions/cache` to skip re-classification of test classes whose
+source has not changed since the last run:
 
 ```yaml
       - name: Restore MethodAtlas AI cache
@@ -82,25 +84,29 @@ the last scan:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          CACHE_ARG=""
+          if [ -f .methodatlas-cache.csv ]; then
+            CACHE_ARG="-ai-cache .methodatlas-cache.csv"
+          fi
+
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
             -content-hash \
             -github-annotations \
-            ${{ hashFiles('.methodatlas-cache.csv') != '' && '-ai-cache .methodatlas-cache.csv' || '' }} \
+            $CACHE_ARG \
             src/test/java \
             > .methodatlas-cache.csv
 ```
 
-On the first run (cache miss) every class is classified via the API.
-On subsequent runs only classes whose `content_hash` changed incur an API call;
-unchanged classes are classified from the cache CSV in milliseconds.
-
----
+On the first run (cache miss) every class is classified via the AI provider.
+On subsequent runs, only classes whose `content_hash` has changed since the
+previous scan incur an API call; unchanged classes are read from the cache
+in milliseconds.
 
 ## SARIF upload to Code Scanning
 
-If your organisation has **GitHub Advanced Security**, you can upload the SARIF
-output so findings appear in the *Security* → *Code scanning* tab:
+If your organisation has GitHub Advanced Security, upload the SARIF output
+so findings appear in **Security → Code scanning**:
 
 ```yaml
       - name: Scan and produce SARIF
@@ -120,42 +126,45 @@ output so findings appear in the *Security* → *Code scanning* tab:
           category: security-tests
 ```
 
-!!! note
-    SARIF upload requires GitHub Advanced Security, which is included in GitHub
-    Enterprise Cloud and GitHub Enterprise Server, and can be purchased as an
-    add-on for private repositories on GitHub Team and Free plans.
-    Use `-github-annotations` instead if Advanced Security is not available.
-
----
+!!! note "GitHub Advanced Security"
+    SARIF upload requires GitHub Advanced Security, which is included in
+    GitHub Enterprise Cloud and GitHub Enterprise Server and is available as
+    a paid add-on for private repositories on the Team and Free plans. For
+    public repositories, Code Scanning is available at no additional cost.
+    Use `-github-annotations` if Advanced Security is not available.
 
 ## Security test count gate
 
-Fail the pipeline if the security test count drops compared to the `main` branch
-baseline. This protects against accidental or silent removal of security tests.
+Fail the pipeline when the number of security-relevant test methods drops
+compared to the `main` branch baseline. This protects against accidental or
+silent removal of security tests.
 
 ```yaml
-      - name: Save baseline (on main)
+      - name: Save baseline
         if: github.ref == 'refs/heads/main'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
             -security-only -content-hash \
             src/test/java > baseline.csv
-          
+
       - uses: actions/upload-artifact@v4
         if: github.ref == 'refs/heads/main'
         with:
           name: methodatlas-baseline
           path: baseline.csv
+          retention-days: 90
 
-      - name: Download baseline (on PR)
+      - name: Download baseline
         if: github.event_name == 'pull_request'
         uses: actions/download-artifact@v4
         with:
           name: methodatlas-baseline
           path: .
 
-      - name: Count gate (on PR)
+      - name: Count gate
         if: github.event_name == 'pull_request'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -177,9 +186,12 @@ baseline. This protects against accidental or silent removal of security tests.
           fi
 ```
 
----
+## Full workflow
 
-## Full workflow combining all three
+The following workflow combines all four techniques — caching, annotations,
+SARIF upload, and count gate — into a single reusable definition. The
+annotation and SARIF steps run in sequence so that each produces a clean,
+single-format output stream.
 
 ```yaml
 name: Security test scan
@@ -216,7 +228,7 @@ jobs:
           key: methodatlas-${{ hashFiles('src/test/java/**/*.java') }}
           restore-keys: methodatlas-
 
-      - name: Run MethodAtlas
+      - name: Run MethodAtlas — annotations
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
@@ -227,22 +239,50 @@ jobs:
 
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-            -content-hash -security-only \
+            -content-hash \
             -github-annotations \
-            -sarif \
             $CACHE_ARG \
             src/test/java \
-            | tee .methodatlas-cache.csv > methodatlas.sarif
+            > .methodatlas-cache.csv
+
+      - name: Run MethodAtlas — SARIF
+        if: github.ref == 'refs/heads/main'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          java -jar methodatlas.jar \
+            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -sarif -security-only \
+            -ai-cache .methodatlas-cache.csv \
+            src/test/java \
+            > methodatlas.sarif
 
       - name: Upload SARIF
-        if: always()
+        if: github.ref == 'refs/heads/main'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: methodatlas.sarif
           category: security-tests
 ```
 
-!!! warning "Note on combined output"
-    The example above pipes both `::notice`/`::warning` lines and SARIF JSON to the
-    same stream. In practice, run the two modes as separate steps — one with
-    `-github-annotations` and one with `-sarif` — to keep the outputs clean.
+## Using GitHub Models as the AI provider
+
+[GitHub Models](https://github.com/marketplace/models) provides free inference
+for supported models using the `GITHUB_TOKEN` automatically available in every
+GitHub Actions run. No additional secrets or billing setup is required.
+
+```yaml
+      - name: Run MethodAtlas with GitHub Models
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          java -jar methodatlas.jar \
+            -ai -ai-provider github_models \
+            -ai-model gpt-4o-mini \
+            -ai-api-key-env GITHUB_TOKEN \
+            -github-annotations \
+            src/test/java
+```
+
+See [AI Providers — GitHub Models](../ai/providers.md) for the list of
+available models and rate limits.

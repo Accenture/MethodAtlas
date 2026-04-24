@@ -1,7 +1,8 @@
 site_name: MethodAtlas
 site_description: >-
-  Scan Java test sources, extract JUnit 5 test metadata, and enrich results
-  with AI-generated security classification. Built for regulated environments.
+  Scan Java test sources (JUnit 5, JUnit 4, TestNG), build a structured
+  security test inventory, and enrich results with AI-generated classification.
+  Built for regulated environments.
 site_url: https://accenture.github.io/MethodAtlas/
 repo_url: https://github.com/Accenture/MethodAtlas
 repo_name: Accenture/MethodAtlas
@@ -104,7 +105,16 @@ nav:
       - Security Taxonomy: ai/taxonomy.md
       - Classification Overrides: ai/overrides.md
       - Tag vs AI Drift: ai/drift-detection.md
-  - CI/CD Setup:
+  - Concepts:
+    - MethodAtlas and SAST Tools: concepts/vs-sast.md
+  - CI/CD:
     - Overview: ci-setup.md
     - GitHub Actions: ci/github-actions.md
+    - GitLab CI: ci/gitlab.md
+  - Regulated Deployment:
+    - Overview: deployment/index.md
+    - PCI-DSS v4.0: deployment/pci-dss.md
+    - ISO/IEC 27001:2022: deployment/iso-27001.md
+    - NIST SP 800-218 (SSDF): deployment/nist-ssdf.md
+    - DORA: deployment/dora.md
   - Reports: reports.md
