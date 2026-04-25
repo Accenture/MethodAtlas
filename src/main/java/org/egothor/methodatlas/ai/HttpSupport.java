@@ -54,7 +54,7 @@ public final class HttpSupport {
 
     private static final Logger LOGGER = Logger.getLogger(HttpSupport.class.getName());
     private static final Pattern RETRY_AFTER_SECONDS = Pattern.compile("Please wait (\\d+) seconds");
-    private static final long DEFAULT_RETRY_WAIT_SECONDS = 60L;
+    /* default */ static final long DEFAULT_RETRY_WAIT_SECONDS = 60L;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -140,8 +140,9 @@ public final class HttpSupport {
             if (statusCode == 429 && attempt < maxRetries) {
                 long waitSeconds = resolveRetryAfter(response);
                 if (LOGGER.isLoggable(Level.WARNING)) {
-                    LOGGER.warning("Rate limited (HTTP 429), waiting " + waitSeconds + "s before retry "
-                            + (attempt + 1) + "/" + maxRetries);
+                    LOGGER.warning("AI provider rate limit reached (HTTP 429) — waiting " + waitSeconds
+                            + "s before retry " + (attempt + 1) + "/" + maxRetries
+                            + ". No AI classification will occur during this pause.");
                 }
                 Thread.sleep(Duration.ofSeconds(waitSeconds));
             }
@@ -153,11 +154,14 @@ public final class HttpSupport {
         return body;
     }
 
-    private static long resolveRetryAfter(HttpResponse<String> response) {
+    /* default */ static long resolveRetryAfter(HttpResponse<String> response) {
         String header = response.headers().firstValue("Retry-After").orElse(null);
         if (header != null) {
             try {
-                return Long.parseLong(header.trim());
+                long parsed = Long.parseLong(header.trim());
+                if (parsed > 0) {
+                    return parsed;
+                }
             } catch (NumberFormatException ignored) {
                 // Non-numeric Retry-After header value; fall through to body parsing.
             }
@@ -165,11 +169,17 @@ public final class HttpSupport {
         Matcher matcher = RETRY_AFTER_SECONDS.matcher(response.body());
         if (matcher.find()) {
             try {
-                return Long.parseLong(matcher.group(1));
+                long parsed = Long.parseLong(matcher.group(1));
+                if (parsed > 0) {
+                    return parsed;
+                }
             } catch (NumberFormatException ignored) {
-                // Regex matched but captured group is not a valid long; use default wait.
+                // Regex matched but captured group is not a valid long; fall through.
             }
         }
+        // Neither the Retry-After header nor the response body supplied a usable
+        // positive wait time. Fall back to the conservative default so that retries
+        // are not sent immediately against a provider that is already saturated.
         return DEFAULT_RETRY_WAIT_SECONDS;
     }
 
