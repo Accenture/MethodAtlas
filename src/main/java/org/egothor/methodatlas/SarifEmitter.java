@@ -55,36 +55,45 @@ final class SarifEmitter implements TestMethodSink {
             "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";
     private static final String SARIF_VERSION = "2.1.0";
     private static final int SINGLE_CHAR_LENGTH = 1;
+    private static final int RULE_ID_PART_COUNT = 2;
     private static final String RULE_TEST_METHOD = "test-method";
     private static final String RULE_SECURITY_TEST = "security-test";
     private static final String LEVEL_NOTE = "note";
     private static final String LEVEL_NONE = "none";
     private static final String URI_BASE_ID = "%SRCROOT%";
 
+    private static final String SEVERITY_CRITICAL = "9.0";
+    private static final String SEVERITY_DESERIALIZATION = "8.5";
+    private static final String SEVERITY_HIGH = "7.5";
+    private static final String SEVERITY_MEDIUM_HIGH = "6.5";
+    private static final String SEVERITY_MEDIUM = "5.5";
+    private static final String SEVERITY_LOW = "4.0";
+    private static final String SEVERITY_DEFAULT = "5.0";
+
     /**
      * Maps AI taxonomy tags to SARIF {@code security-severity} scores (0–10).
      * GitHub Code Scanning maps ≥9 → Critical, ≥7 → High, ≥4 → Medium, >0 → Low.
      */
     private static final Map<String, String> TAG_SEVERITY = Map.ofEntries(
-            Map.entry("injection", "9.0"),
-            Map.entry("sqli", "9.0"),
-            Map.entry("rce", "9.0"),
-            Map.entry("xxe", "9.0"),
-            Map.entry("deserialization", "8.5"),
-            Map.entry("auth", "7.5"),
-            Map.entry("authn", "7.5"),
-            Map.entry("authz", "7.5"),
-            Map.entry("access-control", "7.5"),
-            Map.entry("privilege-escalation", "7.5"),
-            Map.entry("idor", "7.5"),
-            Map.entry("crypto", "6.5"),
-            Map.entry("session", "6.5"),
-            Map.entry("xss", "6.5"),
-            Map.entry("csrf", "6.5"),
-            Map.entry("path-traversal", "6.5"),
-            Map.entry("redirect", "5.5"),
-            Map.entry("logging", "4.0"),
-            Map.entry("dos", "4.0"));
+            Map.entry("injection", SEVERITY_CRITICAL),
+            Map.entry("sqli", SEVERITY_CRITICAL),
+            Map.entry("rce", SEVERITY_CRITICAL),
+            Map.entry("xxe", SEVERITY_CRITICAL),
+            Map.entry("deserialization", SEVERITY_DESERIALIZATION),
+            Map.entry("auth", SEVERITY_HIGH),
+            Map.entry("authn", SEVERITY_HIGH),
+            Map.entry("authz", SEVERITY_HIGH),
+            Map.entry("access-control", SEVERITY_HIGH),
+            Map.entry("privilege-escalation", SEVERITY_HIGH),
+            Map.entry("idor", SEVERITY_HIGH),
+            Map.entry("crypto", SEVERITY_MEDIUM_HIGH),
+            Map.entry("session", SEVERITY_MEDIUM_HIGH),
+            Map.entry("xss", SEVERITY_MEDIUM_HIGH),
+            Map.entry("csrf", SEVERITY_MEDIUM_HIGH),
+            Map.entry("path-traversal", SEVERITY_MEDIUM_HIGH),
+            Map.entry("redirect", SEVERITY_MEDIUM),
+            Map.entry("logging", SEVERITY_LOW),
+            Map.entry("dos", SEVERITY_LOW));
 
     /**
      * Pre-compiled pattern for splitting rule IDs into camel-case name segments.
@@ -203,8 +212,8 @@ final class SarifEmitter implements TestMethodSink {
             return List.of("security");
         }
         // "security/auth" → ["security", "auth"]
-        String[] parts = ruleId.split("/", 2);
-        if (parts.length == 2) {
+        String[] parts = ruleId.split("/", RULE_ID_PART_COUNT);
+        if (parts.length == RULE_ID_PART_COUNT) {
             return List.of(parts[0], parts[1]);
         }
         return List.of("security");
@@ -295,7 +304,7 @@ final class SarifEmitter implements TestMethodSink {
                 }
             }
         }
-        return "5.0";
+        return SEVERITY_DEFAULT;
     }
 
     // -------------------------------------------------------------------------
