@@ -952,6 +952,10 @@ public final class MethodAtlasApp {
 
         List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
 
+        if (LOG.isLoggable(Level.INFO)) {
+            LOG.log(Level.INFO, "Querying AI for {0} ({1} methods)", new Object[] { fqcn, targetMethods.size() });
+        }
+
         try {
             AiClassSuggestion aiClassSuggestion = aiEngine.suggestForClass(fileStem, fqcn, classSource, targetMethods);
             return SuggestionLookup.from(override.apply(fqcn, aiClassSuggestion, methodNames));

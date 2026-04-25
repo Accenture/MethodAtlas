@@ -70,38 +70,119 @@ jobs:
 
 AI classification is the most expensive step in each scan. Use `-ai-cache`
 together with `actions/cache` to skip re-classification of test classes whose
-source has not changed since the last run:
+source has not changed since the last run.
+
+MethodAtlas computes a SHA-256 content fingerprint (`content_hash`) for each
+test class and stores it alongside the AI classification in CSV output. On the
+next run, classes whose hash matches a cache entry are served locally — no API
+call is made. Only changed or new classes incur a provider call.
+
+The cache file is stored compressed (`.gz`) to minimise GitHub Actions cache
+storage consumption. CSV text typically compresses to 10–20 % of its original
+size, making the cache practical even for very large test suites.
+
+### Caching with CSV / annotation output
 
 ```yaml
       - name: Restore MethodAtlas AI cache
         uses: actions/cache@v4
         with:
-          path: .methodatlas-cache.csv
-          key: methodatlas-${{ hashFiles('src/test/java/**/*.java') }}
-          restore-keys: methodatlas-
+          path: .methodatlas-cache.csv.gz
+          key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            methodatlas-ai-${{ github.ref_name }}-
+            methodatlas-ai-
 
       - name: Scan security tests with cache
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          CACHE_ARG=""
-          if [ -f .methodatlas-cache.csv ]; then
-            CACHE_ARG="-ai-cache .methodatlas-cache.csv"
-          fi
+          [ -f .methodatlas-cache.csv.gz ] && gunzip -k .methodatlas-cache.csv.gz
+          CACHE_ARGS=()
+          [ -f .methodatlas-cache.csv ] && CACHE_ARGS=("-ai-cache" ".methodatlas-cache.csv")
 
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
             -content-hash \
             -github-annotations \
-            $CACHE_ARG \
+            "${CACHE_ARGS[@]}" \
             src/test/java \
-            > .methodatlas-cache.csv
+            > .methodatlas-cache-new.csv
+          mv .methodatlas-cache-new.csv .methodatlas-cache.csv
+          gzip -c .methodatlas-cache.csv > .methodatlas-cache.csv.gz
 ```
 
-On the first run (cache miss) every class is classified via the AI provider.
+On the first run (cold cache) every class is classified via the AI provider.
 On subsequent runs, only classes whose `content_hash` has changed since the
 previous scan incur an API call; unchanged classes are read from the cache
 in milliseconds.
+
+### Caching with SARIF output — two-pass approach
+
+SARIF output does not carry the `content_hash` column required by the cache
+loader, so a SARIF file cannot itself serve as the next run's cache. Use two
+consecutive invocations:
+
+1. **CSV pass** — refreshes the cache; calls AI only for changed or new classes.
+2. **SARIF pass** — reads exclusively from the cache produced in pass 1; makes
+   zero AI calls.
+
+```yaml
+      - name: Restore MethodAtlas AI cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .methodatlas-cache.csv.gz
+          key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            methodatlas-ai-${{ github.ref_name }}-
+            methodatlas-ai-
+
+      - name: Run MethodAtlas — CSV pass (cache refresh)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          [ -f .methodatlas-cache.csv.gz ] && gunzip -k .methodatlas-cache.csv.gz
+          CACHE_ARGS=()
+          [ -f .methodatlas-cache.csv ] && CACHE_ARGS=("-ai-cache" ".methodatlas-cache.csv")
+          java -jar methodatlas.jar \
+            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -content-hash \
+            "${CACHE_ARGS[@]}" \
+            src/test/java \
+            > .methodatlas-cache-new.csv
+          mv .methodatlas-cache-new.csv .methodatlas-cache.csv
+          # Keep the uncompressed file for pass 2; produce .gz for storage.
+          gzip -c .methodatlas-cache.csv > .methodatlas-cache.csv.gz
+
+      - name: Run MethodAtlas — SARIF pass (zero AI calls)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          java -jar methodatlas.jar \
+            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -content-hash \
+            -ai-cache .methodatlas-cache.csv \
+            -sarif \
+            src/test/java \
+            > methodatlas.sarif
+
+      - name: Save MethodAtlas AI cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .methodatlas-cache.csv.gz
+          key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
+```
+
+!!! tip "Why two passes?"
+    The SARIF pass reads all classifications from the local cache, so it makes
+    no AI calls and is not subject to rate limits. This also guarantees that
+    findings from unchanged classes remain present in the SARIF output — if
+    they were omitted, GitHub Code Scanning would close the corresponding alerts
+    as resolved between runs.
+
+See [AI Result Caching](../ai/caching.md) for a detailed explanation of how the
+cache works and how to combine it with the `-diff` command.
 
 ## SARIF upload to Code Scanning
 
@@ -189,9 +270,11 @@ silent removal of security tests.
 ## Full workflow
 
 The following workflow combines all four techniques — caching, annotations,
-SARIF upload, and count gate — into a single reusable definition. The
-annotation and SARIF steps run in sequence so that each produces a clean,
-single-format output stream.
+SARIF upload, and count gate — into a single reusable definition.
+
+The cache is refreshed in a CSV pass that calls the AI only for changed or new
+classes. The annotation and SARIF passes both read from that cache and make
+zero AI calls, eliminating redundant provider traffic and rate-limit exposure.
 
 ```yaml
 name: Security test scan
@@ -221,41 +304,58 @@ jobs:
           curl -fsSL -o methodatlas.jar \
             https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
 
-      - name: Restore AI cache
-        uses: actions/cache@v4
+      - name: Restore AI classification cache
+        uses: actions/cache/restore@v4
         with:
-          path: .methodatlas-cache.csv
-          key: methodatlas-${{ hashFiles('src/test/java/**/*.java') }}
-          restore-keys: methodatlas-
+          path: .methodatlas-cache.csv.gz
+          key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            methodatlas-ai-${{ github.ref_name }}-
+            methodatlas-ai-
 
-      - name: Run MethodAtlas — annotations
+      # ── Pass 1: CSV ────────────────────────────────────────────────────────
+      # Refreshes the cache.  Calls the AI only for classes that changed since
+      # the last run; all other classes are served from the restored cache.
+      - name: Run MethodAtlas — CSV pass (cache refresh + annotations)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          CACHE_ARG=""
-          if [ -f .methodatlas-cache.csv ]; then
-            CACHE_ARG="-ai-cache .methodatlas-cache.csv"
-          fi
+          [ -f .methodatlas-cache.csv.gz ] && gunzip -k .methodatlas-cache.csv.gz
+          CACHE_ARGS=()
+          [ -f .methodatlas-cache.csv ] && CACHE_ARGS=("-ai-cache" ".methodatlas-cache.csv")
 
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
             -content-hash \
             -github-annotations \
-            $CACHE_ARG \
+            "${CACHE_ARGS[@]}" \
             src/test/java \
-            > .methodatlas-cache.csv
+            > .methodatlas-cache-new.csv
+          mv .methodatlas-cache-new.csv .methodatlas-cache.csv
+          gzip -c .methodatlas-cache.csv > .methodatlas-cache.csv.gz
 
-      - name: Run MethodAtlas — SARIF
+      # ── Pass 2: SARIF ──────────────────────────────────────────────────────
+      # Reads exclusively from the cache produced in pass 1; zero AI calls.
+      # Runs only on pushes to main (where Code Scanning upload is meaningful).
+      - name: Run MethodAtlas — SARIF pass (zero AI calls)
         if: github.ref == 'refs/heads/main'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-            -sarif \
+            -content-hash \
             -ai-cache .methodatlas-cache.csv \
+            -sarif \
             src/test/java \
             > methodatlas.sarif
+
+      - name: Save AI classification cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .methodatlas-cache.csv.gz
+          key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
 
       - name: Upload SARIF
         if: github.ref == 'refs/heads/main'

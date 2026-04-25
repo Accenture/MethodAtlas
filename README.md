@@ -193,7 +193,7 @@ Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method:
 
 See [docs/ai/confidence.md](docs/ai/confidence.md) for the full interpretation guide.
 
-## Content hash fingerprints
+## Content hash fingerprints and incremental scanning
 
 Pass `-content-hash` to append a SHA-256 fingerprint of each class to every emitted record:
 
@@ -207,6 +207,37 @@ Practical applications:
 - **Incremental scanning** — skip classes whose hash has not changed since the last run
 - **Audit traceability** — correlate a SARIF finding back to the exact class revision that produced it
 - **CI change detection** — detect modified test classes between two pipeline stages without diffing source files
+
+### AI result cache
+
+Pass `-ai-cache <prev-scan.csv>` to reuse AI classifications from a previous run. Before
+calling the AI provider for a class, MethodAtlas checks whether that class's content hash
+appears in the cache file. On a hit, the stored result is used directly — no API call is
+made. Only changed or new classes incur a provider call.
+
+```bash
+# Day 1 — full scan; save the result as the cache
+./methodatlas -ai -content-hash src/test/java > scan.csv
+
+# Day 2, 3, … — unchanged classes cost nothing
+./methodatlas -ai -content-hash -ai-cache scan.csv src/test/java > scan-new.csv
+```
+
+When producing SARIF output, use a two-pass approach: the first pass refreshes the CSV
+cache (calling AI only for changed classes), the second pass generates SARIF from the
+cache with zero AI calls.
+
+```bash
+# Pass 1: refresh cache (AI called only for changed classes)
+./methodatlas -ai -content-hash -ai-cache scan.csv src/test/java > scan-new.csv
+
+# Pass 2: generate SARIF from cache — zero AI calls
+./methodatlas -ai -content-hash -ai-cache scan-new.csv -sarif src/test/java > results.sarif
+```
+
+See [docs/ai/caching.md](docs/ai/caching.md) for the full cache documentation and
+[docs/ci/github-actions.md](docs/ci/github-actions.md) for the complete GitHub Actions
+workflow that implements this pattern.
 
 ## Manual AI workflow
 
@@ -273,6 +304,7 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 | [docs/usage-modes/](docs/usage-modes/index.md) | All operating modes: static inventory, API AI, manual workflow, apply-tags, delta, security-only |
 | [docs/ai/providers.md](docs/ai/providers.md) | Per-provider setup: Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter |
 | [docs/ai/confidence.md](docs/ai/confidence.md) | Confidence scoring: interpretation and threshold guidance |
+| [docs/ai/caching.md](docs/ai/caching.md) | AI result caching: skip unchanged classes, two-pass SARIF pattern, CI cache key strategy |
 | [docs/ai/drift-detection.md](docs/ai/drift-detection.md) | Tag vs AI drift detection: detecting stale `@Tag("security")` annotations |
 | [docs/deployment/](docs/deployment/index.md) | Regulated environment guidance: PCI-DSS, ISO 27001, NIST SSDF, DORA, SOC 2, air-gapped |
 | [docs/concepts/data-governance.md](docs/concepts/data-governance.md) | What data is submitted to AI providers and data residency options |
