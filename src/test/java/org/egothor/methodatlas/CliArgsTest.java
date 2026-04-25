@@ -336,6 +336,7 @@ class CliArgsTest {
 
         assertEquals(OutputMode.SARIF, cfg.outputMode());
         assertTrue(cfg.contentHash());
+        assertTrue(cfg.securityOnly(), "SARIF mode via YAML must imply securityOnly");
     }
 
     @Test
@@ -391,11 +392,11 @@ class CliArgsTest {
     }
 
     // -------------------------------------------------------------------------
-    // -security-only flag
+    // -security-only flag (CSV / plain mode)
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("-security-only flag sets securityOnly=true")
+    @DisplayName("-security-only flag sets securityOnly=true in CSV mode")
     @Tag("positive")
     void parse_securityOnlyFlag_setsTrue() {
         assertTrue(CliArgs.parse("-security-only").securityOnly());
@@ -409,6 +410,74 @@ class CliArgsTest {
         Files.writeString(configFile, "securityOnly: true\n", StandardCharsets.UTF_8);
 
         assertTrue(CliArgs.parse("-config", configFile.toString()).securityOnly());
+    }
+
+    // -------------------------------------------------------------------------
+    // SARIF implicit security-only and -include-non-security opt-in
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("-sarif flag implies securityOnly=true without any explicit filter flag")
+    @Tag("positive")
+    void parse_sarifFlag_impliesSecurityOnly() {
+        CliConfig cfg = CliArgs.parse("-sarif");
+        assertTrue(cfg.securityOnly(), "-sarif must activate security-only filtering automatically");
+    }
+
+    @Test
+    @DisplayName("-sarif with -include-non-security disables the implicit security-only filter")
+    @Tag("positive")
+    void parse_sarifWithIncludeNonSecurity_disablesImplicitFilter() {
+        CliConfig cfg = CliArgs.parse("-sarif", "-include-non-security");
+        assertFalse(cfg.securityOnly(),
+                "-include-non-security must disable the implicit SARIF security-only filter");
+    }
+
+    @Test
+    @DisplayName("-include-non-security alone in CSV mode has no effect on securityOnly")
+    @Tag("positive")
+    void parse_includeNonSecurityAlone_doesNotAffectCsvSecurityOnly() {
+        CliConfig cfg = CliArgs.parse("-include-non-security");
+        assertFalse(cfg.securityOnly(),
+                "CSV mode has securityOnly=false by default regardless of -include-non-security");
+    }
+
+    @Test
+    @DisplayName("YAML outputMode sarif implies securityOnly even without -security-only flag")
+    @Tag("positive")
+    void parse_yamlSarifMode_impliesSecurityOnly(@TempDir Path tempDir) throws IOException {
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile, "outputMode: sarif\n", StandardCharsets.UTF_8);
+
+        CliConfig cfg = CliArgs.parse("-config", configFile.toString());
+        assertTrue(cfg.securityOnly(), "YAML outputMode:sarif must imply securityOnly");
+    }
+
+    @Test
+    @DisplayName("YAML outputMode sarif with includeNonSecurity true disables implicit filter")
+    @Tag("positive")
+    void parse_yamlSarifModeWithIncludeNonSecurity_disablesFilter(@TempDir Path tempDir)
+            throws IOException {
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile, "outputMode: sarif\nincludeNonSecurity: true\n",
+                StandardCharsets.UTF_8);
+
+        CliConfig cfg = CliArgs.parse("-config", configFile.toString());
+        assertFalse(cfg.securityOnly(),
+                "includeNonSecurity:true in YAML must disable the implicit SARIF filter");
+    }
+
+    @Test
+    @DisplayName("CLI -include-non-security overrides YAML outputMode sarif implicit filter")
+    @Tag("positive")
+    void parse_cliIncludeNonSecurityOverridesYamlSarifImplicit(@TempDir Path tempDir)
+            throws IOException {
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile, "outputMode: sarif\n", StandardCharsets.UTF_8);
+
+        CliConfig cfg = CliArgs.parse("-config", configFile.toString(), "-include-non-security");
+        assertFalse(cfg.securityOnly(),
+                "CLI -include-non-security must override the implicit SARIF security-only filter");
     }
 
     // -------------------------------------------------------------------------

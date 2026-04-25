@@ -101,7 +101,10 @@ jobs:
       # no additional secrets or billing setup required.
       #
       # Flags used:
-      #   -sarif            emit SARIF 2.1.0 output for Code Scanning upload
+      #   -sarif            emit SARIF 2.1.0 output for Code Scanning upload;
+      #                     security-only filtering is applied automatically —
+      #                     only security-relevant methods appear as findings.
+      #                     Add -include-non-security to emit all test methods.
       #   -ai               enable AI security classification
       #   -ai-provider      github_models (free, uses GITHUB_TOKEN)
       #   -ai-model         model from github.com/marketplace/models

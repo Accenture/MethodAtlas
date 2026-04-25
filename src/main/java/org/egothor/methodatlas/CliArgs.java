@@ -43,6 +43,7 @@ final class CliArgs {
     private static final String FLAG_CONFIG = "-config";
     private static final String FLAG_AI_CACHE = "-ai-cache";
     private static final String FLAG_DRIFT_DETECT = "-drift-detect";
+    private static final String FLAG_INCLUDE_NON_SECURITY = "-include-non-security";
 
     /**
      * Prevents instantiation of this utility class.
@@ -57,6 +58,21 @@ final class CliArgs {
      * If a {@code -config <file>} argument is present it is loaded first and
      * its values seed the initial configuration. Subsequent command-line flags
      * override those defaults.
+     * </p>
+     *
+     * <p>
+     * <b>SARIF mode and security filtering:</b> when {@code -sarif} is selected
+     * (or {@code outputMode: sarif} is set in YAML), the security-only filter is
+     * applied automatically — only security-relevant methods are emitted. This
+     * default exists because SARIF is consumed by GitHub Code Scanning and
+     * equivalent security tooling that expects actionable security findings, not
+     * an exhaustive inventory of all test methods. Use {@code -include-non-security}
+     * to override this behaviour and include all methods in the SARIF document.
+     * </p>
+     *
+     * <p>
+     * The {@code -security-only} flag continues to work independently and applies
+     * the same filter to CSV and plain-text output modes.
      * </p>
      *
      * @param args raw command-line arguments
@@ -91,6 +107,7 @@ final class CliArgs {
         Path overrideFilePath = yamlConfig != null && yamlConfig.overrideFile != null
                 ? Paths.get(yamlConfig.overrideFile) : null;
         boolean securityOnly = yamlConfig != null && yamlConfig.securityOnly;
+        boolean includeNonSecurity = yamlConfig != null && yamlConfig.includeNonSecurity;
         boolean driftDetect = yamlConfig != null && yamlConfig.driftDetect;
         Path aiCacheFile = null;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
@@ -125,6 +142,7 @@ final class CliArgs {
                 case "-test-annotation" -> testAnnotations.add(nextArg(args, ++i, arg));
                 case "-emit-metadata" -> emitMetadata = true;
                 case "-security-only" -> securityOnly = true;
+                case FLAG_INCLUDE_NON_SECURITY -> includeNonSecurity = true;
                 case FLAG_DRIFT_DETECT -> driftDetect = true;
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
                 case "-manual-prepare" -> {
@@ -153,6 +171,13 @@ final class CliArgs {
             manualMode = manualIsConsume
                     ? new ManualMode.Consume(workDir, responseDir)
                     : new ManualMode.Prepare(workDir, responseDir);
+        }
+
+        // SARIF is consumed by security tooling that expects findings, not a full
+        // test inventory. Apply the security-only filter implicitly unless the
+        // caller has explicitly opted in to the full-inventory form.
+        if (outputMode == OutputMode.SARIF && !includeNonSecurity) {
+            securityOnly = true;
         }
 
         List<String> resolvedSuffixes = fileSuffixes.isEmpty() ? List.of(DEFAULT_FILE_SUFFIX) : fileSuffixes;

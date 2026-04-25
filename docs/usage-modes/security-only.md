@@ -1,54 +1,80 @@
 # Security-Only Output Filter
 
-The `-security-only` flag restricts the output of a scan to methods that were
-classified as security-relevant. All other test methods are silently dropped
-before output is written, whether the format is CSV, plain text, or SARIF.
+The security-only filter restricts output to methods classified as
+security-relevant. All other test methods are silently dropped before any output
+is written.
 
-## Basic usage
+## SARIF mode: security-only by default
+
+When SARIF output is selected (`-sarif` or `outputMode: sarif` in YAML), the
+security-only filter is **applied automatically**. SARIF is consumed by GitHub
+Code Scanning and equivalent security tooling that expects actionable findings —
+not an exhaustive inventory of every test method. Emitting hundreds of
+`level: none` entries for ordinary unit tests floods the Security tab with noise
+that cannot be bulk-dismissed and makes the tool unusable in practice.
 
 ```bash
+# Security findings only — the default for SARIF
+./methodatlas -ai -sarif src/test/java > security-tests.sarif
+```
+
+To include all test methods in the SARIF document (for example, to feed a
+custom analysis pipeline), pass `-include-non-security`:
+
+```bash
+# Full inventory SARIF — opt-in
+./methodatlas -ai -sarif -include-non-security src/test/java > all-tests.sarif
+```
+
+The same opt-in is available in YAML configuration:
+
+```yaml
+outputMode: sarif
+includeNonSecurity: true
+```
+
+## CSV and plain-text modes: opt-in filter
+
+For CSV and plain-text output, the filter is **not applied by default** — every
+discovered test method is emitted. Use `-security-only` to restrict the output
+when only security-relevant rows are needed:
+
+```bash
+# All methods (default)
+./methodatlas -ai src/test/java
+
+# Security methods only
 ./methodatlas -ai -security-only src/test/java
 ```
 
-```bash
-# SARIF for GitHub Code Scanning — only security findings
-./methodatlas -ai -sarif -security-only src/test/java > security-tests.sarif
+The flag can also be enabled via YAML:
+
+```yaml
+securityOnly: true
+ai:
+  enabled: true
+  provider: anthropic
+  model: claude-sonnet-4-5
 ```
-
-## Why this filter exists
-
-A typical Java project has hundreds or thousands of JUnit tests. Only a small
-fraction of them explicitly verify security properties. Without filtering, a full
-MethodAtlas scan emits one row per test method — most of which carry
-`ai_security_relevant=false` and add noise to any downstream consumer.
-
-The `-security-only` filter removes that noise at the source:
-
-| Consumer | Problem without filter | With `-security-only` |
-|---|---|---|
-| **GitHub Code Scanning** | Thousands of `level: none` SARIF findings flood the Security tab and bury real results | Only security-relevant tests appear as `level: note` findings |
-| **Auditor CSV** | Reviewer must manually skip hundreds of irrelevant rows | Compact list of exactly the tests that cover security requirements |
-| **CI security gate** | `wc -l` on the CSV includes headers and non-security rows | Direct row count equals number of security-relevant tests |
-| **Team dashboard** | Charts dominated by non-security test volume | Metrics reflect only the security-test layer |
 
 ## What "security-relevant" means
 
-A method is included in the output when its `ai_security_relevant` field is
-`true`. This value is set by:
+A method is included when its `ai_security_relevant` field is `true`. This value
+is set by:
 
-1. **AI classification** — the model determined the method tests a named
-   security property (authentication, cryptography, input validation, etc.)
+1. **AI classification** — the model determined the method tests a named security
+   property (authentication, cryptography, input validation, etc.)
 2. **Human override** — an [`-override-file`](../ai/overrides.md) entry
    explicitly sets `securityRelevant: true` for the method
 
-A method with no AI suggestion (class skipped due to size limit, AI unavailable,
-or AI disabled) is treated as `securityRelevant=false` and is dropped.
+A method with no AI suggestion (class too large, AI unavailable, or AI disabled)
+is treated as `securityRelevant=false` and is dropped.
 
 ## Requiring AI or overrides
 
-`-security-only` has no effect without a source of security classifications.
-If neither `-ai` nor `-override-file` is configured, no method has a
-`securityRelevant=true` value and the output will be empty. Always combine
+The security-only filter has no effect without a source of security
+classifications. If neither `-ai` nor `-override-file` is configured, no method
+has a `securityRelevant=true` value and the output will be empty. Always combine
 the filter with at least one of:
 
 ```bash
@@ -62,36 +88,19 @@ the filter with at least one of:
 ./methodatlas -override-file .methodatlas-overrides.yaml -security-only src/test/java
 ```
 
-## Configuration file
-
-The filter can be enabled via the YAML configuration file so that every run in
-a project uses it by default:
-
-```yaml
-securityOnly: true
-
-ai:
-  enabled: true
-  provider: anthropic
-  model: claude-sonnet-4-5
-```
-
-A command-line `-security-only` flag always overrides the YAML setting.
+This requirement applies equally to SARIF mode: without AI or an override file,
+the SARIF document will contain zero results.
 
 ## SDLC integration examples
 
 ### GitHub Code Scanning — clean Security tab
-
-Without `-security-only`, every test method produces a SARIF result. Most have
-`level: none` and contribute no actionable information but fill the Security tab
-with hundreds of entries.
 
 ```yaml
 # .github/workflows/security-scan.yml (excerpt)
 - name: MethodAtlas security scan
   run: |
     ./methodatlas \
-      -ai -sarif -security-only \
+      -ai -sarif \
       -ai-provider anthropic \
       -ai-api-key-env ANTHROPIC_API_KEY \
       src/test/java > security-tests.sarif
@@ -102,8 +111,10 @@ with hundreds of entries.
     sarif_file: security-tests.sarif
 ```
 
-The uploaded SARIF will contain only security-relevant test methods, each
-appearing as an annotation on the corresponding source line in the PR diff.
+The uploaded SARIF contains only security-relevant test methods. Each finding
+carries a `security-severity` score (derived from the AI taxonomy tag) that
+GitHub renders as Critical, High, Medium, or Low — making it straightforward to
+prioritise the security manager's backlog.
 
 ### CI gate — minimum security-test count
 
@@ -129,7 +140,7 @@ echo "OK: $COUNT security-relevant tests"
 ### Audit export — evidence for a security review
 
 Produce a clean CSV listing every test that verifies a security property, with
-AI rationale included, for submission to an auditor or a compliance review:
+AI rationale included, for submission to an auditor or compliance review:
 
 ```bash
 ./methodatlas \
@@ -162,8 +173,9 @@ change reports that focus purely on the security-test layer:
 ./methodatlas -diff security-before.csv security-after.csv
 ```
 
-The resulting delta report will show only security-test changes — free of noise
-from unrelated functional tests.
+The resulting delta report shows only security-test changes — free of noise from
+unrelated functional tests.
 
 See [CLI reference — `-security-only`](../cli-reference.md#-security-only) for
-the flag description.
+the flag description and [`-include-non-security`](../cli-reference.md#-include-non-security)
+for the SARIF full-inventory opt-in.

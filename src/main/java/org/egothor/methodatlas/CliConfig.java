@@ -44,7 +44,11 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                        security-relevant (via AI or override) are emitted;
  *                        methods without an AI suggestion or whose suggestion
  *                        has {@code securityRelevant=false} are silently
- *                        dropped from the output
+ *                        dropped from the output; this flag is set
+ *                        automatically when {@link OutputMode#SARIF} is
+ *                        selected unless {@code -include-non-security} is
+ *                        supplied, because SARIF is consumed by security
+ *                        tooling that expects findings, not a full inventory
  * @param aiCacheFile     path to a MethodAtlas CSV produced by a previous scan
  *                        with {@code -content-hash -ai}; when present, classes
  *                        whose {@code content_hash} matches an entry in that

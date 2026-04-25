@@ -62,6 +62,31 @@ final class SarifEmitter implements TestMethodSink {
     private static final String URI_BASE_ID = "%SRCROOT%";
 
     /**
+     * Maps AI taxonomy tags to SARIF {@code security-severity} scores (0–10).
+     * GitHub Code Scanning maps ≥9 → Critical, ≥7 → High, ≥4 → Medium, >0 → Low.
+     */
+    private static final Map<String, String> TAG_SEVERITY = Map.ofEntries(
+            Map.entry("injection", "9.0"),
+            Map.entry("sqli", "9.0"),
+            Map.entry("rce", "9.0"),
+            Map.entry("xxe", "9.0"),
+            Map.entry("deserialization", "8.5"),
+            Map.entry("auth", "7.5"),
+            Map.entry("authn", "7.5"),
+            Map.entry("authz", "7.5"),
+            Map.entry("access-control", "7.5"),
+            Map.entry("privilege-escalation", "7.5"),
+            Map.entry("idor", "7.5"),
+            Map.entry("crypto", "6.5"),
+            Map.entry("session", "6.5"),
+            Map.entry("xss", "6.5"),
+            Map.entry("csrf", "6.5"),
+            Map.entry("path-traversal", "6.5"),
+            Map.entry("redirect", "5.5"),
+            Map.entry("logging", "4.0"),
+            Map.entry("dos", "4.0"));
+
+    /**
      * Pre-compiled pattern for splitting rule IDs into camel-case name segments.
      * Using {@link Pattern#split(CharSequence, int)} with limit {@code -1} is
      * more predictable than {@link String#split(String)} which silently discards
@@ -165,7 +190,24 @@ final class SarifEmitter implements TestMethodSink {
     private static SarifRule buildRule(String ruleId) {
         String name = toRuleName(ruleId);
         String description = toRuleDescription(ruleId);
-        return new SarifRule(ruleId, name, new SarifMessage(description));
+        List<String> tags = toRuleTags(ruleId);
+        SarifRuleProperties ruleProps = tags.isEmpty() ? null : new SarifRuleProperties(tags);
+        return new SarifRule(ruleId, name, new SarifMessage(description), ruleProps);
+    }
+
+    private static List<String> toRuleTags(String ruleId) {
+        if (RULE_TEST_METHOD.equals(ruleId)) {
+            return List.of("test");
+        }
+        if (RULE_SECURITY_TEST.equals(ruleId)) {
+            return List.of("security");
+        }
+        // "security/auth" → ["security", "auth"]
+        String[] parts = ruleId.split("/", 2);
+        if (parts.length == 2) {
+            return List.of(parts[0], parts[1]);
+        }
+        return List.of("security");
     }
 
     private static String toRuleName(String ruleId) {
@@ -206,7 +248,7 @@ final class SarifEmitter implements TestMethodSink {
 
         SarifLocation location = new SarifLocation(physicalLocation, List.of(logicalLocation));
 
-        SarifProperties properties = buildProperties(rec);
+        SarifProperties properties = buildProperties(rec, ruleId);
 
         return new SarifResult(ruleId, level, new SarifMessage(messageText),
                 List.of(location), properties);
@@ -220,13 +262,14 @@ final class SarifEmitter implements TestMethodSink {
         return rec.fqcn() + "." + rec.method();
     }
 
-    private SarifProperties buildProperties(ResultRecord rec) {
+    private SarifProperties buildProperties(ResultRecord rec, String ruleId) {
         AiMethodSuggestion s = rec.suggestion();
         String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
+        String securitySeverity = resolveSecuritySeverity(ruleId, s);
 
         if (!aiEnabled || s == null) {
             return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
-                    null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, securitySeverity);
         }
 
         String aiTags = s.tags() == null || s.tags().isEmpty() ? null : String.join(";", s.tags());
@@ -237,7 +280,22 @@ final class SarifEmitter implements TestMethodSink {
         String tagAiDrift = drift != null ? drift.toValue() : null;
         return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
                 s.securityRelevant(), aiDisplayName, aiTags, aiReason, s.interactionScore(), aiConfidence,
-                tagAiDrift);
+                tagAiDrift, securitySeverity);
+    }
+
+    private static String resolveSecuritySeverity(String ruleId, AiMethodSuggestion suggestion) {
+        if (RULE_TEST_METHOD.equals(ruleId)) {
+            return null;
+        }
+        if (suggestion != null && suggestion.tags() != null) {
+            for (String tag : suggestion.tags()) {
+                String severity = TAG_SEVERITY.get(tag);
+                if (severity != null) {
+                    return severity;
+                }
+            }
+        }
+        return "5.0";
     }
 
     // -------------------------------------------------------------------------
@@ -276,8 +334,14 @@ final class SarifEmitter implements TestMethodSink {
     private record SarifDriver(String name, String version, List<SarifRule> rules) {
     }
 
-    /** SARIF rule definition with an id, camel-case name, and short description. */
-    private record SarifRule(String id, String name, SarifMessage shortDescription) {
+    /** SARIF rule definition with an id, camel-case name, short description, and optional properties. */
+    @JsonInclude(Include.NON_NULL)
+    private record SarifRule(String id, String name, SarifMessage shortDescription,
+            SarifRuleProperties properties) {
+    }
+
+    /** Rule-level property bag carrying the tag list used by GitHub Code Scanning filters. */
+    private record SarifRuleProperties(List<String> tags) {
     }
 
     /** SARIF result record representing one discovered test method. */
@@ -329,6 +393,7 @@ final class SarifEmitter implements TestMethodSink {
             String aiReason,
             Double aiInteractionScore,
             Double aiConfidence,
-            String tagAiDrift) {
+            String tagAiDrift,
+            @JsonProperty("security-severity") String securitySeverity) {
     }
 }

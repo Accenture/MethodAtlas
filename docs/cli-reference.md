@@ -14,14 +14,15 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | --- | --- | --- |
 | `-config <file>` | Load default option values from a YAML configuration file; command-line flags override YAML values | — |
 | `-plain` | Emit plain text instead of CSV | CSV mode |
-| `-sarif` | Emit SARIF 2.1.0 JSON instead of CSV | CSV mode |
+| `-sarif` | Emit SARIF 2.1.0 JSON instead of CSV; security-only filtering is applied automatically (see below) | CSV mode |
 | `-github-annotations` | Emit GitHub Actions `::notice`/`::warning` workflow commands for security-relevant methods; does not require a GitHub Advanced Security licence | CSV mode |
 | `-emit-metadata` | Prepend `# key: value` comment lines before the CSV header | Off |
 | `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated; first occurrence replaces the default | `Test.java` |
 | `-test-annotation <name>` | Treat methods carrying annotation `name` as test methods; may be repeated; first occurrence replaces the default set | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
 | `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
-| `-security-only` | Suppress non-security methods from all output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect | Off |
+| `-security-only` | Suppress non-security methods from CSV and plain-text output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect; in SARIF mode this filter is already applied by default | Off |
+| `-include-non-security` | Opt-in to include all test methods in SARIF output, disabling the automatic security-only filter; has no effect in CSV or plain-text modes | Off |
 | `-drift-detect` | Append a `tag_ai_drift` column to CSV/plain output comparing the source-level `@Tag("security")` annotation against the AI security-relevance classification; values are `none`, `tag-only`, or `ai-only`; SARIF and GitHub Annotations always include drift when AI is enabled | Off |
 | `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
 | `-diff <before.csv> <after.csv>` | Compare two MethodAtlas scan outputs and emit a delta report; all other flags are ignored | — |
@@ -87,6 +88,7 @@ ai:
   confidence: false
   apiVersion: 2024-02-01   # Azure OpenAI REST API version (azure_openai only)
 driftDetect: false       # append tag_ai_drift column to CSV/plain output  (default: false)
+includeNonSecurity: false  # include non-security methods in SARIF output  (default: false)
 ```
 
 All fields are optional. Unknown fields are silently ignored. This makes it safe to add future fields to a shared configuration file without breaking older versions.
@@ -101,7 +103,9 @@ Switches output from CSV to a human-readable line-oriented format. Method discov
 
 Switches output to a single [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) JSON document. MethodAtlas buffers all discovered test methods and serializes the complete document after the scan finishes, so the JSON is valid even when the scan spans many files.
 
-Security-relevant methods receive SARIF level `note`; all other methods receive level `none`. Rule IDs are derived from AI tags (e.g. `security/auth`, `security/crypto`). Non-security methods use the rule `test-method`.
+Security-relevant methods receive SARIF level `note` and a `security-severity` property derived from the AI taxonomy tag (used by GitHub Code Scanning to display Critical / High / Medium / Low). Rule objects carry a `properties.tags` array that populates the tag filter in the GitHub Code Scanning UI.
+
+**Security-only by default:** selecting SARIF mode automatically applies the security-only filter. Only methods classified as security-relevant are emitted; ordinary test methods are excluded. This default exists because SARIF is consumed by GitHub Code Scanning and equivalent security tooling that expects actionable findings, not an inventory of every test method. To include all methods, pass [`-include-non-security`](#-include-non-security).
 
 See [output-formats.md](output-formats.md#sarif-mode) for the full schema description and an example document.
 
@@ -204,18 +208,18 @@ A command-line `-content-hash` flag always overrides the YAML setting.
 
 ### `-security-only`
 
-Suppresses all non-security-relevant methods from the output. Only test methods
-whose AI classification (or human override) has `securityRelevant=true` are
-emitted; all others are silently dropped before writing to CSV, plain text, or
-SARIF.
+Suppresses non-security-relevant methods from CSV and plain-text output. Only
+methods whose AI classification (or human override) has `securityRelevant=true`
+are emitted; all others are silently dropped.
 
 ```bash
 # Compact CSV — only security tests
 ./methodatlas -ai -security-only src/test/java
-
-# SARIF for GitHub Code Scanning — no level:none noise
-./methodatlas -ai -sarif -security-only src/test/java > security.sarif
 ```
+
+In **SARIF mode** this filter is applied automatically without this flag. Use
+[`-include-non-security`](#-include-non-security) if you need the full inventory
+in SARIF format.
 
 The filter requires a source of security classifications. Without `-ai` or
 `-override-file`, every method has `securityRelevant=false` and the output will
@@ -226,8 +230,30 @@ securityOnly: true
 ```
 
 See [Security-Only Filter](usage-modes/security-only.md) for SDLC integration
-examples including GitHub Code Scanning, CI count gates, audit CSV exports, and
-combining with the delta report.
+examples including CI count gates, audit CSV exports, and combining with the
+delta report.
+
+### `-include-non-security`
+
+Opts in to including all test methods in **SARIF output**, disabling the
+automatic security-only filter that SARIF mode applies by default. Has no effect
+in CSV or plain-text modes (where all methods are already included by default).
+
+```bash
+# Full-inventory SARIF — all test methods included
+./methodatlas -ai -sarif -include-non-security src/test/java > all-tests.sarif
+```
+
+The equivalent YAML setting:
+
+```yaml
+outputMode: sarif
+includeNonSecurity: true
+```
+
+Use this option when you need a complete machine-readable test inventory in SARIF
+format for a custom downstream pipeline. For GitHub Code Scanning, leave this
+flag unset so that the Security tab shows only actionable security findings.
 
 ### `-drift-detect`
 

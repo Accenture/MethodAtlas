@@ -32,9 +32,21 @@ enum OutputMode {
      *
      * <p>
      * Results are buffered in memory and serialized to a single JSON document
-     * after all source files have been scanned. Each test method becomes one
-     * SARIF result; security-relevant methods receive level {@code note}, all
-     * others receive level {@code none}.
+     * after all source files have been scanned. Security-relevant methods receive
+     * SARIF level {@code note} and a {@code security-severity} score derived from
+     * the AI taxonomy tag; rule objects carry a {@code properties.tags} array for
+     * the GitHub Code Scanning tag filter.
+     * </p>
+     *
+     * <p>
+     * <b>Security-only by default:</b> SARIF output is intended for consumption
+     * by GitHub Code Scanning and equivalent security tooling. These consumers
+     * expect actionable security findings, not an exhaustive inventory of every
+     * test method. Selecting this mode therefore applies the security-only filter
+     * automatically: only methods classified as security-relevant are emitted.
+     * Pass {@code -include-non-security} on the command line (or set
+     * {@code includeNonSecurity: true} in the YAML configuration file) to
+     * include all methods in the SARIF document.
      * </p>
      *
      * @see <a href="https://docs.oasis-open.org/sarif/sarif/v2.1.0/">SARIF 2.1.0 specification</a>

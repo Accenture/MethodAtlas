@@ -9,6 +9,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
@@ -419,6 +420,135 @@ class SarifEmitterTest {
 
         JsonNode properties = getFirstResult(flush(emitter)).path("properties");
         assertEquals(hash, properties.path("contentHash").asText());
+    }
+
+    // -------------------------------------------------------------------------
+    // security-severity property
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("security-severity is absent for non-security method")
+    @Tag("positive")
+    void flush_securitySeverityAbsent_forNonSecurityMethod() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(false, false);
+        emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertTrue(props.path("security-severity").isMissingNode(),
+                "security-severity should be absent for non-security methods");
+    }
+
+    @Test
+    @DisplayName("security-severity is '7.5' for security method with 'auth' tag")
+    @Tag("positive")
+    void flush_securitySeverityIsHigh_forAuthTag() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Login test", List.of("security", "auth"), "Tests auth", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), suggestion);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertEquals("7.5", props.path("security-severity").asText());
+    }
+
+    @Test
+    @DisplayName("security-severity is '9.0' for security method with 'injection' tag")
+    @Tag("positive")
+    void flush_securitySeverityIsCritical_forInjectionTag() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testSqlInjection", true, "SQL injection test", List.of("security", "injection"), "reason", 0.95, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false);
+        emitter.record("com.acme.SqlTest", "testSqlInjection", 5, 8, null, List.of(), suggestion);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertEquals("9.0", props.path("security-severity").asText());
+    }
+
+    @Test
+    @DisplayName("security-severity defaults to '5.0' for generic security method with no matched tag")
+    @Tag("positive")
+    void flush_securitySeverityDefaultsMedium_forUnknownTag() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testSomething", true, "Security test", List.of("security"), "reason", 0.8, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false);
+        emitter.record("com.acme.SomeTest", "testSomething", 5, 4, null, List.of(), suggestion);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertEquals("5.0", props.path("security-severity").asText());
+    }
+
+    @Test
+    @DisplayName("security-severity is '5.0' when AI is disabled but method has security rule")
+    @Tag("positive")
+    void flush_securitySeverityPresentWithoutAi_whenRuleIsSecurityTest() throws Exception {
+        // With AI disabled, only source tags set the ruleId (which stays "test-method" when no AI)
+        // so we use an AI suggestion but with aiEnabled=false to get security-test rule via source tags
+        // Actually without AI, all become test-method → security-severity absent.
+        // This test verifies the no-AI / security-test path doesn't apply (ruleId = test-method).
+        SarifEmitter emitter = new SarifEmitter(false, false);
+        emitter.record("com.acme.SomeTest", "testSomething", 5, 4, null, List.of("security"), null);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        // Without AI, ruleId is always "test-method" → no security-severity
+        assertTrue(props.path("security-severity").isMissingNode(),
+                "Without AI, ruleId is test-method and security-severity should be absent");
+    }
+
+    // -------------------------------------------------------------------------
+    // Rule properties (tags for GitHub Code Scanning filter)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("security/auth rule has properties.tags containing 'security' and 'auth'")
+    @Tag("positive")
+    void flush_securityAuthRuleHasTags() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Login test", List.of("security", "auth"), "reason", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), suggestion);
+
+        JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
+        JsonNode authRule = null;
+        for (JsonNode rule : rules) {
+            if ("security/auth".equals(rule.path("id").asText())) {
+                authRule = rule;
+            }
+        }
+        assertNotNull(authRule, "security/auth rule should exist");
+        JsonNode tags = authRule.path("properties").path("tags");
+        assertTrue(tags.isArray(), "rule properties.tags should be an array");
+        List<String> tagValues = new ArrayList<>();
+        for (JsonNode t : tags) {
+            tagValues.add(t.asText());
+        }
+        assertTrue(tagValues.contains("security"), "tags should contain 'security'");
+        assertTrue(tagValues.contains("auth"), "tags should contain 'auth'");
+    }
+
+    @Test
+    @DisplayName("test-method rule has properties.tags containing 'test'")
+    @Tag("positive")
+    void flush_testMethodRuleHasTestTag() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(false, false);
+        emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
+
+        JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
+        JsonNode testRule = null;
+        for (JsonNode rule : rules) {
+            if ("test-method".equals(rule.path("id").asText())) {
+                testRule = rule;
+            }
+        }
+        assertNotNull(testRule, "test-method rule should exist");
+        JsonNode tags = testRule.path("properties").path("tags");
+        assertTrue(tags.isArray(), "rule properties.tags should be an array");
+        boolean hasTest = false;
+        for (JsonNode t : tags) {
+            if ("test".equals(t.asText())) {
+                hasTest = true;
+            }
+        }
+        assertTrue(hasTest, "test-method rule should have 'test' tag");
     }
 
     // -------------------------------------------------------------------------

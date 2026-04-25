@@ -28,6 +28,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  * emitMetadata: false      # (default: false)
  * contentHash: false       # (default: false)
  * securityOnly: false      # (default: false)
+ * includeNonSecurity: false  # opt-in: include non-security methods in SARIF output (default: false)
  * driftDetect: false       # (default: false)
  * overrideFile: .methodatlas-overrides.yaml  # optional
  * fileSuffixes:
@@ -125,6 +126,14 @@ final class YamlConfig {
          */
         @JsonProperty("securityOnly")
         /* default */ boolean securityOnly;
+
+        /**
+         * When {@code true}, non-security methods are included in SARIF output
+         * even though SARIF mode applies the security-only filter by default.
+         * Has no effect in CSV or plain-text modes.
+         */
+        @JsonProperty("includeNonSecurity")
+        /* default */ boolean includeNonSecurity;
 
         /**
          * When {@code true}, a {@code tag_ai_drift} column is added to CSV/plain
