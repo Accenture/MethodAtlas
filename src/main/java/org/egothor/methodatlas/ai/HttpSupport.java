@@ -159,6 +159,7 @@ public final class HttpSupport {
             try {
                 return Long.parseLong(header.trim());
             } catch (NumberFormatException ignored) {
+                // Non-numeric Retry-After header value; fall through to body parsing.
             }
         }
         Matcher matcher = RETRY_AFTER_SECONDS.matcher(response.body());
@@ -166,6 +167,7 @@ public final class HttpSupport {
             try {
                 return Long.parseLong(matcher.group(1));
             } catch (NumberFormatException ignored) {
+                // Regex matched but captured group is not a valid long; use default wait.
             }
         }
         return DEFAULT_RETRY_WAIT_SECONDS;
