@@ -84,7 +84,7 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
      */
     public OpenAiCompatibleClient(AiOptions options) {
         this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout());
+        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries());
     }
 
     /**

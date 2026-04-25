@@ -98,7 +98,7 @@ public final class AzureOpenAiClient implements AiProviderClient {
      */
     public AzureOpenAiClient(AiOptions options) {
         this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout());
+        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries());
     }
 
     /**
