@@ -121,6 +121,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      models: read
 
   # -------------------------------------------------------------------------
   # Job 3: deploy the uploaded artifact to GitHub Pages
