@@ -429,6 +429,7 @@ class SarifEmitterTest {
     @Test
     @DisplayName("security-severity is absent for non-security method")
     @Tag("positive")
+    @Tag("security")
     void flush_securitySeverityAbsent_forNonSecurityMethod() throws Exception {
         SarifEmitter emitter = new SarifEmitter(false, false);
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null);
@@ -441,6 +442,7 @@ class SarifEmitterTest {
     @Test
     @DisplayName("security-severity is '7.5' for security method with 'auth' tag")
     @Tag("positive")
+    @Tag("security")
     void flush_securitySeverityIsHigh_forAuthTag() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "Login test", List.of("security", "auth"), "Tests auth", 0.9, 0.0);
@@ -454,6 +456,7 @@ class SarifEmitterTest {
     @Test
     @DisplayName("security-severity is '9.0' for security method with 'injection' tag")
     @Tag("positive")
+    @Tag("security")
     void flush_securitySeverityIsCritical_forInjectionTag() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testSqlInjection", true, "SQL injection test", List.of("security", "injection"), "reason", 0.95, 0.0);
@@ -467,6 +470,7 @@ class SarifEmitterTest {
     @Test
     @DisplayName("security-severity defaults to '5.0' for generic security method with no matched tag")
     @Tag("positive")
+    @Tag("security")
     void flush_securitySeverityDefaultsMedium_forUnknownTag() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testSomething", true, "Security test", List.of("security"), "reason", 0.8, 0.0);
@@ -501,6 +505,7 @@ class SarifEmitterTest {
     @Test
     @DisplayName("security/auth rule has properties.tags containing 'security' and 'auth'")
     @Tag("positive")
+    @Tag("security")
     void flush_securityAuthRuleHasTags() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "Login test", List.of("security", "auth"), "reason", 0.9, 0.0);

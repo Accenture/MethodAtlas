@@ -291,6 +291,7 @@ class CliArgsTest {
     @Test
     @DisplayName("unknown -xyz flag throws IllegalArgumentException")
     @Tag("negative")
+    @Tag("security")
     void parse_unknownFlag_throwsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class, () -> CliArgs.parse("-xyz"));
     }
@@ -298,6 +299,7 @@ class CliArgsTest {
     @Test
     @DisplayName("unknown -ai-unknown flag throws IllegalArgumentException")
     @Tag("negative")
+    @Tag("security")
     void parse_unknownAiFlag_throwsIllegalArgumentException() {
         assertThrows(IllegalArgumentException.class, () -> CliArgs.parse("-ai-unknown"));
     }
@@ -305,19 +307,21 @@ class CliArgsTest {
     @Test
     @DisplayName("-file-suffix with no following argument throws IllegalArgumentException mentioning the flag")
     @Tag("negative")
+    @Tag("security")
     void parse_fileSuffixMissingValue_throwsIllegalArgumentException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> CliArgs.parse("-file-suffix"));
-        assertTrue(ex.getMessage().contains("-file-suffix"), ex.getMessage());
+        assertEquals("Missing value for -file-suffix", ex.getMessage());
     }
 
     @Test
     @DisplayName("-ai-model with no following argument throws IllegalArgumentException mentioning the flag")
     @Tag("negative")
+    @Tag("security")
     void parse_aiModelMissingValue_throwsIllegalArgumentException() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> CliArgs.parse("-ai-model"));
-        assertTrue(ex.getMessage().contains("-ai-model"), ex.getMessage());
+        assertEquals("Missing value for -ai-model", ex.getMessage());
     }
 
     // -------------------------------------------------------------------------
@@ -342,6 +346,7 @@ class CliArgsTest {
     @Test
     @DisplayName("-config with non-existent file throws IllegalArgumentException")
     @Tag("negative")
+    @Tag("security")
     void parse_configNonExistentFile_throwsIllegalArgumentException(@TempDir Path tempDir) {
         Path missing = tempDir.resolve("nonexistent.yaml");
         assertThrows(IllegalArgumentException.class,

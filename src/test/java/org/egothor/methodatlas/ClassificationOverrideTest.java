@@ -94,6 +94,7 @@ class ClassificationOverrideTest {
     @Test
     @DisplayName("method-level override setting securityRelevant=false sets confidence=0.0")
     @Tag("positive")
+    @Tag("security")
     void methodLevel_falseSecurityRelevant_setsConfidenceZero(@TempDir Path tmp) throws IOException {
         Path file = writeOverride(tmp, """
                 overrides:
@@ -221,6 +222,7 @@ class ClassificationOverrideTest {
     @Test
     @DisplayName("override applied to null suggestion synthesizes AiClassSuggestion from override fields")
     @Tag("positive")
+    @Tag("security")
     void staticMode_synthesizesClassSuggestion(@TempDir Path tmp) throws IOException {
         Path file = writeOverride(tmp, """
                 overrides:
@@ -265,6 +267,7 @@ class ClassificationOverrideTest {
     @Test
     @DisplayName("override targeting a method name not in methodNames is silently ignored")
     @Tag("positive")
+    @Tag("security")
     void unknownMethod_isIgnored(@TempDir Path tmp) throws IOException {
         Path file = writeOverride(tmp, """
                 overrides:
@@ -294,6 +297,7 @@ class ClassificationOverrideTest {
     @Test
     @DisplayName("override entry with blank fqcn is skipped without error")
     @Tag("positive")
+    @Tag("security")
     void blankFqcn_isSkipped(@TempDir Path tmp) throws IOException {
         Path file = writeOverride(tmp, """
                 overrides:

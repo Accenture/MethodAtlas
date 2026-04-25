@@ -178,6 +178,7 @@ class AnthropicClientTest {
     @Test
     @DisplayName("suggestForClass throws AiSuggestionException with 'No content returned by Anthropic' when content list is empty")
     @Tag("negative")
+    @Tag("security")
     void suggestForClass_throwsWhenContentListIsEmpty() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -210,6 +211,7 @@ class AnthropicClientTest {
     @Test
     @DisplayName("suggestForClass throws AiSuggestionException with 'No content returned by Anthropic' when content field is absent from the response")
     @Tag("edge-case")
+    @Tag("security")
     void suggestForClass_throwsWhenContentFieldIsAbsentFromResponse() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -239,6 +241,7 @@ class AnthropicClientTest {
     @Test
     @DisplayName("suggestForClass throws AiSuggestionException with 'Anthropic returned no text block' when only non-text blocks are present")
     @Tag("negative")
+    @Tag("security")
     void suggestForClass_throwsWhenNoTextBlockIsPresent() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -277,6 +280,7 @@ class AnthropicClientTest {
     @Test
     @DisplayName("suggestForClass throws AiSuggestionException when text block contains no JSON object")
     @Tag("negative")
+    @Tag("security")
     void suggestForClass_throwsWhenTextBlockContainsNoJsonObject() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 

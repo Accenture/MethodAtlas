@@ -99,9 +99,11 @@ public class MethodAtlasAppSarifTest {
         Files.createDirectories(sourceDir);
         copyFixture(sourceDir, "AccessControlServiceTest.java");
 
-        String output = runApp(new String[] { "-sarif", sourceDir.toString() });
+        // -include-non-security: level=none is a structural property independent of AI classification
+        String output = runApp(new String[] { "-sarif", "-include-non-security", sourceDir.toString() });
         JsonNode results = new ObjectMapper().readTree(output).path("runs").get(0).path("results");
 
+        assertTrue(results.size() > 0, "Expected results to verify level field");
         for (JsonNode result : results) {
             assertEquals("none", result.path("level").asText(),
                     "Without AI, all results should have level 'none'");

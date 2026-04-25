@@ -122,6 +122,7 @@ class AiOptionsTest {
     @Test
     @DisplayName("resolvedApiKey returns direct key when both apiKey and apiKeyEnv are set")
     @Tag("positive")
+    @Tag("security")
     void resolvedApiKey_prefersDirectApiKey() {
         AiOptions options = AiOptions.builder().apiKey("sk-direct-value").apiKeyEnv("SHOULD_NOT_BE_USED").build();
 
@@ -131,6 +132,7 @@ class AiOptionsTest {
     @Test
     @DisplayName("resolvedApiKey returns null when direct key is blank and env variable is not set")
     @Tag("negative")
+    @Tag("security")
     void resolvedApiKey_returnsNullWhenDirectKeyIsBlankAndEnvIsMissing() {
         AiOptions options = AiOptions.builder().apiKey("   ").apiKeyEnv("METHODATLAS_TEST_ENV_NOT_PRESENT").build();
 
@@ -140,6 +142,7 @@ class AiOptionsTest {
     @Test
     @DisplayName("resolvedApiKey returns null when neither direct key nor env variable are configured")
     @Tag("negative")
+    @Tag("security")
     void resolvedApiKey_returnsNullWhenNeitherDirectNorEnvAreConfigured() {
         AiOptions options = AiOptions.builder().build();
 
@@ -196,6 +199,7 @@ class AiOptionsTest {
     @Test
     @DisplayName("canonical constructor rejects blank baseUrl with IllegalArgumentException")
     @Tag("negative")
+    @Tag("security")
     void canonicalConstructor_rejectsBlankBaseUrl() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "   ", null, null, null,
@@ -227,6 +231,38 @@ class AiOptionsTest {
                         AiOptions.DEFAULT_API_VERSION));
 
         assertEquals("maxRetries must be >= 0", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("canonical constructor accepts maxClassChars=1 (minimum valid positive value)")
+    @Tag("edge-case")
+    void canonicalConstructor_acceptsMaxClassCharsOfOne() {
+        AiOptions options = new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com",
+                null, null, null, AiOptions.TaxonomyMode.DEFAULT, 1, Duration.ofSeconds(30), 1, false,
+                AiOptions.DEFAULT_API_VERSION);
+
+        assertEquals(1, options.maxClassChars());
+    }
+
+    @Test
+    @DisplayName("canonical constructor accepts maxRetries=0 (no retries is valid)")
+    @Tag("edge-case")
+    void canonicalConstructor_acceptsMaxRetriesOfZero() {
+        AiOptions options = new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com",
+                null, null, null, AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 0, false,
+                AiOptions.DEFAULT_API_VERSION);
+
+        assertEquals(0, options.maxRetries());
+    }
+
+    @Test
+    @DisplayName("resolvedApiKey returns null when apiKey is whitespace-only")
+    @Tag("negative")
+    @Tag("security")
+    void resolvedApiKey_returnsNullWhenApiKeyIsWhitespaceOnly() {
+        AiOptions options = AiOptions.builder().apiKey("   \t  ").build();
+
+        assertNull(options.resolvedApiKey());
     }
 
     @Test

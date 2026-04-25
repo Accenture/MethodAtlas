@@ -187,6 +187,7 @@ class OpenAiCompatibleClientTest {
     @Test
     @DisplayName("suggestForClass throws AiSuggestionException with 'No choices returned by model' when choices array is empty")
     @Tag("negative")
+    @Tag("security")
     void suggestForClass_throwsWhenNoChoicesAreReturned() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -222,6 +223,7 @@ class OpenAiCompatibleClientTest {
     @Test
     @DisplayName("suggestForClass throws AiSuggestionException when model returns text without a JSON object")
     @Tag("negative")
+    @Tag("security")
     void suggestForClass_throwsWhenModelReturnsTextWithoutJsonObject() throws Exception {
         ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 

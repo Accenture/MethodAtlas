@@ -35,6 +35,7 @@ class OutputEmitterTest {
     @Test
     @DisplayName("csvEscape returns empty string for null input")
     @Tag("edge-case")
+    @Tag("security")
     void csvEscape_null_returnsEmptyString() {
         assertEquals("", OutputEmitter.csvEscape(null));
     }
@@ -56,6 +57,7 @@ class OutputEmitterTest {
     @Test
     @DisplayName("csvEscape wraps value containing comma in double quotes")
     @Tag("positive")
+    @Tag("security")
     void csvEscape_withComma_wrapsInQuotes() {
         assertEquals("\"with,comma\"", OutputEmitter.csvEscape("with,comma"));
     }
@@ -63,6 +65,7 @@ class OutputEmitterTest {
     @Test
     @DisplayName("csvEscape wraps value containing double quote in double quotes and doubles the embedded quote")
     @Tag("positive")
+    @Tag("security")
     void csvEscape_withQuote_wrapsAndDoublesQuote() {
         assertEquals("\"has\"\"quote\"", OutputEmitter.csvEscape("has\"quote"));
     }
@@ -70,6 +73,7 @@ class OutputEmitterTest {
     @Test
     @DisplayName("csvEscape wraps value containing newline in double quotes")
     @Tag("positive")
+    @Tag("security")
     void csvEscape_withNewline_wrapsInQuotes() {
         assertEquals("\"line\nnewline\"", OutputEmitter.csvEscape("line\nnewline"));
     }
@@ -77,6 +81,7 @@ class OutputEmitterTest {
     @Test
     @DisplayName("csvEscape wraps value containing carriage return in double quotes")
     @Tag("positive")
+    @Tag("security")
     void csvEscape_withCarriageReturn_wrapsInQuotes() {
         assertEquals("\"cr\rchar\"", OutputEmitter.csvEscape("cr\rchar"));
     }
@@ -84,6 +89,7 @@ class OutputEmitterTest {
     @Test
     @DisplayName("csvEscape handles value with both comma and embedded quote correctly")
     @Tag("positive")
+    @Tag("security")
     void csvEscape_withCommaAndQuote_handledCorrectly() {
         assertEquals("\"both,\"\"special\"\"\"", OutputEmitter.csvEscape("both,\"special\""));
     }
@@ -93,6 +99,38 @@ class OutputEmitterTest {
     @Tag("positive")
     void csvEscape_noSpecialChars_returnsUnchanged() {
         assertEquals("no special chars", OutputEmitter.csvEscape("no special chars"));
+    }
+
+    @Test
+    @DisplayName("csvEscape wraps value starting with '=' in double quotes to prevent formula injection")
+    @Tag("positive")
+    @Tag("security")
+    void csvEscape_withEqualsPrefix_wrapsInQuotes() {
+        assertEquals("\"=SUM(A1:A10)\"", OutputEmitter.csvEscape("=SUM(A1:A10)"));
+    }
+
+    @Test
+    @DisplayName("csvEscape wraps value starting with '+' in double quotes to prevent formula injection")
+    @Tag("positive")
+    @Tag("security")
+    void csvEscape_withPlusPrefix_wrapsInQuotes() {
+        assertEquals("\"+cmd|' /C calc'!A0\"", OutputEmitter.csvEscape("+cmd|' /C calc'!A0"));
+    }
+
+    @Test
+    @DisplayName("csvEscape wraps value starting with '@' in double quotes to prevent formula injection")
+    @Tag("positive")
+    @Tag("security")
+    void csvEscape_withAtPrefix_wrapsInQuotes() {
+        assertEquals("\"@SUM(1+1)\"", OutputEmitter.csvEscape("@SUM(1+1)"));
+    }
+
+    @Test
+    @DisplayName("csvEscape wraps value starting with '-' in double quotes to prevent formula injection")
+    @Tag("positive")
+    @Tag("security")
+    void csvEscape_withMinusPrefix_wrapsInQuotes() {
+        assertEquals("\"-2+3\"", OutputEmitter.csvEscape("-2+3"));
     }
 
     // -------------------------------------------------------------------------

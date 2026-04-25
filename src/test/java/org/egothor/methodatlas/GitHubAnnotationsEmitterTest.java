@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -28,26 +29,31 @@ class GitHubAnnotationsEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @Tag("security")
     void escapeParam_encodesPercent() {
         assertEquals("100%25 done", GitHubAnnotationsEmitter.escapeParam("100% done"));
     }
 
     @Test
+    @Tag("security")
     void escapeParam_encodesCarriageReturn() {
         assertEquals("a%0Db", GitHubAnnotationsEmitter.escapeParam("a\rb"));
     }
 
     @Test
+    @Tag("security")
     void escapeParam_encodesNewline() {
         assertEquals("a%0Ab", GitHubAnnotationsEmitter.escapeParam("a\nb"));
     }
 
     @Test
+    @Tag("security")
     void escapeParam_encodesColon() {
         assertEquals("http%3A//example", GitHubAnnotationsEmitter.escapeParam("http://example"));
     }
 
     @Test
+    @Tag("security")
     void escapeParam_encodesComma() {
         assertEquals("a%2Cb", GitHubAnnotationsEmitter.escapeParam("a,b"));
     }
@@ -63,11 +69,13 @@ class GitHubAnnotationsEmitterTest {
     // -------------------------------------------------------------------------
 
     @Test
+    @Tag("security")
     void escapeMessage_encodesPercent() {
         assertEquals("100%25", GitHubAnnotationsEmitter.escapeMessage("100%"));
     }
 
     @Test
+    @Tag("security")
     void escapeMessage_encodesNewline() {
         assertEquals("line1%0Aline2", GitHubAnnotationsEmitter.escapeMessage("line1\nline2"));
     }

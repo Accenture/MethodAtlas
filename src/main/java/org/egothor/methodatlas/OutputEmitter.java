@@ -275,8 +275,10 @@ final class OutputEmitter {
      *
      * <p>
      * If the value contains a comma, double quote, carriage return, or line
-     * feed, it is wrapped in double quotes and embedded quotes are doubled. A
-     * {@code null} input is converted to an empty field.
+     * feed, it is wrapped in double quotes and embedded quotes are doubled. Values
+     * that start with {@code =}, {@code +}, {@code -}, or {@code @} are also
+     * quoted to prevent spreadsheet formula injection. A {@code null} input is
+     * converted to an empty field.
      * </p>
      *
      * @param value value to escape; may be {@code null}
@@ -287,8 +289,11 @@ final class OutputEmitter {
             return CSV_ABSENT;
         }
 
-        boolean mustQuote = value.indexOf(',') >= 0 || value.indexOf('"') >= 0 || value.indexOf('\n') >= 0
-                || value.indexOf('\r') >= 0;
+        boolean formulaPrefix = !value.isEmpty()
+                && "=+-@".indexOf(value.charAt(0)) >= 0;
+
+        boolean mustQuote = formulaPrefix || value.indexOf(',') >= 0 || value.indexOf('"') >= 0
+                || value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0;
 
         if (!mustQuote) {
             return value;

@@ -104,6 +104,7 @@ class JsonTextTest {
     @Test
     @DisplayName("extractFirstJsonObject throws AiSuggestionException for null input")
     @Tag("negative")
+    @Tag("security")
     void extractFirstJsonObject_nullInput_throwsAiSuggestionException() {
         AiSuggestionException ex = assertThrows(AiSuggestionException.class,
                 () -> JsonText.extractFirstJsonObject(null));
@@ -114,6 +115,7 @@ class JsonTextTest {
     @Test
     @DisplayName("extractFirstJsonObject throws AiSuggestionException for blank input")
     @Tag("negative")
+    @Tag("security")
     void extractFirstJsonObject_blankInput_throwsAiSuggestionException() {
         AiSuggestionException ex = assertThrows(AiSuggestionException.class,
                 () -> JsonText.extractFirstJsonObject("   \n\t  "));
@@ -124,6 +126,7 @@ class JsonTextTest {
     @Test
     @DisplayName("extractFirstJsonObject throws AiSuggestionException when input has no opening brace")
     @Tag("negative")
+    @Tag("security")
     void extractFirstJsonObject_missingOpeningBrace_throwsAiSuggestionException() {
         String text = "No JSON object here at all";
 
@@ -136,6 +139,7 @@ class JsonTextTest {
     @Test
     @DisplayName("extractFirstJsonObject throws AiSuggestionException when input has no closing brace")
     @Tag("negative")
+    @Tag("security")
     void extractFirstJsonObject_missingClosingBrace_throwsAiSuggestionException() {
         String text = "{\"className\":\"AccessControlServiceTest\"";
 
@@ -148,6 +152,7 @@ class JsonTextTest {
     @Test
     @DisplayName("extractFirstJsonObject throws AiSuggestionException when closing brace appears before opening brace")
     @Tag("negative")
+    @Tag("security")
     void extractFirstJsonObject_closingBraceBeforeOpeningBrace_throwsAiSuggestionException() {
         String text = "} not json {";
 
