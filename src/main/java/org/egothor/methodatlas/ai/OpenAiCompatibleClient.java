@@ -12,14 +12,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * OpenAI-compatible chat completion API.
  *
  * <p>
- * This client supports providers that implement the OpenAI-style
- * {@code /v1/chat/completions} endpoint. The same implementation is used for:
+ * This client supports providers that expose an OpenAI-compatible chat
+ * completions endpoint. The path appended to the configured base URL is
+ * provider-specific: most providers use {@code /v1/chat/completions}, while
+ * {@link AiProvider#GITHUB_MODELS}, {@link AiProvider#XAI}, and
+ * {@link AiProvider#MISTRAL} use {@code /chat/completions} because their
+ * default base URLs already include the {@code /v1} segment (or omit it
+ * entirely, as is the case for GitHub Models).
  * </p>
- *
- * <ul>
- * <li>{@link AiProvider#OPENAI}</li>
- * <li>{@link AiProvider#OPENROUTER}</li>
- * </ul>
  *
  * <p>
  * The client constructs a chat-style prompt consisting of a system message
@@ -151,7 +151,7 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
 
             String requestBody = httpSupport.objectMapper().writeValueAsString(payload);
 
-            URI uri = URI.create(options.baseUrl() + "/v1/chat/completions");
+            URI uri = URI.create(options.baseUrl() + chatCompletionsPath(options.provider()));
             HttpRequest.Builder requestBuilder = httpSupport.jsonPost(uri, requestBody, options.timeout())
                     .header("Authorization", "Bearer " + options.resolvedApiKey());
 
@@ -202,6 +202,29 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
 
         return new AiClassSuggestion(input.className(), input.classSecurityRelevant(), classTags, input.classReason(),
                 normalizedMethods);
+    }
+
+    /**
+     * Returns the chat completions URL path for the given provider.
+     *
+     * <p>
+     * Most OpenAI-compatible providers expose their completions endpoint at
+     * {@code /v1/chat/completions} relative to their base URL. A small number
+     * of providers omit the {@code /v1} prefix — for example, the GitHub Models
+     * inference API ({@code models.inference.ai.azure.com}). Providers such as
+     * {@link AiProvider#XAI} and {@link AiProvider#MISTRAL} already embed
+     * {@code /v1} in their default base URL, so they also use the shorter path
+     * here to avoid producing a double-versioned URL.
+     * </p>
+     *
+     * @param provider the active provider
+     * @return the path component to append to the base URL
+     */
+    private static String chatCompletionsPath(AiProvider provider) {
+        return switch (provider) {
+            case GITHUB_MODELS, XAI, MISTRAL -> "/chat/completions";
+            default -> "/v1/chat/completions";
+        };
     }
 
     /**

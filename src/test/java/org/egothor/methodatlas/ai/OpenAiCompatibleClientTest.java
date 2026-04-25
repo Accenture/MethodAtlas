@@ -185,6 +185,43 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    @DisplayName("suggestForClass uses /chat/completions path (no /v1 prefix) for GITHUB_MODELS provider")
+    @Tag("positive")
+    void suggestForClass_usesCorrectPathForGitHubModels() throws Exception {
+        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        String responseBody = """
+                {
+                  "choices": [
+                    {
+                      "message": {
+                        "content": "{\\"className\\":\\"com.acme.audit.AuditLoggingTest\\",\\"classSecurityRelevant\\":false,\\"classTags\\":[],\\"classReason\\":\\"Not security-relevant.\\",\\"methods\\":[]}"
+                      }
+                    }
+                  ]
+                }
+                """;
+
+        List<PromptBuilder.TargetMethod> targetMethods = List.of(
+                new PromptBuilder.TargetMethod("shouldWriteAuditEventForPrivilegeChange", null, null));
+
+        try (MockedConstruction<HttpSupport> mocked = mockHttpSupport(mapper, responseBody, null)) {
+            AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.GITHUB_MODELS)
+                    .modelName("gpt-4o-mini").baseUrl("https://models.inference.ai.azure.com")
+                    .apiKey("ghp-test-token").build();
+
+            OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
+            client.suggestForClass("com.acme.audit.AuditLoggingTest",
+                    "class AuditLoggingTest {}", "security, logging", targetMethods);
+
+            HttpSupport httpSupport = mocked.constructed().get(0);
+            verify(httpSupport).postJson(
+                    argThat(request -> request.uri().toString()
+                            .equals("https://models.inference.ai.azure.com/chat/completions")));
+        }
+    }
+
+    @Test
     @DisplayName("suggestForClass throws AiSuggestionException with 'No choices returned by model' when choices array is empty")
     @Tag("negative")
     @Tag("security")
