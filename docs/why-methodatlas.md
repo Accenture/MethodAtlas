@@ -31,7 +31,7 @@ flowchart LR
     A([Plan]) --> B([Design]) --> C([Implement]) --> D([Test]) --> E([Deploy]) --> F([Operate])
     MA[MethodAtlas]
     MA -. classify tests\nemit SARIF · apply tags .-> D
-    style MA fill:#3f51b5,color:#fff,stroke:#283593
+    style MA fill:#c5cae9,stroke:#283593
     style D  fill:#e8eaf6,stroke:#3f51b5
 ```
 
@@ -85,7 +85,7 @@ flowchart LR
     style p2 fill:#e8eaf6,stroke:#3f51b5
     style ML fill:#e8eaf6,stroke:#3f51b5
     style CL fill:#e8eaf6,stroke:#3f51b5
-    style OUT fill:#3f51b5,color:#fff,stroke:#283593
+    style OUT fill:#c5cae9,stroke:#283593
 ```
 
 ### Phase 1 — deterministic method discovery

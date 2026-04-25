@@ -26,7 +26,7 @@ flowchart LR
     EXT["Public internet"]
     org -.->|"no connection"| EXT
     style SH  fill:#e8eaf6,stroke:#3f51b5
-    style OL  fill:#3f51b5,color:#fff,stroke:#283593
+    style OL  fill:#c5cae9,stroke:#283593
     style EXT fill:#ffebee,stroke:#ef9a9a,color:#bdbdbd
     style org fill:#f9f9f9,stroke:#9e9e9e
 ```
@@ -47,7 +47,7 @@ flowchart LR
     OP -->|"response files"| XFER
     XFER -->|"responses"| SH
     style SH       fill:#e8eaf6,stroke:#3f51b5
-    style OP       fill:#3f51b5,color:#fff,stroke:#283593
+    style OP       fill:#c5cae9,stroke:#283593
     style XFER     fill:#fff8e1,stroke:#ffc107
     style controlled fill:#f9f9f9,stroke:#9e9e9e
     style auth     fill:#f9f9f9,stroke:#9e9e9e
