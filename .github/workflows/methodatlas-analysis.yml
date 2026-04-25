@@ -38,6 +38,16 @@ on:
         required: false
         type: string
         default: 'gpt-4o-mini'
+      override-file:
+        description: >
+          Path (relative to the repository root) of a MethodAtlas classification
+          override YAML file. When supplied and the file exists on disk,
+          -override-file is passed to MethodAtlas so human-reviewed corrections
+          are applied on top of the AI classification. Leave empty (the default)
+          to run without an override file.
+        required: false
+        type: string
+        default: ''
 
 # Permissions required by this workflow.
 # The calling workflow must grant at least these two permissions.
@@ -111,6 +121,9 @@ jobs:
       #   -ai-confidence    include per-method confidence scores in output
       #   -drift-detect     flag @Tag("security") annotations that disagree
       #                     with the AI classification
+      #   -override-file    (optional) apply human-reviewed corrections on top
+      #                     of the AI classification; passed only when the
+      #                     override-file input is non-empty and the file exists
       #
       # ───────────────────────────────────────────────────────────────────────
       # ADAPTING FOR YOUR OWN PROJECT
@@ -121,10 +134,22 @@ jobs:
       # To use a different AI provider (Groq, Mistral, OpenAI, …), replace
       # -ai-provider and -ai-api-key-env — see docs/ai/providers.md for the
       # full list of supported providers and their authentication requirements.
+      # To supply an override file, set the override-file input to the path of
+      # your YAML override file relative to the repository root, for example:
+      #   override-file: .methodatlas-overrides.yaml
       # ───────────────────────────────────────────────────────────────────────
       - name: Run MethodAtlas AI classification
         run: |
           mkdir -p build/reports
+
+          # Build optional -override-file argument.  The file path is taken
+          # from an environment variable (not inline interpolation) so that
+          # paths containing spaces or special characters are handled safely.
+          OVERRIDE_ARGS=()
+          if [ -n "$OVERRIDE_FILE" ] && [ -f "$OVERRIDE_FILE" ]; then
+            OVERRIDE_ARGS=("-override-file" "$OVERRIDE_FILE")
+          fi
+
           "$METHODATLAS" \
             -sarif \
             -ai \
@@ -136,10 +161,12 @@ jobs:
             -ai-max-retries 3 \
             -ai-confidence \
             -drift-detect \
+            "${OVERRIDE_ARGS[@]}" \
             "${{ inputs.test-source-path }}" \
             > build/reports/methodatlas-sarif.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OVERRIDE_FILE: ${{ inputs.override-file }}
 
       # -----------------------------------------------------------------------
       # Publish results

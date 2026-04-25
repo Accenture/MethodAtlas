@@ -115,7 +115,7 @@ so findings appear in **Security → Code scanning**:
         run: |
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-            -sarif -security-only \
+            -sarif \
             src/test/java \
             > methodatlas.sarif
 
@@ -252,7 +252,7 @@ jobs:
         run: |
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-            -sarif -security-only \
+            -sarif \
             -ai-cache .methodatlas-cache.csv \
             src/test/java \
             > methodatlas.sarif
@@ -264,6 +264,42 @@ jobs:
           sarif_file: methodatlas.sarif
           category: security-tests
 ```
+
+## Persisting human corrections with an override file
+
+AI classification is non-deterministic: the same test method may receive
+different tags or a different security-relevance verdict across runs. An
+[override file](../ai/overrides.md) locks in human-reviewed decisions so they
+survive model changes, prompt updates, and re-runs.
+
+Store the file in version control (conventionally `.methodatlas-overrides.yaml`
+at the repository root). Pass it on every scan with `-override-file`:
+
+```yaml
+      - name: Run MethodAtlas with overrides
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          OVERRIDE_ARGS=()
+          if [ -f .methodatlas-overrides.yaml ]; then
+            OVERRIDE_ARGS=("-override-file" ".methodatlas-overrides.yaml")
+          fi
+
+          java -jar methodatlas.jar \
+            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -sarif \
+            "${OVERRIDE_ARGS[@]}" \
+            src/test/java \
+            > methodatlas.sarif
+```
+
+The file check (`[ -f ... ]`) lets you commit the workflow before the override
+file exists. Once the file is committed, subsequent runs pick it up
+automatically. Pull request diffs on the override file serve as the audit trail
+for each human classification decision.
+
+See [Classification Overrides](../ai/overrides.md) for the full file format
+reference.
 
 ## Using GitHub Models as the AI provider
 

@@ -111,7 +111,40 @@ A command-line `-override-file` flag always takes precedence over the YAML value
 
 ## Workflow integration
 
-### CI pipeline
+### Reusable workflow (MethodAtlas self-analysis / GitHub Models)
+
+The bundled reusable workflow
+(`.github/workflows/methodatlas-analysis.yml`) accepts an `override-file`
+input. Set it to the repository-root-relative path of your YAML override file
+when calling the workflow:
+
+```yaml
+# .github/workflows/pages.yml (excerpt)
+jobs:
+  analyze:
+    uses: ./.github/workflows/methodatlas-analysis.yml
+    with:
+      override-file: .methodatlas-overrides.yaml
+    permissions:
+      contents: read
+      security-events: write
+      models: read
+```
+
+The workflow passes `-override-file` to MethodAtlas only when the input is
+non-empty **and** the file actually exists on disk. This means:
+
+- On a repository that has not yet created the file, the workflow runs cleanly
+  with AI-only classifications (no error, no empty SARIF).
+- Once the file is committed, the same workflow call immediately picks it up on
+  the next run without any workflow change.
+
+Store the file in version control alongside your tests. Every CI run then
+applies both the live AI classification and the persisted human corrections.
+When a PR modifies the override file, the diff is the audit trail for each
+human classification decision.
+
+### Custom CI pipeline
 
 Store the override file in version control alongside your tests. Every CI run applies
 both the live AI classification and the persisted human corrections:
