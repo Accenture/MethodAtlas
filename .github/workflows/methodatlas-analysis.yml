@@ -128,6 +128,9 @@ jobs:
             -ai-provider github_models \
             -ai-model "${{ inputs.ai-model }}" \
             -ai-api-key-env GITHUB_TOKEN \
+            -ai-taxonomy-mode optimized \
+            -ai-max-class-chars 20000 \
+            -ai-max-retries 3 \
             -ai-confidence \
             -drift-detect \
             "${{ inputs.test-source-path }}" \
