@@ -70,10 +70,10 @@ jobs:
       #   - name: Download MethodAtlas
       #     run: |
       #       # Resolve the latest release tag and strip the "release@" prefix
-      #       VERSION=$(curl -fsSL https://api.github.com/repos/egothor/methodatlas/releases/latest \
+      #       VERSION=$(curl -fsSL https://api.github.com/repos/Accenture/MethodAtlas/releases/latest \
       #                 | jq -r '.tag_name | ltrimstr("release@")')
       #       curl -fsSL \
-      #         "https://github.com/egothor/methodatlas/releases/latest/download/methodatlas-${VERSION}.zip" \
+      #         "https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas-${VERSION}.zip" \
       #         -o methodatlas.zip
       #       unzip -q methodatlas.zip
       #       echo "METHODATLAS=$(pwd)/methodatlas-${VERSION}/bin/methodatlas" >> "$GITHUB_ENV"

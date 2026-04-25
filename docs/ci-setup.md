@@ -90,7 +90,7 @@ The published site will be available at
 ### 3. Code Scanning (automatic — no secrets required)
 
 `pages.yml` calls the reusable workflow
-[`methodatlas-analysis.yml`](https://github.com/egothor/methodatlas/blob/main/.github/workflows/methodatlas-analysis.yml)
+[`methodatlas-analysis.yml`](https://github.com/Accenture/MethodAtlas/blob/main/.github/workflows/methodatlas-analysis.yml)
 on every push to `main`.  MethodAtlas classifies its own JUnit test methods
 using **GitHub Models** authenticated with the `GITHUB_TOKEN` that is
 automatically available in every GitHub Actions run — no additional secrets
@@ -107,7 +107,7 @@ workflow beyond the `security-events: write` permission already declared in
 
 ### 4. Adapting the MethodAtlas analysis workflow for your own project
 
-The [`methodatlas-analysis.yml`](https://github.com/egothor/methodatlas/blob/main/.github/workflows/methodatlas-analysis.yml)
+The [`methodatlas-analysis.yml`](https://github.com/Accenture/MethodAtlas/blob/main/.github/workflows/methodatlas-analysis.yml)
 workflow is designed to be copied and adapted.  The inline comments mark
 exactly which parts to change:
 
@@ -132,7 +132,7 @@ To call the reusable workflow from your own `build.yml` or equivalent:
 jobs:
   methodatlas-analysis:
     needs: build   # run after your own build job
-    uses: egothor/methodatlas/.github/workflows/methodatlas-analysis.yml@main
+    uses: Accenture/MethodAtlas/.github/workflows/methodatlas-analysis.yml@main
     with:
       test-source-path: src/test/java
       ai-model: gpt-4o-mini

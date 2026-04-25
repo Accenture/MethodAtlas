@@ -72,7 +72,7 @@ SpotBugs also emits a SARIF file (`build/reports/spotbugs/main.sarif`) that is u
 
 ### MethodAtlas self-analysis SARIF
 
-MethodAtlas classifies its own JUnit test methods for security relevance on every push to `main` using GitHub Models (free, no secrets required). The reusable workflow [`methodatlas-analysis.yml`](https://github.com/egothor/methodatlas/blob/main/.github/workflows/methodatlas-analysis.yml) is called from `pages.yml` and uploads the resulting SARIF to GitHub Code Scanning under the `methodatlas` category. Security-relevant test methods surface in the Security tab as a live demonstration of the tool's output on a known codebase.
+MethodAtlas classifies its own JUnit test methods for security relevance on every push to `main` using GitHub Models (free, no secrets required). The reusable workflow [`methodatlas-analysis.yml`](https://github.com/Accenture/MethodAtlas/blob/main/.github/workflows/methodatlas-analysis.yml) is called from `pages.yml` and uploads the resulting SARIF to GitHub Code Scanning under the `methodatlas` category. Security-relevant test methods surface in the Security tab as a live demonstration of the tool's output on a known codebase.
 
 The workflow is designed to be copied and adapted for other projects. See [CI/CD setup — adapting the workflow](ci-setup.md#adapting-the-methodatlas-analysis-workflow-for-your-own-project) for instructions.
 
