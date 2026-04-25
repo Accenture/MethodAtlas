@@ -184,9 +184,11 @@ public class MethodAtlasAppContentHashTest {
     void sarifMode_contentHashAbsent_byDefault(@TempDir Path tempDir) throws Exception {
         copyFixture(tempDir, "SampleOneTest.java");
 
-        String output = runApp(new String[] { "-sarif", tempDir.toString() });
+        // -include-non-security: ensures results are present so the loop body actually executes
+        String output = runApp(new String[] { "-sarif", "-include-non-security", tempDir.toString() });
         JsonNode results = new ObjectMapper().readTree(output).path("runs").get(0).path("results");
 
+        assertTrue(results.size() > 0, "Expected results to be present to verify hash absence");
         for (JsonNode result : results) {
             assertTrue(result.path("properties").path("contentHash").isMissingNode(),
                     "contentHash must be absent in SARIF properties when -content-hash is not passed");
@@ -197,7 +199,8 @@ public class MethodAtlasAppContentHashTest {
     void sarifMode_contentHashPresentAndValid_whenEnabled(@TempDir Path tempDir) throws Exception {
         copyFixture(tempDir, "SampleOneTest.java");
 
-        String output = runApp(new String[] { "-sarif", "-content-hash", tempDir.toString() });
+        // -include-non-security: structural test — hash presence is independent of AI classification
+        String output = runApp(new String[] { "-sarif", "-include-non-security", "-content-hash", tempDir.toString() });
         JsonNode results = new ObjectMapper().readTree(output).path("runs").get(0).path("results");
 
         assertTrue(results.size() > 0, "Expected at least one result");
@@ -215,7 +218,8 @@ public class MethodAtlasAppContentHashTest {
     void sarifMode_methodsInSameClass_shareIdenticalHashInSarif(@TempDir Path tempDir) throws Exception {
         copyFixture(tempDir, "SampleOneTest.java");
 
-        String output = runApp(new String[] { "-sarif", "-content-hash", tempDir.toString() });
+        // -include-non-security: structural test — hash consistency is independent of AI classification
+        String output = runApp(new String[] { "-sarif", "-include-non-security", "-content-hash", tempDir.toString() });
         JsonNode results = new ObjectMapper().readTree(output).path("runs").get(0).path("results");
 
         List<String> sampleOneHashes = new ArrayList<>();

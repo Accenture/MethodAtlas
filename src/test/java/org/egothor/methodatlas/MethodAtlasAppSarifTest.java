@@ -51,7 +51,8 @@ public class MethodAtlasAppSarifTest {
         Files.createDirectories(sourceDir);
         copyFixture(sourceDir, "AccessControlServiceTest.java");
 
-        String output = runApp(new String[] { "-sarif", sourceDir.toString() });
+        // -include-non-security: structural test — result count is independent of AI classification
+        String output = runApp(new String[] { "-sarif", "-include-non-security", sourceDir.toString() });
         JsonNode results = new ObjectMapper().readTree(output).path("runs").get(0).path("results");
 
         assertTrue(results.isArray());
@@ -64,7 +65,8 @@ public class MethodAtlasAppSarifTest {
         Files.createDirectories(sourceDir);
         copyFixture(sourceDir, "AccessControlServiceTest.java");
 
-        String output = runApp(new String[] { "-sarif", sourceDir.toString() });
+        // -include-non-security: structural test — location presence is independent of AI classification
+        String output = runApp(new String[] { "-sarif", "-include-non-security", sourceDir.toString() });
         JsonNode result = new ObjectMapper().readTree(output)
                 .path("runs").get(0).path("results").get(0);
 
