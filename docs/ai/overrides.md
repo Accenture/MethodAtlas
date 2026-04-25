@@ -114,9 +114,13 @@ A command-line `-override-file` flag always takes precedence over the YAML value
 ### Reusable workflow (MethodAtlas self-analysis / GitHub Models)
 
 The bundled reusable workflow
-(`.github/workflows/methodatlas-analysis.yml`) accepts an `override-file`
-input. Set it to the repository-root-relative path of your YAML override file
-when calling the workflow:
+(`.github/workflows/methodatlas-analysis.yml`) supports two paths for
+supplying the override file.
+
+**Simplified path — local file in the same repository**
+
+Suitable for small teams where developers and the security reviewer share the
+same repository:
 
 ```yaml
 # .github/workflows/pages.yml (excerpt)
@@ -131,18 +135,39 @@ jobs:
       models: read
 ```
 
-The workflow passes `-override-file` to MethodAtlas only when the input is
-non-empty **and** the file actually exists on disk. This means:
+**Enterprise path — dedicated security team repository**
 
-- On a repository that has not yet created the file, the workflow runs cleanly
-  with AI-only classifications (no error, no empty SARIF).
-- Once the file is committed, the same workflow call immediately picks it up on
-  the next run without any workflow change.
+For organisations where a separate security or risk team owns classification
+decisions, point the workflow at the team's repository. The workflow checks it
+out automatically using a fine-grained PAT stored as an organisation-level
+secret:
 
-Store the file in version control alongside your tests. Every CI run then
-applies both the live AI classification and the persisted human corrections.
-When a PR modifies the override file, the diff is the audit trail for each
-human classification decision.
+```yaml
+# .github/workflows/pages.yml (excerpt)
+jobs:
+  analyze:
+    uses: ./.github/workflows/methodatlas-analysis.yml
+    with:
+      security-overrides-repo: acme-corp/security-overrides
+      security-overrides-path: methodatlas-overrides.yaml
+      security-overrides-ref: v1.3.0       # pin to a release tag
+    secrets:
+      SECURITY_OVERRIDES_TOKEN: ${{ secrets.SECURITY_OVERRIDES_TOKEN }}
+    permissions:
+      contents: read
+      security-events: write
+      models: read
+```
+
+In both cases the workflow passes `-override-file` to MethodAtlas only when
+the input is non-empty **and** the file exists on disk, so a repository that
+has not yet created the file runs cleanly with AI-only classifications (no
+error, no empty SARIF). The security-repo input takes precedence over the
+local-file input when both are supplied.
+
+For a full comparison of all remote-override strategies — including HTTPS
+download from an artifact server and a reusable workflow owned by the security
+team — see [Remote Override Sources](remote-overrides.md).
 
 ### Custom CI pipeline
 

@@ -298,8 +298,10 @@ file exists. Once the file is committed, subsequent runs pick it up
 automatically. Pull request diffs on the override file serve as the audit trail
 for each human classification decision.
 
-See [Classification Overrides](../ai/overrides.md) for the full file format
-reference.
+See [Classification Overrides](../ai/overrides.md) for the file format
+reference and [Remote Override Sources](../ai/remote-overrides.md) for a
+strategy comparison that covers security-team repositories, HTTPS artifact
+servers, and reusable workflows.
 
 ## Using GitHub Models as the AI provider
 

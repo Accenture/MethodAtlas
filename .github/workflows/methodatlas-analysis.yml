@@ -40,14 +40,68 @@ on:
         default: 'gpt-4o-mini'
       override-file:
         description: >
-          Path (relative to the repository root) of a MethodAtlas classification
+          Path (relative to this repository root) of a local classification
           override YAML file. When supplied and the file exists on disk,
-          -override-file is passed to MethodAtlas so human-reviewed corrections
-          are applied on top of the AI classification. Leave empty (the default)
-          to run without an override file.
+          -override-file is passed to MethodAtlas so that human-reviewed
+          corrections are applied on top of the AI classification.
+
+          ⚠ SIMPLIFIED APPROACH — suitable only for small teams where
+          developers and the security reviewer share the same repository. In
+          organisations with a dedicated security or risk team, use
+          security-overrides-repo instead so that override decisions are owned
+          exclusively by that team and cannot be changed by developers via a PR
+          to their own repository. See docs/ai/remote-overrides.md for a full
+          comparison of strategies.
+
+          Ignored when security-overrides-repo is also set (the remote security
+          repo always takes precedence). Leave empty (the default) to run
+          without a local override file.
         required: false
         type: string
         default: ''
+      security-overrides-repo:
+        description: >
+          GitHub repository (owner/name) that holds the canonical override file
+          maintained by the security or risk team, for example
+          acme-corp/security-overrides. When set, this workflow checks out that
+          repository using SECURITY_OVERRIDES_TOKEN and reads the file at the
+          path given by security-overrides-path.
+
+          This input takes precedence over override-file when both are supplied.
+          The caller must pass a SECURITY_OVERRIDES_TOKEN secret — a
+          fine-grained PAT or GitHub App installation token with contents:read
+          on the security repository. Store it as an organisation-level secret
+          so that individual development teams do not need to manage it.
+
+          Leave empty (the default) to skip the remote-repo checkout step.
+        required: false
+        type: string
+        default: ''
+      security-overrides-path:
+        description: >
+          Path within security-overrides-repo to the override YAML file,
+          relative to the root of that repository. Only used when
+          security-overrides-repo is non-empty. Defaults to
+          methodatlas-overrides.yaml.
+        required: false
+        type: string
+        default: 'methodatlas-overrides.yaml'
+      security-overrides-ref:
+        description: >
+          Git ref (branch, tag, or full commit SHA) to check out from
+          security-overrides-repo. Pin to a release tag for reproducible runs
+          and to prevent an unreviewed commit from silently altering
+          classifications. Leave empty to use the default branch.
+        required: false
+        type: string
+        default: ''
+    secrets:
+      SECURITY_OVERRIDES_TOKEN:
+        description: >
+          Fine-grained PAT or GitHub App installation token with contents:read
+          on security-overrides-repo. Required when security-overrides-repo is
+          set; ignored (and not required) otherwise.
+        required: false
 
 # Permissions required by this workflow.
 # The calling workflow must grant at least these two permissions.
@@ -104,6 +158,32 @@ jobs:
           echo "METHODATLAS=$(pwd)/build/install/methodatlas/bin/methodatlas" >> "$GITHUB_ENV"
 
       # -----------------------------------------------------------------------
+      # Fetch security team override file (optional — enterprise path)
+      #
+      # Runs only when security-overrides-repo is supplied.  Performs a
+      # shallow, sparse checkout of the security team's repository into
+      # .security-overrides/ using the SECURITY_OVERRIDES_TOKEN secret (a
+      # fine-grained PAT or GitHub App token with contents:read on that repo).
+      #
+      # sparse-checkout in non-cone mode treats the pattern as a path glob,
+      # so only the single override file is transferred — not the entire repo.
+      #
+      # When this step is skipped, the Run MethodAtlas step falls back to the
+      # local override-file input (if set) or runs without any override file.
+      # -----------------------------------------------------------------------
+      - name: Fetch security team override file
+        if: ${{ inputs.security-overrides-repo != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.security-overrides-repo }}
+          path: .security-overrides
+          token: ${{ secrets.SECURITY_OVERRIDES_TOKEN }}
+          sparse-checkout: ${{ inputs.security-overrides-path }}
+          sparse-checkout-cone-mode: false
+          ref: ${{ inputs.security-overrides-ref }}
+          fetch-depth: 1
+
+      # -----------------------------------------------------------------------
       # Run MethodAtlas AI classification
       #
       # Uses GitHub Models (provider: github_models) authenticated with
@@ -142,12 +222,25 @@ jobs:
         run: |
           mkdir -p build/reports
 
-          # Build optional -override-file argument.  The file path is taken
-          # from an environment variable (not inline interpolation) so that
-          # paths containing spaces or special characters are handled safely.
+          # Resolve -override-file argument using two-tier priority:
+          #
+          # 1. ENTERPRISE PATH — security-overrides-repo was set and the
+          #    previous step checked out the file into .security-overrides/.
+          #    Override decisions are owned exclusively by the security team.
+          #
+          # 2. SIMPLIFIED PATH — a local override-file was supplied.
+          #    ⚠ Suitable for small teams only; in a larger organisation the
+          #    security team should be the sole authority (use input 1 above).
+          #    See docs/ai/remote-overrides.md for the full strategy comparison.
+          #
+          # If neither condition is met the workflow continues without any
+          # override file — this is the safe default and produces no error.
           OVERRIDE_ARGS=()
-          if [ -n "$OVERRIDE_FILE" ] && [ -f "$OVERRIDE_FILE" ]; then
-            OVERRIDE_ARGS=("-override-file" "$OVERRIDE_FILE")
+          SECURITY_OVERRIDE_FILE=".security-overrides/$SECURITY_PATH"
+          if [ -n "$SECURITY_REPO" ] && [ -f "$SECURITY_OVERRIDE_FILE" ]; then
+            OVERRIDE_ARGS=("-override-file" "$SECURITY_OVERRIDE_FILE")
+          elif [ -n "$LOCAL_OVERRIDE_FILE" ] && [ -f "$LOCAL_OVERRIDE_FILE" ]; then
+            OVERRIDE_ARGS=("-override-file" "$LOCAL_OVERRIDE_FILE")
           fi
 
           "$METHODATLAS" \
@@ -166,7 +259,9 @@ jobs:
             > build/reports/methodatlas-sarif.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OVERRIDE_FILE: ${{ inputs.override-file }}
+          LOCAL_OVERRIDE_FILE: ${{ inputs.override-file }}
+          SECURITY_REPO: ${{ inputs.security-overrides-repo }}
+          SECURITY_PATH: ${{ inputs.security-overrides-path }}
 
       # -----------------------------------------------------------------------
       # Publish results
