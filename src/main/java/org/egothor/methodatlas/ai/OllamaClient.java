@@ -75,7 +75,7 @@ public final class OllamaClient implements AiProviderClient {
      */
     public OllamaClient(AiOptions options) {
         this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout());
+        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries());
     }
 
     /**

@@ -81,7 +81,7 @@ public final class AnthropicClient implements AiProviderClient {
      */
     public AnthropicClient(AiOptions options) {
         this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout());
+        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries());
     }
 
     /**

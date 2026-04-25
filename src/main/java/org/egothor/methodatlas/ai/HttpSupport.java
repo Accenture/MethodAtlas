@@ -6,6 +6,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,8 +51,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public final class HttpSupport {
 
+    private static final Logger LOGGER = Logger.getLogger(HttpSupport.class.getName());
+    private static final Pattern RETRY_AFTER_SECONDS = Pattern.compile("Please wait (\\d+) seconds");
+    private static final long DEFAULT_RETRY_WAIT_SECONDS = 60L;
+
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final int maxRetries;
 
     /**
      * Creates a new HTTP support helper with the specified connection timeout.
@@ -65,12 +73,13 @@ public final class HttpSupport {
      * with {@link DeserializationFeature#FAIL_ON_UNKNOWN_PROPERTIES} disabled.
      * </p>
      *
-     * @param timeout connection timeout used for the underlying HTTP client
+     * @param timeout    connection timeout used for the underlying HTTP client
+     * @param maxRetries maximum number of retry attempts on HTTP 429 responses
      */
-    public HttpSupport(Duration timeout) {
+    public HttpSupport(Duration timeout, int maxRetries) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(timeout).build();
-
         this.objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        this.maxRetries = maxRetries;
     }
 
     /**
@@ -119,14 +128,44 @@ public final class HttpSupport {
      *                              waiting for the response
      */
     public String postJson(HttpRequest request) throws IOException, InterruptedException {
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        int statusCode = response.statusCode();
+        int attempt = 0;
+        while (true) {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            int statusCode = response.statusCode();
 
-        if (statusCode < 200 || statusCode >= 300) {
-            throw new IOException("HTTP " + statusCode + ": " + response.body());
+            if (statusCode == 429 && attempt < maxRetries) {
+                long waitSeconds = resolveRetryAfter(response);
+                LOGGER.warning("Rate limited (HTTP 429), waiting " + waitSeconds + "s before retry "
+                        + (attempt + 1) + "/" + maxRetries);
+                Thread.sleep(Duration.ofSeconds(waitSeconds));
+                attempt++;
+                continue;
+            }
+
+            if (statusCode < 200 || statusCode >= 300) {
+                throw new IOException("HTTP " + statusCode + ": " + response.body());
+            }
+
+            return response.body();
         }
+    }
 
-        return response.body();
+    private static long resolveRetryAfter(HttpResponse<String> response) {
+        String header = response.headers().firstValue("Retry-After").orElse(null);
+        if (header != null) {
+            try {
+                return Long.parseLong(header.trim());
+            } catch (NumberFormatException ignored) { // NOPMD
+            }
+        }
+        Matcher matcher = RETRY_AFTER_SECONDS.matcher(response.body());
+        if (matcher.find()) {
+            try {
+                return Long.parseLong(matcher.group(1));
+            } catch (NumberFormatException ignored) { // NOPMD
+            }
+        }
+        return DEFAULT_RETRY_WAIT_SECONDS;
     }
 
     /**
