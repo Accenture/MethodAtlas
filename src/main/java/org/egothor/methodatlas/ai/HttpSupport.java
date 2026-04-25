@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -127,27 +128,29 @@ public final class HttpSupport {
      * @throws InterruptedException if the calling thread is interrupted while
      *                              waiting for the response
      */
+    @SuppressWarnings("PMD.DoNotUseThreads")
     public String postJson(HttpRequest request) throws IOException, InterruptedException {
         int attempt = 0;
-        while (true) {
+        int statusCode;
+        String body;
+        do {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            int statusCode = response.statusCode();
-
+            statusCode = response.statusCode();
+            body = response.body();
             if (statusCode == 429 && attempt < maxRetries) {
                 long waitSeconds = resolveRetryAfter(response);
-                LOGGER.warning("Rate limited (HTTP 429), waiting " + waitSeconds + "s before retry "
-                        + (attempt + 1) + "/" + maxRetries);
+                if (LOGGER.isLoggable(Level.WARNING)) {
+                    LOGGER.warning("Rate limited (HTTP 429), waiting " + waitSeconds + "s before retry "
+                            + (attempt + 1) + "/" + maxRetries);
+                }
                 Thread.sleep(Duration.ofSeconds(waitSeconds));
-                attempt++;
-                continue;
             }
-
-            if (statusCode < 200 || statusCode >= 300) {
-                throw new IOException("HTTP " + statusCode + ": " + response.body());
-            }
-
-            return response.body();
+            attempt++;
+        } while (statusCode == 429 && attempt <= maxRetries);
+        if (statusCode < 200 || statusCode >= 300) {
+            throw new IOException("HTTP " + statusCode + ": " + body);
         }
+        return body;
     }
 
     private static long resolveRetryAfter(HttpResponse<String> response) {
@@ -155,14 +158,14 @@ public final class HttpSupport {
         if (header != null) {
             try {
                 return Long.parseLong(header.trim());
-            } catch (NumberFormatException ignored) { // NOPMD
+            } catch (NumberFormatException ignored) {
             }
         }
         Matcher matcher = RETRY_AFTER_SECONDS.matcher(response.body());
         if (matcher.find()) {
             try {
                 return Long.parseLong(matcher.group(1));
-            } catch (NumberFormatException ignored) { // NOPMD
+            } catch (NumberFormatException ignored) {
             }
         }
         return DEFAULT_RETRY_WAIT_SECONDS;
