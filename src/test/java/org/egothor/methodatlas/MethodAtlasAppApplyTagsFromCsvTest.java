@@ -296,6 +296,28 @@ class MethodAtlasAppApplyTagsFromCsvTest {
                 "Tags should be applied even when there are mismatches and no limit is set");
     }
 
+    // ── Backward compatibility: old CSV format without display_name column ───
+
+    @Test
+    void applyTagsFromCsv_oldCsvWithoutDisplayNameColumn_leavesDisplayNameUntouched(
+            @TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "LoginTest.java", TAGGED_TEST_SOURCE);
+        // Old format: no display_name column — @DisplayName must NOT be removed
+        writeCsv(tempDir, "scan.csv", """
+                fqcn,method,loc,tags
+                com.example.LoginTest,testLogin,1,security
+                com.example.LoginTest,testLogout,1,
+                """);
+
+        runApp(tempDir, "scan.csv");
+
+        String content = readSource(tempDir, "LoginTest.java");
+        assertTrue(content.contains("@DisplayName(\"Login with valid credentials\")"),
+                "@DisplayName must be preserved when display_name column is absent from CSV");
+        assertTrue(content.contains("@Tag(\"security\")"), "security tag should still be applied");
+        assertFalse(content.contains("@Tag(\"auth\")"), "auth tag should be removed per CSV");
+    }
+
     // ── Edge cases ────────────────────────────────────────────────────────────
 
     @Test

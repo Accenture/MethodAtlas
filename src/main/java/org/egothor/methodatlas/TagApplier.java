@@ -184,8 +184,16 @@ final class TagApplier {
      *
      * <p>All existing {@code @Tag} and {@code @Tags} annotations are removed and
      * replaced with exactly the tags from {@code desiredTags}. The
-     * {@code @DisplayName} annotation is set to {@code desiredDisplayName} when
-     * non-empty, or removed when empty.</p>
+     * {@code @DisplayName} annotation is driven by {@code desiredDisplayName}
+     * according to a three-way contract:</p>
+     * <ul>
+     *   <li>{@code null} — column was absent from the source CSV (old format):
+     *       the existing {@code @DisplayName} annotation is left untouched</li>
+     *   <li>{@code ""} — column was present but empty: any existing
+     *       {@code @DisplayName} is removed</li>
+     *   <li>non-empty text — the desired display name: any existing
+     *       {@code @DisplayName} is replaced with the new value</li>
+     * </ul>
      *
      * <p>Callers are responsible for adding or preserving JUnit imports on the
      * enclosing {@link com.github.javaparser.ast.CompilationUnit} based on the
@@ -194,20 +202,25 @@ final class TagApplier {
      * @param method             method declaration to modify
      * @param desiredTags        exact set of {@code @Tag} values to apply; {@code null}
      *                           is treated as an empty list (all tags removed)
-     * @param desiredDisplayName desired {@code @DisplayName} text; empty or {@code null}
-     *                           removes any existing {@code @DisplayName}
+     * @param desiredDisplayName desired {@code @DisplayName} text; {@code null} means
+     *                           leave unchanged; {@code ""} means remove; non-empty
+     *                           means set to this value
      * @return result describing what changed; never {@code null}
      */
     /* default */ static MethodApplyResult applyDesiredState(MethodDeclaration method,
             List<String> desiredTags, String desiredDisplayName) {
         // Handle @DisplayName
+        // null  → column absent from CSV (old format): leave @DisplayName unchanged
+        // ""    → column present but empty: remove @DisplayName
+        // text  → set @DisplayName to the given text
         boolean displayNameChanged = false;
         if (desiredDisplayName != null && !desiredDisplayName.isEmpty()) {
             method.getAnnotations().removeIf(a -> ANNOTATION_DISPLAY_NAME.equals(a.getNameAsString()));
             method.addSingleMemberAnnotation(ANNOTATION_DISPLAY_NAME,
                     new StringLiteralExpr(desiredDisplayName));
             displayNameChanged = true;
-        } else {
+        } else if (desiredDisplayName != null) {
+            // desiredDisplayName is "" — remove any existing @DisplayName
             boolean hadDisplayName = method.getAnnotations().stream()
                     .anyMatch(a -> ANNOTATION_DISPLAY_NAME.equals(a.getNameAsString()));
             method.getAnnotations().removeIf(a -> ANNOTATION_DISPLAY_NAME.equals(a.getNameAsString()));
@@ -215,6 +228,7 @@ final class TagApplier {
                 displayNameChanged = true;
             }
         }
+        // else desiredDisplayName == null → no change to @DisplayName
 
         // Handle @Tag annotations
         Set<String> existingTags = new HashSet<>(AnnotationInspector.getTagValues(method));

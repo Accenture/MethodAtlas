@@ -251,7 +251,9 @@ final class ApplyTagsFromCsvEngine {
                 }
 
                 List<String> desiredTags = desired.tags();
-                String desiredDisplayName = desired.displayName() != null ? desired.displayName() : "";
+                // null means the column was absent from the CSV (old format) — leave @DisplayName untouched.
+                // "" means the column was present but empty — remove @DisplayName.
+                String desiredDisplayName = desired.displayName();
 
                 TagApplier.MethodApplyResult result = TagApplier.applyDesiredState(
                         method, desiredTags, desiredDisplayName);
