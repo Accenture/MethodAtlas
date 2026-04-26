@@ -29,10 +29,12 @@ that matches the `tags` and `display_name` columns of `review.csv`.
 
 For each test method found in the source tree that has a matching row in the CSV:
 
-| CSV column | Effect on source |
-|---|---|
-| `tags` (semicolon-separated list) | Removes all existing `@Tag` and `@Tags` annotations; adds one `@Tag("…")` per entry |
-| `display_name` (text or empty) | Non-empty: replaces any existing `@DisplayName`; Empty: removes `@DisplayName` if present |
+| CSV column | Value | Effect on source |
+|---|---|---|
+| `tags` | semicolon-separated list | Removes all existing `@Tag` and `@Tags` annotations; adds one `@Tag("…")` per entry |
+| `display_name` | non-empty text | Replaces any existing `@DisplayName` with the given text |
+| `display_name` | empty string | Removes `@DisplayName` if present |
+| `display_name` | column absent from CSV | Leaves `@DisplayName` unchanged (backward compatibility with old CSV files) |
 
 Required imports (`org.junit.jupiter.api.Tag`, `org.junit.jupiter.api.DisplayName`)
 are added only to files where they become necessary.

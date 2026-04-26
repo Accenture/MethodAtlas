@@ -341,7 +341,10 @@ Instead of emitting a report, applies annotation decisions recorded in a reviewe
 What the engine does for each matched method:
 
 - **`tags` column** — removes all existing `@Tag` and `@Tags` annotations, then adds exactly the tags listed (semicolon-separated).
-- **`display_name` column** — when non-empty, replaces any existing `@DisplayName`; when empty, removes `@DisplayName` if present.
+- **`display_name` column** — three-way contract based on the cell value:
+  - non-empty text → replaces any existing `@DisplayName`
+  - empty string → removes `@DisplayName` if present
+  - column absent from the CSV → `@DisplayName` left unchanged (backward compatibility with CSV files produced before this column was introduced)
 
 Required imports (`org.junit.jupiter.api.Tag`, `org.junit.jupiter.api.DisplayName`) are added to files that need them.
 
