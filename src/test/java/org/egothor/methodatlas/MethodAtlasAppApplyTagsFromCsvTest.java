@@ -288,7 +288,7 @@ class MethodAtlasAppApplyTagsFromCsvTest {
                 """);
 
         // Default -mismatch-limit is -1 (no abort)
-        int code = runApp(tempDir, "scan.csv", new String[0]);
+        int code = runAppReturnCode(tempDir, "scan.csv");
 
         assertEquals(0, code);
         String content = readSource(tempDir, "LoginTest.java");
@@ -383,11 +383,6 @@ class MethodAtlasAppApplyTagsFromCsvTest {
             String[] combined = concat(baseArgs, extraArgs);
             return MethodAtlasApp.run(combined, out);
         }
-    }
-
-    /** Overload that accepts a pre-built extra-args array (avoids varargs ambiguity). */
-    private static int runApp(Path tempDir, String csvName, String[] extraArgs) throws Exception {
-        return runAppReturnCode(tempDir, csvName, extraArgs);
     }
 
     private static String[] concat(String[] a, String[] b) {
