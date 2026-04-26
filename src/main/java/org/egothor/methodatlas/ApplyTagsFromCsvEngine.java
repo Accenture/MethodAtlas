@@ -158,14 +158,13 @@ final class ApplyTagsFromCsvEngine {
     }
 
     private static void warnMismatches(Set<String> inCsvNotSource, Set<String> inSourceNotCsv) {
-        if (!LOG.isLoggable(Level.WARNING)) {
-            return;
-        }
-        for (String k : inCsvNotSource) {
-            LOG.warning("Mismatch (in CSV, not found in source): " + k);
-        }
-        for (String k : inSourceNotCsv) {
-            LOG.warning("Mismatch (in source, not present in CSV): " + k);
+        if (LOG.isLoggable(Level.WARNING)) {
+            for (String k : inCsvNotSource) {
+                LOG.warning("Mismatch (in CSV, not found in source): " + k);
+            }
+            for (String k : inSourceNotCsv) {
+                LOG.warning("Mismatch (in source, not present in CSV): " + k);
+            }
         }
     }
 

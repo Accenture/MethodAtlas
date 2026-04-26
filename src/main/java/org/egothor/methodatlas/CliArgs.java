@@ -37,6 +37,7 @@ import org.egothor.methodatlas.ai.AiProvider;
  * @see CliConfig
  * @see MethodAtlasApp
  */
+@SuppressWarnings("PMD.CyclomaticComplexity")
 final class CliArgs {
 
     private static final String DEFAULT_FILE_SUFFIX = "Test.java";
