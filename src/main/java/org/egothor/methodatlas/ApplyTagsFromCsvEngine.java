@@ -317,7 +317,11 @@ final class ApplyTagsFromCsvEngine {
             }
             try (java.util.stream.Stream<Path> stream = Files.walk(root)) {
                 for (Path path : (Iterable<Path>) stream.filter(Files::isRegularFile)::iterator) {
-                    String name = path.getFileName().toString();
+                    Path fileNamePath = path.getFileName();
+                    if (fileNamePath == null) {
+                        continue;
+                    }
+                    String name = fileNamePath.toString();
                     if (fileSuffixes.stream().noneMatch(name::endsWith)) {
                         continue;
                     }
