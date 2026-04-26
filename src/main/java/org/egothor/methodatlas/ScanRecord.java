@@ -25,6 +25,11 @@ import java.util.List;
  * @param loc                lines of code for the method declaration; always present
  * @param tags               JUnit {@code @Tag} values on the method; empty list
  *                           when none; never {@code null}
+ * @param displayName        text value of an existing {@code @DisplayName} annotation
+ *                           on the method, or an empty string when no such annotation
+ *                           is present; {@code null} when the {@code display_name}
+ *                           column was absent from the source CSV file (old file
+ *                           produced without this column)
  * @param contentHash        SHA-256 fingerprint of the enclosing class source, or
  *                           {@code null} when the {@code content_hash} column was
  *                           absent (scan run without {@code -content-hash})
@@ -54,6 +59,7 @@ record ScanRecord(
         String method,
         int loc,
         List<String> tags,
+        String displayName,
         String contentHash,
         Boolean aiSecurityRelevant,
         String aiDisplayName,

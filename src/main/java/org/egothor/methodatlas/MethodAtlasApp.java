@@ -150,6 +150,15 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * <li>{@code -diff <before.csv> <after.csv>} — compares two MethodAtlas scan
  * outputs and emits a delta report showing added, removed, and modified test
  * methods; all other flags are ignored when {@code -diff} is present</li>
+ * <li>{@code -apply-tags-from-csv <path>} — instead of emitting a report,
+ * applies the annotation decisions recorded in the reviewed CSV back to the
+ * source files; the CSV is treated as a complete desired-state specification:
+ * every test method's {@code @Tag} set and {@code @DisplayName} are driven
+ * entirely by the corresponding CSV row</li>
+ * <li>{@code -mismatch-limit <n>} — when used with {@code -apply-tags-from-csv},
+ * aborts without modifying any source file if the number of mismatches between
+ * the CSV and the current source tree reaches or exceeds {@code n}; {@code -1}
+ * (the default) logs mismatches as warnings and proceeds</li>
  * </ul>
  *
  * <p>
@@ -285,6 +294,11 @@ public final class MethodAtlasApp {
 
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
 
+        // Apply-tags-from-csv mode: apply reviewed CSV decisions to source files.
+        if (cliConfig.applyTagsFromCsvFile() != null) {
+            return runApplyTagsFromCsv(cliConfig, parser, roots, out);
+        }
+
         // Apply-tags mode: annotate source files; no report emitted.
         if (cliConfig.applyTags()) {
             return runApplyTags(cliConfig, aiEngine, parser, roots, out, override, aiCache);
@@ -313,8 +327,8 @@ public final class MethodAtlasApp {
         emitter.emitCsvHeader(cliConfig.outputMode());
 
         final OutputMode mode = cliConfig.outputMode();
-        TestMethodSink sink = (fqcn, method, beginLine, loc, contentHash, tags, suggestion) ->
-                emitter.emit(mode, fqcn, method, loc, contentHash, tags, suggestion);
+        TestMethodSink sink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
+                emitter.emit(mode, fqcn, method, loc, contentHash, tags, displayName, suggestion);
 
         int result = scan(roots, cliConfig, aiEngine, parser, filterSink(sink, cliConfig.securityOnly()), override,
                 aiCache);
@@ -340,6 +354,36 @@ public final class MethodAtlasApp {
         DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
         DeltaEmitter.emit(result, out);
         return 0;
+    }
+
+    /**
+     * Applies reviewed CSV annotation decisions to test method source files.
+     *
+     * <p>
+     * Delegates all work to {@link ApplyTagsFromCsvEngine#apply}. The CSV file is
+     * interpreted as a complete desired-state specification: each row drives the
+     * exact set of {@code @Tag} annotations and the {@code @DisplayName} text that
+     * the corresponding method should have after the run.
+     * </p>
+     *
+     * @param cliConfig full parsed CLI configuration
+     * @param parser    configured JavaParser instance
+     * @param roots     source roots to scan
+     * @param log       writer for progress and summary output
+     * @return {@code 0} on success, {@code 1} when the mismatch limit is exceeded
+     *         or a fatal error occurs
+     * @throws IOException if the CSV or source files cannot be read or written
+     */
+    private static int runApplyTagsFromCsv(CliConfig cliConfig, JavaParser parser,
+            List<Path> roots, PrintWriter log) throws IOException {
+        return ApplyTagsFromCsvEngine.apply(
+                cliConfig.applyTagsFromCsvFile(),
+                roots,
+                cliConfig.fileSuffixes(),
+                cliConfig.testAnnotations(),
+                cliConfig.mismatchLimit(),
+                parser,
+                log);
     }
 
     /**
@@ -788,8 +832,9 @@ public final class MethodAtlasApp {
                     int beginLine = method.getRange().map(range -> range.begin.line).orElse(0);
                     int loc = AnnotationInspector.countLOC(method);
                     List<String> tags = AnnotationInspector.getTagValues(method);
+                    String displayName = AnnotationInspector.getDisplayName(method);
                     sink.record(fqcn, method.getNameAsString(), beginLine, loc, outputHash, tags,
-                            suggestionLookup.find(method.getNameAsString()).orElse(null));
+                            displayName, suggestionLookup.find(method.getNameAsString()).orElse(null));
                 }
             });
 
@@ -1040,9 +1085,9 @@ public final class MethodAtlasApp {
         if (!securityOnly) {
             return delegate;
         }
-        return (fqcn, method, beginLine, loc, contentHash, tags, suggestion) -> {
+        return (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) -> {
             if (suggestion != null && suggestion.securityRelevant()) {
-                delegate.record(fqcn, method, beginLine, loc, contentHash, tags, suggestion);
+                delegate.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
             }
         };
     }

@@ -88,7 +88,7 @@ public class MethodAtlasAppSarifTest {
 
         String output = runApp(new String[] { "-sarif", sourceDir.toString() });
 
-        assertFalse(output.contains("fqcn,method,loc,tags"),
+        assertFalse(output.contains("fqcn,method,loc,tags,display_name"),
                 "SARIF output should not contain a CSV header");
         assertTrue(output.trim().startsWith("{"), "SARIF output should start with {");
     }
@@ -138,7 +138,7 @@ public class MethodAtlasAppSarifTest {
 
         String output = runApp(new String[] { "-config", configFile.toString(), sourceDir.toString() });
 
-        assertFalse(output.contains("fqcn,method,loc,tags"),
+        assertFalse(output.contains("fqcn,method,loc,tags,display_name"),
                 "Plain mode should not emit CSV header");
         assertTrue(output.contains("LOC="), "Plain mode should emit LOC= tokens");
     }
@@ -154,7 +154,7 @@ public class MethodAtlasAppSarifTest {
 
         String output = runApp(new String[] { "-config", configFile.toString(), sourceDir.toString() });
 
-        assertFalse(output.contains("fqcn,method,loc,tags"),
+        assertFalse(output.contains("fqcn,method,loc,tags,display_name"),
                 "SARIF mode should not emit CSV header");
         assertTrue(output.trim().startsWith("{"), "SARIF output should be JSON");
     }

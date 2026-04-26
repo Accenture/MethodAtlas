@@ -80,7 +80,7 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_identicalFiles_noEntries(@TempDir Path tmp) throws IOException {
         String csv = """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 com.acme.FooTest,test_two,3,fast
                 """;
@@ -107,11 +107,11 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_methodAddedInAfter_detectedAsAdded(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 """);
         Path after = write(tmp, "after.csv", """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 com.acme.FooTest,test_two,3,
                 """);
@@ -136,12 +136,12 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_methodRemovedInAfter_detectedAsRemoved(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 com.acme.FooTest,test_two,3,
                 """);
         Path after = write(tmp, "after.csv", """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 """);
 
@@ -164,12 +164,12 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_contentHashDiffers_reportedAsSourceModified(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
-                fqcn,method,loc,tags,content_hash
-                com.acme.FooTest,test_one,5,,aaa
+                fqcn,method,loc,tags,display_name,content_hash
+                com.acme.FooTest,test_one,5,,,aaa
                 """);
         Path after = write(tmp, "after.csv", """
-                fqcn,method,loc,tags,content_hash
-                com.acme.FooTest,test_one,5,,bbb
+                fqcn,method,loc,tags,display_name,content_hash
+                com.acme.FooTest,test_one,5,,,bbb
                 """);
 
         DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
@@ -184,12 +184,12 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_contentHashOnlyInOne_notReportedAsModified(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 """);
         Path after = write(tmp, "after.csv", """
-                fqcn,method,loc,tags,content_hash
-                com.acme.FooTest,test_one,5,,abc123
+                fqcn,method,loc,tags,display_name,content_hash
+                com.acme.FooTest,test_one,5,,,abc123
                 """);
 
         DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
@@ -206,12 +206,12 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_aiSecurityRelevantFlips_reportedAsModified(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
-                fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-                com.acme.CryptoTest,test_encrypt,8,,false,,,
+                fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason
+                com.acme.CryptoTest,test_encrypt,8,,,false,,,
                 """);
         Path after = write(tmp, "after.csv", """
-                fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-                com.acme.CryptoTest,test_encrypt,8,,true,,security;crypto,verifies AES-GCM
+                fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason
+                com.acme.CryptoTest,test_encrypt,8,,,true,,security;crypto,verifies AES-GCM
                 """);
 
         DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
@@ -233,11 +233,11 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_locChanged_reportedAsModified(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 """);
         Path after = write(tmp, "after.csv", """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,9,
                 """);
 
@@ -259,7 +259,7 @@ class DeltaReportTest {
                 # tool_version: 1.0.0
                 # scan_timestamp: 2026-04-10T09:00:00Z
                 # taxonomy: built-in/default
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 """;
         Path before = write(tmp, "before.csv", csv);
@@ -280,15 +280,15 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_securityRelevantCounts_correct(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
-                fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-                com.acme.AuthTest,test_a,5,,true,,,
-                com.acme.AuthTest,test_b,3,,false,,,
+                fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason
+                com.acme.AuthTest,test_a,5,,,true,,,
+                com.acme.AuthTest,test_b,3,,,false,,,
                 """);
         Path after = write(tmp, "after.csv", """
-                fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-                com.acme.AuthTest,test_a,5,,true,,,
-                com.acme.AuthTest,test_b,3,,true,,,
-                com.acme.AuthTest,test_c,4,,true,,,
+                fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason
+                com.acme.AuthTest,test_a,5,,,true,,,
+                com.acme.AuthTest,test_b,3,,,true,,,
+                com.acme.AuthTest,test_c,4,,,true,,,
                 """);
 
         DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
@@ -306,11 +306,11 @@ class DeltaReportTest {
     @Tag("positive")
     void compute_emptyAfterFile_allRemoved(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
-                fqcn,method,loc,tags
+                fqcn,method,loc,tags,display_name
                 com.acme.FooTest,test_one,5,
                 com.acme.FooTest,test_two,3,
                 """);
-        Path after = write(tmp, "after.csv", "fqcn,method,loc,tags\n");
+        Path after = write(tmp, "after.csv", "fqcn,method,loc,tags,display_name\n");
 
         DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
 
@@ -340,9 +340,9 @@ class DeltaReportTest {
     @DisplayName("emitted report contains ADDED line for new method")
     @Tag("positive")
     void emitter_addedMethod_appearsInOutput(@TempDir Path tmp) throws IOException {
-        Path before = write(tmp, "before.csv", "fqcn,method,loc,tags\ncom.acme.FooTest,test_one,5,\n");
+        Path before = write(tmp, "before.csv", "fqcn,method,loc,tags,display_name\ncom.acme.FooTest,test_one,5,\n");
         Path after = write(tmp, "after.csv",
-                "fqcn,method,loc,tags\ncom.acme.FooTest,test_one,5,\ncom.acme.FooTest,test_two,3,\n");
+                "fqcn,method,loc,tags,display_name\ncom.acme.FooTest,test_one,5,\ncom.acme.FooTest,test_two,3,\n");
 
         String output = runDiff(before, after);
 
@@ -353,7 +353,7 @@ class DeltaReportTest {
     @DisplayName("emitted report contains 'No changes detected' for identical files")
     @Tag("positive")
     void emitter_identicalFiles_noChangesMessage(@TempDir Path tmp) throws IOException {
-        String csv = "fqcn,method,loc,tags\ncom.acme.FooTest,test_one,5,\n";
+        String csv = "fqcn,method,loc,tags,display_name\ncom.acme.FooTest,test_one,5,\n";
         Path before = write(tmp, "before.csv", csv);
         Path after = write(tmp, "after.csv", csv);
 
@@ -367,9 +367,9 @@ class DeltaReportTest {
     @Tag("positive")
     void emitter_summaryLineContainsCounts(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv",
-                "fqcn,method,loc,tags\ncom.acme.FooTest,test_one,5,\ncom.acme.FooTest,test_two,3,\n");
+                "fqcn,method,loc,tags,display_name\ncom.acme.FooTest,test_one,5,\ncom.acme.FooTest,test_two,3,\n");
         Path after = write(tmp, "after.csv",
-                "fqcn,method,loc,tags\ncom.acme.FooTest,test_one,5,\ncom.acme.FooTest,test_three,4,\n");
+                "fqcn,method,loc,tags,display_name\ncom.acme.FooTest,test_one,5,\ncom.acme.FooTest,test_three,4,\n");
 
         String output = runDiff(before, after);
 
@@ -386,7 +386,7 @@ class DeltaReportTest {
     @DisplayName("-diff flag routes to delta report and exits 0")
     @Tag("positive")
     void app_diffFlag_producesReport(@TempDir Path tmp) throws IOException {
-        String csv = "fqcn,method,loc,tags\ncom.acme.FooTest,test_one,5,\n";
+        String csv = "fqcn,method,loc,tags,display_name\ncom.acme.FooTest,test_one,5,\n";
         Path before = write(tmp, "before.csv", csv);
         Path after = write(tmp, "after.csv", csv);
 

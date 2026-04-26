@@ -61,6 +61,9 @@ cd methodatlas-<version>/bin
 # Apply AI-suggested annotations back into source files
 ./methodatlas -ai -apply-tags /path/to/tests
 
+# Apply reviewed CSV decisions back into source files
+./methodatlas -apply-tags-from-csv reviewed.csv /path/to/tests
+
 # GitHub Actions inline PR annotations
 ./methodatlas -ai -github-annotations /path/to/tests
 ```
@@ -301,7 +304,7 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 | --- | --- |
 | [docs/cli-reference.md](docs/cli-reference.md) | Complete option reference, YAML schema, and example commands |
 | [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, and GitHub Annotations format descriptions |
-| [docs/usage-modes/](docs/usage-modes/index.md) | All operating modes: static inventory, API AI, manual workflow, apply-tags, delta, security-only |
+| [docs/usage-modes/](docs/usage-modes/index.md) | All operating modes: static inventory, API AI, manual workflow, apply-tags, apply-tags-from-csv, delta, security-only |
 | [docs/ai/providers.md](docs/ai/providers.md) | Per-provider setup: Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter |
 | [docs/ai/confidence.md](docs/ai/confidence.md) | Confidence scoring: interpretation and threshold guidance |
 | [docs/ai/caching.md](docs/ai/caching.md) | AI result caching: skip unchanged classes, two-pass SARIF pattern, CI cache key strategy |

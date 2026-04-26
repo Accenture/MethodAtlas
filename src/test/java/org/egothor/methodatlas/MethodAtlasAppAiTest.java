@@ -57,7 +57,7 @@ class MethodAtlasAppAiTest {
             List<String> lines = nonEmptyLines(output);
 
             assertEquals(18, lines.size(), "Expected header + 17 method rows across 5 fixtures");
-            assertEquals("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score", lines.get(0));
+            assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score", lines.get(0));
 
             Map<String, List<String>> rows = parseCsvAiRows(lines);
 
@@ -155,7 +155,7 @@ class MethodAtlasAppAiTest {
             List<String> lines = nonEmptyLines(output);
 
             assertEquals(2, lines.size(), "Expected header + 1 emitted method row");
-            assertEquals("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score", lines.get(0));
+            assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score", lines.get(0));
 
             Map<String, List<String>> rows = parseCsvAiRows(lines);
             List<String> row = rows.get("com.acme.big.HugeAiSkipTest#hugeSecurityTest");
@@ -372,12 +372,12 @@ class MethodAtlasAppAiTest {
         List<String> fields = rows.get(fqcn + "#" + method);
         assertNotNull(fields, "Missing row for " + fqcn + "#" + method);
 
-        assertEquals(9, fields.size(), "Expected 9 CSV fields for " + fqcn + "#" + method);
+        assertEquals(10, fields.size(), "Expected 10 CSV fields for " + fqcn + "#" + method);
         assertEquals(expectedTagsText, fields.get(3), "Source tags mismatch for " + fqcn + "#" + method);
-        assertEquals(expectedAiSecurityRelevant, fields.get(4), "AI security flag mismatch for " + fqcn + "#" + method);
-        assertEquals(expectedAiDisplayName, fields.get(5), "AI display name mismatch for " + fqcn + "#" + method);
-        assertEquals(expectedAiTagsText, fields.get(6), "AI tags mismatch for " + fqcn + "#" + method);
-        assertEquals(expectedAiReason, fields.get(7), "AI reason mismatch for " + fqcn + "#" + method);
+        assertEquals(expectedAiSecurityRelevant, fields.get(5), "AI security flag mismatch for " + fqcn + "#" + method);
+        assertEquals(expectedAiDisplayName, fields.get(6), "AI display name mismatch for " + fqcn + "#" + method);
+        assertEquals(expectedAiTagsText, fields.get(7), "AI tags mismatch for " + fqcn + "#" + method);
+        assertEquals(expectedAiReason, fields.get(8), "AI reason mismatch for " + fqcn + "#" + method);
     }
 
     @Test
@@ -425,8 +425,8 @@ class MethodAtlasAppAiTest {
         // Cache CSV that references a hash different from the actual source file.
         Path cacheFile = tempDir.resolve("stale-cache.csv");
         Files.writeString(cacheFile,
-                "fqcn,method,loc,tags,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
-                        + "com.acme.tests.SampleOneTest,alpha,5,fast;crypto," + "0".repeat(64)
+                "fqcn,method,loc,tags,display_name,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
+                        + "com.acme.tests.SampleOneTest,alpha,5,fast;crypto,," + "0".repeat(64)
                         + ",true,SECURITY: cached,security;crypto,Cached reason.,0.0\n",
                 java.nio.charset.StandardCharsets.UTF_8);
 
@@ -451,7 +451,7 @@ class MethodAtlasAppAiTest {
         Map<String, List<String>> rows = new HashMap<>();
         for (int i = 1; i < lines.size(); i++) {
             List<String> fields = parseCsvFields(lines.get(i));
-            assertEquals(9, fields.size(), "Expected 9 CSV fields, got " + fields.size() + " from: " + lines.get(i));
+            assertEquals(10, fields.size(), "Expected 10 CSV fields, got " + fields.size() + " from: " + lines.get(i));
             rows.put(fields.get(0) + "#" + fields.get(1), fields);
         }
         return rows;

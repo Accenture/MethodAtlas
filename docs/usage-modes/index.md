@@ -1,14 +1,15 @@
 # Usage Modes
 
-MethodAtlas operates in three independent modes. A source write-back modifier
-can be layered on top of any mode that produces AI output.
+MethodAtlas operates in three independent modes. Source write-back modifiers
+can be layered on top of any mode that produces AI output or a reviewed CSV.
 
 | Mode | AI required | Network | Output formats |
 |---|---|---|---|
 | [Static inventory](static-inventory.md) | No | No | CSV, plain text, SARIF |
 | [API AI enrichment](api-ai.md) | Yes — via API | Yes | CSV, plain text, SARIF |
 | [Manual AI workflow](manual.md) | Yes — via chat | No | CSV, plain text, SARIF |
-| [Source write-back](apply-tags.md) | Combined with above | Depends | — |
+| [Source write-back (AI)](apply-tags.md) | Combined with above | Depends | — |
+| [Source write-back (CSV)](apply-tags-from-csv.md) | No | No | — |
 
 Choose the mode that fits your infrastructure constraints:
 

@@ -63,7 +63,7 @@ public class MethodAtlasAppTest {
         List<String> lines = nonEmptyLines(output);
         assertEquals(18, lines.size(), "Expected header + 17 records");
 
-        assertEquals("fqcn,method,loc,tags", lines.get(0));
+        assertEquals("fqcn,method,loc,tags,display_name", lines.get(0));
 
         Map<String, CsvRow> rows = new HashMap<>();
         for (int i = 1; i < lines.size(); i++) {
@@ -165,7 +165,7 @@ public class MethodAtlasAppTest {
         int headerIdx = -1;
         for (int i = 0; i < lines.size(); i++) {
             if (lines.get(i).startsWith("# tool_version:")) toolVersionIdx = i;
-            if ("fqcn,method,loc,tags".equals(lines.get(i))) headerIdx = i;
+            if ("fqcn,method,loc,tags,display_name".equals(lines.get(i))) headerIdx = i;
         }
         assertTrue(toolVersionIdx >= 0 && headerIdx >= 0 && toolVersionIdx < headerIdx,
                 "Metadata must appear before the CSV header");
@@ -235,7 +235,7 @@ public class MethodAtlasAppTest {
 
     private static CsvRow parseCsvRow(String line) {
         List<String> fields = parseCsvFields(line);
-        assertEquals(4, fields.size(), "Expected 4 CSV fields, got " + fields.size() + " from: " + line);
+        assertEquals(5, fields.size(), "Expected 5 CSV fields, got " + fields.size() + " from: " + line);
 
         CsvRow row = new CsvRow();
         row.fqcn = fields.get(0);
@@ -313,7 +313,7 @@ public class MethodAtlasAppTest {
     }
 
     private static PlainRow parsePlainRow(String line) {
-        Pattern p = Pattern.compile("^(.*),\\s+(.*),\\s+LOC=(\\d+),\\s+TAGS=(.*)$");
+        Pattern p = Pattern.compile("^(.*),\\s+(.*),\\s+LOC=(\\d+),\\s+TAGS=([^,]*)(?:,.*)?$");
         Matcher m = p.matcher(line);
         assertTrue(m.matches(), "Unexpected plain output line: " + line);
 

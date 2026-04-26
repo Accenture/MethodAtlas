@@ -355,6 +355,7 @@ public final class DeltaReport {
                 requireField(fields, colIndex, "method"),
                 parseInt(getField(fields, colIndex, "loc"), 0),
                 parseSemicolonList(getField(fields, colIndex, "tags")),
+                getField(fields, colIndex, "display_name"),
                 getField(fields, colIndex, "content_hash"),
                 parseBoolean(getField(fields, colIndex, "ai_security_relevant")).orElse(null),
                 getField(fields, colIndex, "ai_display_name"),

@@ -48,8 +48,8 @@ class AiResultCacheTest {
     void load_csvWithoutContentHashColumn_producesInactiveCache(@TempDir Path tempDir) throws Exception {
         Path csv = tempDir.resolve("no-hash.csv");
         Files.writeString(csv,
-                "fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
-                        + "com.acme.FooTest,testFoo,5,,true,SECURITY: foo,security,Covers foo.,0.0\n",
+                "fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
+                        + "com.acme.FooTest,testFoo,5,,,true,SECURITY: foo,security,Covers foo.,0.0\n",
                 StandardCharsets.UTF_8);
 
         AiResultCache cache = AiResultCache.load(csv);
@@ -68,8 +68,8 @@ class AiResultCacheTest {
     void load_csvWithoutAiColumns_producesInactiveCache(@TempDir Path tempDir) throws Exception {
         Path csv = tempDir.resolve("no-ai.csv");
         Files.writeString(csv,
-                "fqcn,method,loc,tags,content_hash\n"
-                        + "com.acme.FooTest,testFoo,5,,abc123\n",
+                "fqcn,method,loc,tags,display_name,content_hash\n"
+                        + "com.acme.FooTest,testFoo,5,,,abc123\n",
                 StandardCharsets.UTF_8);
 
         AiResultCache cache = AiResultCache.load(csv);
@@ -147,9 +147,9 @@ class AiResultCacheTest {
         String hash = "d".repeat(64);
         Path csv = tempDir.resolve("multi.csv");
         Files.writeString(csv,
-                "fqcn,method,loc,tags,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
-                        + "com.acme.FooTest,testA,3,,"+hash+",true,SECURITY: a,security,Reason A.,0.0\n"
-                        + "com.acme.FooTest,testB,5,,"+hash+",false,,,Not relevant.,0.0\n",
+                "fqcn,method,loc,tags,display_name,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
+                        + "com.acme.FooTest,testA,3,,,"+hash+",true,SECURITY: a,security,Reason A.,0.0\n"
+                        + "com.acme.FooTest,testB,5,,,"+hash+",false,,,Not relevant.,0.0\n",
                 StandardCharsets.UTF_8);
 
         AiResultCache cache = AiResultCache.load(csv);
@@ -202,8 +202,8 @@ class AiResultCacheTest {
             throws Exception {
         Path csv = dir.resolve("cache.csv");
         Files.writeString(csv,
-                "fqcn,method,loc,tags,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
-                        + fqcn + "," + method + ",5,," + hash + ","
+                "fqcn,method,loc,tags,display_name,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score\n"
+                        + fqcn + "," + method + ",5,,," + hash + ","
                         + aiSecurityRelevant + "," + aiDisplayName + "," + aiTags + ","
                         + aiReason + "," + aiInteractionScore + "\n",
                 StandardCharsets.UTF_8);

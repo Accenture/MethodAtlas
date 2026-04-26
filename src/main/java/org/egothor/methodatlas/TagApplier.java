@@ -145,6 +145,97 @@ final class TagApplier {
     }
 
     /**
+     * Result of applying a desired annotation state to a single method declaration.
+     *
+     * @param tagsAdded          number of {@code @Tag} annotations added
+     * @param tagsRemoved        number of {@code @Tag} annotations removed
+     * @param displayNameChanged whether the {@code @DisplayName} annotation was
+     *                           set or removed
+     */
+    /* default */ record MethodApplyResult(int tagsAdded, int tagsRemoved, boolean displayNameChanged) {
+
+        /**
+         * Returns {@code true} when at least one annotation was added, removed,
+         * or changed.
+         *
+         * @return {@code true} if the method was modified
+         */
+        /* default */ boolean modified() {
+            return tagsAdded > 0 || tagsRemoved > 0 || displayNameChanged;
+        }
+
+        /**
+         * Returns {@code true} when a {@code @Tag} import may be required.
+         *
+         * @return {@code true} if tags were added
+         */
+        /* default */ boolean needsTagImport() { return tagsAdded > 0; }
+
+        /**
+         * Returns {@code true} when a {@code @DisplayName} import may be required.
+         *
+         * @return {@code true} if the display name was changed
+         */
+        /* default */ boolean needsDisplayNameImport() { return displayNameChanged; }
+    }
+
+    /**
+     * Applies a desired annotation state to a single test method declaration.
+     *
+     * <p>All existing {@code @Tag} and {@code @Tags} annotations are removed and
+     * replaced with exactly the tags from {@code desiredTags}. The
+     * {@code @DisplayName} annotation is set to {@code desiredDisplayName} when
+     * non-empty, or removed when empty.</p>
+     *
+     * <p>Callers are responsible for adding or preserving JUnit imports on the
+     * enclosing {@link com.github.javaparser.ast.CompilationUnit} based on the
+     * returned result.</p>
+     *
+     * @param method             method declaration to modify
+     * @param desiredTags        exact set of {@code @Tag} values to apply; {@code null}
+     *                           is treated as an empty list (all tags removed)
+     * @param desiredDisplayName desired {@code @DisplayName} text; empty or {@code null}
+     *                           removes any existing {@code @DisplayName}
+     * @return result describing what changed; never {@code null}
+     */
+    /* default */ static MethodApplyResult applyDesiredState(MethodDeclaration method,
+            List<String> desiredTags, String desiredDisplayName) {
+        // Handle @DisplayName
+        boolean displayNameChanged = false;
+        if (desiredDisplayName != null && !desiredDisplayName.isEmpty()) {
+            method.getAnnotations().removeIf(a -> ANNOTATION_DISPLAY_NAME.equals(a.getNameAsString()));
+            method.addSingleMemberAnnotation(ANNOTATION_DISPLAY_NAME,
+                    new StringLiteralExpr(desiredDisplayName));
+            displayNameChanged = true;
+        } else {
+            boolean hadDisplayName = method.getAnnotations().stream()
+                    .anyMatch(a -> ANNOTATION_DISPLAY_NAME.equals(a.getNameAsString()));
+            method.getAnnotations().removeIf(a -> ANNOTATION_DISPLAY_NAME.equals(a.getNameAsString()));
+            if (hadDisplayName) {
+                displayNameChanged = true;
+            }
+        }
+
+        // Handle @Tag annotations
+        Set<String> existingTags = new HashSet<>(AnnotationInspector.getTagValues(method));
+        method.getAnnotations().removeIf(a -> ANNOTATION_TAG.equals(a.getNameAsString())
+                || "Tags".equals(a.getNameAsString()));
+        int tagsRemoved = existingTags.size();
+
+        int tagsAdded = 0;
+        if (desiredTags != null) {
+            for (String tag : desiredTags) {
+                if (tag != null && !tag.isBlank()) {
+                    method.addSingleMemberAnnotation(ANNOTATION_TAG, new StringLiteralExpr(tag));
+                    tagsAdded++;
+                }
+            }
+        }
+
+        return new MethodApplyResult(tagsAdded, tagsRemoved, displayNameChanged);
+    }
+
+    /**
      * Returns {@code true} if the method already carries an annotation with the
      * given simple name.
      *

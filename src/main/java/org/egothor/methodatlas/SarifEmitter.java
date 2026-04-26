@@ -133,7 +133,7 @@ final class SarifEmitter implements TestMethodSink {
      */
     @Override
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
-            List<String> tags, AiMethodSuggestion suggestion) {
+            List<String> tags, String displayName, AiMethodSuggestion suggestion) {
         records.add(new ResultRecord(fqcn, method, beginLine, loc, contentHash, tags, suggestion));
     }
 

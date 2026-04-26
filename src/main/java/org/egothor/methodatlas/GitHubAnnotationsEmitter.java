@@ -53,7 +53,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
 
     @Override
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
-            List<String> tags, AiMethodSuggestion suggestion) {
+            List<String> tags, String displayName, AiMethodSuggestion suggestion) {
         if (suggestion == null || !suggestion.securityRelevant()) {
             return;
         }

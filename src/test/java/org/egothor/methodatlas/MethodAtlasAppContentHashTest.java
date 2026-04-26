@@ -54,7 +54,7 @@ public class MethodAtlasAppContentHashTest {
         String output = runApp(new String[] { tempDir.toString() });
         List<String> lines = nonEmptyLines(output);
 
-        assertEquals("fqcn,method,loc,tags", lines.get(0),
+        assertEquals("fqcn,method,loc,tags,display_name", lines.get(0),
                 "Default CSV header must not include content_hash");
     }
 
@@ -65,7 +65,7 @@ public class MethodAtlasAppContentHashTest {
         String output = runApp(new String[] { "-content-hash", tempDir.toString() });
         List<String> lines = nonEmptyLines(output);
 
-        assertEquals("fqcn,method,loc,tags,content_hash", lines.get(0),
+        assertEquals("fqcn,method,loc,tags,display_name,content_hash", lines.get(0),
                 "CSV header must include content_hash when flag is present");
     }
 
@@ -83,9 +83,9 @@ public class MethodAtlasAppContentHashTest {
         assertFalse(dataLines.isEmpty(), "Expected at least one data row");
         for (String line : dataLines) {
             List<String> fields = parseCsvFields(line);
-            // fqcn, method, loc, tags, content_hash
-            assertEquals(5, fields.size(), "Expected 5 CSV fields with -content-hash: " + line);
-            String hash = fields.get(4);
+            // fqcn, method, loc, tags, display_name, content_hash
+            assertEquals(6, fields.size(), "Expected 6 CSV fields with -content-hash: " + line);
+            String hash = fields.get(5);
             assertEquals(64, hash.length(), "SHA-256 hex must be 64 characters: " + hash);
             assertTrue(hash.matches("[0-9a-f]{64}"), "Hash must be lowercase hex: " + hash);
         }
@@ -107,7 +107,7 @@ public class MethodAtlasAppContentHashTest {
         for (String line : dataLines) {
             List<String> fields = parseCsvFields(line);
             if (fields.get(0).contains("SampleOneTest")) {
-                sampleOneHashes.add(fields.get(4));
+                sampleOneHashes.add(fields.get(5));
             }
         }
 
@@ -134,9 +134,9 @@ public class MethodAtlasAppContentHashTest {
         for (String line : dataLines) {
             List<String> fields = parseCsvFields(line);
             if (fields.get(0).contains("SampleOneTest") && hashSampleOne == null) {
-                hashSampleOne = fields.get(4);
+                hashSampleOne = fields.get(5);
             } else if (fields.get(0).contains("AnotherTest") && hashAnother == null) {
-                hashAnother = fields.get(4);
+                hashAnother = fields.get(5);
             }
         }
 
@@ -255,7 +255,7 @@ public class MethodAtlasAppContentHashTest {
         String output = runApp(new String[] { "-config", configFile.toString(), tempDir.toString() });
         List<String> lines = nonEmptyLines(output);
 
-        assertEquals("fqcn,method,loc,tags,content_hash", lines.get(0),
+        assertEquals("fqcn,method,loc,tags,display_name,content_hash", lines.get(0),
                 "YAML contentHash:true must add content_hash column to CSV header");
     }
 
@@ -269,7 +269,7 @@ public class MethodAtlasAppContentHashTest {
         String output = runApp(new String[] { "-config", configFile.toString(), tempDir.toString() });
         List<String> lines = nonEmptyLines(output);
 
-        assertEquals("fqcn,method,loc,tags", lines.get(0),
+        assertEquals("fqcn,method,loc,tags,display_name", lines.get(0),
                 "YAML contentHash:false must not add content_hash column");
     }
 
@@ -287,7 +287,7 @@ public class MethodAtlasAppContentHashTest {
         });
         List<String> lines = nonEmptyLines(output);
 
-        assertEquals("fqcn,method,loc,tags,content_hash", lines.get(0),
+        assertEquals("fqcn,method,loc,tags,display_name,content_hash", lines.get(0),
                 "CLI -content-hash must enable hash column even when YAML does not set it");
     }
 

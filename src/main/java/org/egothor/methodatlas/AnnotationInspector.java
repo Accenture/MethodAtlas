@@ -224,6 +224,41 @@ final class AnnotationInspector {
     }
 
     /**
+     * Returns the string value of the {@code @DisplayName} annotation if present
+     * on the method, or an empty string if absent.
+     *
+     * <p>
+     * Both the single-member form {@code @DisplayName("text")} and the normal
+     * annotation form {@code @DisplayName(value = "text")} are supported.
+     * Matching is performed against the simple annotation name {@code "DisplayName"}.
+     * </p>
+     *
+     * @param method method declaration whose annotations should be inspected
+     * @return the {@code @DisplayName} text value, or {@code ""} if no
+     *         {@code @DisplayName} annotation is present
+     */
+    /* default */ static String getDisplayName(MethodDeclaration method) {
+        for (AnnotationExpr annotation : method.getAnnotations()) {
+            if (!"DisplayName".equals(annotation.getNameAsString())) {
+                continue;
+            }
+            if (annotation.isSingleMemberAnnotationExpr()) {
+                Expression memberValue = annotation.asSingleMemberAnnotationExpr().getMemberValue();
+                if (memberValue.isStringLiteralExpr()) {
+                    return memberValue.asStringLiteralExpr().asString();
+                }
+            } else if (annotation.isNormalAnnotationExpr()) {
+                for (MemberValuePair pair : annotation.asNormalAnnotationExpr().getPairs()) {
+                    if ("value".equals(pair.getNameAsString()) && pair.getValue().isStringLiteralExpr()) {
+                        return pair.getValue().asStringLiteralExpr().asString();
+                    }
+                }
+            }
+        }
+        return "";
+    }
+
+    /**
      * Computes the inclusive line count of a method declaration from its
      * source range.
      *

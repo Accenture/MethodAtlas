@@ -21,6 +21,8 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-test-annotation <name>` | Treat methods carrying annotation `name` as test methods; may be repeated; first occurrence replaces the default set | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
 | `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
+| `-apply-tags-from-csv <file>` | Apply reviewed annotation decisions from a MethodAtlas CSV back to the scanned source files; the CSV is the complete desired state for every test method's `@Tag` set and `@DisplayName` | Off |
+| `-mismatch-limit <n>` | Used with `-apply-tags-from-csv`: abort without making any changes if the number of mismatches between the CSV and the current source tree reaches or exceeds `n`; `-1` means warn and proceed | `-1` |
 | `-security-only` | Suppress non-security methods from CSV and plain-text output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect; in SARIF mode this filter is already applied by default | Off |
 | `-include-non-security` | Opt-in to include all test methods in SARIF output, disabling the automatic security-only filter; has no effect in CSV or plain-text modes | Off |
 | `-drift-detect` | Append a `tag_ai_drift` column to CSV/plain output comparing the source-level `@Tag("security")` annotation against the AI security-relevance classification; values are `none`, `tag-only`, or `ai-only`; SARIF and GitHub Annotations always include drift when AI is enabled | Off |
@@ -321,6 +323,58 @@ Apply-tags complete: 12 annotation(s) added to 3 file(s)
 ```
 
 See [Source Write-back](usage-modes/apply-tags.md) for the complete workflow and formatting guarantees.
+
+### `-apply-tags-from-csv`
+
+Instead of emitting a report, applies annotation decisions recorded in a reviewed MethodAtlas CSV back to the scanned source files. The CSV is treated as a **complete desired-state specification**: for each test method it defines the exact set of `@Tag` values and the `@DisplayName` text the method should have after the run.
+
+```bash
+# 1. Produce the CSV (optionally enriched with AI suggestions)
+./methodatlas -ai src/test/java > review.csv
+
+# 2. Review and adjust the tags and display_name columns in review.csv
+
+# 3. Apply the decisions back to source
+./methodatlas -apply-tags-from-csv review.csv src/test/java
+```
+
+What the engine does for each matched method:
+
+- **`tags` column** — removes all existing `@Tag` and `@Tags` annotations, then adds exactly the tags listed (semicolon-separated).
+- **`display_name` column** — when non-empty, replaces any existing `@DisplayName`; when empty, removes `@DisplayName` if present.
+
+Required imports (`org.junit.jupiter.api.Tag`, `org.junit.jupiter.api.DisplayName`) are added to files that need them.
+
+A summary line is always printed:
+
+```text
+Apply-tags-from-csv complete: 7 change(s) in 2 file(s); 0 mismatch(es) skipped.
+```
+
+See [Apply Tags from CSV](usage-modes/apply-tags-from-csv.md) for the complete workflow, mismatch handling details, and CI integration.
+
+### `-mismatch-limit <n>`
+
+Used with `-apply-tags-from-csv`. Controls what happens when the CSV and the current source tree disagree (a method appears in one but not the other):
+
+| Setting | Behaviour |
+|---|---|
+| `-1` (default) | Log mismatches as warnings; proceed with all matched methods |
+| `0` | Abort immediately, even with zero mismatches (rarely useful) |
+| `1` | Abort on the first mismatch — strictest; recommended for CI |
+| `n ≥ 2` | Tolerate up to `n − 1` mismatches; abort when the count reaches `n` |
+
+When the limit is reached or exceeded, MethodAtlas prints each mismatch and exits with code `1` without modifying any source file:
+
+```text
+MISMATCH (in CSV, not in source): com.example.LoginTest::deletedMethod
+Apply-tags-from-csv aborted: 1 mismatch(es) >= limit 1. No source files were modified.
+```
+
+```bash
+# Abort if there is even a single mismatch
+./methodatlas -apply-tags-from-csv reviewed.csv -mismatch-limit 1 src/test/java
+```
 
 ### `-ai`
 

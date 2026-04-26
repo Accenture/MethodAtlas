@@ -114,7 +114,7 @@ public class MethodAtlasAppManualTest {
                 new String[] { "-manual-prepare", workDir.toString(), workDir.toString(), sourceDir.toString() });
 
         // Should not contain CSV header
-        assertFalse(output.contains("fqcn,method,loc,tags"), "Prepare phase must not emit CSV header");
+        assertFalse(output.contains("fqcn,method,loc,tags,display_name"), "Prepare phase must not emit CSV header");
     }
 
     @Test
@@ -176,7 +176,7 @@ public class MethodAtlasAppManualTest {
         List<String> lines = nonEmptyLines(output);
 
         // CSV header includes AI columns
-        assertEquals("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score",
+        assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score",
                 lines.get(0), "Should emit full AI-enriched CSV header");
 
         // Find the enriched row
@@ -210,7 +210,7 @@ public class MethodAtlasAppManualTest {
         List<String> lines = nonEmptyLines(output);
 
         // Header still present with AI columns
-        assertEquals("fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score",
+        assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score",
                 lines.get(0));
 
         // All data rows should have empty AI columns (five trailing empty fields → five commas at end)

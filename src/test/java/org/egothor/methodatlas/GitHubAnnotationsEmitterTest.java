@@ -157,7 +157,7 @@ class GitHubAnnotationsEmitterTest {
         PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "src/test/java/");
 
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", null);
 
         assertEquals("", baos.toString(StandardCharsets.UTF_8).trim());
     }
@@ -169,7 +169,7 @@ class GitHubAnnotationsEmitterTest {
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "src/test/java/");
 
         AiMethodSuggestion nonSecurity = new AiMethodSuggestion("testLogin", false, null, List.of(), null, 0.0, 0.0);
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), nonSecurity);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", nonSecurity);
 
         assertEquals("", baos.toString(StandardCharsets.UTF_8).trim());
     }
@@ -219,7 +219,7 @@ class GitHubAnnotationsEmitterTest {
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
 
         AiMethodSuggestion suggestion = new AiMethodSuggestion("testLogin", true, null, List.of("auth"), null, 0.0, 0.0);
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), suggestion);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", suggestion);
 
         String output = baos.toString(StandardCharsets.UTF_8).trim();
         assertTrue(output.contains("com.acme.AuthTest#testLogin"), "Should fall back to fqcn#method");
@@ -385,7 +385,7 @@ class GitHubAnnotationsEmitterTest {
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
 
         AiMethodSuggestion suggestion = new AiMethodSuggestion("testLogin", true, displayName, tags, null, 0.0, interactionScore);
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), suggestion);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", suggestion);
 
         return baos.toString(StandardCharsets.UTF_8).trim();
     }
@@ -406,7 +406,7 @@ class GitHubAnnotationsEmitterTest {
 
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", aiSecurityRelevant, "Security test", aiTags, null, 0.0, 0.3);
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, sourceTags, suggestion);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, sourceTags, "", suggestion);
 
         return baos.toString(StandardCharsets.UTF_8).trim();
     }

@@ -37,10 +37,13 @@ interface TestMethodSink {
      *                    {@code -content-hash} is not enabled
      * @param tags        source-level JUnit {@code @Tag} values declared on the
      *                    method; never {@code null}
+     * @param displayName text from an existing {@code @DisplayName} annotation on
+     *                    the method, or an empty string if no such annotation is
+     *                    present; never {@code null}
      * @param suggestion  AI-generated security classification for the method,
      *                    or {@code null} when AI enrichment is disabled or
      *                    unavailable for this class
      */
     void record(String fqcn, String method, int beginLine, int loc, String contentHash,
-            List<String> tags, AiMethodSuggestion suggestion);
+            List<String> tags, String displayName, AiMethodSuggestion suggestion);
 }

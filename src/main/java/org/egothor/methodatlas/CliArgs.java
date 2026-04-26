@@ -110,6 +110,8 @@ final class CliArgs {
         boolean includeNonSecurity = yamlConfig != null && yamlConfig.includeNonSecurity;
         boolean driftDetect = yamlConfig != null && yamlConfig.driftDetect;
         Path aiCacheFile = null;
+        Path applyTagsFromCsvFile = null;
+        int mismatchLimit = -1;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -118,6 +120,14 @@ final class CliArgs {
             String arg = args[i];
             if (FLAG_AI_CACHE.equals(arg)) {
                 aiCacheFile = Paths.get(nextArg(args, ++i, arg));
+                continue;
+            }
+            if ("-apply-tags-from-csv".equals(arg)) {
+                applyTagsFromCsvFile = Paths.get(nextArg(args, ++i, arg));
+                continue;
+            }
+            if ("-mismatch-limit".equals(arg)) {
+                mismatchLimit = Integer.parseInt(nextArg(args, ++i, arg));
                 continue;
             }
             if (arg.startsWith("-ai")) {
@@ -185,7 +195,7 @@ final class CliArgs {
                 ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
                 emitMetadata, manualMode, applyTags, contentHash, overrideFilePath, securityOnly, aiCacheFile,
-                driftDetect);
+                driftDetect, applyTagsFromCsvFile, mismatchLimit);
     }
 
     // -------------------------------------------------------------------------

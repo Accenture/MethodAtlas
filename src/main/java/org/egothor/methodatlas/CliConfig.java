@@ -54,15 +54,22 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                        whose {@code content_hash} matches an entry in that
  *                        file are classified from the cache instead of calling
  *                        the AI provider; {@code null} when no cache is configured
- * @param driftDetect     when {@code true}, a {@code tag_ai_drift} column is added
- *                        to CSV/plain output comparing the source-level
- *                        {@code @Tag("security")} annotation against the AI
- *                        security-relevance classification; values are
- *                        {@code none}, {@code tag-only}, or {@code ai-only};
- *                        SARIF and GitHub Annotations always include drift
- *                        when AI is enabled regardless of this flag
+ * @param driftDetect          when {@code true}, a {@code tag_ai_drift} column is
+ *                             added to CSV/plain output comparing the source-level
+ *                             {@code @Tag("security")} annotation against the AI
+ *                             security-relevance classification; values are
+ *                             {@code none}, {@code tag-only}, or {@code ai-only};
+ *                             SARIF and GitHub Annotations always include drift
+ *                             when AI is enabled regardless of this flag
+ * @param applyTagsFromCsvFile path to a CSV file used as input for the
+ *                             {@code -apply-tags-from-csv} mode; {@code null}
+ *                             when the mode is not active
+ * @param mismatchLimit        maximum number of mismatches allowed before the
+ *                             apply-tags-from-csv operation is aborted; {@code -1}
+ *                             means no limit is enforced
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags,
-        boolean contentHash, Path overrideFile, boolean securityOnly, Path aiCacheFile, boolean driftDetect) {
+        boolean contentHash, Path overrideFile, boolean securityOnly, Path aiCacheFile, boolean driftDetect,
+        Path applyTagsFromCsvFile, int mismatchLimit) {
 }

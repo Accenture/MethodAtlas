@@ -98,7 +98,7 @@ final class OutputEmitter {
         if (mode != OutputMode.CSV) {
             return;
         }
-        StringBuilder header = new StringBuilder(128).append("fqcn,method,loc,tags");
+        StringBuilder header = new StringBuilder(128).append("fqcn,method,loc,tags,display_name");
         if (contentHashEnabled) {
             header.append(",content_hash");
         }
@@ -124,15 +124,19 @@ final class OutputEmitter {
      * @param contentHash SHA-256 fingerprint of the enclosing class source, or
      *                    {@code null} when {@code -content-hash} is not enabled
      * @param tags        source-level JUnit tags extracted from the method
+     * @param displayName text from an existing {@code @DisplayName} annotation on
+     *                    the method, or an empty string if absent; {@code null}
+     *                    is treated as absent and emitted as the configured absent
+     *                    value for the active output mode
      * @param suggestion  AI suggestion for the method, or {@code null} if none
      *                    is available
      */
     /* default */ void emit(OutputMode mode, String fqcn, String method, int loc, String contentHash,
-            List<String> tags, AiMethodSuggestion suggestion) {
+            List<String> tags, String displayName, AiMethodSuggestion suggestion) {
         if (mode == OutputMode.PLAIN) {
-            emitPlain(fqcn, method, loc, contentHash, tags, suggestion);
+            emitPlain(fqcn, method, loc, contentHash, tags, displayName, suggestion);
         } else {
-            emitCsv(fqcn, method, loc, contentHash, tags, suggestion);
+            emitCsv(fqcn, method, loc, contentHash, tags, displayName, suggestion);
         }
     }
 
@@ -144,15 +148,18 @@ final class OutputEmitter {
      * @param loc         inclusive line count
      * @param contentHash SHA-256 fingerprint, or {@code null}
      * @param tags        source-level JUnit tags
+     * @param displayName text from an existing {@code @DisplayName} annotation, or
+     *                    {@code null} or empty when absent
      * @param suggestion  AI suggestion, or {@code null}
      */
     private void emitPlain(String fqcn, String method, int loc, String contentHash,
-            List<String> tags, AiMethodSuggestion suggestion) {
+            List<String> tags, String displayName, AiMethodSuggestion suggestion) {
         String existingTags = tags.isEmpty() ? PLAIN_ABSENT : String.join(";", tags);
         StringBuilder line = new StringBuilder(fqcn)
                 .append(", ").append(method)
                 .append(", LOC=").append(loc)
-                .append(", TAGS=").append(existingTags);
+                .append(", TAGS=").append(existingTags)
+                .append(", DISPLAY=").append(displayName == null || displayName.isEmpty() ? PLAIN_ABSENT : displayName);
 
         if (contentHashEnabled) {
             line.append(", HASH=").append(contentHash != null ? contentHash : PLAIN_ABSENT);
@@ -211,15 +218,18 @@ final class OutputEmitter {
      * @param loc         inclusive line count
      * @param contentHash SHA-256 fingerprint, or {@code null}
      * @param tags        source-level JUnit tags
+     * @param displayName text from an existing {@code @DisplayName} annotation, or
+     *                    {@code null} or empty when absent
      * @param suggestion  AI suggestion, or {@code null}
      */
     private void emitCsv(String fqcn, String method, int loc, String contentHash,
-            List<String> tags, AiMethodSuggestion suggestion) {
+            List<String> tags, String displayName, AiMethodSuggestion suggestion) {
         String existingTags = tags.isEmpty() ? CSV_ABSENT : String.join(";", tags);
         StringBuilder line = new StringBuilder(csvEscape(fqcn))
                 .append(',').append(csvEscape(method))
                 .append(',').append(loc)
-                .append(',').append(csvEscape(existingTags));
+                .append(',').append(csvEscape(existingTags))
+                .append(',').append(csvEscape(displayName != null ? displayName : CSV_ABSENT));
 
         if (contentHashEnabled) {
             line.append(',').append(contentHash != null ? contentHash : CSV_ABSENT);
