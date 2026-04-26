@@ -161,7 +161,7 @@ class MethodAtlasAppAiTest {
             List<String> row = rows.get("com.acme.big.HugeAiSkipTest#hugeSecurityTest");
 
             assertNotNull(row, "Missing oversized-class row");
-            assertEquals(9, row.size());
+            assertEquals(10, row.size());
             assertEquals("security", row.get(3));
             assertEquals("", row.get(4));
             assertEquals("", row.get(5));

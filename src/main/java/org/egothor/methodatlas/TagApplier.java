@@ -231,19 +231,26 @@ final class TagApplier {
         }
         // else desiredDisplayName == null → no change to @DisplayName
 
-        // Handle @Tag annotations
+        // Handle @Tag annotations — only mutate the AST if the sets differ.
         Set<String> existingTags = new HashSet<>(AnnotationInspector.getTagValues(method));
-        method.getAnnotations().removeIf(a -> ANNOTATION_TAG.equals(a.getNameAsString())
-                || "Tags".equals(a.getNameAsString()));
-        int tagsRemoved = existingTags.size();
-
-        int tagsAdded = 0;
+        Set<String> desiredTagSet = new HashSet<>();
         if (desiredTags != null) {
             for (String tag : desiredTags) {
                 if (tag != null && !tag.isBlank()) {
-                    method.addSingleMemberAnnotation(ANNOTATION_TAG, new StringLiteralExpr(tag));
-                    tagsAdded++;
+                    desiredTagSet.add(tag);
                 }
+            }
+        }
+
+        int tagsAdded = 0;
+        int tagsRemoved = 0;
+        if (!existingTags.equals(desiredTagSet)) {
+            method.getAnnotations().removeIf(a -> ANNOTATION_TAG.equals(a.getNameAsString())
+                    || "Tags".equals(a.getNameAsString()));
+            tagsRemoved = existingTags.size();
+            for (String tag : desiredTagSet) {
+                method.addSingleMemberAnnotation(ANNOTATION_TAG, new StringLiteralExpr(tag));
+                tagsAdded++;
             }
         }
 

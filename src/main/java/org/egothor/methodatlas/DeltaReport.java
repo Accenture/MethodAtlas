@@ -355,7 +355,7 @@ public final class DeltaReport {
                 requireField(fields, colIndex, "method"),
                 parseInt(getField(fields, colIndex, "loc"), 0),
                 parseSemicolonList(getField(fields, colIndex, "tags")),
-                getField(fields, colIndex, "display_name"),
+                getFieldPreserveEmpty(fields, colIndex, "display_name"),
                 getField(fields, colIndex, "content_hash"),
                 parseBoolean(getField(fields, colIndex, "ai_security_relevant")).orElse(null),
                 getField(fields, colIndex, "ai_display_name"),
@@ -448,6 +448,27 @@ public final class DeltaReport {
         }
         String val = fields.get(idx);
         return (val == null || val.isEmpty()) ? null : val;
+    }
+
+    /**
+     * Returns the field value at the named column preserving empty strings as
+     * distinct from a missing column.
+     *
+     * <p>Returns {@code null} when the column is absent from the header. Returns
+     * {@code ""} when the column is present but the cell value is empty. Returns
+     * the raw value otherwise.
+     *
+     * <p>Use this instead of {@link #getField} for columns where an empty value
+     * carries semantics different from a missing column — e.g. {@code display_name}
+     * where empty means "remove the annotation" and absent means "leave unchanged".
+     */
+    private static String getFieldPreserveEmpty(List<String> fields, Map<String, Integer> colIndex, String col) {
+        Integer idx = colIndex.get(col);
+        if (idx == null || idx >= fields.size()) {
+            return null;
+        }
+        String val = fields.get(idx);
+        return val == null ? "" : val;
     }
 
     /**
