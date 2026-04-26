@@ -40,7 +40,8 @@ Typical integration points:
 | Activity | MethodAtlas role |
 |----------|-----------------|
 | Nightly CI scan | Emit SARIF to GitHub Code Scanning; flag new unclassified tests |
-| Sprint close | Run `-apply-tags` to annotate newly written security tests |
+| Sprint close (automated) | Run `-apply-tags` to write AI-generated `@Tag` and `@DisplayName` annotations directly to source |
+| Sprint close (reviewed) | Export CSV, review and adjust `tags`/`display_name` columns, replay decisions with `-apply-tags-from-csv` |
 | Security review | Export CSV as evidence of security-test coverage for auditors |
 | Air-gapped audit | Manual AI workflow produces the same CSV without network access |
 | Regression gating | Content hashes detect classes that changed since the last approved scan |

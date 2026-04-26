@@ -294,6 +294,38 @@ existing annotations or test logic.
 See [Source Write-back](../usage-modes/apply-tags.md) for the full
 `-apply-tags` reference.
 
+## Applying reviewed CSV decisions to source files
+
+For teams that require a human sign-off before any source file is touched,
+the `-apply-tags-from-csv` mode separates the review step from the write-back:
+
+```bash
+# 1. Produce a CSV with AI suggestions
+java -jar methodatlas.jar \
+  -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+  src/test/java > review.csv
+
+# 2. Open review.csv, adjust the tags and display_name columns, save.
+
+# 3. Replay the approved decisions into source
+java -jar methodatlas.jar \
+  -apply-tags-from-csv review.csv \
+  -mismatch-limit 1 \
+  src/test/java
+```
+
+The CSV is the complete desired state: every `@Tag` and `@DisplayName` on
+every test method is driven entirely by the corresponding CSV row. Committing
+`review.csv` alongside the annotated source gives the team a permanent,
+reviewable record of each annotation decision.
+
+The `-mismatch-limit 1` flag prevents the write-back from running if the
+codebase has diverged from the reviewed CSV (a method was added or deleted
+since the review), which guards against accidentally applying stale decisions.
+
+See [Apply Tags from CSV](../usage-modes/apply-tags-from-csv.md) for the
+full reference.
+
 ## Checklist for a remediation review
 
 Use this checklist when reviewing a test method flagged by MethodAtlas:
@@ -313,4 +345,5 @@ Use this checklist when reviewing a test method flagged by MethodAtlas:
 - [AI Interaction Score](../ai/interaction-score.md) — score definition and CI extraction commands
 - [Classification Overrides](../ai/overrides.md) — documenting accepted-risk decisions
 - [Source Write-back](../usage-modes/apply-tags.md) — automatic annotation application
+- [Apply Tags from CSV](../usage-modes/apply-tags-from-csv.md) — human-reviewed annotation write-back
 - [Tag vs AI Drift](../ai/drift-detection.md) — finding unlabelled security tests
