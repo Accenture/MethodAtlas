@@ -34,10 +34,10 @@ In regulated environments, test coverage evidence submitted to auditors needs to
 Output (CSV excerpt):
 
 ```csv
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_confidence
-com.acme.crypto.AesGcmTest,roundTrip_encryptDecrypt,18,,true,SECURITY: crypto - AES-GCM round-trip,security;crypto,Verifies ciphertext and plaintext integrity under AES-GCM.,1.0
-com.acme.auth.SessionTest,sessionToken_isRotatedAfterLogin,12,,true,SECURITY: auth - session token rotation after login,security;auth,Session token is replaced on successful login to prevent fixation.,0.7
-com.acme.util.DateFormatterTest,format_returnsIso8601,5,,false,,,Test verifies date formatting output only.,0.0
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_confidence
+com.acme.crypto.AesGcmTest,roundTrip_encryptDecrypt,18,,,true,SECURITY: crypto - AES-GCM round-trip,security;crypto,Verifies ciphertext and plaintext integrity under AES-GCM.,0.0,1.0
+com.acme.auth.SessionTest,sessionToken_isRotatedAfterLogin,12,,,true,SECURITY: auth - session token rotation after login,security;auth,Session token is replaced on successful login to prevent fixation.,0.0,0.7
+com.acme.util.DateFormatterTest,format_returnsIso8601,5,,,false,,,Test verifies date formatting output only.,0.0,0.0
 ```
 
 ## Filtering high-confidence findings
@@ -47,5 +47,5 @@ Because the output is plain CSV, standard shell tools work:
 ```bash
 # Keep only rows where ai_confidence >= 0.7
 ./methodatlas -ai -ai-confidence /src | \
-  awk -F',' 'NR==1 || ($9+0) >= 0.7'
+  awk -F',' 'NR==1 || ($11+0) >= 0.7'
 ```

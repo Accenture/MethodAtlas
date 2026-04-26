@@ -187,9 +187,9 @@ Appends a SHA-256 content fingerprint to every emitted record. The hash is compu
 In CSV output, a `content_hash` column is appended immediately after `tags`:
 
 ```text
-fqcn,method,loc,tags,content_hash
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto,3a7f9b...
-com.acme.tests.SampleOneTest,beta,6,param,3a7f9b...
+fqcn,method,loc,tags,display_name,content_hash
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,,3a7f9b...
+com.acme.tests.SampleOneTest,beta,6,param,,3a7f9b...
 ```
 
 In plain-text output, a `HASH=<value>` token is appended to each line. In SARIF output, the hash is stored as `properties.contentHash`.
@@ -499,3 +499,14 @@ Runs the prepare phase of the manual AI workflow. For each test class MethodAtla
 Runs the consume phase. MethodAtlas reads operator-filled response files and merges the AI JSON into the output CSV. Missing or empty response files are treated as absent AI data; the scan continues.
 
 For practical examples grouped by use case, see [CLI Examples](cli-examples.md).
+
+## Exit codes
+
+| Code | Condition |
+|---|---|
+| `0` | Scan completed successfully; all source files processed |
+| `1` | `-apply-tags-from-csv` aborted because the mismatch count reached or exceeded `-mismatch-limit` |
+| `1` | A source file could not be read or written during `-apply-tags-from-csv` |
+| `1` | A required argument value is missing or malformed (printed to stderr before exit) |
+
+Note: AI classification failures for individual classes (provider timeout, parse error in the AI response) do not cause a non-zero exit. The affected rows are emitted with blank AI columns and the scan continues. Only structural errors — bad arguments, mismatch-limit violations, and I/O failures during source write-back — produce exit code `1`.

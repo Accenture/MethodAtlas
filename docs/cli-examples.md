@@ -86,7 +86,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 # Filter high-confidence findings (requires -ai-confidence)
 ./methodatlas -ai -ai-confidence /path/to/tests | \
-  awk -F',' 'NR==1 || ($9+0) >= 0.7'
+  awk -F',' 'NR==1 || ($11+0) >= 0.7'
 ```
 
 ## Source write-back
@@ -127,11 +127,11 @@ Running against a mix of functional and cryptographic test classes:
 Produces output such as:
 
 ```csv
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-org.egothor.methodatlas.MethodAtlasAppTest,csvMode_detectsMethodsLocAndTags,22,,false,,,Test verifies functional output format only.
-zeroecho.core.alg.aes.AesGcmCrossCheckTest,aesGcm_stream_vs_jca_ctxOnly_crosscheck,52,,true,SECURITY: crypto - cross-check AES-GCM stream encryption with JCA reference,security;crypto,Verifies custom AES-GCM matches JCA output — ensures cryptographic correctness.
-zeroecho.core.alg.aes.AesLargeDataTest,aesGcmLargeData_ctxOnly,27,,true,SECURITY: crypto - AES-GCM round-trip with context-only parameters,security;crypto,Tests encryption and decryption correctness for large data using AES-GCM.
-zeroecho.core.alg.mldsa.MldsaLargeDataTest,mldsa_complete_suite_streaming_sign_verify_large_data,24,,true,SECURITY: crypto - ML-DSA streaming signature and verification for large data,security;crypto;owasp,Validates ML-DSA signature creation and verification including tamper detection.
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+org.egothor.methodatlas.MethodAtlasAppTest,csvMode_detectsMethodsLocAndTags,22,,,false,,,Test verifies functional output format only.,0.0
+zeroecho.core.alg.aes.AesGcmCrossCheckTest,aesGcm_stream_vs_jca_ctxOnly_crosscheck,52,,,true,SECURITY: crypto - cross-check AES-GCM stream encryption with JCA reference,security;crypto,Verifies custom AES-GCM matches JCA output — ensures cryptographic correctness.,0.0
+zeroecho.core.alg.aes.AesLargeDataTest,aesGcmLargeData_ctxOnly,27,,,true,SECURITY: crypto - AES-GCM round-trip with context-only parameters,security;crypto,Tests encryption and decryption correctness for large data using AES-GCM.,0.0
+zeroecho.core.alg.mldsa.MldsaLargeDataTest,mldsa_complete_suite_streaming_sign_verify_large_data,24,,,true,SECURITY: crypto - ML-DSA streaming signature and verification for large data,security;crypto;owasp,Validates ML-DSA signature creation and verification including tamper detection.,0.0
 ```
 
 Observations:

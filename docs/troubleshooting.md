@@ -47,7 +47,7 @@ framework is imported via a wildcard at a different package prefix, override
 detection explicitly:
 
 ```bash
-java -jar methodatlas.jar -test-annotation Test -test-annotation Theory src/test/java
+./methodatlas -test-annotation Test -test-annotation Theory src/test/java
 ```
 
 ## AI enrichment issues
@@ -97,7 +97,7 @@ provider context windows.
 limit if the provider's context window supports it:
 
 ```bash
-java -jar methodatlas.jar -ai -ai-max-class-chars 80000 src/test/java
+./methodatlas -ai -ai-max-class-chars 80000 src/test/java
 ```
 
 ## Cache behaviour
@@ -116,10 +116,10 @@ scan with both flags and regenerate the cache.
 
 ```bash
 # Producing scan (both flags required)
-java -jar methodatlas.jar -ai -content-hash src/test/java > scan.csv
+./methodatlas -ai -content-hash src/test/java > scan.csv
 
 # Subsequent scan
-java -jar methodatlas.jar -ai -content-hash -ai-cache scan.csv src/test/java
+./methodatlas -ai -content-hash -ai-cache scan.csv src/test/java
 ```
 
 ### Cache causes stale results after a class rename
@@ -172,10 +172,10 @@ file.
 
 ```bash
 # Step 1: annotations
-java -jar methodatlas.jar -ai -github-annotations -ai-cache scan.csv src/test/java
+./methodatlas -ai -github-annotations -ai-cache scan.csv src/test/java
 
 # Step 2: SARIF
-java -jar methodatlas.jar -ai -sarif -ai-cache scan.csv src/test/java > scan.sarif
+./methodatlas -ai -sarif -ai-cache scan.csv src/test/java > scan.sarif
 ```
 
 ## Java parsing issues
@@ -212,8 +212,7 @@ If the above steps do not resolve the issue, collect the following information
 before reporting a bug:
 
 1. The exact command line used (redact API keys).
-2. The MethodAtlas version (`java -jar methodatlas.jar -version` if supported,
-   or from the release file name).
+2. The MethodAtlas version (from the distribution archive filename, e.g. `methodatlas-1.3.0.zip`).
 3. The Java runtime version (`java -version`).
 4. A representative sample of the test file that is not being processed
    correctly (stripped of any proprietary logic).

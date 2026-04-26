@@ -32,8 +32,13 @@ provider's inference API. Each request contains exactly:
    the file supplied with `-ai-taxonomy`. This is configuration data
    describing tag definitions; it contains no project-specific content.
 
-2. **The test class source file** — the full text of one Java source file
-   from the scan root.
+2. **The list of test method names** — the exact set of JUnit methods
+   discovered by the parser in that class, with their source line numbers.
+   This list is included to prevent the AI from inventing or omitting
+   methods; only methods the parser found are classified.
+
+3. **The test class source file** — the full text of one Java source file
+   from the scan root, used as semantic context for classification.
 
 **What is never submitted:**
 
@@ -46,7 +51,7 @@ provider's inference API. Each request contains exactly:
 | Database schemas or migration scripts | No |
 | Infrastructure definitions (Terraform, Kubernetes manifests) | No |
 | Other test files submitted as context | No — each class is submitted independently |
-| File paths or directory structure | No — the prompt contains only class source |
+| File paths or directory structure | No — only the class source text and method names are included; the absolute path on disk is not transmitted |
 
 The AI provider receives the text of one Java test class at a time. No
 information about the surrounding project structure, the production
@@ -145,6 +150,27 @@ AI calls can be identified by the following characteristics:
 
 Enable logging of request URLs and sizes at the network proxy or firewall
 level to produce an audit trail of what was submitted and when.
+
+## Enterprise secret management
+
+The `-ai-api-key-env <name>` flag reads the API key from a named environment variable. This is the recommended approach for CI pipelines (where the secret is stored in the CI secret store and injected as an environment variable at runtime), but it may not satisfy security policies in environments where environment variables are prohibited as a secret delivery mechanism (e.g. some PCI-DSS or CyberArk-governed workloads).
+
+For deployments with stricter secret management requirements, the following patterns are available:
+
+**HashiCorp Vault / AWS Secrets Manager / Azure Key Vault:** retrieve the API key before invoking MethodAtlas and pass it via the environment variable pattern:
+
+```bash
+# Vault example (adjust for your auth method)
+export MY_API_KEY=$(vault kv get -field=api_key secret/methodatlas/openai)
+./methodatlas -ai -ai-provider openai -ai-api-key-env MY_API_KEY src/test/java
+unset MY_API_KEY
+```
+
+The `unset` immediately after the run limits the variable's lifetime to the single invocation. In containerised CI environments the variable is scoped to the container process and is not visible outside it.
+
+**File-based secret delivery (CyberArk Conjur, Kubernetes Secrets mounted as files):** read the key from the file and export it to the environment immediately before the MethodAtlas call. Avoid writing the key to any persistent storage.
+
+**Ollama / Manual workflow (no API key required):** for the strictest zero-secret requirement, use local Ollama inference or the [Manual AI Workflow](../usage-modes/manual.md). Neither approach requires an API key on the scan host.
 
 ## Further reading
 

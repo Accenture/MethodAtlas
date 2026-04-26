@@ -1,6 +1,6 @@
 # Output formats
 
-MethodAtlas supports three report modes — **CSV** (default), **plain text**, and **SARIF** — plus a write-back mode (**`-apply-tags`**) that modifies source files directly instead of emitting a report.  
+MethodAtlas supports four report modes — **CSV** (default), **plain text**, **SARIF**, and **GitHub Actions annotations** — plus a write-back mode (**`-apply-tags`**) that modifies source files directly instead of emitting a report.  
 All report modes produce one record per discovered test method.
 
 ## CSV mode
@@ -10,24 +10,24 @@ CSV mode is the default. It produces a header row followed by one data row per t
 ### Without AI enrichment
 
 ```text
-fqcn,method,loc,tags
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto
-com.acme.tests.SampleOneTest,beta,6,param
-com.acme.tests.SampleOneTest,gamma,4,nested1;nested2
-com.acme.other.AnotherTest,delta,3,
+fqcn,method,loc,tags,display_name
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,
+com.acme.tests.SampleOneTest,beta,6,param,
+com.acme.tests.SampleOneTest,gamma,4,nested1;nested2,
+com.acme.other.AnotherTest,delta,3,,
 ```
 
-Multiple JUnit `@Tag` values are joined with `;`. An empty `tags` field means the method has no source-level tags.
+Multiple JUnit `@Tag` values are joined with `;`. An empty `tags` field means the method has no source-level tags. The `display_name` field contains any `@DisplayName` annotation value declared on the method; it is empty when the annotation is absent.
 
 ### With content hash (`-content-hash`)
 
 Pass `-content-hash` to append a SHA-256 fingerprint column immediately after `tags`:
 
 ```text
-fqcn,method,loc,tags,content_hash
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto,3a7f9b2e...
-com.acme.tests.SampleOneTest,beta,6,param,3a7f9b2e...
-com.acme.other.AnotherTest,delta,3,,f1c04a8d...
+fqcn,method,loc,tags,display_name,content_hash
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,,3a7f9b2e...
+com.acme.tests.SampleOneTest,beta,6,param,,3a7f9b2e...
+com.acme.other.AnotherTest,delta,3,,,f1c04a8d...
 ```
 
 The hash is a 64-character lowercase hexadecimal string (SHA-256). It is computed from the AST text of the enclosing class, so all test methods in the same class share the same value. The hash changes only when the class body changes, not when unrelated files in the same package change.
@@ -35,25 +35,25 @@ The hash is a 64-character lowercase hexadecimal string (SHA-256). It is compute
 ### With AI enrichment (`-ai`)
 
 ```text
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0
-com.acme.tests.SampleOneTest,beta,6,param,false,,,,0.2
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0
+com.acme.tests.SampleOneTest,beta,6,param,,false,,,,0.2
 ```
 
 Fields `ai_display_name`, `ai_tags`, and `ai_reason` are empty for non-security-relevant methods. `ai_interaction_score` is always present when AI is enabled — see [Interaction Score](ai/interaction-score.md) for its meaning and use in CI gates.
 
-When `-content-hash` is combined with `-ai`, the `content_hash` column appears between `tags` and `ai_security_relevant`:
+When `-content-hash` is combined with `-ai`, the `content_hash` column appears between `display_name` and `ai_security_relevant`:
 
 ```text
-fqcn,method,loc,tags,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason
+fqcn,method,loc,tags,display_name,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
 ```
 
 ### With AI enrichment and confidence scoring (`-ai -ai-confidence`)
 
 ```text
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_confidence
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0,0.9
-com.acme.tests.SampleOneTest,beta,6,param,false,,,,0.2,0.0
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_confidence
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0,0.9
+com.acme.tests.SampleOneTest,beta,6,param,,false,,,,0.2,0.0
 ```
 
 `ai_confidence` is `0.0` for methods classified as not security-relevant. `ai_interaction_score` is always present when AI is enabled.
@@ -63,10 +63,10 @@ com.acme.tests.SampleOneTest,beta,6,param,false,,,,0.2,0.0
 Pass `-drift-detect` alongside `-ai` to append a `tag_ai_drift` column at the end of each row:
 
 ```text
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift
-com.acme.tests.SampleOneTest,alpha,8,security;crypto,true,"SECURITY: crypto - ...",security;crypto,The test exercises...,0.0,none
-com.acme.tests.SampleOneTest,beta,6,,true,"SECURITY: auth - ...",security;auth,Verifies auth...,0.1,ai-only
-com.acme.tests.SampleOneTest,gamma,4,security,,,,, ,tag-only
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift
+com.acme.tests.SampleOneTest,alpha,8,security;crypto,,true,"SECURITY: crypto - ...",security;crypto,The test exercises...,0.0,none
+com.acme.tests.SampleOneTest,beta,6,,,true,"SECURITY: auth - ...",security;auth,Verifies auth...,0.1,ai-only
+com.acme.tests.SampleOneTest,gamma,4,security,,,,,0.0,tag-only
 ```
 
 | `tag_ai_drift` value | Meaning |
@@ -288,6 +288,36 @@ SARIF is natively supported by many static-analysis platforms and IDEs:
 - **VS Code** — the [SARIF Viewer](https://marketplace.visualstudio.com/items?itemName=MS-SarifVSCode.sarif-viewer) extension renders results inline
 - **Azure DevOps** — the `PublishBuildArtifacts` + SARIF viewer extension pipeline tasks
 - **SonarQube** — import via the generic issue import format after conversion
+
+## GitHub Actions annotations mode
+
+Enable with `-github-annotations`:
+
+```bash
+./methodatlas -ai -github-annotations src/test/java
+```
+
+Instead of CSV or JSON, MethodAtlas emits GitHub Actions [workflow commands](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions) to standard output. Only security-relevant methods produce output; non-security methods are silently skipped.
+
+Each line is one of two command forms:
+
+| Command | Condition |
+|---|---|
+| `::warning file=…,line=…,title=…::…` | `ai_interaction_score >= 0.8` — the test only verifies method calls, not outcomes (potential placebo test) |
+| `::notice file=…,line=…,title=…::…` | All other security-relevant methods |
+
+Example output:
+
+```text
+::notice file=src/test/java/com/acme/auth/LoginTest.java,line=22,title=Security test: auth::SECURITY: auth - validates session token after login
+::warning file=src/test/java/com/acme/auth/SessionTest.java,line=45,title=Placebo security test::SECURITY: auth - session invalidation (interaction-only)
+```
+
+GitHub renders these as inline annotations on the PR diff. No GitHub Advanced Security licence is required — `::notice`/`::warning` are standard GitHub Actions features available on all plan tiers.
+
+File paths in the annotations are derived from the scan root and the class FQCN, producing paths such as `src/test/java/com/acme/auth/LoginTest.java` that GitHub resolves to the correct inline position for standard Maven/Gradle source layouts.
+
+See [docs/cli/github-actions.md](ci/github-actions.md) for a complete workflow example, and [docs/cli-reference.md#-github-annotations](cli-reference.md#-github-annotations) for the full flag description.
 
 ## Apply-tags mode
 

@@ -107,9 +107,9 @@ java -jar build/libs/methodatlas-<version>.jar src/test/java
 Outputs CSV to stdout:
 
 ```
-fqcn,method,loc,tags
-com.example.AuthServiceTest,loginWithValidCredentials,12,
-com.example.AuthServiceTest,loginWithExpiredToken,8,
+fqcn,method,loc,tags,display_name
+com.example.AuthServiceTest,loginWithValidCredentials,12,,
+com.example.AuthServiceTest,loginWithExpiredToken,8,,
 ```
 
 ### AI enrichment with Ollama
@@ -126,9 +126,9 @@ Start [Ollama](https://ollama.com) locally and pull a model, then:
 Example enriched output:
 
 ```
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason
-com.example.AuthServiceTest,loginWithValidCredentials,12,,true,"SECURITY: Valid credentials grant access","authentication;access-control","Tests the happy-path login flow — directly relevant to authentication security."
-com.example.AuthServiceTest,loginWithExpiredToken,8,,true,"SECURITY: Expired token is rejected","authentication;session-management","Verifies that stale tokens cannot be reused — a key session-fixation countermeasure."
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+com.example.AuthServiceTest,loginWithValidCredentials,12,,,true,"SECURITY: Valid credentials grant access","authentication;access-control","Tests the happy-path login flow — directly relevant to authentication security.",0.0
+com.example.AuthServiceTest,loginWithExpiredToken,8,,,true,"SECURITY: Expired token is rejected","authentication;session-management","Verifies that stale tokens cannot be reused — a key session-fixation countermeasure.",0.0
 ```
 
 ### SARIF output for GitHub Code Scanning
@@ -164,9 +164,37 @@ ai:
 CLI flags always override values from the configuration file.
 
 
+## Verifying the distribution archive
+
+Each release publishes a SHA-256 checksum file and a CycloneDX SBOM alongside the ZIP and TAR archives on the [GitHub Releases page](https://github.com/Accenture/MethodAtlas/releases).
+
+**Verify the download integrity (Linux / macOS):**
+
+```bash
+# Download the archive and its checksum file
+curl -LO https://github.com/Accenture/MethodAtlas/releases/download/v<version>/methodatlas-<version>.zip
+curl -LO https://github.com/Accenture/MethodAtlas/releases/download/v<version>/methodatlas-<version>.zip.sha256
+
+# Compare (output must be "OK")
+sha256sum -c methodatlas-<version>.zip.sha256
+```
+
+**Verify on Windows (PowerShell):**
+
+```powershell
+$expected = (Get-Content methodatlas-<version>.zip.sha256).Split(' ')[0]
+$actual   = (Get-FileHash methodatlas-<version>.zip -Algorithm SHA256).Hash.ToLower()
+if ($actual -eq $expected) { "OK" } else { "MISMATCH" }
+```
+
+**SBOM:** the `methodatlas-<version>-sbom.json` file (CycloneDX 1.4 format) lists all runtime dependency components with their versions, hashes, and licence identifiers. Import it into your software composition analysis (SCA) platform or supply it to your legal / security team for third-party licence review.
+
+In regulated or air-gapped environments, download the archive and SBOM on an internet-connected machine, verify integrity, then transfer to the target environment.
+
 ## Next steps
 
 - [Usage Modes](usage-modes/index.md) — overview of all operating modes and when to use each
 - [CLI Reference](cli-reference.md) — full list of flags and options
 - [AI Enrichment](ai/index.md) — provider setup, taxonomy, and manual workflow
 - [CI/CD Setup](ci-setup.md) — GitHub Actions and Gitea pipelines
+- [Regulated Environments](deployment/index.md) — PCI-DSS, ISO 27001, NIST SSDF, DORA, SOC 2, air-gapped deployment

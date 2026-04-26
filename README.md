@@ -25,18 +25,25 @@ MethodAtlas addresses this by turning an existing Java test suite (JUnit 5, JUni
 
 ## Key capabilities
 
-- **Deterministic test discovery** — JavaParser AST analysis; no inference, no false positives on method existence
+- **Deterministic test discovery** — JavaParser AST analysis; no inference, no false positives on method existence; JUnit 5, JUnit 4, and TestNG detected automatically from import declarations
 - **SARIF 2.1.0 output** — first-class integration with static analysis platforms and IDE tooling
 - **AI security classification** — classifies each test method against a closed security taxonomy; supports Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, and OpenRouter
 - **Confidence scoring** — per-method decimal score (`-ai-confidence`); filter by threshold for audit packages
 - **Content hash fingerprints** — SHA-256 of the class AST text (`-content-hash`); all methods in the same class share the same hash; enables incremental scanning and change detection
+- **AI result cache** — reuse previous AI classifications by hash (`-ai-cache`); unchanged classes cost zero API calls
 - **Tag vs AI drift detection** — `-drift-detect` flags methods where `@Tag("security")` in source disagrees with the AI classification
+- **Classification overrides** — `-override-file` records human-reviewed corrections; overrides persist across re-runs and set confidence to `1.0` or `0.0`
+- **Delta report** — `-diff` compares two CSV scans and emits a change report: methods added, removed, or modified between runs; useful for CI regression gates
+- **Security-only filter** — `-security-only` suppresses non-security methods from CSV/plain output; applied automatically in SARIF mode
+- **Mismatch limit** — `-mismatch-limit` safety gate for `-apply-tags-from-csv`; aborts without touching source files when the CSV diverges from the current codebase
 - **GitHub Actions annotations** — `-github-annotations` emits inline PR annotations for security-relevant methods without requiring a GitHub Advanced Security licence
 - **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent
+- **Apply-tags-from-csv** — applies human-reviewed annotation decisions from a CSV back to source; separates the review step from the write-back
 - **Manual AI workflow** — two-phase prepare/consume workflow for environments where API access is blocked
 - **Local inference** — Ollama support keeps source code entirely within your network
 - **YAML configuration** — share scan settings across a team or CI pipeline without repeating CLI flags
 - **Custom taxonomy** — supply an external taxonomy file aligned to ISO 27001, NIST SP 800-53, PCI DSS, or your own controls framework
+- **Scan provenance** — `-emit-metadata` prepends tool version and timestamp to CSV; embed in evidence packages
 - **Multiple output modes** — CSV (default), plain text, SARIF, and GitHub Actions annotations
 
 ## Quick start
@@ -101,9 +108,9 @@ For each discovered JUnit test method, MethodAtlas emits one record.
 ### CSV (default)
 
 ```csv
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
-com.acme.auth.LoginTest,testLoginWithValidCredentials,12,,true,SECURITY: auth - validates session token,security;auth,Verifies session token is issued on successful login.,0.0
-com.acme.util.DateTest,format_returnsIso8601,5,,false,,,,0.1
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+com.acme.auth.LoginTest,testLoginWithValidCredentials,12,,,true,SECURITY: auth - validates session token,security;auth,Verifies session token is issued on successful login.,0.0
+com.acme.util.DateTest,format_returnsIso8601,5,,,false,,,,0.1
 ```
 
 ### SARIF 2.1.0
@@ -182,10 +189,10 @@ Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method:
 
 ```bash
 ./methodatlas -ai -ai-confidence /path/to/tests | \
-  awk -F',' 'NR==1 || ($10+0) >= 0.7'   # keep only high-confidence findings
+  awk -F',' 'NR==1 || ($11+0) >= 0.7'   # keep only high-confidence findings
 ```
 
-`ai_confidence` is column 10 in standard output (column 11 when `-content-hash` is also passed).
+`ai_confidence` is column 11 in standard output (column 12 when `-content-hash` is also passed).
 
 | Score | Meaning |
 | --- | --- |
@@ -302,12 +309,16 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 
 | Document | Contents |
 | --- | --- |
-| [docs/cli-reference.md](docs/cli-reference.md) | Complete option reference, YAML schema, and example commands |
+| [docs/cli-reference.md](docs/cli-reference.md) | Complete option reference, YAML schema, exit codes, and example commands |
 | [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, and GitHub Annotations format descriptions |
 | [docs/usage-modes/](docs/usage-modes/index.md) | All operating modes: static inventory, API AI, manual workflow, apply-tags, apply-tags-from-csv, delta, security-only |
 | [docs/ai/providers.md](docs/ai/providers.md) | Per-provider setup: Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter |
+| [docs/ai/overrides.md](docs/ai/overrides.md) | Classification override file: format, governance, and CI integration |
 | [docs/ai/confidence.md](docs/ai/confidence.md) | Confidence scoring: interpretation and threshold guidance |
 | [docs/ai/caching.md](docs/ai/caching.md) | AI result caching: skip unchanged classes, two-pass SARIF pattern, CI cache key strategy |
 | [docs/ai/drift-detection.md](docs/ai/drift-detection.md) | Tag vs AI drift detection: detecting stale `@Tag("security")` annotations |
+| [docs/ai/interaction-score.md](docs/ai/interaction-score.md) | Placebo-test detection: interaction-score semantics and CI thresholds |
+| [docs/compliance.md](docs/compliance.md) | Compliance framework mapping: OWASP SAMM, NIST SSDF, ISO 27001, DORA; reproducibility statement |
 | [docs/deployment/](docs/deployment/index.md) | Regulated environment guidance: PCI-DSS, ISO 27001, NIST SSDF, DORA, SOC 2, air-gapped |
-| [docs/concepts/data-governance.md](docs/concepts/data-governance.md) | What data is submitted to AI providers and data residency options |
+| [docs/deployment/onboarding.md](docs/deployment/onboarding.md) | Onboarding a brownfield codebase: six-phase progression from static scan to CI gate |
+| [docs/concepts/data-governance.md](docs/concepts/data-governance.md) | What data is submitted to AI providers, data residency options, enterprise secret management |

@@ -218,3 +218,20 @@ applied on top.
 
 See [CLI reference — `-override-file`](../cli-reference.md#-override-file) for
 the full flag description.
+
+## Governance and review cadence
+
+The override file is a living document that records human classification decisions. Without a defined review cadence, entries can become stale — referencing methods that were renamed, removed, or whose security relevance changed as the codebase evolved.
+
+Recommended practices:
+
+**Trigger-based review (minimum):** review the override file whenever:
+- A class named in an override entry is renamed or moved
+- A sprint introduces new test methods in a class that has class-level overrides
+- A security review flags a method that is currently overridden to `securityRelevant: false`
+
+**Time-based review (regulated environments):** review the entire file at each release candidate or at a fixed calendar interval (e.g. quarterly). The review should confirm that each entry's `note` field describes a rationale that still applies.
+
+**Process:** store the override file in version control alongside the source. Each change to the file constitutes a PR; the PR description and approval record serve as the audit trail. In regulated environments, require a minimum of one security team reviewer on override file PRs separate from the developer who made the change.
+
+For organisations where the override file is owned by a dedicated security team and delivered from a separate repository, see [Remote Override Sources](remote-overrides.md).

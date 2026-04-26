@@ -57,9 +57,9 @@ When AI enrichment is enabled, every row in CSV and plain-text output carries th
 
 **CSV:**
 ```
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
-com.acme.AuthTest,shouldValidatePassword,8,security,true,SECURITY: ...,security;auth,Validates...,0.0
-com.acme.AuthTest,shouldInvokeEncoder,5,security,true,SECURITY: ...,security;auth,Calls encoder.,1.0
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+com.acme.AuthTest,shouldValidatePassword,8,security,,true,SECURITY: ...,security;auth,Validates...,0.0
+com.acme.AuthTest,shouldInvokeEncoder,5,security,,true,SECURITY: ...,security;auth,Calls encoder.,1.0
 ```
 
 **Plain text:**
@@ -81,7 +81,7 @@ gate without tuning.
 ```bash
 # Print security-relevant tests with interaction score ≥ 0.8
 ./methodatlas -ai -security-only src/test/java \
-  | awk -F',' 'NR==1 || $9+0 >= 0.8' \
+  | awk -F',' 'NR==1 || $10+0 >= 0.8' \
   > weak-security-tests.csv
 ```
 

@@ -38,7 +38,7 @@ The following command produces a scan result suitable as a baseline evidence
 artefact for all frameworks covered in this section:
 
 ```bash
-java -jar methodatlas.jar \
+./methodatlas \
   -ai -ai-provider <provider> -ai-api-key-env <ENV_VAR> \
   -sarif \
   -security-only \
@@ -100,3 +100,10 @@ the per-standard pages for guidance:
 
 For environments where outbound connections to an AI provider are not permitted,
 see [Air-Gapped Deployment](air-gapped.md).
+
+## Onboarding an existing codebase
+
+If you are introducing MethodAtlas to a project that already has a test suite,
+see [Onboarding a Brownfield Codebase](onboarding.md) for the recommended
+six-phase progression: static inventory → AI classification → override file →
+drift detection → annotation write-back → CI gate.

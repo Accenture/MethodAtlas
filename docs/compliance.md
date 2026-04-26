@@ -94,6 +94,22 @@ security test coverage is maintained and repeated across development cycles.
 The SARIF output integrates with code scanning dashboards that provide the
 timestamped, per-commit audit trail supervisors may request.
 
+## Reproducibility and AI non-determinism
+
+MethodAtlas separates two distinct layers with different reproducibility properties.
+
+**The structural layer is fully deterministic.** Method discovery (FQCN, method name, LOC, source-level `@Tag` values, content hash) is driven entirely by JavaParser AST analysis of the source files. Given the same source revision, this layer always produces identical output, regardless of provider, model, or time.
+
+**The AI layer is non-deterministic by nature.** Language models use probabilistic sampling. Even with the same model, same source, and same prompt, a different run may produce a slightly different `ai_reason`, a different `ai_confidence` value, or — rarely — a different `securityRelevant` verdict. This is a fundamental property of all language model inference, not a defect in MethodAtlas.
+
+Two mechanisms mitigate AI non-determinism for compliance purposes:
+
+1. **`-ai-cache`** — once a class has been classified, its result is stored in a CSV indexed by SHA-256 content hash. Subsequent runs reuse the stored result without calling the provider. The scan output is therefore reproducible for all unchanged classes.
+
+2. **`-override-file`** — human-reviewed corrections are applied deterministically on every run and take precedence over AI output. An override entry sets confidence to `1.0` or `0.0`, reflecting the higher certainty of a human decision.
+
+For evidence packages submitted to assessors, the recommended practice is to treat the classified CSV (produced with `-ai -content-hash`) as the authoritative record after human review. Re-running the scan on the same commit using the same cache produces output identical to the reviewed artefact for all unchanged classes; any new or changed classes are the only source of variance.
+
 ## Further reading
 
 - [OWASP SAMM v2 — Security Testing practice](https://owaspsamm.org/model/verification/security-testing/)
