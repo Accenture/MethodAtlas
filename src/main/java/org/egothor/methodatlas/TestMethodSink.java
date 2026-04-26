@@ -44,6 +44,7 @@ interface TestMethodSink {
      *                    or {@code null} when AI enrichment is disabled or
      *                    unavailable for this class
      */
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
     void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion);
 }

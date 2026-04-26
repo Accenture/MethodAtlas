@@ -132,6 +132,7 @@ final class SarifEmitter implements TestMethodSink {
      * </p>
      */
     @Override
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion) {
         records.add(new ResultRecord(fqcn, method, beginLine, loc, contentHash, tags, suggestion));

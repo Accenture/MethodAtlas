@@ -44,6 +44,8 @@ final class CliArgs {
     private static final String FLAG_AI_CACHE = "-ai-cache";
     private static final String FLAG_DRIFT_DETECT = "-drift-detect";
     private static final String FLAG_INCLUDE_NON_SECURITY = "-include-non-security";
+    private static final String FLAG_APPLY_TAGS_FROM_CSV = "-apply-tags-from-csv";
+    private static final String FLAG_MISMATCH_LIMIT = "-mismatch-limit";
 
     /**
      * Prevents instantiation of this utility class.
@@ -122,11 +124,11 @@ final class CliArgs {
                 aiCacheFile = Paths.get(nextArg(args, ++i, arg));
                 continue;
             }
-            if ("-apply-tags-from-csv".equals(arg)) {
+            if (FLAG_APPLY_TAGS_FROM_CSV.equals(arg)) {
                 applyTagsFromCsvFile = Paths.get(nextArg(args, ++i, arg));
                 continue;
             }
-            if ("-mismatch-limit".equals(arg)) {
+            if (FLAG_MISMATCH_LIMIT.equals(arg)) {
                 mismatchLimit = Integer.parseInt(nextArg(args, ++i, arg));
                 continue;
             }

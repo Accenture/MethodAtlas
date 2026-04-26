@@ -207,6 +207,7 @@ final class TagApplier {
      *                           means set to this value
      * @return result describing what changed; never {@code null}
      */
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     /* default */ static MethodApplyResult applyDesiredState(MethodDeclaration method,
             List<String> desiredTags, String desiredDisplayName) {
         // Handle @DisplayName

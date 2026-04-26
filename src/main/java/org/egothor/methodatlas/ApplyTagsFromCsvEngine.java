@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +97,6 @@ final class ApplyTagsFromCsvEngine {
      * @throws IOException if the CSV file or source files cannot be read or
      *                     written
      */
-    @SuppressWarnings("PMD.ExcessiveMethodLength")
     /* default */ static int apply(Path csvFile, List<Path> roots, List<String> fileSuffixes,
             Set<String> testAnnotations, int mismatchLimit, JavaParser parser, PrintWriter log)
             throws IOException {
@@ -110,15 +108,12 @@ final class ApplyTagsFromCsvEngine {
             return 0;
         }
 
-        // Build desired-state map: (fqcn::method) -> ScanRecord
         Map<String, ScanRecord> desiredState = new HashMap<>(records.size() * 2);
         for (ScanRecord r : records) {
             desiredState.put(key(r.fqcn(), r.method()), r);
         }
-        Set<String> csvKeys = desiredState.keySet();
 
         // ── Step 2: scan source to build current method inventory ─────────────
-        // Maps each source file path to the (fqcn, methodName) pairs it contains.
         Map<Path, List<MethodKey>> sourceIndex = buildSourceIndex(roots, fileSuffixes, testAnnotations, parser);
 
         Set<String> sourceKeys = new LinkedHashSet<>();
@@ -129,57 +124,63 @@ final class ApplyTagsFromCsvEngine {
         }
 
         // ── Step 3: compute mismatches (symmetric difference) ─────────────────
-        Set<String> inCsvNotSource = new LinkedHashSet<>(csvKeys);
+        Set<String> inCsvNotSource = new LinkedHashSet<>(desiredState.keySet());
         inCsvNotSource.removeAll(sourceKeys);
 
         Set<String> inSourceNotCsv = new LinkedHashSet<>(sourceKeys);
-        inSourceNotCsv.removeAll(csvKeys);
+        inSourceNotCsv.removeAll(desiredState.keySet());
 
         int mismatchCount = inCsvNotSource.size() + inSourceNotCsv.size();
 
         // ── Step 4: enforce mismatch limit ────────────────────────────────────
         if (mismatchLimit >= 0 && mismatchCount >= mismatchLimit) {
-            for (String k : inCsvNotSource) {
-                log.println("MISMATCH (in CSV, not in source): " + k);
-            }
-            for (String k : inSourceNotCsv) {
-                log.println("MISMATCH (in source, not in CSV): " + k);
-            }
-            log.println("Apply-tags-from-csv aborted: " + mismatchCount
-                    + " mismatch(es) >= limit " + mismatchLimit + ". No source files were modified.");
-            return 1;
+            return reportMismatchesAndAbort(inCsvNotSource, inSourceNotCsv, mismatchCount, mismatchLimit, log);
         }
 
         // ── Step 5: warn about mismatches (no limit, or below limit) ──────────
-        if (LOG.isLoggable(Level.WARNING)) {
-            for (String k : inCsvNotSource) {
-                LOG.warning("Mismatch (in CSV, not found in source): " + k);
-            }
-            for (String k : inSourceNotCsv) {
-                LOG.warning("Mismatch (in source, not present in CSV): " + k);
-            }
-        }
+        warnMismatches(inCsvNotSource, inSourceNotCsv);
 
         // ── Step 6: apply changes file by file ────────────────────────────────
+        return applyFilesLoop(sourceIndex, desiredState, testAnnotations, parser, mismatchCount, log);
+    }
+
+    private static int reportMismatchesAndAbort(Set<String> inCsvNotSource, Set<String> inSourceNotCsv,
+            int mismatchCount, int mismatchLimit, PrintWriter log) {
+        for (String k : inCsvNotSource) {
+            log.println("MISMATCH (in CSV, not in source): " + k);
+        }
+        for (String k : inSourceNotCsv) {
+            log.println("MISMATCH (in source, not in CSV): " + k);
+        }
+        log.println("Apply-tags-from-csv aborted: " + mismatchCount
+                + " mismatch(es) >= limit " + mismatchLimit + ". No source files were modified.");
+        return 1;
+    }
+
+    private static void warnMismatches(Set<String> inCsvNotSource, Set<String> inSourceNotCsv) {
+        if (!LOG.isLoggable(Level.WARNING)) {
+            return;
+        }
+        for (String k : inCsvNotSource) {
+            LOG.warning("Mismatch (in CSV, not found in source): " + k);
+        }
+        for (String k : inSourceNotCsv) {
+            LOG.warning("Mismatch (in source, not present in CSV): " + k);
+        }
+    }
+
+    private static int applyFilesLoop(Map<Path, List<MethodKey>> sourceIndex,
+            Map<String, ScanRecord> desiredState, Set<String> testAnnotations,
+            JavaParser parser, int mismatchCount, PrintWriter log) {
         int modifiedFiles = 0;
         int totalChanges = 0;
         boolean hadErrors = false;
 
         for (Map.Entry<Path, List<MethodKey>> entry : sourceIndex.entrySet()) {
             Path path = entry.getKey();
-
-            // Check whether any method in this file has an entry in the desired state.
-            boolean anyRelevant = false;
-            for (MethodKey mk : entry.getValue()) {
-                if (desiredState.containsKey(key(mk.fqcn(), mk.method()))) {
-                    anyRelevant = true;
-                    break;
-                }
-            }
-            if (!anyRelevant) {
+            if (!hasRelevantMethod(entry.getValue(), desiredState)) {
                 continue;
             }
-
             try {
                 int changes = applyToFile(path, desiredState, testAnnotations, parser);
                 if (changes > 0) {
@@ -197,8 +198,16 @@ final class ApplyTagsFromCsvEngine {
 
         log.println("Apply-tags-from-csv complete: " + totalChanges + " change(s) in "
                 + modifiedFiles + " file(s); " + mismatchCount + " mismatch(es) skipped.");
-
         return hadErrors ? 1 : 0;
+    }
+
+    private static boolean hasRelevantMethod(List<MethodKey> methods, Map<String, ScanRecord> desiredState) {
+        for (MethodKey mk : methods) {
+            if (desiredState.containsKey(key(mk.fqcn(), mk.method()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -307,23 +316,24 @@ final class ApplyTagsFromCsvEngine {
             if (!Files.isDirectory(root)) {
                 continue;
             }
-            Files.walk(root).filter(Files::isRegularFile).forEach(path -> {
-                String name = path.getFileName().toString();
-                boolean matches = fileSuffixes.stream().anyMatch(name::endsWith);
-                if (!matches) {
-                    return;
-                }
-                try {
-                    List<MethodKey> methods = extractMethodKeys(path, testAnnotations, parser);
-                    if (!methods.isEmpty()) {
-                        index.put(path, methods);
+            try (java.util.stream.Stream<Path> stream = Files.walk(root)) {
+                for (Path path : (Iterable<Path>) stream.filter(Files::isRegularFile)::iterator) {
+                    String name = path.getFileName().toString();
+                    if (fileSuffixes.stream().noneMatch(name::endsWith)) {
+                        continue;
                     }
-                } catch (IOException e) {
-                    if (LOG.isLoggable(Level.WARNING)) {
-                        LOG.log(Level.WARNING, "Cannot read: " + path, e);
+                    try {
+                        List<MethodKey> methods = extractMethodKeys(path, testAnnotations, parser);
+                        if (!methods.isEmpty()) {
+                            index.put(path, methods);
+                        }
+                    } catch (IOException e) {
+                        if (LOG.isLoggable(Level.WARNING)) {
+                            LOG.log(Level.WARNING, "Cannot read: " + path, e);
+                        }
                     }
                 }
-            });
+            }
         }
 
         return index;

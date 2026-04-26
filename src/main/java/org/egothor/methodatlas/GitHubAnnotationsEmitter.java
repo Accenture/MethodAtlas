@@ -52,6 +52,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
     }
 
     @Override
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion) {
         if (suggestion == null || !suggestion.securityRelevant()) {
