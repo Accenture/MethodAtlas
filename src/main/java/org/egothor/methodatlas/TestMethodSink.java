@@ -38,8 +38,11 @@ interface TestMethodSink {
      * @param tags        source-level JUnit {@code @Tag} values declared on the
      *                    method; never {@code null}
      * @param displayName text from an existing {@code @DisplayName} annotation on
-     *                    the method, or an empty string if no such annotation is
-     *                    present; never {@code null}
+     *                    the method; {@code null} when no {@code @DisplayName}
+     *                    annotation is present; {@code ""} (empty string) when the
+     *                    annotation is present but declares an empty value
+     *                    ({@code @DisplayName("")}) — which is a malformed annotation
+     *                    and may be treated as a quality finding by implementations
      * @param suggestion  AI-generated security classification for the method,
      *                    or {@code null} when AI enrichment is disabled or
      *                    unavailable for this class

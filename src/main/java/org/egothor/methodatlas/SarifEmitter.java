@@ -58,6 +58,7 @@ final class SarifEmitter implements TestMethodSink {
     private static final int RULE_ID_PART_COUNT = 2;
     private static final String RULE_TEST_METHOD = "test-method";
     private static final String RULE_SECURITY_TEST = "security-test";
+    private static final String RULE_EMPTY_DISPLAY_NAME = "annotation/empty-display-name";
     private static final String LEVEL_NOTE = "note";
     private static final String LEVEL_NONE = "none";
     private static final String URI_BASE_ID = "%SRCROOT%";
@@ -135,7 +136,7 @@ final class SarifEmitter implements TestMethodSink {
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion) {
-        records.add(new ResultRecord(fqcn, method, beginLine, loc, contentHash, tags, suggestion));
+        records.add(new ResultRecord(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion));
     }
 
     /**
@@ -158,6 +159,11 @@ final class SarifEmitter implements TestMethodSink {
             String ruleId = resolveRuleId(rec.suggestion());
             rulesById.computeIfAbsent(ruleId, SarifEmitter::buildRule);
             results.add(buildResult(rec, ruleId));
+
+            if (rec.displayName() != null && rec.displayName().isEmpty()) {
+                rulesById.computeIfAbsent(RULE_EMPTY_DISPLAY_NAME, SarifEmitter::buildRule);
+                results.add(buildEmptyDisplayNameResult(rec));
+            }
         }
 
         SarifDriver driver = new SarifDriver("MethodAtlas", toolVersion,
@@ -212,6 +218,9 @@ final class SarifEmitter implements TestMethodSink {
         if (RULE_SECURITY_TEST.equals(ruleId)) {
             return List.of("security");
         }
+        if (RULE_EMPTY_DISPLAY_NAME.equals(ruleId)) {
+            return List.of("annotation", "quality");
+        }
         // "security/auth" → ["security", "auth"]
         String[] parts = ruleId.split("/", RULE_ID_PART_COUNT);
         if (parts.length == RULE_ID_PART_COUNT) {
@@ -237,6 +246,7 @@ final class SarifEmitter implements TestMethodSink {
         return switch (ruleId) {
             case RULE_TEST_METHOD -> "JUnit test method";
             case RULE_SECURITY_TEST -> "Security-relevant test method";
+            case RULE_EMPTY_DISPLAY_NAME -> "@DisplayName annotation with empty string value";
             default -> ruleId.startsWith("security/")
                     ? "Security test: " + ruleId.substring("security/".length())
                     : ruleId;
@@ -293,6 +303,20 @@ final class SarifEmitter implements TestMethodSink {
                 tagAiDrift, securitySeverity);
     }
 
+    private SarifResult buildEmptyDisplayNameResult(ResultRecord rec) {
+        String artifactUri = rec.fqcn().replace('.', '/') + ".java";
+        SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, URI_BASE_ID);
+        SarifRegion region = rec.beginLine() > 0 ? new SarifRegion(rec.beginLine()) : null;
+        SarifPhysicalLocation physicalLocation = new SarifPhysicalLocation(artifactLocation, region);
+        SarifLogicalLocation logicalLocation = new SarifLogicalLocation(
+                rec.fqcn() + "." + rec.method(), "member");
+        SarifLocation location = new SarifLocation(physicalLocation, List.of(logicalLocation));
+        String message = "@DisplayName(\"\") declares an empty display name — "
+                + "the test will appear unnamed in reports, obscuring the audit trail";
+        return new SarifResult(RULE_EMPTY_DISPLAY_NAME, LEVEL_NOTE,
+                new SarifMessage(message), List.of(location), null);
+    }
+
     private static String resolveSecuritySeverity(String ruleId, AiMethodSuggestion suggestion) {
         if (RULE_TEST_METHOD.equals(ruleId)) {
             return null;
@@ -313,7 +337,7 @@ final class SarifEmitter implements TestMethodSink {
     // -------------------------------------------------------------------------
 
     private record ResultRecord(String fqcn, String method, int beginLine, int loc,
-            String contentHash, List<String> tags, AiMethodSuggestion suggestion) {
+            String contentHash, List<String> tags, String displayName, AiMethodSuggestion suggestion) {
     }
 
     // -------------------------------------------------------------------------

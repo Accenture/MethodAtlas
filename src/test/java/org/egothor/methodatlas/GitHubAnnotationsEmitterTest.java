@@ -157,7 +157,7 @@ class GitHubAnnotationsEmitterTest {
         PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "src/test/java/");
 
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", null);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null, null);
 
         assertEquals("", baos.toString(StandardCharsets.UTF_8).trim());
     }
@@ -169,7 +169,7 @@ class GitHubAnnotationsEmitterTest {
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "src/test/java/");
 
         AiMethodSuggestion nonSecurity = new AiMethodSuggestion("testLogin", false, null, List.of(), null, 0.0, 0.0);
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", nonSecurity);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null, nonSecurity);
 
         assertEquals("", baos.toString(StandardCharsets.UTF_8).trim());
     }
@@ -219,7 +219,7 @@ class GitHubAnnotationsEmitterTest {
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
 
         AiMethodSuggestion suggestion = new AiMethodSuggestion("testLogin", true, null, List.of("auth"), null, 0.0, 0.0);
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", suggestion);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null, suggestion);
 
         String output = baos.toString(StandardCharsets.UTF_8).trim();
         assertTrue(output.contains("com.acme.AuthTest#testLogin"), "Should fall back to fqcn#method");
@@ -326,6 +326,85 @@ class GitHubAnnotationsEmitterTest {
     }
 
     // -------------------------------------------------------------------------
+    // @DisplayName("") detection
+    // -------------------------------------------------------------------------
+
+    @Test
+    void record_emptyDisplayName_noSuggestion_emitsNotice() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "src/test/java/");
+
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", null);
+
+        String output = baos.toString(StandardCharsets.UTF_8).trim();
+        assertTrue(output.startsWith("::notice "), "Empty @DisplayName should produce ::notice");
+        assertTrue(output.contains("file=src/test/java/com/acme/AuthTest.java"), "File path should be present");
+        assertTrue(output.contains(",line=5"), "Line number should be present");
+        assertTrue(output.contains("@DisplayName(\"\")"), "Notice should reference the annotation");
+        assertTrue(output.contains("unnamed in reports"), "Notice should explain the risk");
+    }
+
+    @Test
+    void record_emptyDisplayName_nonSecuritySuggestion_emitsNoticeOnly() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
+
+        AiMethodSuggestion nonSecurity = new AiMethodSuggestion("testLogin", false, null, List.of(), null, 0.0, 0.0);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", nonSecurity);
+
+        String output = baos.toString(StandardCharsets.UTF_8).trim();
+        // Non-security method with empty @DisplayName: only the empty-display-name notice, no security annotation
+        long lineCount = output.lines().filter(l -> !l.isEmpty()).count();
+        assertEquals(1, lineCount, "Should emit exactly one annotation line for empty @DisplayName");
+        assertTrue(output.startsWith("::notice "), "Should be a notice, not a warning");
+    }
+
+    @Test
+    void record_emptyDisplayName_securitySuggestion_emitsBothAnnotations() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
+
+        AiMethodSuggestion security = new AiMethodSuggestion("testLogin", true, "Login test", List.of("auth"), null, 0.0, 0.3);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", security);
+
+        String output = baos.toString(StandardCharsets.UTF_8).trim();
+        long lineCount = output.lines().filter(l -> !l.isEmpty()).count();
+        assertEquals(2, lineCount, "Security method with empty @DisplayName should emit two lines");
+        assertTrue(output.contains("@DisplayName(\"\")"), "First annotation should be the empty display name notice");
+        assertTrue(output.contains("Login test") || output.contains("com.acme.AuthTest#testLogin"),
+                "Second annotation should be the security finding");
+    }
+
+    @Test
+    void record_nullDisplayName_noExtraAnnotation() {
+        // null displayName = annotation absent → no empty-display-name notice
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
+
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null, null);
+
+        assertEquals("", baos.toString(StandardCharsets.UTF_8).trim(),
+                "Absent @DisplayName (null) should not produce any annotation");
+    }
+
+    @Test
+    void record_emptyDisplayName_titleContainsFqcnAndMethod() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
+
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", null);
+
+        String output = baos.toString(StandardCharsets.UTF_8).trim();
+        assertTrue(output.contains("com.acme.AuthTest") && output.contains("testLogin"),
+                "Title for empty @DisplayName notice should identify the method");
+    }
+
+    // -------------------------------------------------------------------------
     // Integration test via MethodAtlasApp
     // -------------------------------------------------------------------------
 
@@ -385,7 +464,7 @@ class GitHubAnnotationsEmitterTest {
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
 
         AiMethodSuggestion suggestion = new AiMethodSuggestion("testLogin", true, displayName, tags, null, 0.0, interactionScore);
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), "", suggestion);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null, suggestion);
 
         return baos.toString(StandardCharsets.UTF_8).trim();
     }
@@ -406,7 +485,7 @@ class GitHubAnnotationsEmitterTest {
 
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", aiSecurityRelevant, "Security test", aiTags, null, 0.0, 0.3);
-        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, sourceTags, "", suggestion);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, sourceTags, null, suggestion);
 
         return baos.toString(StandardCharsets.UTF_8).trim();
     }

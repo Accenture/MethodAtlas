@@ -225,7 +225,7 @@ final class AnnotationInspector {
 
     /**
      * Returns the string value of the {@code @DisplayName} annotation if present
-     * on the method, or an empty string if absent.
+     * on the method.
      *
      * <p>
      * Both the single-member form {@code @DisplayName("text")} and the normal
@@ -233,8 +233,20 @@ final class AnnotationInspector {
      * Matching is performed against the simple annotation name {@code "DisplayName"}.
      * </p>
      *
+     * <p>
+     * The return value distinguishes three cases:
+     * </p>
+     * <ul>
+     * <li>{@code null} — no {@code @DisplayName} annotation is present on the method</li>
+     * <li>{@code ""} (empty string) — a {@code @DisplayName("")} annotation is present
+     *     but its value is an empty string; this is a malformed annotation because JUnit
+     *     requires a non-blank display name</li>
+     * <li>any non-empty string — the annotation is present with a non-blank value</li>
+     * </ul>
+     *
      * @param method method declaration whose annotations should be inspected
-     * @return the {@code @DisplayName} text value, or {@code ""} if no
+     * @return the {@code @DisplayName} text value, {@code ""} when the annotation
+     *         is present with an empty value, or {@code null} when no
      *         {@code @DisplayName} annotation is present
      */
     /* default */ static String getDisplayName(MethodDeclaration method) {
@@ -255,7 +267,7 @@ final class AnnotationInspector {
                 }
             }
         }
-        return "";
+        return null;
     }
 
     /**

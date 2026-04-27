@@ -165,6 +165,9 @@ Rules are derived automatically from the AI tags present in the results:
 | `test-method` | Default rule for all non-security test methods |
 | `security/<tag>` | One rule per specific security category (e.g. `security/auth`, `security/crypto`) |
 | `security-test` | Security-relevant method carrying only the umbrella `security` tag |
+| `annotation/empty-display-name` | Method carries `@DisplayName("")` — an empty display name that causes the test to appear unnamed in reports, obscuring the audit trail |
+
+The `annotation/empty-display-name` rule is emitted at level `note` and applies to any test method (security-relevant or not) that declares `@DisplayName("")`. Because an empty display name hides tests from report views, it is treated as a low-severity quality finding that affects auditability.
 
 ### Locations
 
@@ -297,20 +300,23 @@ Enable with `-github-annotations`:
 ./methodatlas -ai -github-annotations src/test/java
 ```
 
-Instead of CSV or JSON, MethodAtlas emits GitHub Actions [workflow commands](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions) to standard output. Only security-relevant methods produce output; non-security methods are silently skipped.
+Instead of CSV or JSON, MethodAtlas emits GitHub Actions [workflow commands](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions) to standard output.
 
 Each line is one of two command forms:
 
 | Command | Condition |
 |---|---|
-| `::warning file=…,line=…,title=…::…` | `ai_interaction_score >= 0.8` — the test only verifies method calls, not outcomes (potential placebo test) |
-| `::notice file=…,line=…,title=…::…` | All other security-relevant methods |
+| `::warning file=…,line=…,title=…::…` | Security-relevant method with `ai_interaction_score >= 0.8` — the test only verifies method calls, not outcomes (potential placebo test) |
+| `::notice file=…,line=…,title=…::…` | Security-relevant method with interaction score below threshold, OR any method carrying `@DisplayName("")` |
+
+The `@DisplayName("")` notice is emitted for every method that declares an explicitly empty display name, regardless of whether AI enrichment is enabled or whether the method is security-relevant. An empty display name causes the test to appear unnamed in CI and coverage reports, which obscures the audit trail.
 
 Example output:
 
 ```text
 ::notice file=src/test/java/com/acme/auth/LoginTest.java,line=22,title=Security test: auth::SECURITY: auth - validates session token after login
 ::warning file=src/test/java/com/acme/auth/SessionTest.java,line=45,title=Placebo security test::SECURITY: auth - session invalidation (interaction-only)
+::notice file=src/test/java/com/acme/util/HelperTest.java,line=10,title=@DisplayName("") on com.acme.util.HelperTest#testHelper::@DisplayName("") declares an empty display name — the test will appear unnamed in reports, obscuring the audit trail
 ```
 
 GitHub renders these as inline annotations on the PR diff. No GitHub Advanced Security licence is required — `::notice`/`::warning` are standard GitHub Actions features available on all plan tiers.

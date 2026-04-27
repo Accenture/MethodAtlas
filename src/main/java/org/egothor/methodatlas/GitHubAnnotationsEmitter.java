@@ -55,11 +55,19 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion) {
+        String filePath = filePrefix + fqcn.replace('.', '/') + ".java";
+
+        if (displayName != null && displayName.isEmpty()) {
+            out.println(formatCommand("notice", filePath, beginLine,
+                    "@DisplayName(\"\") on " + fqcn + "#" + method,
+                    "@DisplayName(\"\") declares an empty display name — "
+                            + "the test will appear unnamed in reports, obscuring the audit trail"));
+        }
+
         if (suggestion == null || !suggestion.securityRelevant()) {
             return;
         }
 
-        String filePath = filePrefix + fqcn.replace('.', '/') + ".java";
         boolean isPlacebo = suggestion.interactionScore() >= PLACEBO_THRESHOLD;
         String level = isPlacebo ? "warning" : "notice";
 

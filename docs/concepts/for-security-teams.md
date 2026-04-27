@@ -27,7 +27,7 @@ the source changes.
 | `method` | Always | The name of the test method |
 | `loc` | Always | Inclusive line count of the method declaration |
 | `tags` | Always | JUnit `@Tag` values declared in source (e.g. `security`, `auth`) |
-| `display_name` | Always | Text of the `@DisplayName` annotation declared on the method; empty when the annotation is absent |
+| `display_name` | Always | Text of the `@DisplayName` annotation declared on the method; empty when the annotation is absent or declares an empty string (`@DisplayName("")`) |
 | `content_hash` | `-content-hash` flag | SHA-256 fingerprint of the enclosing class source — enables revision traceability |
 
 ### AI enrichment (present when AI classification is enabled)
@@ -120,6 +120,7 @@ on first:
 | High | `ai_security_relevant=true` AND `ai_confidence < 0.5` | Manual review: the AI is uncertain. A qualified reviewer should determine whether the classification is correct. |
 | Medium | `tag_ai_drift = tag-only` | Review: the `@Tag("security")` annotation may be stale, or the AI taxonomy may not cover this security domain. |
 | Medium | `tag_ai_drift = ai-only` | Review: a security test may be unlabelled, which would cause it to be missed by tag-based reporting. |
+| Low | `display_name = ""` (explicitly empty) | Developer action: `@DisplayName("")` produces an unnamed test in all reports. Replace with a meaningful name to preserve the audit trail. |
 | Low | `ai_security_relevant=true`, high confidence, low interaction score | Verify taxonomy tags are correct. No immediate action required. |
 
 ## Documenting accepted risks: the override file
