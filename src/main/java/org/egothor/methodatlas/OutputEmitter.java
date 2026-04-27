@@ -105,7 +105,7 @@ final class OutputEmitter {
         if (mode != OutputMode.CSV) {
             return;
         }
-        StringBuilder header = new StringBuilder(128).append("fqcn,method,loc,tags,display_name");
+        StringBuilder header = new StringBuilder(256).append("fqcn,method,loc,tags,display_name");
         if (emitSourceRoot) {
             header.append(",source_root");
         }

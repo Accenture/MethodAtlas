@@ -83,51 +83,48 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
         out.println(formatCommand(level, filePath, beginLine, title, message));
     }
 
+    @SuppressWarnings("PMD.NPathComplexity")
     private static String buildMessage(AiMethodSuggestion suggestion, boolean isPlacebo, TagAiDrift drift) {
         StringBuilder sb = new StringBuilder(512);
 
         if (suggestion.displayName() != null && !suggestion.displayName().isBlank()) {
-            sb.append("Suggested @DisplayName: \"").append(suggestion.displayName()).append("\"");
+            sb.append("Suggested @DisplayName: \"").append(suggestion.displayName()).append('"');
         }
         if (!suggestion.tags().isEmpty()) {
-            if (sb.length() > 0) {
-                sb.append(" · ");
-            }
+            appendSep(sb);
             sb.append("Suggested @Tag: ").append(String.join(", ", suggestion.tags()));
         }
         if (suggestion.reason() != null && !suggestion.reason().isBlank()) {
-            if (sb.length() > 0) {
-                sb.append(" · ");
-            }
+            appendSep(sb);
             String reason = suggestion.reason().strip();
             sb.append("Reason: ").append(reason);
             if (!reason.endsWith(".")) {
-                sb.append(".");
+                sb.append('.');
             }
         }
         if (isPlacebo) {
-            if (sb.length() > 0) {
-                sb.append(" · ");
-            }
+            appendSep(sb);
             sb.append("Interaction score ")
               .append(String.format("%.1f", suggestion.interactionScore()))
               .append(": assertions only verify method calls, not output values or state");
         }
         if (drift == TagAiDrift.TAG_ONLY) {
-            if (sb.length() > 0) {
-                sb.append(" · ");
-            }
+            appendSep(sb);
             sb.append("Drift: @Tag(\"security\") present but AI disagrees — annotation may be stale");
         } else if (drift == TagAiDrift.AI_ONLY) {
-            if (sb.length() > 0) {
-                sb.append(" · ");
-            }
+            appendSep(sb);
             sb.append("Drift: AI classifies as security-relevant but no @Tag(\"security\") in source");
         }
         if (sb.length() == 0) {
             sb.append("Security test");
         }
         return sb.toString();
+    }
+
+    private static void appendSep(StringBuilder sb) {
+        if (sb.length() > 0) {
+            sb.append(" · ");
+        }
     }
 
     /* default */ static String formatCommand(String level, String filePath, int beginLine,

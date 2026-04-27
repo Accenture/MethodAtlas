@@ -310,7 +310,7 @@ final class SarifEmitter implements TestMethodSink {
             return rec.fqcn() + "." + rec.method();
         }
 
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(256);
 
         if (s.displayName() != null && !s.displayName().isBlank()) {
             sb.append("AI suggests: @DisplayName(\"").append(s.displayName()).append("\")");
@@ -322,13 +322,13 @@ final class SarifEmitter implements TestMethodSink {
                 sb.append(" @Tag(\"").append(tag).append("\")");
             }
         }
-        sb.append(".");
+        sb.append('.');
 
         if (s.reason() != null && !s.reason().isBlank()) {
             String reason = s.reason().strip();
             sb.append(" Reason: ").append(reason);
             if (!reason.endsWith(".")) {
-                sb.append(".");
+                sb.append('.');
             }
         }
 
