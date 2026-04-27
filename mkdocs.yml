@@ -95,6 +95,7 @@ nav:
       - API AI Enrichment: usage-modes/api-ai.md
       - Manual AI Workflow: usage-modes/manual.md
       - Source Write-back: usage-modes/apply-tags.md
+      - Apply Tags from CSV: usage-modes/apply-tags-from-csv.md
       - Delta Report: usage-modes/delta.md
       - Security-Only Filter: usage-modes/security-only.md
       - Multi-root Scanning: usage-modes/multi-root.md
@@ -107,6 +108,7 @@ nav:
       - Security Taxonomy: ai/taxonomy.md
       - Custom Taxonomy: ai/custom-taxonomy.md
       - Classification Overrides: ai/overrides.md
+      - Remote Overrides: ai/remote-overrides.md
       - Tag vs AI Drift: ai/drift-detection.md
     - Remediating Findings: concepts/remediation.md
   - CI/CD Integration:
@@ -119,6 +121,7 @@ nav:
   - Deployment:
     - Data Governance: concepts/data-governance.md
     - Air-Gapped Deployment: deployment/air-gapped.md
+    - Onboarding Brownfield Projects: deployment/onboarding.md
     - Regulated Environments:
       - Overview: deployment/index.md
       - PCI-DSS v4.0: deployment/pci-dss.md
