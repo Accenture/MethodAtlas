@@ -191,9 +191,13 @@ The SARIF `level` field distinguishes security-relevant methods from ordinary te
 
 Each SARIF result message is written to support professional review without switching tools:
 
-- **Security-relevant method** — the message states the AI's suggested `@DisplayName` and `@Tag` values, the AI reasoning, and — when the interaction score is ≥ 0.8 — a warning that the test may be a placebo. Example:
+- **Security-relevant method** (`security/<tag>` or `security-test`) — the message states the AI's suggested `@DisplayName` and `@Tag` values, the AI reasoning, and — when the interaction score is ≥ 0.8 — a sentence noting the placebo risk. Example:
   ```
   AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score 0.9: assertions verify only method calls, not actual outcomes.
+  ```
+- **`security-test/placebo`** — a second result emitted alongside the primary security result when `ai_interaction_score >= 0.8`. The message names the score and explains the remediation. Example:
+  ```
+  Interaction score 0.9: this security test only verifies that methods were called, not what values they returned or what state they produced. Tests that do not assert outcomes cannot catch regressions in security-critical logic. Add assertions on return values, thrown exceptions, or observable state changes.
   ```
 - **`annotation/empty-display-name`** — the message names the class and method, explains the impact, and states the corrective action. Example:
   ```
@@ -204,14 +208,17 @@ Each SARIF result message is written to support professional review without swit
 
 Rules are derived automatically from the AI tags present in the results:
 
-| Rule ID | Meaning |
-| --- | --- |
-| `test-method` | Default rule for all non-security test methods |
-| `security/<tag>` | One rule per specific security category (e.g. `security/auth`, `security/crypto`) |
-| `security-test` | Security-relevant method carrying only the umbrella `security` tag |
-| `annotation/empty-display-name` | Method carries `@DisplayName("")` — an empty display name that causes the test to appear unnamed in reports, obscuring the audit trail |
+| Rule ID | Level | Meaning |
+| --- | --- | --- |
+| `test-method` | `none` | Default rule for all non-security test methods |
+| `security/<tag>` | `note` | One rule per specific security category (e.g. `security/auth`, `security/crypto`) |
+| `security-test` | `note` | Security-relevant method carrying only the umbrella `security` tag |
+| `annotation/empty-display-name` | `note` | Method carries `@DisplayName("")` — an empty display name that causes the test to appear unnamed in reports, obscuring the audit trail |
+| `security-test/placebo` | `warning` | Security-relevant method whose `ai_interaction_score` is ≥ 0.8 — the test asserts only method calls, not return values or state; may not catch outcome regressions |
 
-The `annotation/empty-display-name` rule is emitted at level `note` and applies to any test method (security-relevant or not) that declares `@DisplayName("")`. Because an empty display name hides tests from report views, it is treated as a low-severity quality finding that affects auditability.
+The `annotation/empty-display-name` rule applies to any test method (security-relevant or not) that declares `@DisplayName("")`. Because an empty display name hides tests from report views, it is treated as a low-severity quality finding that affects auditability.
+
+The `security-test/placebo` rule identifies security tests that are at risk of being ineffective. A security test with `ai_interaction_score >= 0.8` has assertions that primarily verify whether methods were called (e.g. Mockito `verify()`, spy call counts) rather than what values they returned or what state they produced. Such tests may give false confidence: the code under test could return wrong data or corrupt application state and the test would still pass. This finding is emitted as a second SARIF result alongside the primary security-relevant result, and uses level `warning` and `security-severity: 6.0` (Medium) so that GitHub Code Scanning surfaces it distinctly from informational security-test inventory entries.
 
 ### Locations
 

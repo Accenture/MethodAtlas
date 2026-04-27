@@ -67,7 +67,7 @@ com.acme.AuthTest,shouldInvokeEncoder,5,security,,true,SECURITY: ...,security;au
 com.acme.AuthTest, shouldInvokeEncoder, LOC=5, TAGS=security, AI_SECURITY=true, ..., AI_INTERACTION_SCORE=1.0
 ```
 
-**SARIF:** stored in `properties.aiInteractionScore`.
+**SARIF:** stored in `properties.aiInteractionScore`. When the score is ≥ 0.8, MethodAtlas also emits a dedicated `security-test/placebo` result at level `warning` alongside the primary security finding. This second result is independently filterable in GitHub Code Scanning, VS Code SARIF Viewer, and any SARIF-compatible platform — teams can configure a policy that blocks PRs containing new placebo security tests without affecting other findings. See [SARIF output format](../output-formats.md#rule-ids) for the full rule definition.
 
 ## Using the score in CI
 

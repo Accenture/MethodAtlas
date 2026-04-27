@@ -734,7 +734,7 @@ class SarifEmitterTest {
     }
 
     @Test
-    @DisplayName("@DisplayName(\"\") on security method produces both the security result and the finding")
+    @DisplayName("@DisplayName(\"\") on security method with high interaction score produces three results")
     @Tag("positive")
     void flush_emptyDisplayNameOnSecurityMethod_producesBothResults() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
@@ -743,9 +743,182 @@ class SarifEmitterTest {
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), "", suggestion);
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
-        assertEquals(2, results.size());
+        assertEquals(3, results.size());
         assertEquals("security/auth", results.get(0).path("ruleId").asText());
         assertEquals("annotation/empty-display-name", results.get(1).path("ruleId").asText());
+        assertEquals("security-test/placebo", results.get(2).path("ruleId").asText());
+    }
+
+    // -------------------------------------------------------------------------
+    // Placebo detection (security-test/placebo rule)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("security method with interaction score >= 0.8 produces a security-test/placebo result")
+    @Tag("positive")
+    void flush_securityMethodWithHighInteractionScore_producesPlaceboResult() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode results = flush(emitter).path("runs").get(0).path("results");
+        assertEquals(2, results.size());
+        assertEquals("security/auth", results.get(0).path("ruleId").asText());
+        assertEquals("security-test/placebo", results.get(1).path("ruleId").asText());
+    }
+
+    @Test
+    @DisplayName("security method with interaction score exactly 0.8 produces a placebo result")
+    @Tag("edge-case")
+    void flush_securityMethodWithExactThresholdScore_producesPlaceboResult() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testCrypto", true, "SECURITY: crypto", List.of("security", "crypto"), "Tests crypto", 0.8, 0.9);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.CryptoTest", "testCrypto", 5, 4, null, List.of(), null, suggestion);
+
+        boolean foundPlacebo = false;
+        for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
+            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+                foundPlacebo = true;
+            }
+        }
+        assertTrue(foundPlacebo, "placebo result should be present when interaction score == 0.8");
+    }
+
+    @Test
+    @DisplayName("security method with interaction score < 0.8 does not produce a placebo result")
+    @Tag("positive")
+    void flush_securityMethodWithLowInteractionScore_noPlaceboResult() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.5, 0.9);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode results = flush(emitter).path("runs").get(0).path("results");
+        assertEquals(1, results.size(), "only the primary security result should be present");
+        assertFalse("security-test/placebo".equals(results.get(0).path("ruleId").asText()),
+                "no placebo result should be emitted for low interaction score");
+    }
+
+    @Test
+    @DisplayName("non-security method with high interaction score does not produce a placebo result")
+    @Tag("edge-case")
+    void flush_nonSecurityMethodWithHighInteractionScore_noPlaceboResult() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testUtil", false, null, List.of(), null, 0.95, 0.9);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.UtilTest", "testUtil", 10, 3, null, List.of(), null, suggestion);
+
+        JsonNode results = flush(emitter).path("runs").get(0).path("results");
+        assertEquals(1, results.size(), "non-security method should produce only one result regardless of interaction score");
+        assertEquals("test-method", results.get(0).path("ruleId").asText());
+    }
+
+    @Test
+    @DisplayName("security-test/placebo result has level 'warning'")
+    @Tag("positive")
+    void flush_placeboResult_hasLevelWarning() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode placeboResult = null;
+        for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
+            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+                placeboResult = r;
+            }
+        }
+        assertNotNull(placeboResult, "placebo result should be present");
+        assertEquals("warning", placeboResult.path("level").asText());
+    }
+
+    @Test
+    @DisplayName("security-test/placebo result properties contain interaction score")
+    @Tag("positive")
+    void flush_placeboResult_propertiesContainInteractionScore() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode placeboResult = null;
+        for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
+            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+                placeboResult = r;
+            }
+        }
+        assertNotNull(placeboResult, "placebo result should be present");
+        assertEquals(0.9, placeboResult.path("properties").path("aiInteractionScore").asDouble(), 0.001);
+        assertEquals(6, placeboResult.path("properties").path("loc").asInt());
+    }
+
+    @Test
+    @DisplayName("security-test/placebo result message contains interaction score value")
+    @Tag("positive")
+    void flush_placeboResult_messageContainsInteractionScore() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode placeboResult = null;
+        for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
+            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+                placeboResult = r;
+            }
+        }
+        assertNotNull(placeboResult, "placebo result should be present");
+        String messageText = placeboResult.path("message").path("text").asText();
+        assertTrue(messageText.contains("0.9"), "message should contain the interaction score");
+    }
+
+    @Test
+    @DisplayName("security-test/placebo rule is registered in the rules list")
+    @Tag("positive")
+    void flush_placeboResult_ruleIsRegistered() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
+        boolean found = false;
+        for (JsonNode rule : rules) {
+            if ("security-test/placebo".equals(rule.path("id").asText())) {
+                found = true;
+                assertEquals("SecurityTestPlacebo", rule.path("name").asText());
+                assertTrue(rule.path("properties").path("tags").toString().contains("placebo"),
+                        "rule tags should include 'placebo'");
+                assertTrue(rule.path("properties").path("tags").toString().contains("security"),
+                        "rule tags should include 'security'");
+                break;
+            }
+        }
+        assertTrue(found, "security-test/placebo rule should be registered");
+    }
+
+    @Test
+    @DisplayName("security-test/placebo result has correct physical location")
+    @Tag("positive")
+    void flush_placeboResult_hasCorrectPhysicalLocation() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.85, 0.9);
+        SarifEmitter emitter = new SarifEmitter(true, false, "src/test/java/");
+        emitter.record("com.acme.AuthTest", "testLogin", 15, 6, null, List.of(), null, suggestion);
+
+        JsonNode placeboResult = null;
+        for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
+            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+                placeboResult = r;
+            }
+        }
+        assertNotNull(placeboResult, "placebo result should be present");
+        JsonNode physLoc = placeboResult.path("locations").get(0).path("physicalLocation");
+        assertEquals("src/test/java/com/acme/AuthTest.java",
+                physLoc.path("artifactLocation").path("uri").asText());
+        assertEquals(15, physLoc.path("region").path("startLine").asInt());
     }
 
     // -------------------------------------------------------------------------

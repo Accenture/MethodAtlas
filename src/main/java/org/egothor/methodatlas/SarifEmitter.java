@@ -60,8 +60,10 @@ final class SarifEmitter implements TestMethodSink {
     private static final String RULE_TEST_METHOD = "test-method";
     private static final String RULE_SECURITY_TEST = "security-test";
     private static final String RULE_EMPTY_DISPLAY_NAME = "annotation/empty-display-name";
+    private static final String RULE_SECURITY_PLACEBO = "security-test/placebo";
     private static final String LEVEL_NOTE = "note";
     private static final String LEVEL_NONE = "none";
+    private static final String LEVEL_WARNING = "warning";
 
     /** Interaction score at or above which a security test is flagged as a potential placebo. */
     private static final double PLACEBO_THRESHOLD = 0.8;
@@ -71,6 +73,7 @@ final class SarifEmitter implements TestMethodSink {
     private static final String SEVERITY_HIGH = "7.5";
     private static final String SEVERITY_MEDIUM_HIGH = "6.5";
     private static final String SEVERITY_MEDIUM = "5.5";
+    private static final String SEVERITY_PLACEBO = "6.0";
     private static final String SEVERITY_LOW = "4.0";
     private static final String SEVERITY_DEFAULT = "5.0";
 
@@ -173,6 +176,12 @@ final class SarifEmitter implements TestMethodSink {
                 rulesById.computeIfAbsent(RULE_EMPTY_DISPLAY_NAME, SarifEmitter::buildRule);
                 results.add(buildEmptyDisplayNameResult(rec));
             }
+
+            AiMethodSuggestion s = rec.suggestion();
+            if (s != null && s.securityRelevant() && s.interactionScore() >= PLACEBO_THRESHOLD) {
+                rulesById.computeIfAbsent(RULE_SECURITY_PLACEBO, SarifEmitter::buildRule);
+                results.add(buildPlaceboResult(rec));
+            }
         }
 
         SarifDriver driver = new SarifDriver("MethodAtlas", toolVersion,
@@ -231,6 +240,9 @@ final class SarifEmitter implements TestMethodSink {
         if (RULE_EMPTY_DISPLAY_NAME.equals(ruleId)) {
             return List.of("annotation", "quality");
         }
+        if (RULE_SECURITY_PLACEBO.equals(ruleId)) {
+            return List.of("security", "placebo", "test-quality");
+        }
         // "security/auth" → ["security", "auth"]
         String[] parts = ruleId.split("/", RULE_ID_PART_COUNT);
         if (parts.length == RULE_ID_PART_COUNT) {
@@ -257,6 +269,8 @@ final class SarifEmitter implements TestMethodSink {
             case RULE_TEST_METHOD -> "JUnit test method";
             case RULE_SECURITY_TEST -> "Security-relevant test method";
             case RULE_EMPTY_DISPLAY_NAME -> "@DisplayName annotation with empty string value";
+            case RULE_SECURITY_PLACEBO ->
+                "Security test with interaction-only assertions (placebo test)";
             default -> ruleId.startsWith("security/")
                     ? "Security test: " + ruleId.substring("security/".length())
                     : ruleId;
@@ -274,6 +288,16 @@ final class SarifEmitter implements TestMethodSink {
                 + "CI dashboards, and audit evidence packages. Tests without names are difficult to "
                 + "trace in security audit logs. Replace @DisplayName(\"\") with a meaningful "
                 + "description of what the test verifies.";
+            case RULE_SECURITY_PLACEBO ->
+                "This security test has an interaction score >= 0.8, meaning its assertions "
+                + "primarily verify that methods were called (e.g. Mockito verify(), spy call counts) "
+                + "rather than asserting on return values, thrown exceptions, or observable state. "
+                + "Such tests may give false confidence: the code under test could return wrong data "
+                + "or corrupt state and the test would still pass. "
+                + "Add assertions on security-critical outputs, e.g. "
+                + "assertThat(response.getStatus()).isEqualTo(403), "
+                + "assertThrows(SecurityException.class, ...), "
+                + "or assertThat(audit.getEvents()).contains(expectedEvent).";
             default ->
                 "MethodAtlas detected this test method as security-relevant via AI analysis. "
                 + "Review the suggested @DisplayName and @Tag values in the result message. "
@@ -378,6 +402,30 @@ final class SarifEmitter implements TestMethodSink {
         SarifProperties properties = new SarifProperties(rec.loc(), null, sourceTags,
                 null, null, null, null, null, null, null, null);
         return new SarifResult(RULE_EMPTY_DISPLAY_NAME, LEVEL_NOTE,
+                new SarifMessage(message), List.of(location), properties);
+    }
+
+    private SarifResult buildPlaceboResult(ResultRecord rec) {
+        String artifactUri = filePrefix + rec.fqcn().replace('.', '/') + ".java";
+        SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, null);
+        SarifRegion region = rec.beginLine() > 0 ? new SarifRegion(rec.beginLine()) : null;
+        SarifPhysicalLocation physicalLocation = new SarifPhysicalLocation(artifactLocation, region);
+        SarifLogicalLocation logicalLocation = new SarifLogicalLocation(
+                rec.fqcn() + "." + rec.method(), "member");
+        SarifLocation location = new SarifLocation(physicalLocation, List.of(logicalLocation));
+
+        AiMethodSuggestion s = rec.suggestion();
+        String message = String.format(Locale.ROOT,
+                "Interaction score %.1f: this security test only verifies that methods were called, "
+                + "not what values they returned or what state they produced. "
+                + "Tests that do not assert outcomes cannot catch regressions in security-critical logic. "
+                + "Add assertions on return values, thrown exceptions, or observable state changes.",
+                s.interactionScore());
+
+        String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
+        SarifProperties properties = new SarifProperties(rec.loc(), null, sourceTags,
+                null, null, null, null, s.interactionScore(), null, null, SEVERITY_PLACEBO);
+        return new SarifResult(RULE_SECURITY_PLACEBO, LEVEL_WARNING,
                 new SarifMessage(message), List.of(location), properties);
     }
 
