@@ -153,8 +153,21 @@ The SARIF `level` field distinguishes security-relevant methods from ordinary te
 
 | Level | Condition |
 | --- | --- |
-| `note` | The AI classified the method as security-relevant |
+| `note` | The AI classified the method as security-relevant, or the method carries `@DisplayName("")` |
 | `none` | All other test methods (no AI, or AI returned `securityRelevant=false`) |
+
+### Result messages
+
+Each SARIF result message is written to support professional review without switching tools:
+
+- **Security-relevant method** — the message states the AI's suggested `@DisplayName` and `@Tag` values, the AI reasoning, and — when the interaction score is ≥ 0.8 — a warning that the test may be a placebo. Example:
+  ```
+  AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score 0.9: assertions verify only method calls, not actual outcomes.
+  ```
+- **`annotation/empty-display-name`** — the message names the class and method, explains the impact, and states the corrective action. Example:
+  ```
+  @DisplayName("") on com.acme.util.HelperTest.testHelper is explicitly empty — the test will appear unnamed in CI reports and audit evidence packages. Replace with a meaningful description, e.g. @DisplayName("Verifies that ...").
+  ```
 
 ### Rule IDs
 
@@ -173,7 +186,7 @@ The `annotation/empty-display-name` rule is emitted at level `note` and applies 
 
 Each result carries both a physical and a logical location:
 
-- **Physical location** — artifact URI derived from the FQCN (e.g. `com/acme/LoginTest.java`), relative to `%SRCROOT%`, with the method's start line when available
+- **Physical location** — artifact URI derived from the scan root and the FQCN, producing a path relative to the repository root (e.g. `src/test/java/com/acme/LoginTest.java`). MethodAtlas computes this by combining the scan root path (relative to the current working directory) with the FQCN-derived path, using the same algorithm as the GitHub Annotations emitter. GitHub Code Scanning uses this path to resolve the inline annotation position in the PR diff.
 - **Logical location** — the fully qualified method name (e.g. `com.acme.LoginTest.testLoginWithValidCredentials`) with kind `member`
 
 ### Properties bag
@@ -210,12 +223,16 @@ Properties with `null` or absent values are omitted from the JSON output entirel
             {
               "id": "test-method",
               "name": "TestMethod",
-              "shortDescription": { "text": "JUnit test method" }
+              "shortDescription": { "text": "JUnit test method" },
+              "properties": { "tags": ["test"] },
+              "help": { "text": "MethodAtlas inventories all JUnit test methods found in the scanned source tree. No action required." }
             },
             {
               "id": "security/auth",
               "name": "SecurityAuth",
-              "shortDescription": { "text": "Security test: auth" }
+              "shortDescription": { "text": "Security test: auth" },
+              "properties": { "tags": ["security", "auth"] },
+              "help": { "text": "MethodAtlas detected this test method as security-relevant via AI analysis. Review the suggested @DisplayName and @Tag values in the result message. If correct, apply them by running: ./methodatlas -ai -apply-tags <source-root>." }
             }
           ]
         }
@@ -229,8 +246,7 @@ Properties with `null` or absent values are omitted from the JSON output entirel
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "com/acme/tests/SampleOneTest.java",
-                  "uriBaseId": "%SRCROOT%"
+                  "uri": "src/test/java/com/acme/tests/SampleOneTest.java"
                 },
                 "region": { "startLine": 14 }
               },
@@ -250,13 +266,12 @@ Properties with `null` or absent values are omitted from the JSON output entirel
         {
           "ruleId": "security/auth",
           "level": "note",
-          "message": { "text": "SECURITY: auth - validates session token after login" },
+          "message": { "text": "AI suggests: @DisplayName(\"SECURITY: auth - validates session token after login\") @Tag(\"security\") @Tag(\"auth\"). Reason: Verifies that a valid session token is issued after successful login." },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "com/acme/security/LoginTest.java",
-                  "uriBaseId": "%SRCROOT%"
+                  "uri": "src/test/java/com/acme/security/LoginTest.java"
                 },
                 "region": { "startLine": 22 }
               },

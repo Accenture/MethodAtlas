@@ -531,7 +531,8 @@ public final class MethodAtlasApp {
             boolean aiEnabled, boolean confidenceEnabled,
             JavaParser parser, List<Path> roots, PrintWriter out,
             ClassificationOverride override, AiResultCache aiCache) throws IOException {
-        SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled);
+        String filePrefix = computeFilePrefix(roots);
+        SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix);
         int result = scan(roots, cliConfig, aiEngine, parser,
                 filterSink(sarifEmitter, cliConfig.securityOnly()), override, aiCache);
         sarifEmitter.flush(out);

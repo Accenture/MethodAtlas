@@ -5,6 +5,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -61,7 +62,9 @@ final class SarifEmitter implements TestMethodSink {
     private static final String RULE_EMPTY_DISPLAY_NAME = "annotation/empty-display-name";
     private static final String LEVEL_NOTE = "note";
     private static final String LEVEL_NONE = "none";
-    private static final String URI_BASE_ID = "%SRCROOT%";
+
+    /** Interaction score at or above which a security test is flagged as a potential placebo. */
+    private static final double PLACEBO_THRESHOLD = 0.8;
 
     private static final String SEVERITY_CRITICAL = "9.0";
     private static final String SEVERITY_DESERIALIZATION = "8.5";
@@ -106,6 +109,7 @@ final class SarifEmitter implements TestMethodSink {
 
     private final boolean aiEnabled;
     private final boolean confidenceEnabled;
+    private final String filePrefix;
     private final String toolVersion;
     private final List<ResultRecord> records = new ArrayList<>();
 
@@ -116,10 +120,15 @@ final class SarifEmitter implements TestMethodSink {
      * @param confidenceEnabled whether the {@code aiConfidence} property should
      *                          be included; only meaningful when {@code aiEnabled}
      *                          is {@code true}
+     * @param filePrefix        forward-slash path prefix prepended to every
+     *                          artifact URI to produce a repo-relative path (e.g.
+     *                          {@code "src/test/java/"}); use empty string when
+     *                          the scan root is already the repository root
      */
-    /* default */ SarifEmitter(boolean aiEnabled, boolean confidenceEnabled) {
+    /* default */ SarifEmitter(boolean aiEnabled, boolean confidenceEnabled, String filePrefix) {
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
+        this.filePrefix = filePrefix;
         String v = SarifEmitter.class.getPackage().getImplementationVersion();
         this.toolVersion = v != null ? v : "dev";
     }
@@ -208,7 +217,8 @@ final class SarifEmitter implements TestMethodSink {
         String description = toRuleDescription(ruleId);
         List<String> tags = toRuleTags(ruleId);
         SarifRuleProperties ruleProps = tags.isEmpty() ? null : new SarifRuleProperties(tags);
-        return new SarifRule(ruleId, name, new SarifMessage(description), ruleProps);
+        SarifHelp help = new SarifHelp(toRuleHelp(ruleId));
+        return new SarifRule(ruleId, name, new SarifMessage(description), ruleProps, help);
     }
 
     private static List<String> toRuleTags(String ruleId) {
@@ -253,12 +263,32 @@ final class SarifEmitter implements TestMethodSink {
         };
     }
 
+    private static String toRuleHelp(String ruleId) {
+        return switch (ruleId) {
+            case RULE_TEST_METHOD ->
+                "MethodAtlas inventories all JUnit test methods found in the scanned source tree. "
+                + "This result represents a test method that was not classified as security-relevant "
+                + "by the AI, or that was scanned without AI enrichment enabled. No action is required.";
+            case RULE_EMPTY_DISPLAY_NAME ->
+                "A @DisplayName(\"\") annotation produces an unnamed test entry in JUnit reports, "
+                + "CI dashboards, and audit evidence packages. Tests without names are difficult to "
+                + "trace in security audit logs. Replace @DisplayName(\"\") with a meaningful "
+                + "description of what the test verifies.";
+            default ->
+                "MethodAtlas detected this test method as security-relevant via AI analysis. "
+                + "Review the suggested @DisplayName and @Tag values in the result message. "
+                + "If correct, apply them by running: ./methodatlas -ai -apply-tags <source-root>. "
+                + "An interaction score ≥ 0.8 in the result properties means the test verifies "
+                + "only method calls, not actual outcomes — consider adding outcome assertions.";
+        };
+    }
+
     private SarifResult buildResult(ResultRecord rec, String ruleId) {
         String level = RULE_TEST_METHOD.equals(ruleId) ? LEVEL_NONE : LEVEL_NOTE;
         String messageText = resolveMessageText(rec);
 
-        String artifactUri = rec.fqcn().replace('.', '/') + ".java";
-        SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, URI_BASE_ID);
+        String artifactUri = filePrefix + rec.fqcn().replace('.', '/') + ".java";
+        SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, null);
 
         SarifRegion region = rec.beginLine() > 0 ? new SarifRegion(rec.beginLine()) : null;
         SarifPhysicalLocation physicalLocation = new SarifPhysicalLocation(artifactLocation, region);
@@ -276,10 +306,39 @@ final class SarifEmitter implements TestMethodSink {
 
     private String resolveMessageText(ResultRecord rec) {
         AiMethodSuggestion s = rec.suggestion();
-        if (aiEnabled && s != null && s.displayName() != null && !s.displayName().isBlank()) {
-            return s.displayName();
+        if (s == null || !s.securityRelevant()) {
+            return rec.fqcn() + "." + rec.method();
         }
-        return rec.fqcn() + "." + rec.method();
+
+        StringBuilder sb = new StringBuilder();
+
+        if (s.displayName() != null && !s.displayName().isBlank()) {
+            sb.append("AI suggests: @DisplayName(\"").append(s.displayName()).append("\")");
+        } else {
+            sb.append("AI classifies as security-relevant");
+        }
+        if (s.tags() != null && !s.tags().isEmpty()) {
+            for (String tag : s.tags()) {
+                sb.append(" @Tag(\"").append(tag).append("\")");
+            }
+        }
+        sb.append(".");
+
+        if (s.reason() != null && !s.reason().isBlank()) {
+            String reason = s.reason().strip();
+            sb.append(" Reason: ").append(reason);
+            if (!reason.endsWith(".")) {
+                sb.append(".");
+            }
+        }
+
+        if (s.interactionScore() >= PLACEBO_THRESHOLD) {
+            sb.append(String.format(Locale.ROOT,
+                    " Interaction score %.1f: assertions verify only method calls, not actual outcomes.",
+                    s.interactionScore()));
+        }
+
+        return sb.toString();
     }
 
     private SarifProperties buildProperties(ResultRecord rec, String ruleId) {
@@ -304,15 +363,17 @@ final class SarifEmitter implements TestMethodSink {
     }
 
     private SarifResult buildEmptyDisplayNameResult(ResultRecord rec) {
-        String artifactUri = rec.fqcn().replace('.', '/') + ".java";
-        SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, URI_BASE_ID);
+        String artifactUri = filePrefix + rec.fqcn().replace('.', '/') + ".java";
+        SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, null);
         SarifRegion region = rec.beginLine() > 0 ? new SarifRegion(rec.beginLine()) : null;
         SarifPhysicalLocation physicalLocation = new SarifPhysicalLocation(artifactLocation, region);
         SarifLogicalLocation logicalLocation = new SarifLogicalLocation(
                 rec.fqcn() + "." + rec.method(), "member");
         SarifLocation location = new SarifLocation(physicalLocation, List.of(logicalLocation));
-        String message = "@DisplayName(\"\") declares an empty display name — "
-                + "the test will appear unnamed in reports, obscuring the audit trail";
+        String message = "@DisplayName(\"\") on " + rec.fqcn() + "." + rec.method()
+                + " is explicitly empty — the test will appear unnamed in CI reports and audit "
+                + "evidence packages. Replace with a meaningful description, e.g. "
+                + "@DisplayName(\"Verifies that ...\").";
         return new SarifResult(RULE_EMPTY_DISPLAY_NAME, LEVEL_NOTE,
                 new SarifMessage(message), List.of(location), null);
     }
@@ -368,10 +429,14 @@ final class SarifEmitter implements TestMethodSink {
     private record SarifDriver(String name, String version, List<SarifRule> rules) {
     }
 
-    /** SARIF rule definition with an id, camel-case name, short description, and optional properties. */
+    /** SARIF rule definition with an id, camel-case name, short description, optional properties, and help. */
     @JsonInclude(Include.NON_NULL)
     private record SarifRule(String id, String name, SarifMessage shortDescription,
-            SarifRuleProperties properties) {
+            SarifRuleProperties properties, SarifHelp help) {
+    }
+
+    /** Rule help text shown in Code Scanning when a user expands a finding. */
+    private record SarifHelp(String text) {
     }
 
     /** Rule-level property bag carrying the tag list used by GitHub Code Scanning filters. */
@@ -400,6 +465,7 @@ final class SarifEmitter implements TestMethodSink {
     }
 
     /** SARIF artifact location holding a URI and an optional URI base-id token. */
+    @JsonInclude(Include.NON_NULL)
     private record SarifArtifactLocation(String uri, String uriBaseId) {
     }
 

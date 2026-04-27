@@ -42,7 +42,7 @@ class SarifEmitterTest {
     @DisplayName("flush emits a valid SARIF 2.1.0 document with version and schema")
     @Tag("positive")
     void flush_emitsValidSarif210Document() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode doc = flush(emitter);
@@ -58,7 +58,7 @@ class SarifEmitterTest {
     @DisplayName("flush emits an empty results array when no records have been added")
     @Tag("edge-case")
     void flush_emitsEmptyResultsArrayWhenNoRecords() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         JsonNode doc = flush(emitter);
 
         JsonNode results = doc.path("runs").get(0).path("results");
@@ -70,7 +70,7 @@ class SarifEmitterTest {
     @DisplayName("flush tool driver has name 'MethodAtlas'")
     @Tag("positive")
     void flush_toolDriverHasCorrectName() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         JsonNode doc = flush(emitter);
 
         JsonNode driver = doc.path("runs").get(0).path("tool").path("driver");
@@ -85,7 +85,7 @@ class SarifEmitterTest {
     @DisplayName("non-security method gets level 'none' and ruleId 'test-method'")
     @Tag("positive")
     void flush_nonSecurityMethodGetsLevelNoneAndRuleTestMethod() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode result = getFirstResult(flush(emitter));
@@ -98,7 +98,7 @@ class SarifEmitterTest {
     @DisplayName("non-security method message text is fully qualified method name")
     @Tag("positive")
     void flush_nonSecurityMethodMessageIsFullyQualifiedMethodName() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode result = getFirstResult(flush(emitter));
@@ -115,7 +115,7 @@ class SarifEmitterTest {
     void flush_securityMethodWithAuthTagGetsRuleSecurityAuth() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests login", 0.9, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode result = getFirstResult(flush(emitter));
@@ -125,16 +125,52 @@ class SarifEmitterTest {
     }
 
     @Test
-    @DisplayName("security method displayName from suggestion is used as message text")
+    @DisplayName("security method message contains AI displayName and tag suggestions")
     @Tag("positive")
-    void flush_securityMethodDisplayNameUsedAsMessage() throws Exception {
+    void flush_securityMethodMessageContainsDisplayNameAndTags() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testLogin", true, "SECURITY: auth - login test", List.of("security", "auth"), "Tests login", 1.0, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+                "testLogin", true, "SECURITY: auth - login test", List.of("security", "auth"), "Tests login auth flow.", 1.0, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        JsonNode result = getFirstResult(flush(emitter));
-        assertEquals("SECURITY: auth - login test", result.path("message").path("text").asText());
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertTrue(messageText.contains("SECURITY: auth - login test"),
+                "message should contain AI displayName");
+        assertTrue(messageText.contains("@Tag(\"auth\")"),
+                "message should contain suggested @Tag");
+        assertTrue(messageText.contains("Tests login auth flow"),
+                "message should contain AI reason");
+    }
+
+    @Test
+    @DisplayName("security method with high interaction score warns about placebo in message")
+    @Tag("positive")
+    void flush_securityMethodMessage_highInteractionScore_includesPlaceboWarning() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("auth"), "Verifies login.", 0.9, 0.9);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertTrue(messageText.contains("Interaction score 0.9"),
+                "message should warn about high interaction score");
+        assertTrue(messageText.contains("only method calls"),
+                "message should explain what the score means");
+    }
+
+    @Test
+    @DisplayName("security method without AI displayName falls back to generic classification line")
+    @Tag("positive")
+    void flush_securityMethodMessage_noDisplayName_usesGenericLine() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, null, List.of("auth"), null, 0.8, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertTrue(messageText.contains("AI classifies as security-relevant"),
+                "message should fall back to generic line when displayName is null");
+        assertTrue(messageText.contains("@Tag(\"auth\")"), "message should still include tag suggestion");
     }
 
     @Test
@@ -143,7 +179,7 @@ class SarifEmitterTest {
     void flush_securityMethodWithOnlySecurityTagGetsRuleSecurityTest() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testGeneral", true, "SECURITY: general", List.of("security"), "Security test", 0.7, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.SomeTest", "testGeneral", 1, 3, null, List.of(), null, suggestion);
 
         JsonNode result = getFirstResult(flush(emitter));
@@ -158,20 +194,36 @@ class SarifEmitterTest {
     @DisplayName("artifactLocation uri is derived from FQCN with dots replaced by slashes and .java appended")
     @Tag("positive")
     void flush_artifactUriDerivedFromFqcn() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.auth.AuthTest", "testLogin", 42, 5, null, List.of(), null, null);
 
         JsonNode physLoc = getFirstResult(flush(emitter))
                 .path("locations").get(0).path("physicalLocation");
         assertEquals("com/acme/auth/AuthTest.java", physLoc.path("artifactLocation").path("uri").asText());
-        assertEquals("%SRCROOT%", physLoc.path("artifactLocation").path("uriBaseId").asText());
+        assertTrue(physLoc.path("artifactLocation").path("uriBaseId").isMissingNode(),
+                "uriBaseId should be absent when filePrefix is empty — no %SRCROOT% dangling reference");
+    }
+
+    @Test
+    @DisplayName("artifactLocation uri is prefixed with filePrefix when one is provided")
+    @Tag("positive")
+    void flush_artifactUri_includesFilePrefix() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(false, false, "src/test/java/");
+        emitter.record("com.acme.auth.AuthTest", "testLogin", 42, 5, null, List.of(), null, null);
+
+        JsonNode physLoc = getFirstResult(flush(emitter))
+                .path("locations").get(0).path("physicalLocation");
+        assertEquals("src/test/java/com/acme/auth/AuthTest.java",
+                physLoc.path("artifactLocation").path("uri").asText());
+        assertTrue(physLoc.path("artifactLocation").path("uriBaseId").isMissingNode(),
+                "uriBaseId should be absent when filePrefix is provided");
     }
 
     @Test
     @DisplayName("region startLine is present when beginLine is positive")
     @Tag("positive")
     void flush_regionStartLinePresent_whenBeginLinePositive() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 42, 5, null, List.of(), null, null);
 
         JsonNode physLoc = getFirstResult(flush(emitter))
@@ -183,7 +235,7 @@ class SarifEmitterTest {
     @DisplayName("region is absent when beginLine is zero")
     @Tag("edge-case")
     void flush_regionAbsent_whenBeginLineZero() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 0, 5, null, List.of(), null, null);
 
         JsonNode physLoc = getFirstResult(flush(emitter))
@@ -195,7 +247,7 @@ class SarifEmitterTest {
     @DisplayName("logicalLocation contains fully qualified method name and kind 'member'")
     @Tag("positive")
     void flush_logicalLocationContainsFqmn() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode logLoc = getFirstResult(flush(emitter))
@@ -212,7 +264,7 @@ class SarifEmitterTest {
     @DisplayName("properties bag contains loc with correct value")
     @Tag("positive")
     void flush_propertiesContainLoc() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 7, null, List.of(), null, null);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -223,7 +275,7 @@ class SarifEmitterTest {
     @DisplayName("properties bag contains sourceTags joined by semicolon when tags are present")
     @Tag("positive")
     void flush_propertiesContainSourceTags_whenPresent() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of("security", "auth"), null, null);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -234,7 +286,7 @@ class SarifEmitterTest {
     @DisplayName("properties bag sourceTags is absent when tags list is empty")
     @Tag("edge-case")
     void flush_sourceTagsAbsent_whenEmpty() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -247,7 +299,7 @@ class SarifEmitterTest {
     void flush_propertiesContainAiFields_whenAiEnabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests login auth", 0.9, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -263,7 +315,7 @@ class SarifEmitterTest {
     void flush_aiConfidenceAbsent_whenConfidenceDisabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "reason", 0.9, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false); // confidenceEnabled=false
+        SarifEmitter emitter = new SarifEmitter(true, false, ""); // confidenceEnabled=false
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -276,7 +328,7 @@ class SarifEmitterTest {
     void flush_aiConfidencePresent_whenConfidenceEnabled() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "reason", 0.85, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, true); // confidenceEnabled=true
+        SarifEmitter emitter = new SarifEmitter(true, true, ""); // confidenceEnabled=true
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -297,7 +349,7 @@ class SarifEmitterTest {
         AiMethodSuggestion authSuggestion2 = new AiMethodSuggestion(
                 "testLogout", true, null, List.of("security", "auth"), null, 1.0, 0.0);
 
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), "", authSuggestion);
         emitter.record("com.acme.AuthTest", "testLogout", 20, 6, null, List.of(), "", authSuggestion2);
 
@@ -318,7 +370,7 @@ class SarifEmitterTest {
     @DisplayName("all three records are emitted when three methods are recorded")
     @Tag("positive")
     void flush_multipleResultsAllEmitted() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testA", 1, 3, null, List.of(), null, null);
         emitter.record("com.acme.FooTest", "testB", 10, 5, null, List.of(), null, null);
         emitter.record("com.acme.BarTest", "testC", 1, 2, null, List.of(), null, null);
@@ -337,7 +389,7 @@ class SarifEmitterTest {
     void flush_tagAiDriftNone_whenBothAgreeSecurityRelevant() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "Login security", List.of("auth"), "Tests auth", 0.9, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of("security"), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -350,7 +402,7 @@ class SarifEmitterTest {
     void flush_tagAiDriftAiOnly_whenAiSecurityButNoSourceTag() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "Login security", List.of("auth"), "Tests auth", 0.9, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -363,7 +415,7 @@ class SarifEmitterTest {
     void flush_tagAiDriftTagOnly_whenSourceTagButAiDisagrees() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testFoo", false, "Format check", List.of(), "Not security", 0.1, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of("security"), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -374,7 +426,7 @@ class SarifEmitterTest {
     @DisplayName("tagAiDrift is absent from properties when AI is disabled")
     @Tag("edge-case")
     void flush_tagAiDriftAbsent_whenAiDisabled() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of("security"), null, null);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -386,7 +438,7 @@ class SarifEmitterTest {
     @DisplayName("tagAiDrift is absent from properties when suggestion is null even if AI is enabled")
     @Tag("edge-case")
     void flush_tagAiDriftAbsent_whenSuggestionNull() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of("security"), null, null);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -402,7 +454,7 @@ class SarifEmitterTest {
     @DisplayName("contentHash is absent from properties when null is passed")
     @Tag("edge-case")
     void contentHash_absentFromPropertiesWhenNull() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode properties = getFirstResult(flush(emitter)).path("properties");
@@ -415,7 +467,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void contentHash_presentInPropertiesWhenProvided() throws Exception {
         String hash = "a".repeat(64); // simulate a 64-char hex string
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, hash, List.of(), null, null);
 
         JsonNode properties = getFirstResult(flush(emitter)).path("properties");
@@ -431,7 +483,7 @@ class SarifEmitterTest {
     @Tag("positive")
     @Tag("security")
     void flush_securitySeverityAbsent_forNonSecurityMethod() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -446,7 +498,7 @@ class SarifEmitterTest {
     void flush_securitySeverityIsHigh_forAuthTag() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "Login test", List.of("security", "auth"), "Tests auth", 0.9, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -460,7 +512,7 @@ class SarifEmitterTest {
     void flush_securitySeverityIsCritical_forInjectionTag() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testSqlInjection", true, "SQL injection test", List.of("security", "injection"), "reason", 0.95, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.SqlTest", "testSqlInjection", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -474,7 +526,7 @@ class SarifEmitterTest {
     void flush_securitySeverityDefaultsMedium_forUnknownTag() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testSomething", true, "Security test", List.of("security"), "reason", 0.8, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.SomeTest", "testSomething", 5, 4, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -489,7 +541,7 @@ class SarifEmitterTest {
         // so we use an AI suggestion but with aiEnabled=false to get security-test rule via source tags
         // Actually without AI, all become test-method → security-severity absent.
         // This test verifies the no-AI / security-test path doesn't apply (ruleId = test-method).
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.SomeTest", "testSomething", 5, 4, null, List.of("security"), null, null);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
@@ -509,7 +561,7 @@ class SarifEmitterTest {
     void flush_securityAuthRuleHasTags() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "Login test", List.of("security", "auth"), "reason", 0.9, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
@@ -531,10 +583,52 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("security/auth rule has a non-empty help.text field")
+    @Tag("positive")
+    @Tag("security")
+    void flush_securityAuthRuleHasHelpText() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Login test", List.of("security", "auth"), "reason", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
+        JsonNode authRule = null;
+        for (JsonNode rule : rules) {
+            if ("security/auth".equals(rule.path("id").asText())) {
+                authRule = rule;
+            }
+        }
+        assertNotNull(authRule, "security/auth rule should exist");
+        String helpText = authRule.path("help").path("text").asText();
+        assertFalse(helpText.isEmpty(), "rule.help.text should be non-empty");
+        assertTrue(helpText.contains("apply-tags"), "help text should mention apply-tags action");
+    }
+
+    @Test
+    @DisplayName("test-method rule has a non-empty help.text field")
+    @Tag("positive")
+    void flush_testMethodRuleHasHelpText() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
+        emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
+
+        JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
+        JsonNode testRule = null;
+        for (JsonNode rule : rules) {
+            if ("test-method".equals(rule.path("id").asText())) {
+                testRule = rule;
+            }
+        }
+        assertNotNull(testRule, "test-method rule should exist");
+        assertFalse(testRule.path("help").path("text").asText().isEmpty(),
+                "test-method rule.help.text should be non-empty");
+    }
+
+    @Test
     @DisplayName("test-method rule has properties.tags containing 'test'")
     @Tag("positive")
     void flush_testMethodRuleHasTestTag() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
@@ -564,7 +658,7 @@ class SarifEmitterTest {
     @DisplayName("@DisplayName(\"\") on a method produces an additional annotation/empty-display-name result")
     @Tag("positive")
     void flush_emptyDisplayName_producesEmptyDisplayNameFinding() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), "", null);
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
@@ -575,7 +669,10 @@ class SarifEmitterTest {
             if ("annotation/empty-display-name".equals(result.path("ruleId").asText())) {
                 hasEmptyDisplayNameRule = true;
                 assertEquals("note", result.path("level").asText());
-                assertTrue(result.path("message").path("text").asText().contains("empty display name"));
+                String msg = result.path("message").path("text").asText();
+                assertTrue(msg.contains("explicitly empty") || msg.contains("empty display name"),
+                        "message should describe the empty annotation problem");
+                assertTrue(msg.contains("com.acme.FooTest"), "message should identify the class");
             }
         }
         assertTrue(hasEmptyDisplayNameRule, "annotation/empty-display-name result should be present");
@@ -585,7 +682,7 @@ class SarifEmitterTest {
     @DisplayName("annotation/empty-display-name rule is registered in the driver rules list")
     @Tag("positive")
     void flush_emptyDisplayName_ruleRegisteredInDriver() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), "", null);
 
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
@@ -607,7 +704,7 @@ class SarifEmitterTest {
     @DisplayName("absent @DisplayName (null) does not produce annotation/empty-display-name result")
     @Tag("positive")
     void flush_nullDisplayName_noEmptyDisplayNameFinding() throws Exception {
-        SarifEmitter emitter = new SarifEmitter(false, false);
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
@@ -621,7 +718,7 @@ class SarifEmitterTest {
     void flush_emptyDisplayNameOnSecurityMethod_producesBothResults() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests auth", 0.9, 0.0);
-        SarifEmitter emitter = new SarifEmitter(true, false);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), "", suggestion);
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
