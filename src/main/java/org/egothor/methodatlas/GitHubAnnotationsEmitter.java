@@ -73,7 +73,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
         boolean isPlacebo = suggestion.interactionScore() >= PLACEBO_THRESHOLD;
         String level = isPlacebo ? "warning" : "notice";
 
-        String title = suggestion.displayName() != null && !suggestion.displayName().isEmpty()
+        String title = suggestion.displayName() != null && !suggestion.displayName().isBlank()
                 ? suggestion.displayName()
                 : fqcn + "#" + method;
 
