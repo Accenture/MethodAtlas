@@ -290,9 +290,9 @@ class DeltaReportTest {
     }
 
     @Test
-    @DisplayName("display_name absent from one file is not reported as MODIFIED")
+    @DisplayName("display_name column absent in before vs non-empty value in after is reported as MODIFIED")
     @Tag("positive")
-    void compute_displayNameAbsentInOne_notReportedAsModified(@TempDir Path tmp) throws IOException {
+    void compute_displayNameAbsentInBeforeValueInAfter_reportedAsModified(@TempDir Path tmp) throws IOException {
         Path before = write(tmp, "before.csv", """
                 fqcn,method,loc,tags
                 com.acme.FooTest,test_one,5,
@@ -304,8 +304,27 @@ class DeltaReportTest {
 
         DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
 
+        assertEquals(1, result.modifiedCount());
+        assertTrue(result.entries().get(0).changedFields().contains("display_name"));
+    }
+
+    @Test
+    @DisplayName("display_name column absent in before vs empty in after is not reported as MODIFIED")
+    @Tag("positive")
+    void compute_displayNameAbsentInBeforeEmptyInAfter_notReportedAsModified(@TempDir Path tmp) throws IOException {
+        Path before = write(tmp, "before.csv", """
+                fqcn,method,loc,tags
+                com.acme.FooTest,test_one,5,
+                """);
+        Path after = write(tmp, "after.csv", """
+                fqcn,method,loc,tags,display_name
+                com.acme.FooTest,test_one,5,,
+                """);
+
+        DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
+
         assertTrue(result.entries().isEmpty(),
-                "no change should be reported when display_name column is absent from one file");
+                "null (column absent) and empty string (no annotation) are both 'no annotation'");
     }
 
     @Test

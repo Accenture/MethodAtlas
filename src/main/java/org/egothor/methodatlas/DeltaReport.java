@@ -47,9 +47,11 @@ import java.util.Set;
  * <ul>
  * <li>{@code loc} — lines of code; always compared</li>
  * <li>{@code tags} — JUnit {@code @Tag} set; always compared (order-independent)</li>
- * <li>{@code display_name} — {@code @DisplayName} annotation value; compared only
- *     when both records have a non-{@code null} value (i.e., both CSVs contain
- *     the {@code display_name} column); empty string means the annotation is absent</li>
+ * <li>{@code display_name} — {@code @DisplayName} annotation value; always compared;
+ *     {@code null} (column absent from the CSV) and {@code ""} (column present but
+ *     no annotation on the method) are both treated as "no annotation" and considered
+ *     equal, so comparing an old-format file against a new-format file does not
+ *     produce false positives for methods that have no annotation in either scan</li>
  * <li>{@code content_hash} — source fingerprint; compared only when both records
  *     have a non-{@code null} value (i.e., both scans were run with
  *     {@code -content-hash}); a hash difference indicates the enclosing class
@@ -406,7 +408,9 @@ public final class DeltaReport {
         if (!tagsEqual(before.tags(), after.tags())) {
             changed.add("tags");
         }
-        addIfBothPresentAndChanged(changed, "display_name", before.displayName(), after.displayName());
+        if (!displayNameEqual(before.displayName(), after.displayName())) {
+            changed.add("display_name");
+        }
         addIfBothPresentAndChanged(changed, "source", before.contentHash(), after.contentHash());
         addIfBothPresentAndChanged(changed, "ai_security_relevant",
                 before.aiSecurityRelevant(), after.aiSecurityRelevant());
@@ -435,6 +439,18 @@ public final class DeltaReport {
 
     private static boolean tagsEqual(List<String> a, List<String> b) {
         return new HashSet<>(a).equals(new HashSet<>(b));
+    }
+
+    /**
+     * Returns {@code true} when two {@code display_name} values are semantically
+     * equal. {@code null} (column absent from the CSV) and {@code ""} (column
+     * present but no {@code @DisplayName} annotation) both mean "no annotation",
+     * so they are treated as equal. Any non-empty value must match exactly.
+     */
+    private static boolean displayNameEqual(String a, String b) {
+        String normalA = a == null ? "" : a;
+        String normalB = b == null ? "" : b;
+        return normalA.equals(normalB);
     }
 
     // -------------------------------------------------------------------------
