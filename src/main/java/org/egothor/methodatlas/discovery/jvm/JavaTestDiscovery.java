@@ -203,7 +203,7 @@ public final class JavaTestDiscovery implements TestDiscovery {
      * @param fqcn  fully qualified class name of the class in {@code file}
      * @return dot-separated file stem; never {@code null}
      */
-    static String buildFileStem(Path root, Path file, String fqcn) {
+    /* default */ static String buildFileStem(Path root, Path file, String fqcn) {
         Path rel = root.toAbsolutePath().normalize()
                 .relativize(file.toAbsolutePath().normalize());
         String pathStr = rel.toString().replace('\\', '/').replace('/', '.');

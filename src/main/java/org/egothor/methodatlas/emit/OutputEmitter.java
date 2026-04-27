@@ -131,6 +131,7 @@ public final class OutputEmitter {
      * @param sourceRoot  CWD-relative path of the scan root, or {@code null}
      *                    when {@code -emit-source-root} is not enabled
      */
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void emit(OutputMode mode, String fqcn, String method, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourceRoot) {
         if (mode == OutputMode.PLAIN) {

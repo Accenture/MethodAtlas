@@ -12,7 +12,6 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.egothor.methodatlas.ai.AiClassSuggestion;
@@ -516,6 +516,8 @@ public final class MethodAtlasApp {
         int displayNamesAdded = 0;
         int tagsAdded = 0;
 
+        AiRuntime ai = new AiRuntime(cliConfig.aiOptions(), aiEngine, override, aiCache);
+
         for (ClassOrInterfaceDeclaration clazz : cu.findAll(ClassOrInterfaceDeclaration.class)) {
             String fqcn = buildFqcn(packageName, clazz.getNameAsString());
             String fileStem = buildFileStem(root, path, fqcn);
@@ -525,7 +527,7 @@ public final class MethodAtlasApp {
             List<String> methodNames = testMethods.stream().map(MethodDeclaration::getNameAsString).toList();
             List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
             SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, fqcn, classSource,
-                    methodNames, targetMethods, cliConfig.aiOptions(), aiEngine, override, aiCache, lookupHash);
+                    methodNames, targetMethods, ai, lookupHash);
 
             TagApplier.ClassResult result = TagApplier.applyToClass(clazz, suggestionLookup,
                     effective);
@@ -672,7 +674,6 @@ public final class MethodAtlasApp {
      * @return {@code true} if any file produced a parse or processing error
      * @throws IOException if traversing the file tree fails
      */
-    @SuppressWarnings("PMD.ExcessiveParameterList")
     private static boolean runDiscovery(Path root, JavaTestDiscovery discovery,
             AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
             boolean contentHashEnabled, ClassificationOverride override,
@@ -680,10 +681,11 @@ public final class MethodAtlasApp {
 
         List<DiscoveredMethod> methods = discovery.discover(root).toList();
 
-        Map<String, List<DiscoveredMethod>> byClass = new LinkedHashMap<>();
-        for (DiscoveredMethod m : methods) {
-            byClass.computeIfAbsent(m.fqcn(), k -> new ArrayList<>()).add(m);
-        }
+        Map<String, List<DiscoveredMethod>> byClass = methods.stream()
+                .collect(Collectors.groupingBy(DiscoveredMethod::fqcn,
+                        LinkedHashMap::new, Collectors.toList()));
+
+        AiRuntime ai = new AiRuntime(aiOptions, aiEngine, override, aiCache);
 
         for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
             String fqcn = entry.getKey();
@@ -698,14 +700,11 @@ public final class MethodAtlasApp {
             String fileStem = classMethods.get(0).fileStem();
             List<String> methodNames = classMethods.stream().map(DiscoveredMethod::method).toList();
             List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
-                    .map(m -> new PromptBuilder.TargetMethod(m.method(),
-                            m.beginLine() > 0 ? m.beginLine() : null,
-                            m.endLine() > 0 ? m.endLine() : null))
+                    .map(MethodAtlasApp::toTargetMethod)
                     .toList();
 
             SuggestionLookup suggestions = resolveSuggestionLookup(
-                    fileStem, fqcn, classSource, methodNames, targetMethods,
-                    aiOptions, aiEngine, override, aiCache, lookupHash);
+                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash);
 
             for (DiscoveredMethod m : classMethods) {
                 sink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
@@ -932,6 +931,17 @@ public final class MethodAtlasApp {
     }
 
     /**
+     * Bundles the AI infrastructure that is constant for the duration of a scan run.
+     *
+     * @param options  AI configuration
+     * @param engine   AI engine; {@code null} when AI is disabled
+     * @param override human classification overrides
+     * @param cache    AI result cache
+     */
+    private record AiRuntime(AiOptions options, AiSuggestionEngine engine,
+            ClassificationOverride override, AiResultCache cache) {}
+
+    /**
      * Resolves method-level AI suggestions for a class.
      *
      * <p>
@@ -949,43 +959,38 @@ public final class MethodAtlasApp {
      *                      {@code null} when source is unavailable
      * @param methodNames   names of discovered test methods
      * @param targetMethods prompt target descriptors for the test methods
-     * @param aiOptions     AI configuration for the current run
-     * @param aiEngine      AI engine used to produce suggestions; {@code null} when
-     *                      AI is disabled
-     * @param override      human classification overrides to apply after AI results
-     * @param aiCache       AI result cache
+     * @param ai            AI infrastructure for this scan run
      * @param contentHash   hash of the class source for cache lookup; may be
      *                      {@code null}
      * @return lookup of AI suggestions keyed by method name; never {@code null}
      */
     private static SuggestionLookup resolveSuggestionLookup(String fileStem, String fqcn,
             String classSource, List<String> methodNames, List<PromptBuilder.TargetMethod> targetMethods,
-            AiOptions aiOptions, AiSuggestionEngine aiEngine,
-            ClassificationOverride override, AiResultCache aiCache, String contentHash) {
+            AiRuntime ai, String contentHash) {
         if (methodNames.isEmpty()) {
             return SuggestionLookup.from(null);
         }
 
-        if (aiEngine == null) {
-            return SuggestionLookup.from(override.apply(fqcn, null, methodNames));
+        if (ai.engine() == null) {
+            return SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames));
         }
 
         // Check the cache before making an API call.
-        AiClassSuggestion cached = aiCache.lookup(contentHash).orElse(null);
+        AiClassSuggestion cached = ai.cache().lookup(contentHash).orElse(null);
         if (cached != null) {
-            return SuggestionLookup.from(override.apply(fqcn, cached, methodNames));
+            return SuggestionLookup.from(ai.override().apply(fqcn, cached, methodNames));
         }
 
         if (classSource == null) {
-            return SuggestionLookup.from(override.apply(fqcn, null, methodNames));
+            return SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames));
         }
 
-        if (aiOptions.enabled() && classSource.length() > aiOptions.maxClassChars()) {
+        if (ai.options().enabled() && classSource.length() > ai.options().maxClassChars()) {
             if (LOG.isLoggable(Level.INFO)) {
                 LOG.log(Level.INFO, "Skipping AI for {0}: class source too large ({1} chars)",
                         new Object[] { fqcn, classSource.length() });
             }
-            return SuggestionLookup.from(override.apply(fqcn, null, methodNames));
+            return SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames));
         }
 
         if (LOG.isLoggable(Level.INFO)) {
@@ -993,13 +998,13 @@ public final class MethodAtlasApp {
         }
 
         try {
-            AiClassSuggestion aiClassSuggestion = aiEngine.suggestForClass(fileStem, fqcn, classSource, targetMethods);
-            return SuggestionLookup.from(override.apply(fqcn, aiClassSuggestion, methodNames));
+            AiClassSuggestion aiClassSuggestion = ai.engine().suggestForClass(fileStem, fqcn, classSource, targetMethods);
+            return SuggestionLookup.from(ai.override().apply(fqcn, aiClassSuggestion, methodNames));
         } catch (AiSuggestionException e) {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING, "AI suggestion failed for class " + fqcn, e);
             }
-            return SuggestionLookup.from(override.apply(fqcn, null, methodNames));
+            return SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames));
         }
     }
 
@@ -1037,6 +1042,20 @@ public final class MethodAtlasApp {
                         method.getRange().map(range -> range.begin.line).orElse(null),
                         method.getRange().map(range -> range.end.line).orElse(null)))
                 .toList();
+    }
+
+    /**
+     * Converts a single discovered test method into a prompt target descriptor.
+     *
+     * @param m discovered test method
+     * @return corresponding prompt target descriptor; never {@code null}
+     * @see PromptBuilder.TargetMethod
+     */
+    private static PromptBuilder.TargetMethod toTargetMethod(DiscoveredMethod m) {
+        return new PromptBuilder.TargetMethod(
+                m.method(),
+                m.beginLine() > 0 ? m.beginLine() : null,
+                m.endLine() > 0 ? m.endLine() : null);
     }
 
     /**

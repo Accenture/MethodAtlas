@@ -131,6 +131,7 @@ public final class GitHubAnnotationsEmitter implements TestMethodSink {
     /**
      * Formats a GitHub Actions workflow command line.
      */
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public static String formatCommand(String level, String filePath, int beginLine,
             String title, String message) {
         StringBuilder cmd = new StringBuilder(128);
