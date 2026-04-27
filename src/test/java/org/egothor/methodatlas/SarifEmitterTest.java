@@ -738,7 +738,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_emptyDisplayNameOnSecurityMethod_producesBothResults() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests auth", 0.9, 0.0);
+                "testLogin", true, "SECURITY: auth - login", List.of("security", "auth"), "Tests auth", 0.0, 0.9);
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), "", suggestion);
 
@@ -758,7 +758,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_securityMethodWithHighInteractionScore_producesPlaceboResult() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.85, 0.9);
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
 
@@ -791,7 +791,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_securityMethodWithLowInteractionScore_noPlaceboResult() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.5, 0.9);
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.5);
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
 
@@ -820,7 +820,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_placeboResult_hasLevelWarning() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.85, 0.9);
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
 
@@ -839,7 +839,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_placeboResult_propertiesContainInteractionScore() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.85, 0.9);
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
 
@@ -859,7 +859,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_placeboResult_messageContainsInteractionScore() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.85, 0.9);
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
 
@@ -879,7 +879,7 @@ class SarifEmitterTest {
     @Tag("positive")
     void flush_placeboResult_ruleIsRegistered() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
-                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.9, 0.85);
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.85, 0.9);
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
 
