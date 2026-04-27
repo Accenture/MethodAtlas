@@ -270,7 +270,7 @@ Properties with `null` or absent values are omitted from the JSON output entirel
               "name": "SecurityAuth",
               "shortDescription": { "text": "Security test: auth" },
               "properties": { "tags": ["security", "auth"] },
-              "help": { "text": "MethodAtlas detected this test method as security-relevant via AI analysis. Review the suggested @DisplayName and @Tag values in the result message. If correct, apply them by running: ./methodatlas -ai -apply-tags <source-root>." }
+              "help": { "text": "MethodAtlas detected this test method as security-relevant via AI analysis. Review the suggested @DisplayName and @Tag values in the result message. If correct, apply them by running: ./methodatlas -ai -apply-tags SOURCE_ROOT." }
             }
           ]
         }

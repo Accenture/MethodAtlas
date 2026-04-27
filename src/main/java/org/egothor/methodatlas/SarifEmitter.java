@@ -301,7 +301,7 @@ final class SarifEmitter implements TestMethodSink {
             default ->
                 "MethodAtlas detected this test method as security-relevant via AI analysis. "
                 + "Review the suggested @DisplayName and @Tag values in the result message. "
-                + "If correct, apply them by running: ./methodatlas -ai -apply-tags <source-root>. "
+                + "If correct, apply them by running: ./methodatlas -ai -apply-tags SOURCE_ROOT. "
                 + "An interaction score ≥ 0.8 in the result properties means the test verifies "
                 + "only method calls, not actual outcomes — consider adding outcome assertions.";
         };
