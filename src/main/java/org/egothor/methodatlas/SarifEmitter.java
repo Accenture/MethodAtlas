@@ -374,8 +374,11 @@ final class SarifEmitter implements TestMethodSink {
                 + " is explicitly empty — the test will appear unnamed in CI reports and audit "
                 + "evidence packages. Replace with a meaningful description, e.g. "
                 + "@DisplayName(\"Verifies that ...\").";
+        String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
+        SarifProperties properties = new SarifProperties(rec.loc(), null, sourceTags,
+                null, null, null, null, null, null, null, null);
         return new SarifResult(RULE_EMPTY_DISPLAY_NAME, LEVEL_NOTE,
-                new SarifMessage(message), List.of(location), null);
+                new SarifMessage(message), List.of(location), properties);
     }
 
     private static String resolveSecuritySeverity(String ruleId, AiMethodSuggestion suggestion) {

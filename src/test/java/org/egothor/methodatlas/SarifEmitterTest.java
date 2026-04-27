@@ -701,6 +701,27 @@ class SarifEmitterTest {
     }
 
     @Test
+    @DisplayName("annotation/empty-display-name result has loc in properties")
+    @Tag("positive")
+    void flush_emptyDisplayName_resultHasLocInProperties() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
+        emitter.record("com.acme.FooTest", "testFoo", 10, 7, null, List.of("security"), "", null);
+
+        JsonNode results = flush(emitter).path("runs").get(0).path("results");
+        JsonNode emptyDnResult = null;
+        for (JsonNode r : results) {
+            if ("annotation/empty-display-name".equals(r.path("ruleId").asText())) {
+                emptyDnResult = r;
+            }
+        }
+        assertNotNull(emptyDnResult, "annotation/empty-display-name result should be present");
+        assertEquals(7, emptyDnResult.path("properties").path("loc").asInt(),
+                "loc should be present in annotation/empty-display-name properties");
+        assertEquals("security", emptyDnResult.path("properties").path("sourceTags").asText(),
+                "sourceTags should be present when method has source tags");
+    }
+
+    @Test
     @DisplayName("absent @DisplayName (null) does not produce annotation/empty-display-name result")
     @Tag("positive")
     void flush_nullDisplayName_noEmptyDisplayNameFinding() throws Exception {

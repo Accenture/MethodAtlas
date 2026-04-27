@@ -61,7 +61,9 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
             out.println(formatCommand("notice", filePath, beginLine,
                     "@DisplayName(\"\") on " + fqcn + "#" + method,
                     "@DisplayName(\"\") declares an empty display name — "
-                            + "the test will appear unnamed in reports, obscuring the audit trail"));
+                            + "the test will appear unnamed in reports, obscuring the audit trail. "
+                            + "Replace with a meaningful description, "
+                            + "e.g. @DisplayName(\"Verifies that ...\")."));
         }
 
         if (suggestion == null || !suggestion.securityRelevant()) {
@@ -82,13 +84,30 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
     }
 
     private static String buildMessage(AiMethodSuggestion suggestion, boolean isPlacebo, TagAiDrift drift) {
-        StringBuilder sb = new StringBuilder(256);
+        StringBuilder sb = new StringBuilder(512);
+
+        if (suggestion.displayName() != null && !suggestion.displayName().isBlank()) {
+            sb.append("Suggested @DisplayName: \"").append(suggestion.displayName()).append("\"");
+        }
         if (!suggestion.tags().isEmpty()) {
-            sb.append("Tags: ").append(String.join(";", suggestion.tags()));
+            if (sb.length() > 0) {
+                sb.append(" · ");
+            }
+            sb.append("Suggested @Tag: ").append(String.join(", ", suggestion.tags()));
+        }
+        if (suggestion.reason() != null && !suggestion.reason().isBlank()) {
+            if (sb.length() > 0) {
+                sb.append(" · ");
+            }
+            String reason = suggestion.reason().strip();
+            sb.append("Reason: ").append(reason);
+            if (!reason.endsWith(".")) {
+                sb.append(".");
+            }
         }
         if (isPlacebo) {
             if (sb.length() > 0) {
-                sb.append(" \u00b7 ");
+                sb.append(" · ");
             }
             sb.append("Interaction score ")
               .append(String.format("%.1f", suggestion.interactionScore()))
@@ -96,12 +115,12 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
         }
         if (drift == TagAiDrift.TAG_ONLY) {
             if (sb.length() > 0) {
-                sb.append(" \u00b7 ");
+                sb.append(" · ");
             }
             sb.append("Drift: @Tag(\"security\") present but AI disagrees — annotation may be stale");
         } else if (drift == TagAiDrift.AI_ONLY) {
             if (sb.length() > 0) {
-                sb.append(" \u00b7 ");
+                sb.append(" · ");
             }
             sb.append("Drift: AI classifies as security-relevant but no @Tag(\"security\") in source");
         }

@@ -229,7 +229,7 @@ class GitHubAnnotationsEmitterTest {
     void record_tagsIncludedInMessage() {
         String output = recordSecurityMethod(0.3, "Auth", List.of("security", "auth"), "");
 
-        assertTrue(output.contains("Tags: security;auth"), "Tags should appear in message");
+        assertTrue(output.contains("Suggested @Tag: security, auth"), "Tags should appear as suggested @Tag in message");
     }
 
     @Test
@@ -250,11 +250,15 @@ class GitHubAnnotationsEmitterTest {
     }
 
     @Test
-    void record_emptyTagsAndNonPlacebo_withMatchingSourceTag_messageIsSecurityTest() {
-        // source tag agrees with AI → NONE drift → fallback "Security test" applies
+    void record_emptyTagsAndNonPlacebo_withMatchingSourceTag_noDriftInMessage() {
+        // source tag agrees with AI → NONE drift → no drift noise in message
         String output = recordMethodWithSourceTags(true, List.of("security"), List.of(), "");
 
-        assertTrue(output.endsWith("::Security test"), "Default message should be 'Security test' when drift is none");
+        assertFalse(output.contains("annotation may be stale"), "NONE drift should produce no stale-annotation text");
+        assertFalse(output.contains("AI classifies as security-relevant but no"),
+                "NONE drift should produce no missing-tag text");
+        // displayName from AI suggestion ("Security test") should appear
+        assertTrue(output.contains("Security test"), "AI displayName should appear in message");
     }
 
     // -------------------------------------------------------------------------
