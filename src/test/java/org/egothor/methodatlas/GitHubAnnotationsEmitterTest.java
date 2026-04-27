@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -455,6 +456,64 @@ class GitHubAnnotationsEmitterTest {
     void computeFilePrefix_usesForwardSlashes(@TempDir Path tempDir) {
         String prefix = MethodAtlasApp.computeFilePrefix(List.of(tempDir));
         assertFalse(prefix.contains("\\"), "Prefix should use forward slashes only");
+    }
+
+    // -------------------------------------------------------------------------
+    // Edge cases — buildMessage fallback and blank displayName
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("all optional message fields absent: message falls back to 'Security test'")
+    @Tag("edge-case")
+    void record_allOptionalFieldsAbsent_messageIsSecurityTestFallback() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
+
+        // null displayName, empty tags, null reason, low interaction score (non-placebo)
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testFoo", true, null, List.of(), null, 0.9, 0.0);
+        emitter.record("com.acme.FooTest", "testFoo", 5, 3, null, List.of("security"), null, suggestion);
+
+        String output = baos.toString(StandardCharsets.UTF_8).trim();
+        // Message should be the fallback "Security test"
+        assertTrue(output.contains("Security test"),
+                "message should fall back to 'Security test' when all optional fields absent: " + output);
+    }
+
+    @Test
+    @DisplayName("blank (whitespace-only) displayName in suggestion is treated as absent for title selection")
+    @Tag("edge-case")
+    void record_blankDisplayNameInSuggestion_titleFallsBackToFqcnMethod() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
+
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testFoo", true, "   ", List.of(), null, 0.9, 0.0);
+        emitter.record("com.acme.FooTest", "testFoo", 5, 3, null, List.of("security"), null, suggestion);
+
+        String output = baos.toString(StandardCharsets.UTF_8).trim();
+        // title= in the annotation command should use fqcn#method, not the whitespace displayName
+        assertTrue(output.contains("com.acme.FooTest#testFoo"),
+                "blank displayName should fall back to fqcn#method as title: " + output);
+    }
+
+    @Test
+    @DisplayName("escapeParam: percent-sign followed by already-encoded sequence is double-encoded")
+    @Tag("edge-case")
+    void escapeParam_percentInPercentEncoded_doubleEncoded() {
+        // %25 in input → % replaced first → %2525
+        assertEquals("%2525", GitHubAnnotationsEmitter.escapeParam("%25"),
+                "%25 should become %2525 (percent is always replaced first)");
+    }
+
+    @Test
+    @DisplayName("escapeMessage does not encode colon characters")
+    @Tag("positive")
+    void escapeMessage_colonCharacter_notEncoded() {
+        assertEquals("Tag: security", GitHubAnnotationsEmitter.escapeMessage("Tag: security"),
+                "colon should not be encoded in message part");
     }
 
     // -------------------------------------------------------------------------

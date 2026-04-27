@@ -568,6 +568,84 @@ class OutputEmitterTest {
     }
 
     // -------------------------------------------------------------------------
+    // Edge cases — blank/whitespace reason in AI suggestion
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("emit PLAIN mode: blank-whitespace reason shows '-' for AI_REASON")
+    @Tag("edge-case")
+    void emit_plainMode_blankReason_reasonShowsDash() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testFoo", true, "SECURITY: auth", List.of("security", "auth"), "   ", 0.9, 0.0);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 5, null,
+                        List.of(), null, suggestion, null),
+                true, false, false).trim();
+        assertTrue(output.contains("AI_REASON=-"),
+                "blank reason should show '-' in plain output: " + output);
+    }
+
+    @Test
+    @DisplayName("emit CSV mode: null reason in AI suggestion produces empty ai_reason field")
+    @Tag("edge-case")
+    void emit_csvMode_nullReason_reasonFieldEmpty() {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testFoo", true, "SECURITY: auth", List.of("security", "auth"), null, 0.9, 0.0);
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
+                        List.of(), null, suggestion, null),
+                true, false, false).trim();
+        // ai_tags is "security;auth", ai_reason is empty, ai_interaction_score follows
+        // → "security;auth,,0.0" — two consecutive commas indicate empty ai_reason
+        assertTrue(output.contains("security;auth,,"),
+                "null reason should produce empty CSV field between ai_tags and ai_interaction_score: " + output);
+    }
+
+    @Test
+    @DisplayName("emit PLAIN mode: null sourceRoot with emitSourceRoot=true shows '-'")
+    @Tag("edge-case")
+    void emit_plainMode_nullSourceRoot_withEmitSourceRoot_showsDash() {
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 5, null,
+                        List.of(), null, null, null),
+                false, false, false, false, true).trim();
+        assertTrue(output.contains("SRCROOT=-"),
+                "null sourceRoot with emitSourceRoot=true should show '-': " + output);
+    }
+
+    @Test
+    @DisplayName("emit CSV mode: null sourceRoot with emitSourceRoot=true produces empty field")
+    @Tag("edge-case")
+    void emit_csvMode_nullSourceRoot_withEmitSourceRoot_emptyField() {
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
+                        List.of(), null, null, null),
+                false, false, false, false, true).trim();
+        // Column order: fqcn,method,loc,tags,display_name,source_root
+        // null sourceRoot → csvEscape("") → "" → trailing empty field after display_name
+        assertTrue(output.endsWith(","),
+                "null sourceRoot with emitSourceRoot=true should produce trailing empty field: " + output);
+    }
+
+    @Test
+    @DisplayName("csvEscape: single double-quote character is escaped as four double-quote chars")
+    @Tag("edge-case")
+    void csvEscape_singleQuoteOnly_escapedAndWrapped() {
+        // input: "    → must quote because it contains a double-quote
+        // escaped:  ""  → wrap: """"
+        assertEquals("\"\"\"\"", OutputEmitter.csvEscape("\""),
+                "single double-quote should become four double-quote chars (wrap + double)");
+    }
+
+    @Test
+    @DisplayName("csvEscape: value with only special-prefix char (just '=') is wrapped in double quotes")
+    @Tag("edge-case")
+    void csvEscape_formulaPrefixOnly_wrapsEmptyBodyInQuotes() {
+        assertEquals("\"=\"", OutputEmitter.csvEscape("="),
+                "single '=' should be wrapped in double quotes");
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

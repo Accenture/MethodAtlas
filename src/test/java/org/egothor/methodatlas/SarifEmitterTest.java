@@ -922,6 +922,80 @@ class SarifEmitterTest {
     }
 
     // -------------------------------------------------------------------------
+    // Edge cases — message text
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("blank reason (whitespace-only) is not appended to security method message")
+    @Tag("edge-case")
+    void flush_securityMethodMessage_blankReason_reasonNotAppended() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "   ", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertFalse(messageText.contains("Reason:"),
+                "blank reason should not be appended to message: " + messageText);
+    }
+
+    @Test
+    @DisplayName("null reason in AI suggestion does not cause Reason: line in message")
+    @Tag("edge-case")
+    void flush_securityMethodMessage_nullReason_reasonNotAppended() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("security", "auth"), null, 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertFalse(messageText.contains("Reason:"),
+                "null reason should not add Reason: line: " + messageText);
+    }
+
+    @Test
+    @DisplayName("null tags list in suggestion resolves to 'security-test' rule, not a crash")
+    @Tag("edge-case")
+    void flush_nullTagsInSuggestion_resolveRuleIdReturnsSecurityTest() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testFoo", true, "SECURITY: general", null, "reason", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of(), null, suggestion);
+
+        JsonNode result = getFirstResult(flush(emitter));
+        assertEquals("security-test", result.path("ruleId").asText(),
+                "null tags should produce security-test ruleId");
+        assertEquals("note", result.path("level").asText());
+    }
+
+    @Test
+    @DisplayName("non-security method with empty @DisplayName produces exactly 2 results: test-method + empty-display-name")
+    @Tag("edge-case")
+    void flush_nonSecurityMethodEmptyDisplayName_producesTwoResults() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
+        emitter.record("com.acme.UtilTest", "testHelper", 5, 3, null, List.of(), "", null);
+
+        JsonNode results = flush(emitter).path("runs").get(0).path("results");
+        assertEquals(2, results.size(), "non-security method with empty displayName should produce 2 results");
+        assertEquals("test-method", results.get(0).path("ruleId").asText());
+        assertEquals("annotation/empty-display-name", results.get(1).path("ruleId").asText());
+    }
+
+    @Test
+    @DisplayName("blank aiReason stored as null in properties (not whitespace)")
+    @Tag("edge-case")
+    void flush_blankAiReason_storedAsNullInProperties() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("security", "auth"), "  ", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertTrue(props.path("aiReason").isMissingNode(),
+                "blank reason should be stored as null (absent) in properties");
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
