@@ -44,6 +44,7 @@ import java.util.List;
  * <li>{@code source} — {@code content_hash} changed: the enclosing class was edited</li>
  * <li>{@code loc: N → M} — lines of code changed from N to M</li>
  * <li>{@code tags} — JUnit {@code @Tag} set changed</li>
+ * <li>{@code display_name} — {@code @DisplayName} annotation added, removed, or renamed</li>
  * <li>{@code security: false → true} (or {@code true → false}) — AI security-relevance
  *     classification flipped</li>
  * <li>{@code ai_tags} — AI taxonomy tag set changed</li>
@@ -150,6 +151,7 @@ public final class DeltaEmitter {
                 case "source" -> parts.add("source");
                 case "loc" -> parts.add("loc: " + entry.before().loc() + " \u2192 " + entry.after().loc());
                 case "tags" -> parts.add("tags");
+                case "display_name" -> parts.add("display_name");
                 case "ai_security_relevant" ->
                     parts.add("security: " + entry.before().aiSecurityRelevant()
                             + " \u2192 " + entry.after().aiSecurityRelevant());

@@ -248,6 +248,82 @@ class DeltaReportTest {
     }
 
     // -------------------------------------------------------------------------
+    // MODIFIED — display_name change
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("changed display_name is reported in changedFields when column present in both files")
+    @Tag("positive")
+    void compute_displayNameChanged_reportedAsModified(@TempDir Path tmp) throws IOException {
+        Path before = write(tmp, "before.csv", """
+                fqcn,method,loc,tags,display_name
+                com.acme.FooTest,test_one,5,,old display
+                """);
+        Path after = write(tmp, "after.csv", """
+                fqcn,method,loc,tags,display_name
+                com.acme.FooTest,test_one,5,,new display
+                """);
+
+        DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
+
+        assertEquals(1, result.modifiedCount());
+        assertTrue(result.entries().get(0).changedFields().contains("display_name"));
+    }
+
+    @Test
+    @DisplayName("display_name added (empty → value) is reported as MODIFIED")
+    @Tag("positive")
+    void compute_displayNameAdded_reportedAsModified(@TempDir Path tmp) throws IOException {
+        Path before = write(tmp, "before.csv", """
+                fqcn,method,loc,tags,display_name
+                com.acme.FooTest,test_one,5,,
+                """);
+        Path after = write(tmp, "after.csv", """
+                fqcn,method,loc,tags,display_name
+                com.acme.FooTest,test_one,5,,SECURITY: auth - checks login
+                """);
+
+        DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
+
+        assertEquals(1, result.modifiedCount());
+        assertTrue(result.entries().get(0).changedFields().contains("display_name"));
+    }
+
+    @Test
+    @DisplayName("display_name absent from one file is not reported as MODIFIED")
+    @Tag("positive")
+    void compute_displayNameAbsentInOne_notReportedAsModified(@TempDir Path tmp) throws IOException {
+        Path before = write(tmp, "before.csv", """
+                fqcn,method,loc,tags
+                com.acme.FooTest,test_one,5,
+                """);
+        Path after = write(tmp, "after.csv", """
+                fqcn,method,loc,tags,display_name
+                com.acme.FooTest,test_one,5,,SECURITY: auth - checks login
+                """);
+
+        DeltaReport.DeltaResult result = DeltaReport.compute(before, after);
+
+        assertTrue(result.entries().isEmpty(),
+                "no change should be reported when display_name column is absent from one file");
+    }
+
+    @Test
+    @DisplayName("emitted report contains 'display_name' notation for changed display_name")
+    @Tag("positive")
+    void emitter_displayNameChanged_appearsInOutput(@TempDir Path tmp) throws IOException {
+        Path before = write(tmp, "before.csv",
+                "fqcn,method,loc,tags,display_name\ncom.acme.FooTest,test_one,5,,old\n");
+        Path after = write(tmp, "after.csv",
+                "fqcn,method,loc,tags,display_name\ncom.acme.FooTest,test_one,5,,new\n");
+
+        String output = runDiff(before, after);
+
+        assertTrue(output.contains("display_name"), output);
+        assertTrue(output.contains("~ com.acme.FooTest  test_one"), output);
+    }
+
+    // -------------------------------------------------------------------------
     // Metadata comment lines
     // -------------------------------------------------------------------------
 

@@ -47,6 +47,9 @@ import java.util.Set;
  * <ul>
  * <li>{@code loc} — lines of code; always compared</li>
  * <li>{@code tags} — JUnit {@code @Tag} set; always compared (order-independent)</li>
+ * <li>{@code display_name} — {@code @DisplayName} annotation value; compared only
+ *     when both records have a non-{@code null} value (i.e., both CSVs contain
+ *     the {@code display_name} column); empty string means the annotation is absent</li>
  * <li>{@code content_hash} — source fingerprint; compared only when both records
  *     have a non-{@code null} value (i.e., both scans were run with
  *     {@code -content-hash}); a hash difference indicates the enclosing class
@@ -403,6 +406,7 @@ public final class DeltaReport {
         if (!tagsEqual(before.tags(), after.tags())) {
             changed.add("tags");
         }
+        addIfBothPresentAndChanged(changed, "display_name", before.displayName(), after.displayName());
         addIfBothPresentAndChanged(changed, "source", before.contentHash(), after.contentHash());
         addIfBothPresentAndChanged(changed, "ai_security_relevant",
                 before.aiSecurityRelevant(), after.aiSecurityRelevant());

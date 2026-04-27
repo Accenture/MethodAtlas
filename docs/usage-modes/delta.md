@@ -45,6 +45,7 @@ For each method present in both scans:
 |---|---|
 | `loc` | Always (lines of code in the method declaration) |
 | `tags` | Always (JUnit `@Tag` annotations; order-independent) |
+| `display_name` | Both files contain the `display_name` column; detects `@DisplayName` annotations added, removed, or renamed |
 | `source` | Both files were produced with `-content-hash`; a difference means the enclosing class source was edited |
 | `security` | Both files were produced with `-ai`; a flip of `ai_security_relevant` |
 | `ai_tags` | Both files were produced with `-ai`; the AI taxonomy tag set changed |
@@ -62,6 +63,7 @@ For `~` (modified) entries, a bracketed summary follows the method name:
 | `source` | `content_hash` differs — the class source was edited |
 | `loc: 5 → 8` | Lines of code grew from 5 to 8 |
 | `tags` | JUnit `@Tag` set changed |
+| `display_name` | `@DisplayName` annotation added, removed, or its text changed |
 | `security: false → true` | AI classification changed from not-security to security-relevant |
 | `ai_tags` | AI taxonomy tags changed |
 
