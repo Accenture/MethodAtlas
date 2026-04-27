@@ -32,6 +32,7 @@ MethodAtlas addresses this by turning an existing Java test suite (JUnit 5, JUni
 - **Content hash fingerprints** — SHA-256 of the class AST text (`-content-hash`); all methods in the same class share the same hash; enables incremental scanning and change detection
 - **AI result cache** — reuse previous AI classifications by hash (`-ai-cache`); unchanged classes cost zero API calls
 - **Tag vs AI drift detection** — `-drift-detect` flags methods where `@Tag("security")` in source disagrees with the AI classification
+- **Multi-root and monorepo scanning** — `-emit-source-root` appends a `source_root` column to CSV/plain output, disambiguating records when the same FQCN appears under different modules
 - **Classification overrides** — `-override-file` records human-reviewed corrections; overrides persist across re-runs and set confidence to `1.0` or `0.0`
 - **Delta report** — `-diff` compares two CSV scans and emits a change report: methods added, removed, or modified between runs; useful for CI regression gates
 - **Security-only filter** — `-security-only` suppresses non-security methods from CSV/plain output; applied automatically in SARIF mode
@@ -89,6 +90,7 @@ For each discovered JUnit test method, MethodAtlas emits one record.
 | `method` | Always | Test method name |
 | `loc` | Always | Inclusive line count of the method declaration |
 | `tags` | Always | Existing JUnit `@Tag` values declared on the method |
+| `source_root` | `-emit-source-root` | CWD-relative path of the scan root that produced the record; disambiguates records in multi-root or monorepo projects |
 | `content_hash` | `-content-hash` | SHA-256 fingerprint of the enclosing class |
 
 **AI enrichment fields** (present when `-ai` is enabled):

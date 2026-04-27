@@ -37,6 +37,7 @@ final class OutputEmitter {
     private final boolean confidenceEnabled;
     private final boolean contentHashEnabled;
     private final boolean driftDetect;
+    private final boolean emitSourceRoot;
 
     /**
      * Creates a new output emitter bound to the supplied writer.
@@ -51,14 +52,20 @@ final class OutputEmitter {
      * @param driftDetect        whether the {@code tag_ai_drift} column should be
      *                           included; only meaningful when {@code aiEnabled} is
      *                           {@code true}
+     * @param emitSourceRoot     whether a {@code source_root} column (CSV) or
+     *                           {@code SRCROOT=} token (plain) should be included;
+     *                           enable with {@code -emit-source-root} when scanning
+     *                           a multi-root project where the same FQCN can appear
+     *                           under different source trees
      */
     /* default */ OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled,
-            boolean contentHashEnabled, boolean driftDetect) {
+            boolean contentHashEnabled, boolean driftDetect, boolean emitSourceRoot) {
         this.out = out;
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
         this.contentHashEnabled = contentHashEnabled;
         this.driftDetect = driftDetect;
+        this.emitSourceRoot = emitSourceRoot;
     }
 
     /**
@@ -99,6 +106,9 @@ final class OutputEmitter {
             return;
         }
         StringBuilder header = new StringBuilder(128).append("fqcn,method,loc,tags,display_name");
+        if (emitSourceRoot) {
+            header.append(",source_root");
+        }
         if (contentHashEnabled) {
             header.append(",content_hash");
         }
@@ -130,13 +140,17 @@ final class OutputEmitter {
      *                    value for the active output mode
      * @param suggestion  AI suggestion for the method, or {@code null} if none
      *                    is available
+     * @param sourceRoot  CWD-relative path of the scan root that contained this
+     *                    record (e.g. {@code module-a/src/test/java/}), or
+     *                    {@code null} when {@code -emit-source-root} is not enabled;
+     *                    an empty string indicates the scan root is the CWD itself
      */
     /* default */ void emit(OutputMode mode, String fqcn, String method, int loc, String contentHash,
-            List<String> tags, String displayName, AiMethodSuggestion suggestion) {
+            List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourceRoot) {
         if (mode == OutputMode.PLAIN) {
-            emitPlain(fqcn, method, loc, contentHash, tags, displayName, suggestion);
+            emitPlain(fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
         } else {
-            emitCsv(fqcn, method, loc, contentHash, tags, displayName, suggestion);
+            emitCsv(fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
         }
     }
 
@@ -151,15 +165,20 @@ final class OutputEmitter {
      * @param displayName text from an existing {@code @DisplayName} annotation, or
      *                    {@code null} or empty when absent
      * @param suggestion  AI suggestion, or {@code null}
+     * @param sourceRoot  CWD-relative path of the scan root, or {@code null}
      */
     private void emitPlain(String fqcn, String method, int loc, String contentHash,
-            List<String> tags, String displayName, AiMethodSuggestion suggestion) {
+            List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourceRoot) {
         String existingTags = tags.isEmpty() ? PLAIN_ABSENT : String.join(";", tags);
         StringBuilder line = new StringBuilder(fqcn)
                 .append(", ").append(method)
                 .append(", LOC=").append(loc)
                 .append(", TAGS=").append(existingTags)
                 .append(", DISPLAY=").append(displayName == null || displayName.isEmpty() ? PLAIN_ABSENT : displayName);
+
+        if (emitSourceRoot) {
+            line.append(", SRCROOT=").append(sourceRoot != null && !sourceRoot.isEmpty() ? sourceRoot : PLAIN_ABSENT);
+        }
 
         if (contentHashEnabled) {
             line.append(", HASH=").append(contentHash != null ? contentHash : PLAIN_ABSENT);
@@ -221,15 +240,20 @@ final class OutputEmitter {
      * @param displayName text from an existing {@code @DisplayName} annotation, or
      *                    {@code null} or empty when absent
      * @param suggestion  AI suggestion, or {@code null}
+     * @param sourceRoot  CWD-relative path of the scan root, or {@code null}
      */
     private void emitCsv(String fqcn, String method, int loc, String contentHash,
-            List<String> tags, String displayName, AiMethodSuggestion suggestion) {
+            List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourceRoot) {
         String existingTags = tags.isEmpty() ? CSV_ABSENT : String.join(";", tags);
         StringBuilder line = new StringBuilder(csvEscape(fqcn))
                 .append(',').append(csvEscape(method))
                 .append(',').append(loc)
                 .append(',').append(csvEscape(existingTags))
                 .append(',').append(csvEscape(displayName != null ? displayName : CSV_ABSENT));
+
+        if (emitSourceRoot) {
+            line.append(',').append(csvEscape(sourceRoot != null ? sourceRoot : CSV_ABSENT));
+        }
 
         if (contentHashEnabled) {
             line.append(',').append(contentHash != null ? contentHash : CSV_ABSENT);

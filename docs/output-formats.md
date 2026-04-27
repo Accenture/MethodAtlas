@@ -77,6 +77,26 @@ com.acme.tests.SampleOneTest,gamma,4,security,,,,,0.0,tag-only
 
 When `-ai-confidence` is also set, `ai_confidence` appears between `ai_interaction_score` and `tag_ai_drift`.
 
+### With source root (`-emit-source-root`)
+
+Pass `-emit-source-root` when scanning multiple roots where the same fully qualified class name can appear under different source trees. The flag appends a `source_root` column immediately after `display_name` (before `content_hash` and AI columns):
+
+```text
+fqcn,method,loc,tags,display_name,source_root
+com.acme.auth.AuthTest,testLogin,12,security,,module-a/src/test/java/
+com.acme.auth.AuthTest,testLogout,8,,,module-b/src/test/java/
+```
+
+The column value is the CWD-relative path of the scan root with a trailing `/`. When a scan root is the current working directory itself, the column is empty. The column is absent from the header and all rows when the flag is not set, so downstream scripts that do not need it are unaffected.
+
+The flag can be combined with all other column flags. When combined with `-content-hash` and `-ai`:
+
+```text
+fqcn,method,loc,tags,display_name,source_root,content_hash,ai_security_relevant,...
+```
+
+See [Multi-root and monorepo scanning](usage-modes/multi-root.md) for a detailed walkthrough and a CI pipeline example.
+
 ### Metadata header
 
 Pass `-emit-metadata` to prepend `# key: value` comment lines before the CSV header:
@@ -135,6 +155,17 @@ When `-ai-confidence` is also passed, an `AI_CONFIDENCE` token is appended after
 ```text
 com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, DISPLAY=-, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property., AI_INTERACTION_SCORE=0.0, AI_CONFIDENCE=0.9
 ```
+
+### Plain mode with source root (`-emit-source-root`)
+
+When `-emit-source-root` is passed, a `SRCROOT=` token is appended after `DISPLAY` (before `HASH` when that flag is also set):
+
+```text
+com.acme.auth.AuthTest, testLogin, LOC=12, TAGS=security, DISPLAY=-, SRCROOT=module-a/src/test/java/
+com.acme.auth.AuthTest, testLogout, LOC=8, TAGS=-, DISPLAY=-, SRCROOT=module-b/src/test/java/
+```
+
+When the scan root is the current working directory itself, `SRCROOT=-` is printed.
 
 ## SARIF mode
 

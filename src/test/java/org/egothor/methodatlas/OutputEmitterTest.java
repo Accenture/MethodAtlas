@@ -253,7 +253,7 @@ class OutputEmitterTest {
     @Tag("positive")
     void emit_csvMode_nullSuggestionNoAiNoHashEmptyTags_correctLine() {
         String output = captureOutput(
-                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null, List.of(), "", null),
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null, List.of(), "", null, null),
                 false, false, false);
         assertEquals("com.acme.FooTest,testFoo,5,,", output.trim());
     }
@@ -264,7 +264,7 @@ class OutputEmitterTest {
     void emit_csvMode_withTags_tagsJoinedBySemicolon() {
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 3, null,
-                        List.of("security", "auth"), "", null),
+                        List.of("security", "auth"), "", null, null),
                 false, false, false);
         assertEquals("com.acme.FooTest,testFoo,3,security;auth,", output.trim());
     }
@@ -274,7 +274,7 @@ class OutputEmitterTest {
     @Tag("positive")
     void emit_csvMode_withContentHash_hashColumnPresent() {
         String output = captureOutput(
-                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 3, "abc123", List.of(), "", null),
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 3, "abc123", List.of(), "", null, null),
                 false, false, true);
         assertEquals("com.acme.FooTest,testFoo,3,,,abc123", output.trim());
     }
@@ -287,7 +287,7 @@ class OutputEmitterTest {
                 "testFoo", true, "SECURITY: auth - login", List.of("security", "auth"), "Validates auth", 0.9, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
-                        List.of(), "", suggestion),
+                        List.of(), "", suggestion, null),
                 true, false, false);
         String line = output.trim();
         assertTrue(line.contains("true"), line);
@@ -307,7 +307,7 @@ class OutputEmitterTest {
                 "testFoo", true, "SECURITY: auth", List.of("security"), "reason", 0.9, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
-                        List.of(), "", suggestion),
+                        List.of(), "", suggestion, null),
                 true, true, false);
         // column order: ...,ai_reason,ai_interaction_score,ai_confidence
         assertTrue(output.trim().endsWith(",0.9"), output);
@@ -319,7 +319,7 @@ class OutputEmitterTest {
     void emit_csvMode_nullSuggestionAiEnabled_allAiColumnsEmpty() {
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
-                        List.of(), "", null),
+                        List.of(), "", null, null),
                 true, false, false);
         // Format: fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
         assertEquals("com.acme.FooTest,testFoo,5,,,,,,,", output.trim());
@@ -337,7 +337,7 @@ class OutputEmitterTest {
                 "testLogin", true, "Auth test", List.of("auth"), "reason", 0.9, 0.1);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.AuthTest", "testLogin", 5, null,
-                        List.of("security"), "", suggestion),
+                        List.of("security"), "", suggestion, null),
                 true, false, false, true).trim();
         assertTrue(output.endsWith(",none"), "Last CSV field should be 'none' when both agree: " + output);
     }
@@ -350,7 +350,7 @@ class OutputEmitterTest {
                 "testLogin", true, "Auth test", List.of("auth"), "reason", 0.9, 0.1);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.AuthTest", "testLogin", 5, null,
-                        List.of(), "", suggestion),
+                        List.of(), "", suggestion, null),
                 true, false, false, true).trim();
         assertTrue(output.endsWith(",ai-only"), "Last CSV field should be 'ai-only': " + output);
     }
@@ -363,7 +363,7 @@ class OutputEmitterTest {
                 "testFoo", false, "Format check", List.of(), "Not security", 0.1, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 4, null,
-                        List.of("security"), "", suggestion),
+                        List.of("security"), "", suggestion, null),
                 true, false, false, true).trim();
         assertTrue(output.endsWith(",tag-only"), "Last CSV field should be 'tag-only': " + output);
     }
@@ -374,7 +374,7 @@ class OutputEmitterTest {
     void emit_csvMode_driftEmpty_whenSuggestionNull() {
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 4, null,
-                        List.of("security"), "", null),
+                        List.of("security"), "", null, null),
                 true, false, false, true).trim();
         assertTrue(output.endsWith(","), "Drift cell should be empty when suggestion is null: " + output);
     }
@@ -389,7 +389,7 @@ class OutputEmitterTest {
     void emit_plainMode_nullSuggestionNoAiEmptyTags_tagsAsDash() {
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 7, null,
-                        List.of(), "", null),
+                        List.of(), "", null, null),
                 false, false, false);
         assertEquals("com.acme.FooTest, testFoo, LOC=7, TAGS=-, DISPLAY=-", output.trim());
     }
@@ -403,7 +403,7 @@ class OutputEmitterTest {
                 "testFoo", true, "SECURITY: auth - login", List.of("security", "auth"), "Validates auth", 1.0, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 5, null,
-                        List.of("fast"), "", suggestion),
+                        List.of("fast"), "", suggestion, null),
                 true, true, false);
         String line = output.trim();
         assertTrue(line.contains("LOC=5"), line);
@@ -421,7 +421,7 @@ class OutputEmitterTest {
     void emit_plainMode_nullSuggestionWithContentHash_hashFieldPresent() {
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 3, "deadbeef",
-                        List.of(), "", null),
+                        List.of(), "", null, null),
                 false, false, true);
         assertTrue(output.contains("HASH=deadbeef"), output);
     }
@@ -434,7 +434,7 @@ class OutputEmitterTest {
                 "testLogin", true, "Auth", List.of("auth"), "reason", 0.9, 0.1);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.AuthTest", "testLogin", 5, null,
-                        List.of("security"), "", suggestion),
+                        List.of("security"), "", suggestion, null),
                 true, false, false, true).trim();
         assertTrue(output.contains("TAG_AI_DRIFT=none"), "Should contain TAG_AI_DRIFT=none: " + output);
     }
@@ -447,7 +447,7 @@ class OutputEmitterTest {
                 "testLogin", true, "Auth", List.of("auth"), "reason", 0.9, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.AuthTest", "testLogin", 5, null,
-                        List.of(), "", suggestion),
+                        List.of(), "", suggestion, null),
                 true, false, false, true).trim();
         assertTrue(output.contains("TAG_AI_DRIFT=ai-only"), "Should contain TAG_AI_DRIFT=ai-only: " + output);
     }
@@ -460,7 +460,7 @@ class OutputEmitterTest {
                 "testFoo", false, "Check", List.of(), "Not security", 0.1, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 4, null,
-                        List.of("security"), "", suggestion),
+                        List.of("security"), "", suggestion, null),
                 true, false, false, true).trim();
         assertTrue(output.contains("TAG_AI_DRIFT=tag-only"), "Should contain TAG_AI_DRIFT=tag-only: " + output);
     }
@@ -473,9 +473,98 @@ class OutputEmitterTest {
                 "testLogin", true, "Auth", List.of("auth"), "reason", 0.9, 0.0);
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.AuthTest", "testLogin", 5, null,
-                        List.of(), "", suggestion),
+                        List.of(), "", suggestion, null),
                 true, false, false, false).trim();
         assertFalse(output.contains("TAG_AI_DRIFT"), "TAG_AI_DRIFT should be absent when drift-detect is off: " + output);
+    }
+
+    // -------------------------------------------------------------------------
+    // emit() – source_root column / SRCROOT token
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("emitCsvHeader with emitSourceRoot includes source_root column after display_name")
+    @Tag("positive")
+    void emitCsvHeader_withEmitSourceRoot_includesSourceRootColumn() {
+        String header = captureOutput(emitter -> emitter.emitCsvHeader(OutputMode.CSV),
+                false, false, false, false, true).trim();
+        int displayIdx = header.indexOf("display_name");
+        int sourceRootIdx = header.indexOf("source_root");
+        assertTrue(sourceRootIdx > 0, "source_root column should be present: " + header);
+        assertTrue(displayIdx < sourceRootIdx,
+                "source_root must appear after display_name: " + header);
+    }
+
+    @Test
+    @DisplayName("emitCsvHeader with emitSourceRoot: source_root appears before content_hash when both enabled")
+    @Tag("positive")
+    void emitCsvHeader_withEmitSourceRootAndContentHash_sourceRootBeforeContentHash() {
+        String header = captureOutput(emitter -> emitter.emitCsvHeader(OutputMode.CSV),
+                false, false, true, false, true).trim();
+        int sourceRootIdx = header.indexOf("source_root");
+        int contentHashIdx = header.indexOf("content_hash");
+        assertTrue(sourceRootIdx > 0 && contentHashIdx > 0,
+                "Both columns must be present: " + header);
+        assertTrue(sourceRootIdx < contentHashIdx,
+                "source_root must appear before content_hash: " + header);
+    }
+
+    @Test
+    @DisplayName("emitCsvHeader without emitSourceRoot: source_root column absent")
+    @Tag("positive")
+    void emitCsvHeader_withoutEmitSourceRoot_sourceRootAbsent() {
+        String header = captureOutput(emitter -> emitter.emitCsvHeader(OutputMode.CSV),
+                false, false, false).trim();
+        assertFalse(header.contains("source_root"),
+                "source_root should not appear when -emit-source-root is not set: " + header);
+    }
+
+    @Test
+    @DisplayName("emit CSV with emitSourceRoot: source_root value appears in data row")
+    @Tag("positive")
+    void emit_csvMode_withEmitSourceRoot_sourceRootValuePresent() {
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
+                        List.of(), "", null, "module-a/src/test/java/"),
+                false, false, false, false, true).trim();
+        assertTrue(output.contains("module-a/src/test/java/"),
+                "source_root value should appear in CSV row: " + output);
+    }
+
+    @Test
+    @DisplayName("emit PLAIN with emitSourceRoot: SRCROOT token appears in output line")
+    @Tag("positive")
+    void emit_plainMode_withEmitSourceRoot_srcRootTokenPresent() {
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 5, null,
+                        List.of(), "", null, "module-b/src/test/java/"),
+                false, false, false, false, true).trim();
+        assertTrue(output.contains("SRCROOT=module-b/src/test/java/"),
+                "SRCROOT token should appear in plain output: " + output);
+    }
+
+    @Test
+    @DisplayName("emit PLAIN with emitSourceRoot and empty sourceRoot: SRCROOT shows '-'")
+    @Tag("positive")
+    void emit_plainMode_withEmitSourceRootEmptyPath_srcRootShowsDash() {
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.PLAIN, "com.acme.FooTest", "testFoo", 5, null,
+                        List.of(), "", null, ""),
+                false, false, false, false, true).trim();
+        assertTrue(output.contains("SRCROOT=-"),
+                "SRCROOT should be '-' when scan root is the CWD: " + output);
+    }
+
+    @Test
+    @DisplayName("emit CSV without emitSourceRoot: source_root column absent from row even when sourceRoot non-null")
+    @Tag("positive")
+    void emit_csvMode_withoutEmitSourceRoot_sourceRootAbsent() {
+        String output = captureOutput(
+                emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
+                        List.of(), "", null, "module-a/src/test/java/"),
+                false, false, false).trim();
+        assertFalse(output.contains("module-a"),
+                "source_root should not appear in CSV row when flag is off: " + output);
     }
 
     // -------------------------------------------------------------------------
@@ -498,10 +587,16 @@ class OutputEmitterTest {
 
     private static String captureOutput(EmitterConsumer consumer,
             boolean aiEnabled, boolean confidenceEnabled, boolean contentHashEnabled, boolean driftDetect) {
+        return captureOutput(consumer, aiEnabled, confidenceEnabled, contentHashEnabled, driftDetect, false);
+    }
+
+    private static String captureOutput(EmitterConsumer consumer,
+            boolean aiEnabled, boolean confidenceEnabled, boolean contentHashEnabled, boolean driftDetect,
+            boolean emitSourceRoot) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
             OutputEmitter emitter = new OutputEmitter(pw, aiEnabled, confidenceEnabled, contentHashEnabled,
-                    driftDetect);
+                    driftDetect, emitSourceRoot);
             consumer.accept(emitter);
         } catch (Exception e) {
             throw new RuntimeException(e);

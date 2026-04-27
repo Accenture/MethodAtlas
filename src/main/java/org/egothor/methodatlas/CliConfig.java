@@ -67,9 +67,18 @@ import org.egothor.methodatlas.ai.AiOptions;
  * @param mismatchLimit        maximum number of mismatches allowed before the
  *                             apply-tags-from-csv operation is aborted; {@code -1}
  *                             means no limit is enforced
+ * @param emitSourceRoot       when {@code true}, a {@code source_root} column is
+ *                             added to CSV output and a {@code SRCROOT=} token is
+ *                             added to plain-text output, identifying which scan
+ *                             root each record originated from; useful in
+ *                             multi-root projects where the same fully qualified
+ *                             class name can appear under different source trees
+ *                             (e.g. module-a and module-b each contain
+ *                             {@code com.acme.FooTest}); has no effect on SARIF
+ *                             or GitHub Annotations output
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags,
         boolean contentHash, Path overrideFile, boolean securityOnly, Path aiCacheFile, boolean driftDetect,
-        Path applyTagsFromCsvFile, int mismatchLimit) {
+        Path applyTagsFromCsvFile, int mismatchLimit, boolean emitSourceRoot) {
 }

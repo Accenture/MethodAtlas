@@ -26,6 +26,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-security-only` | Suppress non-security methods from CSV and plain-text output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect; in SARIF mode this filter is already applied by default | Off |
 | `-include-non-security` | Opt-in to include all test methods in SARIF output, disabling the automatic security-only filter; has no effect in CSV or plain-text modes | Off |
 | `-drift-detect` | Append a `tag_ai_drift` column to CSV/plain output comparing the source-level `@Tag("security")` annotation against the AI security-relevance classification; values are `none`, `tag-only`, or `ai-only`; SARIF and GitHub Annotations always include drift when AI is enabled | Off |
+| `-emit-source-root` | Append a `source_root` column to CSV output (and a `SRCROOT=` token to plain-text output) identifying which scan root each record originated from; essential when the same FQCN can appear under multiple source trees | Off |
 | `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
 | `-diff <before.csv> <after.csv>` | Compare two MethodAtlas scan outputs and emit a delta report; all other flags are ignored | — |
 | `[path ...]` | One or more root paths to scan | Current directory |
@@ -276,6 +277,30 @@ The column appears at the end of each row, after `ai_confidence` when that flag 
 **SARIF and GitHub Annotations** include drift automatically when AI is enabled — no flag is needed. The column opt-in applies only to CSV/plain output to avoid breaking downstream scripts that don't expect the extra column.
 
 See [Tag vs AI drift detection](ai/drift-detection.md) for use cases, regulated environment context, and a delta report integration example.
+
+### `-emit-source-root`
+
+Appends a `source_root` column to CSV output and a `SRCROOT=` token to plain-text output, identifying which scan root each record originated from.
+
+```bash
+./methodatlas -emit-source-root module-a/src/test/java module-b/src/test/java
+```
+
+Example CSV rows when scanning two modules:
+
+```text
+fqcn,method,loc,tags,display_name,source_root
+com.acme.auth.AuthTest,testLogin,12,security,,module-a/src/test/java/
+com.acme.auth.AuthTest,testLogout,8,,,module-b/src/test/java/
+```
+
+The `source_root` value is the CWD-relative path of the scan root for each record, with a trailing `/`. When a scan root is the current working directory itself, the value is `-` in plain-text output and an empty string in CSV.
+
+**When to use this flag:** in projects where the same fully qualified class name appears under multiple source trees — for example in a monorepo where `module-a` and `module-b` both contain `com.acme.auth.AuthTest`. Without the column, rows from both modules are identical and cannot be attributed to either. With it, downstream tools (spreadsheets, scripts, CI dashboards) can filter or group by root.
+
+This flag has no effect on SARIF or GitHub Annotations output. For those formats, the source root is already encoded in the full file path.
+
+See [Multi-root and monorepo scanning](usage-modes/multi-root.md) for a detailed walkthrough.
 
 ### `-diff`
 

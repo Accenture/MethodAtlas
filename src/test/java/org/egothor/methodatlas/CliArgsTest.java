@@ -531,6 +531,24 @@ class CliArgsTest {
                 cfg.overrideFile().toAbsolutePath().normalize());
     }
 
+    // -------------------------------------------------------------------------
+    // -emit-source-root flag
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("-emit-source-root flag sets emitSourceRoot=true")
+    @Tag("positive")
+    void parse_emitSourceRootFlag_setsTrue() {
+        assertTrue(CliArgs.parse("-emit-source-root").emitSourceRoot());
+    }
+
+    @Test
+    @DisplayName("emitSourceRoot defaults to false when flag is absent")
+    @Tag("positive")
+    void parse_noEmitSourceRoot_defaultsFalse() {
+        assertFalse(CliArgs.parse().emitSourceRoot());
+    }
+
     @Test
     @DisplayName("-config with ai.enabled=false and ai.confidence=false leaves those flags unset")
     @Tag("positive")

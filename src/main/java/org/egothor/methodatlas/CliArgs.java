@@ -44,6 +44,7 @@ final class CliArgs {
     private static final String FLAG_CONFIG = "-config";
     private static final String FLAG_AI_CACHE = "-ai-cache";
     private static final String FLAG_DRIFT_DETECT = "-drift-detect";
+    private static final String FLAG_EMIT_SOURCE_ROOT = "-emit-source-root";
     private static final String FLAG_INCLUDE_NON_SECURITY = "-include-non-security";
     private static final String FLAG_APPLY_TAGS_FROM_CSV = "-apply-tags-from-csv";
     private static final String FLAG_MISMATCH_LIMIT = "-mismatch-limit";
@@ -112,6 +113,7 @@ final class CliArgs {
         boolean securityOnly = yamlConfig != null && yamlConfig.securityOnly;
         boolean includeNonSecurity = yamlConfig != null && yamlConfig.includeNonSecurity;
         boolean driftDetect = yamlConfig != null && yamlConfig.driftDetect;
+        boolean emitSourceRoot = false;
         Path aiCacheFile = null;
         Path applyTagsFromCsvFile = null;
         int mismatchLimit = -1;
@@ -157,6 +159,7 @@ final class CliArgs {
                 case "-security-only" -> securityOnly = true;
                 case FLAG_INCLUDE_NON_SECURITY -> includeNonSecurity = true;
                 case FLAG_DRIFT_DETECT -> driftDetect = true;
+                case FLAG_EMIT_SOURCE_ROOT -> emitSourceRoot = true;
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
                 case "-manual-prepare" -> {
                     manualWorkDir = nextArg(args, ++i, arg);
@@ -198,7 +201,7 @@ final class CliArgs {
                 ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
                 emitMetadata, manualMode, applyTags, contentHash, overrideFilePath, securityOnly, aiCacheFile,
-                driftDetect, applyTagsFromCsvFile, mismatchLimit);
+                driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot);
     }
 
     // -------------------------------------------------------------------------

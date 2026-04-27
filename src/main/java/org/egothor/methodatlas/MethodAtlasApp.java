@@ -159,6 +159,13 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * aborts without modifying any source file if the number of mismatches between
  * the CSV and the current source tree reaches or exceeds {@code n}; {@code -1}
  * (the default) logs mismatches as warnings and proceeds</li>
+ * <li>{@code -emit-source-root} — adds a {@code source_root} column to CSV
+ * output and a {@code SRCROOT=} token to plain-text output, identifying which
+ * scan root each record originated from; essential in multi-root or monorepo
+ * projects where the same fully qualified class name can appear under different
+ * source trees (e.g. {@code module-a/src/test/java/} and
+ * {@code module-b/src/test/java/}); has no effect on SARIF or GitHub Annotations
+ * output</li>
  * </ul>
  *
  * <p>
@@ -316,7 +323,7 @@ public final class MethodAtlasApp {
 
         // CSV / PLAIN mode: emit incrementally.
         OutputEmitter emitter = new OutputEmitter(out, aiEnabled, confidenceEnabled, contentHashEnabled,
-                cliConfig.driftDetect());
+                cliConfig.driftDetect(), cliConfig.emitSourceRoot());
 
         if (cliConfig.emitMetadata()) {
             String version = MethodAtlasApp.class.getPackage().getImplementationVersion();
@@ -327,11 +334,25 @@ public final class MethodAtlasApp {
         emitter.emitCsvHeader(cliConfig.outputMode());
 
         final OutputMode mode = cliConfig.outputMode();
-        TestMethodSink sink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
-                emitter.emit(mode, fqcn, method, loc, contentHash, tags, displayName, suggestion);
+        final boolean emitSourceRoot = cliConfig.emitSourceRoot();
 
-        int result = scan(roots, cliConfig, aiEngine, parser, filterSink(sink, cliConfig.securityOnly()), override,
-                aiCache);
+        // Scan each root with its own sink so the source_root value can be captured
+        // per root. When emitSourceRoot is false, sourceRoot is null and the column
+        // is omitted from the output.
+        boolean hadErrors = false;
+        for (Path root : roots) {
+            String sourceRoot = emitSourceRoot ? computeFilePrefix(List.of(root)) : null;
+            TestMethodSink rootSink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
+                    emitter.emit(mode, fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
+            if (scanRoot(root, cliConfig.aiOptions(), aiEngine, parser,
+                    filterSink(rootSink, cliConfig.securityOnly()),
+                    cliConfig.fileSuffixes(), cliConfig.testAnnotations(), cliConfig.contentHash(),
+                    override, aiCache)) {
+                hadErrors = true;
+            }
+        }
+        int result = hadErrors ? 1 : 0;
+
         if (aiCache.isActive() && LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "AI cache: {0} hit(s), {1} miss(es)",
                     new Object[] { aiCache.hits(), aiCache.misses() });
