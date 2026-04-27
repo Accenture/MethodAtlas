@@ -46,7 +46,7 @@ import com.github.javaparser.ast.expr.StringLiteralExpr;
  * </p>
  *
  * @see MethodAtlasApp
- * @see AnnotationInspector
+ * @see org.egothor.methodatlas.discovery.jvm.AnnotationInspector
  */
 final class TagApplier {
 

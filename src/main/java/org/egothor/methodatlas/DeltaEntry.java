@@ -10,7 +10,7 @@ import org.egothor.methodatlas.api.ScanRecord;
  * <p>
  * Each entry describes one test method that was added, removed, or modified
  * between two scan outputs. Entries are produced by {@link DeltaReport#compute}
- * and consumed by {@link DeltaEmitter} to produce human-readable output.
+ * and consumed by {@link org.egothor.methodatlas.emit.DeltaEmitter} to produce human-readable output.
  * </p>
  *
  * <h2>Change types</h2>
@@ -58,7 +58,7 @@ import org.egothor.methodatlas.api.ScanRecord;
  *                      {@link ChangeType#REMOVED} entries
  *
  * @see DeltaReport
- * @see DeltaEmitter
+ * @see org.egothor.methodatlas.emit.DeltaEmitter
  */
 public record DeltaEntry(ChangeType changeType, ScanRecord before, ScanRecord after, Set<String> changedFields) {
 

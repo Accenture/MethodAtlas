@@ -24,7 +24,7 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                        ends with any of the listed suffixes
  * @param testAnnotations set of annotation simple names used to identify test
  *                        methods; defaults to
- *                        {@link AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}
+ *                        {@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}
  * @param emitMetadata    whether to emit {@code # key: value} metadata comment
  *                        lines before the CSV header
  * @param manualMode      manual AI workflow mode, or {@code null} when using

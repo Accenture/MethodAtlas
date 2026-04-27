@@ -106,9 +106,30 @@
  * form {@code @Tags}.</li>
  * </ul>
  *
+ * <h2>Sub-packages</h2>
+ *
+ * <ul>
+ * <li>{@code org.egothor.methodatlas.api} — platform-neutral API contracts:
+ *     {@link org.egothor.methodatlas.api.TestDiscovery},
+ *     {@link org.egothor.methodatlas.api.TestMethodSink},
+ *     {@link org.egothor.methodatlas.api.DiscoveredMethod},
+ *     {@link org.egothor.methodatlas.api.ScanRecord}</li>
+ * <li>{@code org.egothor.methodatlas.discovery.jvm} — Java/JVM test discovery
+ *     implementation:
+ *     {@link org.egothor.methodatlas.discovery.jvm.JavaTestDiscovery},
+ *     {@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector}</li>
+ * <li>{@code org.egothor.methodatlas.emit} — output emitters:
+ *     {@link org.egothor.methodatlas.emit.OutputEmitter},
+ *     {@link org.egothor.methodatlas.emit.SarifEmitter},
+ *     {@link org.egothor.methodatlas.emit.GitHubAnnotationsEmitter},
+ *     {@link org.egothor.methodatlas.emit.DeltaEmitter}</li>
+ * <li>{@code org.egothor.methodatlas.ai} — AI suggestion engine and provider
+ *     integrations</li>
+ * </ul>
+ *
  * @see org.egothor.methodatlas.MethodAtlasApp
- * @see org.egothor.methodatlas.AnnotationInspector
- * @see org.egothor.methodatlas.OutputEmitter
+ * @see org.egothor.methodatlas.discovery.jvm.AnnotationInspector
+ * @see org.egothor.methodatlas.emit.OutputEmitter
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  * @see org.egothor.methodatlas.ai.ManualPrepareEngine
  * @see org.egothor.methodatlas.ai.ManualConsumeEngine

@@ -82,7 +82,7 @@ import org.egothor.methodatlas.api.ScanRecord;
  * </p>
  *
  * @see DeltaEntry
- * @see DeltaEmitter
+ * @see org.egothor.methodatlas.emit.DeltaEmitter
  */
 public final class DeltaReport {
 

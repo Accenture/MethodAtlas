@@ -138,7 +138,7 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * occurrence replaces the default</li>
  * <li>{@code -test-annotation <name>} — recognises methods annotated with
  * {@code name} as test methods; may be repeated; the first occurrence replaces
- * the default set ({@link AnnotationInspector#DEFAULT_TEST_ANNOTATIONS})</li>
+ * the default set ({@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector#DEFAULT_TEST_ANNOTATIONS})</li>
  * <li>{@code -emit-metadata} — emits {@code # key: value} comment lines
  * before the header row describing the tool version, scan timestamp, and
  * taxonomy configuration</li>
@@ -192,9 +192,9 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * </ul>
  *
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
- * @see AnnotationInspector
- * @see OutputEmitter
- * @see SarifEmitter
+ * @see org.egothor.methodatlas.discovery.jvm.AnnotationInspector
+ * @see org.egothor.methodatlas.emit.OutputEmitter
+ * @see org.egothor.methodatlas.emit.SarifEmitter
  * @see #main(String[])
  */
 @SuppressWarnings("PMD.CyclomaticComplexity")
@@ -923,7 +923,7 @@ public final class MethodAtlasApp {
      * @return list of JUnit test method declarations; possibly empty but never
      *         {@code null}
      * @param testAnnotations set of annotation simple names to match
-     * @see AnnotationInspector#isJUnitTest(MethodDeclaration, Set)
+     * @see org.egothor.methodatlas.discovery.jvm.AnnotationInspector#isJUnitTest(MethodDeclaration, Set)
      */
     private static List<MethodDeclaration> findJUnitTestMethods(ClassOrInterfaceDeclaration clazz,
             Set<String> testAnnotations) {
@@ -1058,7 +1058,7 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Wraps a {@link TestMethodSink} so that only security-relevant records are
+     * Wraps a {@link org.egothor.methodatlas.api.TestMethodSink} so that only security-relevant records are
      * forwarded to {@code delegate}.
      *
      * <p>

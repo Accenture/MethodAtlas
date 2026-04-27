@@ -8,7 +8,7 @@ package org.egothor.methodatlas;
  * output representation.
  * </p>
  *
- * @see OutputEmitter
+ * @see org.egothor.methodatlas.emit.OutputEmitter
  */
 public enum OutputMode {
 
@@ -17,7 +17,7 @@ public enum OutputMode {
      *
      * <p>
      * Fields are escaped according to RFC 4180 rules implemented by
-     * {@link OutputEmitter}.
+     * {@link org.egothor.methodatlas.emit.OutputEmitter}.
      * </p>
      */
     CSV,
@@ -70,7 +70,7 @@ public enum OutputMode {
      * {@code upload-sarif}.
      * </p>
      *
-     * @see GitHubAnnotationsEmitter
+     * @see org.egothor.methodatlas.emit.GitHubAnnotationsEmitter
      */
     GITHUB_ANNOTATIONS
 }

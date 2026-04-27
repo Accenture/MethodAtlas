@@ -28,8 +28,8 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  * {@link #compute} returns {@code null}.</p>
  *
  * @see MethodAtlasApp
- * @see OutputEmitter
- * @see SarifEmitter
+ * @see org.egothor.methodatlas.emit.OutputEmitter
+ * @see org.egothor.methodatlas.emit.SarifEmitter
  */
 public enum TagAiDrift {
 
