@@ -1,8 +1,12 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.emit;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.egothor.methodatlas.DeltaEntry;
+import org.egothor.methodatlas.DeltaReport;
+import org.egothor.methodatlas.api.ScanRecord;
 
 /**
  * Formats and writes a MethodAtlas delta report to a {@link PrintWriter}.
@@ -29,35 +33,6 @@ import java.util.List;
  * security-relevant: 5 → 7  (+2)
  * </pre>
  *
- * <h2>Change-type indicators</h2>
- *
- * <ul>
- * <li>{@code +} — method was added in the <em>after</em> scan</li>
- * <li>{@code -} — method was removed in the <em>after</em> scan</li>
- * <li>{@code ~} — method is present in both scans but one or more fields changed;
- *     a bracketed summary of the changes follows the method name</li>
- * </ul>
- *
- * <h2>Change detail notation for MODIFIED entries</h2>
- *
- * <ul>
- * <li>{@code source} — {@code content_hash} changed: the enclosing class was edited</li>
- * <li>{@code loc: N → M} — lines of code changed from N to M</li>
- * <li>{@code tags} — JUnit {@code @Tag} set changed</li>
- * <li>{@code display_name} — {@code @DisplayName} annotation added, removed, or renamed</li>
- * <li>{@code security: false → true} (or {@code true → false}) — AI security-relevance
- *     classification flipped</li>
- * <li>{@code ai_tags} — AI taxonomy tag set changed</li>
- * </ul>
- *
- * <h2>No-changes output</h2>
- *
- * <p>
- * When the two scan outputs are identical (no additions, removals, or
- * modifications), the entry block is replaced with the single line
- * {@code "No changes detected."}.
- * </p>
- *
  * @see DeltaReport
  * @see DeltaEntry
  */
@@ -69,8 +44,7 @@ public final class DeltaEmitter {
     /**
      * Emits a full delta report to {@code out}.
      *
-     * @param result the delta result to format; produced by
-     *               {@link DeltaReport#compute(java.nio.file.Path, java.nio.file.Path)}
+     * @param result the delta result to format
      * @param out    writer that receives all output; flushed but not closed
      */
     public static void emit(DeltaReport.DeltaResult result, PrintWriter out) {
@@ -81,10 +55,6 @@ public final class DeltaEmitter {
         emitSummary(result, out);
         out.flush();
     }
-
-    // -------------------------------------------------------------------------
-    // Private sections
-    // -------------------------------------------------------------------------
 
     private static void emitHeader(DeltaReport.DeltaResult result, PrintWriter out) {
         out.println("MethodAtlas delta report");
@@ -100,10 +70,10 @@ public final class DeltaEmitter {
         StringBuilder sb = new StringBuilder(64);
         sb.append("  (");
         if (timestamp != null) {
-            sb.append("scanned: ").append(timestamp).append(" \u00b7 ");
+            sb.append("scanned: ").append(timestamp).append(" · ");
         }
         sb.append(total).append(" method").append(total == 1 ? "" : "s")
-          .append(" \u00b7 ").append(security).append(" security-relevant)");
+          .append(" · ").append(security).append(" security-relevant)");
         return sb.toString();
     }
 
@@ -135,26 +105,17 @@ public final class DeltaEmitter {
         out.println();
     }
 
-    /**
-     * Produces a human-readable summary of the changed fields for a
-     * {@link DeltaEntry.ChangeType#MODIFIED} entry.
-     *
-     * <p>
-     * Each changed field is rendered as a short phrase and joined with
-     * {@code "; "}.
-     * </p>
-     */
     private static String formatChangedFields(DeltaEntry entry) {
         List<String> parts = new ArrayList<>();
         for (String field : entry.changedFields()) {
             switch (field) {
                 case "source" -> parts.add("source");
-                case "loc" -> parts.add("loc: " + entry.before().loc() + " \u2192 " + entry.after().loc());
+                case "loc" -> parts.add("loc: " + entry.before().loc() + " → " + entry.after().loc());
                 case "tags" -> parts.add("tags");
                 case "display_name" -> parts.add("display_name");
                 case "ai_security_relevant" ->
                     parts.add("security: " + entry.before().aiSecurityRelevant()
-                            + " \u2192 " + entry.after().aiSecurityRelevant());
+                            + " → " + entry.after().aiSecurityRelevant());
                 case "ai_tags" -> parts.add("ai_tags");
                 default -> parts.add(field);
             }
@@ -163,9 +124,9 @@ public final class DeltaEmitter {
     }
 
     private static void emitSummary(DeltaReport.DeltaResult result, PrintWriter out) {
-        out.println(result.addedCount() + " added  \u00b7  "
-                + result.removedCount() + " removed  \u00b7  "
-                + result.modifiedCount() + " modified  \u00b7  "
+        out.println(result.addedCount() + " added  ·  "
+                + result.removedCount() + " removed  ·  "
+                + result.modifiedCount() + " modified  ·  "
                 + result.unchangedCount() + " unchanged");
 
         int secBefore = result.securityRelevantBefore();
@@ -174,6 +135,6 @@ public final class DeltaEmitter {
         String deltaStr = delta > 0 ? "(+" + delta + ")"
                 : delta < 0 ? "(" + delta + ")"
                 : "(no change)";
-        out.println("security-relevant: " + secBefore + " \u2192 " + secAfter + "  " + deltaStr);
+        out.println("security-relevant: " + secBefore + " → " + secAfter + "  " + deltaStr);
     }
 }

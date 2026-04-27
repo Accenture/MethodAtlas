@@ -12,9 +12,12 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -30,6 +33,14 @@ import org.egothor.methodatlas.ai.ManualConsumeEngine;
 import org.egothor.methodatlas.ai.ManualPrepareEngine;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.SuggestionLookup;
+import org.egothor.methodatlas.api.DiscoveredMethod;
+import org.egothor.methodatlas.api.TestMethodSink;
+import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
+import org.egothor.methodatlas.discovery.jvm.JavaTestDiscovery;
+import org.egothor.methodatlas.emit.DeltaEmitter;
+import org.egothor.methodatlas.emit.GitHubAnnotationsEmitter;
+import org.egothor.methodatlas.emit.OutputEmitter;
+import org.egothor.methodatlas.emit.SarifEmitter;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
@@ -340,15 +351,16 @@ public final class MethodAtlasApp {
         // Scan each root with its own sink so the source_root value can be captured
         // per root. When emitSourceRoot is false, sourceRoot is null and the column
         // is omitted from the output.
+        JavaTestDiscovery discovery = new JavaTestDiscovery(parser, cliConfig.fileSuffixes(),
+                cliConfig.testAnnotations());
         boolean hadErrors = false;
         for (Path root : roots) {
             String sourceRoot = emitSourceRoot ? computeFilePrefix(List.of(root)) : null;
             TestMethodSink rootSink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
                     emitter.emit(mode, fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
-            if (scanRoot(root, cliConfig.aiOptions(), aiEngine, parser,
+            if (runDiscovery(root, discovery, cliConfig.aiOptions(), aiEngine,
                     filterSink(rootSink, cliConfig.securityOnly()),
-                    cliConfig.fileSuffixes(), cliConfig.testAnnotations(), cliConfig.contentHash(),
-                    override, aiCache)) {
+                    cliConfig.contentHash(), override, aiCache)) {
                 hadErrors = true;
             }
         }
@@ -507,10 +519,13 @@ public final class MethodAtlasApp {
         for (ClassOrInterfaceDeclaration clazz : cu.findAll(ClassOrInterfaceDeclaration.class)) {
             String fqcn = buildFqcn(packageName, clazz.getNameAsString());
             String fileStem = buildFileStem(root, path, fqcn);
-            String lookupHash = aiCache.isActive() ? computeContentHash(clazz) : null;
+            String classSource = clazz.toString();
+            String lookupHash = aiCache.isActive() ? computeContentHash(classSource) : null;
             List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, effective);
-            SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
-                    cliConfig.aiOptions(), aiEngine, override, aiCache, lookupHash);
+            List<String> methodNames = testMethods.stream().map(MethodDeclaration::getNameAsString).toList();
+            List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
+            SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, fqcn, classSource,
+                    methodNames, targetMethods, cliConfig.aiOptions(), aiEngine, override, aiCache, lookupHash);
 
             TagApplier.ClassResult result = TagApplier.applyToClass(clazz, suggestionLookup,
                     effective);
@@ -630,15 +645,76 @@ public final class MethodAtlasApp {
     private static int scan(List<Path> roots, CliConfig cliConfig, AiSuggestionEngine aiEngine,
             JavaParser parser, TestMethodSink sink, ClassificationOverride override,
             AiResultCache aiCache) throws IOException {
+        JavaTestDiscovery discovery = new JavaTestDiscovery(parser, cliConfig.fileSuffixes(),
+                cliConfig.testAnnotations());
         boolean hadErrors = false;
         for (Path root : roots) {
-            if (scanRoot(root, cliConfig.aiOptions(), aiEngine, parser, sink,
-                    cliConfig.fileSuffixes(), cliConfig.testAnnotations(), cliConfig.contentHash(), override,
-                    aiCache)) {
+            if (runDiscovery(root, discovery, cliConfig.aiOptions(), aiEngine, sink,
+                    cliConfig.contentHash(), override, aiCache)) {
                 hadErrors = true;
             }
         }
         return hadErrors ? 1 : 0;
+    }
+
+    /**
+     * Runs {@link JavaTestDiscovery} on {@code root}, orchestrates AI analysis
+     * per class, and forwards each method record to {@code sink}.
+     *
+     * @param root               directory to scan
+     * @param discovery          reusable discovery instance
+     * @param aiOptions          AI configuration for the current run
+     * @param aiEngine           AI engine, or {@code null} when AI is disabled
+     * @param sink               receiver of discovered test method records
+     * @param contentHashEnabled whether to include the class content hash
+     * @param override           human classification overrides
+     * @param aiCache            AI result cache
+     * @return {@code true} if any file produced a parse or processing error
+     * @throws IOException if traversing the file tree fails
+     */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
+    private static boolean runDiscovery(Path root, JavaTestDiscovery discovery,
+            AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
+            boolean contentHashEnabled, ClassificationOverride override,
+            AiResultCache aiCache) throws IOException {
+
+        List<DiscoveredMethod> methods = discovery.discover(root).toList();
+
+        Map<String, List<DiscoveredMethod>> byClass = new LinkedHashMap<>();
+        for (DiscoveredMethod m : methods) {
+            byClass.computeIfAbsent(m.fqcn(), k -> new ArrayList<>()).add(m);
+        }
+
+        for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
+            String fqcn = entry.getKey();
+            List<DiscoveredMethod> classMethods = entry.getValue();
+
+            String classSource = classMethods.get(0).sourceContent().get().orElse(null);
+
+            String lookupHash = (contentHashEnabled || aiCache.isActive()) && classSource != null
+                    ? computeContentHash(classSource) : null;
+            String outputHash = contentHashEnabled ? lookupHash : null;
+
+            String fileStem = classMethods.get(0).fileStem();
+            List<String> methodNames = classMethods.stream().map(DiscoveredMethod::method).toList();
+            List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
+                    .map(m -> new PromptBuilder.TargetMethod(m.method(),
+                            m.beginLine() > 0 ? m.beginLine() : null,
+                            m.endLine() > 0 ? m.endLine() : null))
+                    .toList();
+
+            SuggestionLookup suggestions = resolveSuggestionLookup(
+                    fileStem, fqcn, classSource, methodNames, targetMethods,
+                    aiOptions, aiEngine, override, aiCache, lookupHash);
+
+            for (DiscoveredMethod m : classMethods) {
+                sink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
+                        m.tags(), m.displayName(),
+                        suggestions.find(m.method()).orElse(null));
+            }
+        }
+
+        return discovery.hadErrors();
     }
 
     /**
@@ -761,117 +837,6 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Recursively scans a directory tree for Java test source files.
-     *
-     * @param root       root directory to scan
-     * @param aiOptions  AI configuration for the current run
-     * @param aiEngine   AI engine, or {@code null} when AI is disabled
-     * @param parser     configured JavaParser instance
-     * @param sink       receiver of discovered test method records
-     * @param fileSuffixes    one or more filename suffixes used to select source
-     *                        files; a file is included if its name ends with any of
-     *                        the listed suffixes
-     * @param testAnnotations set of annotation simple names that identify test
-     *                        methods
-     * @return {@code true} if any file produced a processing error
-     * @throws IOException if traversing the file tree fails
-     */
-    @SuppressWarnings("PMD.ExcessiveParameterList")
-    private static boolean scanRoot(Path root, AiOptions aiOptions, AiSuggestionEngine aiEngine,
-            JavaParser parser, TestMethodSink sink, List<String> fileSuffixes,
-            Set<String> testAnnotations, boolean contentHashEnabled,
-            ClassificationOverride override, AiResultCache aiCache) throws IOException {
-        if (LOG.isLoggable(Level.INFO)) {
-            LOG.log(Level.INFO, "Scanning {0} for files matching {1}", new Object[] { root, fileSuffixes });
-        }
-
-        boolean hadErrors = false;
-
-        try (Stream<Path> stream = Files.walk(root)) {
-            List<Path> files = stream
-                    .filter(path -> fileSuffixes.stream().anyMatch(s -> path.toString().endsWith(s)))
-                    .toList();
-            for (Path path : files) {
-                if (!processFile(root, path, aiOptions, aiEngine, parser, sink, testAnnotations,
-                        contentHashEnabled, override, aiCache)) {
-                    hadErrors = true;
-                }
-            }
-        }
-
-        return hadErrors;
-    }
-
-    /**
-     * Parses a single Java source file, discovers JUnit test methods, and forwards
-     * each to the supplied sink.
-     *
-     * @param root              scan root used to compute the path-based file stem
-     * @param path              source file to parse
-     * @param aiOptions         AI configuration for the current run
-     * @param aiEngine          AI engine, or {@code null} when AI is disabled
-     * @param parser            configured JavaParser instance
-     * @param sink              receiver of discovered test method records
-     * @param testAnnotations   set of annotation simple names that identify test
-     *                          methods
-     * @param contentHashEnabled whether to compute a SHA-256 fingerprint of each
-     *                          class source and include it in the records
-     * @return {@code true} if the file was processed successfully
-     */
-    @SuppressWarnings("PMD.ExcessiveParameterList")
-    private static boolean processFile(Path root, Path path, AiOptions aiOptions,
-            AiSuggestionEngine aiEngine, JavaParser parser, TestMethodSink sink,
-            Set<String> testAnnotations, boolean contentHashEnabled, ClassificationOverride override,
-            AiResultCache aiCache) {
-        try {
-            ParseResult<CompilationUnit> parseResult = parser.parse(path);
-
-            if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
-                if (LOG.isLoggable(Level.WARNING)) {
-                    LOG.log(Level.WARNING, "Failed to parse {0}: {1}",
-                            new Object[] { path, parseResult.getProblems() });
-                }
-                return false;
-            }
-
-            CompilationUnit compilationUnit = parseResult.getResult().orElseThrow();
-            Set<String> effective = AnnotationInspector.effectiveAnnotations(compilationUnit, testAnnotations);
-            String packageName = compilationUnit.getPackageDeclaration()
-                    .map(NodeWithName::getNameAsString).orElse("");
-
-            compilationUnit.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
-                String fqcn = buildFqcn(packageName, clazz.getNameAsString());
-                String fileStem = buildFileStem(root, path, fqcn);
-                // Compute hash when needed for output OR for cache lookup.
-                String lookupHash = (contentHashEnabled || aiCache.isActive())
-                        ? computeContentHash(clazz) : null;
-                String outputHash = contentHashEnabled ? lookupHash : null;
-
-                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, effective);
-                SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, clazz, fqcn, testMethods,
-                        aiOptions, aiEngine, override, aiCache, lookupHash);
-
-                for (MethodDeclaration method : testMethods) {
-                    int beginLine = method.getRange().map(range -> range.begin.line).orElse(0);
-                    int loc = AnnotationInspector.countLOC(method);
-                    List<String> tags = AnnotationInspector.getTagValues(method);
-                    String displayName = AnnotationInspector.getDisplayName(method);
-                    sink.record(fqcn, method.getNameAsString(), beginLine, loc, outputHash, tags,
-                            displayName, suggestionLookup.find(method.getNameAsString()).orElse(null));
-                }
-            });
-
-            return true;
-
-        } catch (IOException e) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "Cannot read file: " + path, e);
-            }
-            return false;
-        }
-    }
-
-    /**
      * Builds a fully qualified class name from a package name and a simple class
      * name.
      *
@@ -927,7 +892,7 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Computes a SHA-256 content fingerprint of a class declaration.
+     * Computes a SHA-256 content fingerprint of a class source string.
      *
      * <p>
      * The hash is derived from the JavaParser pretty-printed form of the class
@@ -936,15 +901,15 @@ public final class MethodAtlasApp {
      * lowercase hexadecimal string.
      * </p>
      *
-     * @param clazz parsed class declaration to fingerprint
+     * @param classSource JavaParser pretty-print of the class declaration
      * @return 64-character lowercase hex SHA-256 digest
      * @throws IllegalStateException if SHA-256 is unavailable (never in practice;
      *                               SHA-256 is mandated by the Java SE spec)
      */
-    private static String computeContentHash(ClassOrInterfaceDeclaration clazz) {
+    private static String computeContentHash(String classSource) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(clazz.toString().getBytes(StandardCharsets.UTF_8));
+            byte[] bytes = digest.digest(classSource.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(bytes);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);
@@ -967,7 +932,7 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Resolves method-level AI suggestions for a parsed class.
+     * Resolves method-level AI suggestions for a class.
      *
      * <p>
      * Returns an empty lookup when no AI engine is available, the method list is
@@ -977,27 +942,29 @@ public final class MethodAtlasApp {
      * not applied in the manual consume phase.
      * </p>
      *
-     * @param fileStem    dot-separated path stem identifying the source file;
-     *                    forwarded to {@link AiSuggestionEngine#suggestForClass}
-     * @param clazz       parsed class declaration to analyze
-     * @param fqcn        fully qualified class name of {@code clazz}
-     * @param testMethods discovered JUnit test methods
-     * @param aiOptions   AI configuration for the current run
-     * @param aiEngine    AI engine used to produce suggestions; {@code null} when
-     *                    AI is disabled
-     * @param override    human classification overrides to apply after AI results;
-     *                    use {@link ClassificationOverride#empty()} when no override
-     *                    file is configured
+     * @param fileStem      dot-separated path stem identifying the source file;
+     *                      forwarded to {@link AiSuggestionEngine#suggestForClass}
+     * @param fqcn          fully qualified class name
+     * @param classSource   pretty-printed source text of the class; may be
+     *                      {@code null} when source is unavailable
+     * @param methodNames   names of discovered test methods
+     * @param targetMethods prompt target descriptors for the test methods
+     * @param aiOptions     AI configuration for the current run
+     * @param aiEngine      AI engine used to produce suggestions; {@code null} when
+     *                      AI is disabled
+     * @param override      human classification overrides to apply after AI results
+     * @param aiCache       AI result cache
+     * @param contentHash   hash of the class source for cache lookup; may be
+     *                      {@code null}
      * @return lookup of AI suggestions keyed by method name; never {@code null}
      */
-    private static SuggestionLookup resolveSuggestionLookup(String fileStem, ClassOrInterfaceDeclaration clazz,
-            String fqcn, List<MethodDeclaration> testMethods, AiOptions aiOptions, AiSuggestionEngine aiEngine,
+    private static SuggestionLookup resolveSuggestionLookup(String fileStem, String fqcn,
+            String classSource, List<String> methodNames, List<PromptBuilder.TargetMethod> targetMethods,
+            AiOptions aiOptions, AiSuggestionEngine aiEngine,
             ClassificationOverride override, AiResultCache aiCache, String contentHash) {
-        if (testMethods.isEmpty()) {
+        if (methodNames.isEmpty()) {
             return SuggestionLookup.from(null);
         }
-
-        List<String> methodNames = testMethods.stream().map(MethodDeclaration::getNameAsString).toList();
 
         if (aiEngine == null) {
             return SuggestionLookup.from(override.apply(fqcn, null, methodNames));
@@ -1009,7 +976,10 @@ public final class MethodAtlasApp {
             return SuggestionLookup.from(override.apply(fqcn, cached, methodNames));
         }
 
-        String classSource = clazz.toString();
+        if (classSource == null) {
+            return SuggestionLookup.from(override.apply(fqcn, null, methodNames));
+        }
+
         if (aiOptions.enabled() && classSource.length() > aiOptions.maxClassChars()) {
             if (LOG.isLoggable(Level.INFO)) {
                 LOG.log(Level.INFO, "Skipping AI for {0}: class source too large ({1} chars)",
@@ -1017,8 +987,6 @@ public final class MethodAtlasApp {
             }
             return SuggestionLookup.from(override.apply(fqcn, null, methodNames));
         }
-
-        List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
 
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "Querying AI for {0} ({1} methods)", new Object[] { fqcn, targetMethods.size() });

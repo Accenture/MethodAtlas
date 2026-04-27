@@ -1,4 +1,4 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.api;
 
 import java.util.List;
 
@@ -8,19 +8,16 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  * Consumer that receives a single discovered test method record.
  *
  * <p>
- * This functional interface decouples the scanning logic in
- * {@link MethodAtlasApp} from the output format. During a scan run, one
- * implementation is created up-front (either a CSV/plain-text lambda backed by
- * {@link OutputEmitter} or a buffering {@link SarifEmitter}), and every
+ * This functional interface decouples the orchestration layer from the output
+ * format. During a scan run, one implementation is created up-front and every
  * discovered test method is forwarded to it via {@link #record}.
  * </p>
  *
- * @see OutputEmitter
- * @see SarifEmitter
- * @see MethodAtlasApp
+ * @see org.egothor.methodatlas.emit.OutputEmitter
+ * @see org.egothor.methodatlas.emit.SarifEmitter
  */
 @FunctionalInterface
-interface TestMethodSink {
+public interface TestMethodSink {
 
     /**
      * Records a single test method.
@@ -35,14 +32,13 @@ interface TestMethodSink {
      * @param contentHash lowercase-hex SHA-256 fingerprint of the enclosing
      *                    class source, or {@code null} when
      *                    {@code -content-hash} is not enabled
-     * @param tags        source-level JUnit {@code @Tag} values declared on the
+     * @param tags        source-level test-framework tag values declared on the
      *                    method; never {@code null}
-     * @param displayName text from an existing {@code @DisplayName} annotation on
-     *                    the method; {@code null} when no {@code @DisplayName}
-     *                    annotation is present; {@code ""} (empty string) when the
-     *                    annotation is present but declares an empty value
-     *                    ({@code @DisplayName("")}) — which is a malformed annotation
-     *                    and may be treated as a quality finding by implementations
+     * @param displayName text from an existing display-name annotation on the
+     *                    method; {@code null} when no such annotation is present;
+     *                    {@code ""} when the annotation is present but has an
+     *                    empty value — which is a malformed annotation and may
+     *                    be treated as a quality finding by implementations
      * @param suggestion  AI-generated security classification for the method,
      *                    or {@code null} when AI enrichment is disabled or
      *                    unavailable for this class

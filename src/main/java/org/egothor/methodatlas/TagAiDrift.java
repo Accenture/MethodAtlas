@@ -31,7 +31,7 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  * @see OutputEmitter
  * @see SarifEmitter
  */
-enum TagAiDrift {
+public enum TagAiDrift {
 
     /** Both sources agree — either both say security-relevant or neither does. */
     NONE,
@@ -59,7 +59,7 @@ enum TagAiDrift {
      * @return computed drift value, or {@code null} when {@code suggestion} is
      *         {@code null} (drift cannot be determined without AI classification)
      */
-    /* default */ static TagAiDrift compute(List<String> sourceTags, AiMethodSuggestion suggestion) {
+    public static TagAiDrift compute(List<String> sourceTags, AiMethodSuggestion suggestion) {
         if (suggestion == null) {
             return null;
         }
@@ -77,7 +77,7 @@ enum TagAiDrift {
      *
      * @return {@code "none"}, {@code "tag-only"}, or {@code "ai-only"}
      */
-    /* default */ String toValue() {
+    public String toValue() {
         return name().toLowerCase(Locale.ROOT).replace('_', '-');
     }
 }

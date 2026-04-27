@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.egothor.methodatlas.api.ScanRecord;
+
 /**
  * Computes the difference between two MethodAtlas scan outputs.
  *

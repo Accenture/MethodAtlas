@@ -10,6 +10,7 @@ import java.util.Set;
 import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.SuggestionLookup;
+import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

@@ -1,8 +1,10 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.emit;
 
 import java.io.PrintWriter;
 import java.util.List;
 
+import org.egothor.methodatlas.OutputMode;
+import org.egothor.methodatlas.TagAiDrift;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
 /**
@@ -25,9 +27,8 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  * </p>
  *
  * @see OutputMode
- * @see MethodAtlasApp
  */
-final class OutputEmitter {
+public final class OutputEmitter {
 
     private static final String PLAIN_ABSENT = "-";
     private static final String CSV_ABSENT = "";
@@ -58,7 +59,7 @@ final class OutputEmitter {
      *                           a multi-root project where the same FQCN can appear
      *                           under different source trees
      */
-    /* default */ OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled,
+    public OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled,
             boolean contentHashEnabled, boolean driftDetect, boolean emitSourceRoot) {
         this.out = out;
         this.aiEnabled = aiEnabled;
@@ -71,22 +72,11 @@ final class OutputEmitter {
     /**
      * Emits {@code # key: value} metadata comment lines before the CSV header.
      *
-     * <p>
-     * The lines are prefixed with {@code #} so standard CSV parsers treat them as
-     * comments and skip them. The metadata describes the conditions under which the
-     * scan was performed so that historical output files remain interpretable.
-     * </p>
-     *
-     * <p>
-     * Three lines are emitted: {@code tool_version}, {@code scan_timestamp}, and
-     * {@code taxonomy}.
-     * </p>
-     *
-     * @param version      tool version string, e.g. {@code 1.2.3} or {@code dev}
+     * @param version       tool version string, e.g. {@code 1.2.3} or {@code dev}
      * @param scanTimestamp ISO-8601 timestamp of the scan start
-     * @param taxonomyInfo human-readable taxonomy descriptor
+     * @param taxonomyInfo  human-readable taxonomy descriptor
      */
-    /* default */ void emitMetadata(String version, String scanTimestamp, String taxonomyInfo) {
+    public void emitMetadata(String version, String scanTimestamp, String taxonomyInfo) {
         out.println("# tool_version: " + version);
         out.println("# scan_timestamp: " + scanTimestamp);
         out.println("# taxonomy: " + taxonomyInfo);
@@ -101,7 +91,7 @@ final class OutputEmitter {
      *
      * @param mode selected output mode
      */
-    /* default */ void emitCsvHeader(OutputMode mode) {
+    public void emitCsvHeader(OutputMode mode) {
         if (mode != OutputMode.CSV) {
             return;
         }
@@ -133,19 +123,15 @@ final class OutputEmitter {
      * @param loc         inclusive line count of the method declaration
      * @param contentHash SHA-256 fingerprint of the enclosing class source, or
      *                    {@code null} when {@code -content-hash} is not enabled
-     * @param tags        source-level JUnit tags extracted from the method
-     * @param displayName text from an existing {@code @DisplayName} annotation on
-     *                    the method, or an empty string if absent; {@code null}
-     *                    is treated as absent and emitted as the configured absent
-     *                    value for the active output mode
+     * @param tags        source-level tags extracted from the method
+     * @param displayName text from an existing display-name annotation on the
+     *                    method, or an empty string if absent; {@code null}
+     *                    is treated as absent
      * @param suggestion  AI suggestion for the method, or {@code null} if none
-     *                    is available
-     * @param sourceRoot  CWD-relative path of the scan root that contained this
-     *                    record (e.g. {@code module-a/src/test/java/}), or
-     *                    {@code null} when {@code -emit-source-root} is not enabled;
-     *                    an empty string indicates the scan root is the CWD itself
+     * @param sourceRoot  CWD-relative path of the scan root, or {@code null}
+     *                    when {@code -emit-source-root} is not enabled
      */
-    /* default */ void emit(OutputMode mode, String fqcn, String method, int loc, String contentHash,
+    public void emit(OutputMode mode, String fqcn, String method, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourceRoot) {
         if (mode == OutputMode.PLAIN) {
             emitPlain(fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
@@ -154,19 +140,6 @@ final class OutputEmitter {
         }
     }
 
-    /**
-     * Emits a record in plain text format.
-     *
-     * @param fqcn        fully qualified class name
-     * @param method      test method name
-     * @param loc         inclusive line count
-     * @param contentHash SHA-256 fingerprint, or {@code null}
-     * @param tags        source-level JUnit tags
-     * @param displayName text from an existing {@code @DisplayName} annotation, or
-     *                    {@code null} or empty when absent
-     * @param suggestion  AI suggestion, or {@code null}
-     * @param sourceRoot  CWD-relative path of the scan root, or {@code null}
-     */
     private void emitPlain(String fqcn, String method, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourceRoot) {
         String existingTags = tags.isEmpty() ? PLAIN_ABSENT : String.join(";", tags);
@@ -192,14 +165,6 @@ final class OutputEmitter {
         out.println(line.toString());
     }
 
-    /**
-     * Appends AI-related fields to a plain-text line builder.
-     *
-     * @param line       string builder receiving the AI field tokens
-     * @param suggestion AI suggestion, or {@code null}
-     * @param drift      computed tag-vs-AI drift, or {@code null} when drift
-     *                   detection is disabled
-     */
     @SuppressWarnings("PMD.NPathComplexity")
     private void appendAiPlainFields(StringBuilder line, AiMethodSuggestion suggestion, TagAiDrift drift) {
         String aiSecurity = suggestion == null ? PLAIN_ABSENT : Boolean.toString(suggestion.securityRelevant());
@@ -229,19 +194,6 @@ final class OutputEmitter {
         }
     }
 
-    /**
-     * Emits a record in CSV format.
-     *
-     * @param fqcn        fully qualified class name
-     * @param method      test method name
-     * @param loc         inclusive line count
-     * @param contentHash SHA-256 fingerprint, or {@code null}
-     * @param tags        source-level JUnit tags
-     * @param displayName text from an existing {@code @DisplayName} annotation, or
-     *                    {@code null} or empty when absent
-     * @param suggestion  AI suggestion, or {@code null}
-     * @param sourceRoot  CWD-relative path of the scan root, or {@code null}
-     */
     private void emitCsv(String fqcn, String method, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourceRoot) {
         String existingTags = tags.isEmpty() ? CSV_ABSENT : String.join(";", tags);
@@ -267,14 +219,6 @@ final class OutputEmitter {
         out.println(line.toString());
     }
 
-    /**
-     * Appends AI-related CSV fields to a line builder.
-     *
-     * @param line       string builder receiving the AI columns
-     * @param suggestion AI suggestion, or {@code null}
-     * @param drift      computed tag-vs-AI drift, or {@code null} when drift
-     *                   detection is disabled
-     */
     @SuppressWarnings("PMD.NPathComplexity")
     private void appendAiCsvFields(StringBuilder line, AiMethodSuggestion suggestion, TagAiDrift drift) {
         String aiSecurity = suggestion == null ? CSV_ABSENT : Boolean.toString(suggestion.securityRelevant());
@@ -318,7 +262,7 @@ final class OutputEmitter {
      * @param value value to escape; may be {@code null}
      * @return CSV-safe representation of {@code value}
      */
-    /* default */ static String csvEscape(String value) {
+    public static String csvEscape(String value) {
         if (value == null) {
             return CSV_ABSENT;
         }

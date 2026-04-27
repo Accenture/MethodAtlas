@@ -2,6 +2,8 @@ package org.egothor.methodatlas;
 
 import java.util.Set;
 
+import org.egothor.methodatlas.api.ScanRecord;
+
 /**
  * A single change entry in a MethodAtlas delta report.
  *

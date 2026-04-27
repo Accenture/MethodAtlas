@@ -22,6 +22,9 @@ import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.nodeTypes.NodeWithName;
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 
+import org.egothor.methodatlas.api.ScanRecord;
+import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
+
 /**
  * Engine that applies annotation changes to Java source files driven by a
  * reviewed MethodAtlas CSV export.

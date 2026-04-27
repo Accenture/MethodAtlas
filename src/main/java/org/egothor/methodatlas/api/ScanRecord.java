@@ -1,4 +1,4 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.api;
 
 import java.util.List;
 
@@ -6,9 +6,8 @@ import java.util.List;
  * A single row from a MethodAtlas CSV output file.
  *
  * <p>
- * Instances are created by {@link DeltaReport} when parsing CSV files for
- * delta comparison. Each instance corresponds to one test method row in the
- * output.
+ * Instances are created when parsing CSV files for delta comparison. Each
+ * instance corresponds to one test method row in the output.
  * </p>
  *
  * <p>
@@ -23,10 +22,10 @@ import java.util.List;
  * @param fqcn               fully qualified class name; always present
  * @param method             test method name; always present
  * @param loc                lines of code for the method declaration; always present
- * @param tags               JUnit {@code @Tag} values on the method; empty list
+ * @param tags               test-framework tag values on the method; empty list
  *                           when none; never {@code null}
- * @param displayName        text value of an existing {@code @DisplayName} annotation
- *                           on the method, or an empty string when no such annotation
+ * @param displayName        text value of an existing display-name annotation on
+ *                           the method, or an empty string when no such annotation
  *                           is present; {@code null} when the {@code display_name}
  *                           column was absent from the source CSV file (old file
  *                           produced without this column)
@@ -36,8 +35,7 @@ import java.util.List;
  * @param aiSecurityRelevant AI security-relevance classification, or {@code null}
  *                           when the {@code ai_security_relevant} column was absent
  *                           (scan run without {@code -ai})
- * @param aiDisplayName      AI-suggested {@code @DisplayName} value, or {@code null}
- *                           when absent
+ * @param aiDisplayName      AI-suggested display name value, or {@code null} when absent
  * @param aiTags             AI-assigned taxonomy tags, or {@code null} when the
  *                           {@code ai_tags} column was absent; empty list when the
  *                           column was present but empty
@@ -51,10 +49,10 @@ import java.util.List;
  *                           or {@code ai-only}), or {@code null} when the
  *                           {@code tag_ai_drift} column was absent
  *
- * @see DeltaReport
- * @see DeltaEntry
+ * @see org.egothor.methodatlas.DeltaReport
+ * @see org.egothor.methodatlas.DeltaEntry
  */
-record ScanRecord(
+public record ScanRecord(
         String fqcn,
         String method,
         int loc,

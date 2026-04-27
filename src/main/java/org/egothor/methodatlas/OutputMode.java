@@ -10,7 +10,7 @@ package org.egothor.methodatlas;
  *
  * @see OutputEmitter
  */
-enum OutputMode {
+public enum OutputMode {
 
     /**
      * Emits output in comma-separated value format.

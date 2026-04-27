@@ -12,6 +12,7 @@ import java.util.Set;
 
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
+import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
 
 /**
  * Parses command-line arguments into a {@link CliConfig}.

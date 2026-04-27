@@ -6,6 +6,7 @@ import java.util.Set;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.SuggestionLookup;
+import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
 
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;

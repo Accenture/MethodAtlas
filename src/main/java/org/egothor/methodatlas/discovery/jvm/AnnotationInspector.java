@@ -1,4 +1,4 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.discovery.jvm;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,9 +43,9 @@ import com.github.javaparser.ast.expr.MemberValuePair;
  * This class is a non-instantiable utility holder.
  * </p>
  *
- * @see MethodAtlasApp
+ * @see JavaTestDiscovery
  */
-final class AnnotationInspector {
+public final class AnnotationInspector {
 
     /**
      * Default annotation simple names recognised as JUnit 5 (Jupiter) test
@@ -57,7 +57,7 @@ final class AnnotationInspector {
      * {@code RepeatedTest}, {@code TestFactory}, and {@code TestTemplate}.
      * </p>
      */
-    /* default */ static final Set<String> DEFAULT_TEST_ANNOTATIONS = Set.of(
+    public static final Set<String> DEFAULT_TEST_ANNOTATIONS = Set.of(
             "Test", "ParameterizedTest", "RepeatedTest", "TestFactory", "TestTemplate");
 
     /**
@@ -68,7 +68,7 @@ final class AnnotationInspector {
      * {@code Theory} from {@code org.junit.experimental.theories}.
      * </p>
      */
-    /* default */ static final Set<String> JUNIT4_TEST_ANNOTATIONS = Set.of("Test", "Theory");
+    public static final Set<String> JUNIT4_TEST_ANNOTATIONS = Set.of("Test", "Theory");
 
     /**
      * Annotation simple names recognised as TestNG test methods.
@@ -79,7 +79,7 @@ final class AnnotationInspector {
      * an attribute rather than using a separate annotation).
      * </p>
      */
-    /* default */ static final Set<String> TESTNG_TEST_ANNOTATIONS = Set.of("Test");
+    public static final Set<String> TESTNG_TEST_ANNOTATIONS = Set.of("Test");
 
     /**
      * Prevents instantiation of this utility class.
@@ -123,7 +123,7 @@ final class AnnotationInspector {
      *                   {@link #DEFAULT_TEST_ANNOTATIONS}, auto-detection runs
      * @return effective annotation set for the given file; never {@code null}
      */
-    /* default */ static Set<String> effectiveAnnotations(CompilationUnit cu, Set<String> configured) {
+    public static Set<String> effectiveAnnotations(CompilationUnit cu, Set<String> configured) {
         if (!DEFAULT_TEST_ANNOTATIONS.equals(configured)) {
             return configured;
         }
@@ -161,7 +161,7 @@ final class AnnotationInspector {
      * @param method method declaration to inspect
      * @return {@code true} if the method carries a recognised test annotation
      */
-    /* default */ static boolean isJUnitTest(MethodDeclaration method) {
+    public static boolean isJUnitTest(MethodDeclaration method) {
         return isJUnitTest(method, DEFAULT_TEST_ANNOTATIONS);
     }
 
@@ -181,7 +181,7 @@ final class AnnotationInspector {
      * @return {@code true} if the method carries at least one annotation whose
      *         simple name is in {@code testAnnotations}
      */
-    /* default */ static boolean isJUnitTest(MethodDeclaration method, Set<String> testAnnotations) {
+    public static boolean isJUnitTest(MethodDeclaration method, Set<String> testAnnotations) {
         for (AnnotationExpr annotation : method.getAnnotations()) {
             String name = annotation.getNameAsString();
             // Strip qualifier so @org.junit.jupiter.api.Test matches the simple name "Test"
@@ -195,7 +195,7 @@ final class AnnotationInspector {
     }
 
     /**
-     * Extracts all JUnit tag values declared on a method.
+     * Extracts all tag values declared on a method.
      *
      * <p>
      * Both direct {@code @Tag} annotations and the container-style
@@ -207,7 +207,7 @@ final class AnnotationInspector {
      * @return list of extracted tag values; possibly empty but never
      *         {@code null}
      */
-    /* default */ static List<String> getTagValues(MethodDeclaration method) {
+    public static List<String> getTagValues(MethodDeclaration method) {
         List<String> tagValues = new ArrayList<>();
 
         for (AnnotationExpr annotation : method.getAnnotations()) {
@@ -245,11 +245,11 @@ final class AnnotationInspector {
      * </ul>
      *
      * @param method method declaration whose annotations should be inspected
-     * @return the {@code @DisplayName} text value, {@code ""} when the annotation
-     *         is present with an empty value, or {@code null} when no
-     *         {@code @DisplayName} annotation is present
+     * @return the display name text value, {@code ""} when the annotation is
+     *         present with an empty value, or {@code null} when no display name
+     *         annotation is present
      */
-    /* default */ static String getDisplayName(MethodDeclaration method) {
+    public static String getDisplayName(MethodDeclaration method) {
         for (AnnotationExpr annotation : method.getAnnotations()) {
             if (!"DisplayName".equals(annotation.getNameAsString())) {
                 continue;
@@ -282,17 +282,10 @@ final class AnnotationInspector {
      * @return inclusive line count, or {@code 0} if no range information is
      *         available
      */
-    /* default */ static int countLOC(MethodDeclaration method) {
+    public static int countLOC(MethodDeclaration method) {
         return method.getRange().map(range -> range.end.line - range.begin.line + 1).orElse(0);
     }
 
-    /**
-     * Extracts tag values from a JUnit {@code @Tags} container annotation.
-     *
-     * @param annotation annotation expected to represent {@code @Tags}
-     * @param tagValues  destination list to which extracted tag values are
-     *                   appended
-     */
     private static void extractTagsContainerValues(AnnotationExpr annotation, List<String> tagValues) {
         if (annotation.isSingleMemberAnnotationExpr()) {
             Expression memberValue = annotation.asSingleMemberAnnotationExpr().getMemberValue();
@@ -309,14 +302,6 @@ final class AnnotationInspector {
         }
     }
 
-    /**
-     * Extracts individual {@code @Tag} values from the value expression of a
-     * {@code @Tags} container annotation.
-     *
-     * @param value     expression holding the container contents
-     * @param tagValues destination list to which extracted tag values are
-     *                  appended
-     */
     private static void extractTagsFromContainerValue(Expression value, List<String> tagValues) {
         if (!value.isArrayInitializerExpr()) {
             return;
@@ -330,18 +315,6 @@ final class AnnotationInspector {
         }
     }
 
-    /**
-     * Extracts the value from a single JUnit {@code @Tag} annotation.
-     *
-     * <p>
-     * Both the single-member form {@code @Tag("x")} and the normal form
-     * {@code @Tag(value = "x")} are supported.
-     * </p>
-     *
-     * @param annotation annotation expected to represent {@code @Tag}
-     * @return extracted tag value, or {@link Optional#empty()} if the
-     *         annotation is not a supported {@code @Tag} form
-     */
     private static Optional<String> extractTagValue(AnnotationExpr annotation) {
         if (!"Tag".equals(annotation.getNameAsString())) {
             return Optional.empty();

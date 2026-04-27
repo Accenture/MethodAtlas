@@ -15,10 +15,16 @@ import com.tngtech.archunit.lang.ArchRule;
  * MethodAtlas architecture.
  *
  * <p>
- * Two packages exist in this project:
+ * Four packages exist in this project:
  * </p>
  * <ul>
- * <li>{@code org.egothor.methodatlas} – scanner core, CLI, output</li>
+ * <li>{@code org.egothor.methodatlas} – scanner core and CLI</li>
+ * <li>{@code org.egothor.methodatlas.api} – architectural API contracts
+ * ({@code TestMethodSink}, {@code TestDiscovery}, {@code DiscoveredMethod},
+ * {@code ScanRecord})</li>
+ * <li>{@code org.egothor.methodatlas.discovery.jvm} – Java/JVM test discovery
+ * implementation</li>
+ * <li>{@code org.egothor.methodatlas.emit} – output emitter implementations</li>
  * <li>{@code org.egothor.methodatlas.ai} – AI subsystem, HTTP clients,
  * prompt builder</li>
  * </ul>

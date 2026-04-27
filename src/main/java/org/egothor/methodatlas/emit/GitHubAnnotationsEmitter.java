@@ -1,8 +1,10 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.emit;
 
 import java.io.PrintWriter;
 import java.util.List;
 
+import org.egothor.methodatlas.TagAiDrift;
+import org.egothor.methodatlas.api.TestMethodSink;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
 /**
@@ -29,13 +31,12 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  * <p>This mode does not require a GitHub Advanced Security licence, unlike
  * SARIF upload via the {@code upload-sarif} action.</p>
  *
- * @see OutputMode#GITHUB_ANNOTATIONS
  * @see TestMethodSink
  */
-final class GitHubAnnotationsEmitter implements TestMethodSink {
+public final class GitHubAnnotationsEmitter implements TestMethodSink {
 
     /** Interaction score at or above which a security test is flagged as a potential placebo. */
-    /* default */ static final double PLACEBO_THRESHOLD = 0.8;
+    public static final double PLACEBO_THRESHOLD = 0.8;
 
     private final PrintWriter out;
     private final String filePrefix;
@@ -46,7 +47,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
      *                   including a trailing slash (e.g. {@code "src/test/java/"});
      *                   empty string when the scan root is already the repo root
      */
-    /* default */ GitHubAnnotationsEmitter(PrintWriter out, String filePrefix) {
+    public GitHubAnnotationsEmitter(PrintWriter out, String filePrefix) {
         this.out = out;
         this.filePrefix = filePrefix;
     }
@@ -127,7 +128,10 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
         }
     }
 
-    /* default */ static String formatCommand(String level, String filePath, int beginLine,
+    /**
+     * Formats a GitHub Actions workflow command line.
+     */
+    public static String formatCommand(String level, String filePath, int beginLine,
             String title, String message) {
         StringBuilder cmd = new StringBuilder(128);
         cmd.append("::").append(level).append(" file=").append(escapeParam(filePath));
@@ -143,10 +147,8 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
 
     /**
      * Encodes characters that would break a GitHub workflow command parameter value.
-     * GitHub command parameters are comma-delimited key=value pairs; colons and
-     * commas inside values must be percent-encoded.
      */
-    /* default */ static String escapeParam(String value) {
+    public static String escapeParam(String value) {
         return value
                 .replace("%", "%25")
                 .replace("\r", "%0D")
@@ -158,7 +160,7 @@ final class GitHubAnnotationsEmitter implements TestMethodSink {
     /**
      * Encodes characters that would break a GitHub workflow command message.
      */
-    /* default */ static String escapeMessage(String value) {
+    public static String escapeMessage(String value) {
         return value
                 .replace("%", "%25")
                 .replace("\r", "%0D")

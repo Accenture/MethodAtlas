@@ -17,6 +17,8 @@ import com.github.javaparser.ParserConfiguration.LanguageLevel;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
 
+import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
+
 /**
  * Unit tests for {@link AnnotationInspector}.
  *

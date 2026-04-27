@@ -17,6 +17,7 @@ import java.util.List;
 
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
+import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

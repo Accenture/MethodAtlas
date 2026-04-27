@@ -1,4 +1,4 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.emit;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -9,6 +9,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import org.egothor.methodatlas.TagAiDrift;
+import org.egothor.methodatlas.api.TestMethodSink;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -44,13 +46,12 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
  *
  * <p>
  * This class implements {@link TestMethodSink} so it can be passed directly to
- * the scan loop in {@link MethodAtlasApp}.
+ * the orchestration layer in {@code MethodAtlasApp}.
  * </p>
  *
- * @see OutputMode#SARIF
  * @see TestMethodSink
  */
-final class SarifEmitter implements TestMethodSink {
+public final class SarifEmitter implements TestMethodSink {
 
     private static final String SARIF_SCHEMA =
             "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";
@@ -102,12 +103,6 @@ final class SarifEmitter implements TestMethodSink {
             Map.entry("logging", SEVERITY_LOW),
             Map.entry("dos", SEVERITY_LOW));
 
-    /**
-     * Pre-compiled pattern for splitting rule IDs into camel-case name segments.
-     * Using {@link Pattern#split(CharSequence, int)} with limit {@code -1} is
-     * more predictable than {@link String#split(String)} which silently discards
-     * trailing empty strings.
-     */
     private static final Pattern RULE_NAME_SEPARATOR = Pattern.compile("[/-]");
 
     private final boolean aiEnabled;
@@ -128,7 +123,7 @@ final class SarifEmitter implements TestMethodSink {
      *                          {@code "src/test/java/"}); use empty string when
      *                          the scan root is already the repository root
      */
-    /* default */ SarifEmitter(boolean aiEnabled, boolean confidenceEnabled, String filePrefix) {
+    public SarifEmitter(boolean aiEnabled, boolean confidenceEnabled, String filePrefix) {
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
         this.filePrefix = filePrefix;
@@ -138,11 +133,6 @@ final class SarifEmitter implements TestMethodSink {
 
     /**
      * Buffers a single test method record.
-     *
-     * <p>
-     * The record is not written to output until {@link #flush(PrintWriter)} is
-     * called.
-     * </p>
      */
     @Override
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
@@ -155,15 +145,10 @@ final class SarifEmitter implements TestMethodSink {
      * Serializes all buffered records as a SARIF 2.1.0 JSON document and writes
      * it to the supplied writer.
      *
-     * <p>
-     * The document contains a single run. Rules are collected from the unique
-     * rule IDs referenced by results. The output is pretty-printed.
-     * </p>
-     *
      * @param out destination writer
      * @throws IllegalStateException if JSON serialization fails
      */
-    /* default */ void flush(PrintWriter out) {
+    public void flush(PrintWriter out) {
         Map<String, SarifRule> rulesById = new LinkedHashMap<>();
         List<SarifResult> results = new ArrayList<>();
 
@@ -243,7 +228,6 @@ final class SarifEmitter implements TestMethodSink {
         if (RULE_SECURITY_PLACEBO.equals(ruleId)) {
             return List.of("security", "placebo", "test-quality");
         }
-        // "security/auth" → ["security", "auth"]
         String[] parts = ruleId.split("/", RULE_ID_PART_COUNT);
         if (parts.length == RULE_ID_PART_COUNT) {
             return List.of(parts[0], parts[1]);
@@ -453,48 +437,35 @@ final class SarifEmitter implements TestMethodSink {
     }
 
     // -------------------------------------------------------------------------
-    // SARIF 2.1.0 POJO records (serialized by Jackson via accessor methods).
-    //
-    // Java records expose each component through a public accessor method whose
-    // name matches the component name (no "get" prefix).  Jackson 2.12+
-    // recognises records natively and serialises them via those accessors,
-    // so no @JsonAutoDetect(fieldVisibility = ANY) is required.
+    // SARIF 2.1.0 POJO records
     // -------------------------------------------------------------------------
 
-    /** SARIF 2.1.0 top-level document containing a version, schema URL, and runs. */
     private record SarifDocument(
             @JsonProperty("$schema") String schema,
             String version,
             List<SarifRun> runs) {
     }
 
-    /** SARIF run containing a tool description and the list of results. */
     private record SarifRun(SarifTool tool, List<SarifResult> results) {
     }
 
-    /** SARIF tool wrapper holding the driver descriptor. */
     private record SarifTool(SarifDriver driver) {
     }
 
-    /** SARIF driver descriptor containing the tool name, version, and rules. */
     private record SarifDriver(String name, String version, List<SarifRule> rules) {
     }
 
-    /** SARIF rule definition with an id, camel-case name, short description, optional properties, and help. */
     @JsonInclude(Include.NON_NULL)
     private record SarifRule(String id, String name, SarifMessage shortDescription,
             SarifRuleProperties properties, SarifHelp help) {
     }
 
-    /** Rule help text shown in Code Scanning when a user expands a finding. */
     private record SarifHelp(String text) {
     }
 
-    /** Rule-level property bag carrying the tag list used by GitHub Code Scanning filters. */
     private record SarifRuleProperties(List<String> tags) {
     }
 
-    /** SARIF result record representing one discovered test method. */
     private record SarifResult(
             String ruleId,
             String level,
@@ -503,36 +474,29 @@ final class SarifEmitter implements TestMethodSink {
             SarifProperties properties) {
     }
 
-    /** SARIF location combining a physical and logical location for a result. */
     private record SarifLocation(
             SarifPhysicalLocation physicalLocation,
             List<SarifLogicalLocation> logicalLocations) {
     }
 
-    /** SARIF physical location identifying a file and an optional region. */
     private record SarifPhysicalLocation(
             SarifArtifactLocation artifactLocation,
             @JsonInclude(Include.NON_NULL) SarifRegion region) {
     }
 
-    /** SARIF artifact location holding a URI and an optional URI base-id token. */
     @JsonInclude(Include.NON_NULL)
     private record SarifArtifactLocation(String uri, String uriBaseId) {
     }
 
-    /** SARIF region identifying the starting line of a result within a file. */
     private record SarifRegion(int startLine) {
     }
 
-    /** SARIF logical location holding a fully-qualified member name and kind. */
     private record SarifLogicalLocation(String fullyQualifiedName, String kind) {
     }
 
-    /** SARIF message wrapper containing a plain-text description string. */
     private record SarifMessage(String text) {
     }
 
-    /** Custom SARIF properties bag carrying MethodAtlas-specific enrichment fields. */
     @JsonInclude(Include.NON_NULL)
     private record SarifProperties(
             int loc,
