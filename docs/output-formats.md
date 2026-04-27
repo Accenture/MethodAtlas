@@ -101,29 +101,29 @@ Enable plain mode with `-plain`:
 Plain mode renders one human-readable line per method:
 
 ```text
-com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto
-com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param
-com.acme.tests.SampleOneTest, gamma, LOC=4, TAGS=nested1;nested2
-com.acme.other.AnotherTest, delta, LOC=3, TAGS=-
+com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, DISPLAY=-
+com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param, DISPLAY=-
+com.acme.tests.SampleOneTest, gamma, LOC=4, TAGS=nested1;nested2, DISPLAY=-
+com.acme.other.AnotherTest, delta, LOC=3, TAGS=-, DISPLAY=-
 ```
 
-`TAGS=-` is printed when a method has no source-level JUnit tags.
+`TAGS=-` is printed when a method has no source-level JUnit tags. `DISPLAY=-` is printed when the method has no `@DisplayName` annotation; when the annotation is present its value is printed verbatim.
 
 ### Plain mode with content hash
 
-When `-content-hash` is also passed, a `HASH=<value>` token is appended after `TAGS`:
+When `-content-hash` is also passed, a `HASH=<value>` token is appended after `DISPLAY`:
 
 ```text
-com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, HASH=3a7f9b2e...
-com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param, HASH=3a7f9b2e...
-com.acme.other.AnotherTest, delta, LOC=3, TAGS=-, HASH=f1c04a8d...
+com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, DISPLAY=-, HASH=3a7f9b2e...
+com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param, DISPLAY=-, HASH=3a7f9b2e...
+com.acme.other.AnotherTest, delta, LOC=3, TAGS=-, DISPLAY=-, HASH=f1c04a8d...
 ```
 
 ### Plain mode with AI enrichment
 
 ```text
-com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property., AI_INTERACTION_SCORE=0.0
-com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param, AI_SECURITY=false, AI_DISPLAY=-, AI_TAGS=-, AI_REASON=-, AI_INTERACTION_SCORE=0.2
+com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, DISPLAY=-, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property., AI_INTERACTION_SCORE=0.0
+com.acme.tests.SampleOneTest, beta, LOC=6, TAGS=param, DISPLAY=-, AI_SECURITY=false, AI_DISPLAY=-, AI_TAGS=-, AI_REASON=-, AI_INTERACTION_SCORE=0.2
 ```
 
 Absent AI values are printed as `-` in plain mode. `AI_INTERACTION_SCORE` is always present when AI is enabled.
@@ -133,7 +133,7 @@ Absent AI values are printed as `-` in plain mode. `AI_INTERACTION_SCORE` is alw
 When `-ai-confidence` is also passed, an `AI_CONFIDENCE` token is appended after `AI_INTERACTION_SCORE`:
 
 ```text
-com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property., AI_INTERACTION_SCORE=0.0, AI_CONFIDENCE=0.9
+com.acme.tests.SampleOneTest, alpha, LOC=8, TAGS=fast;crypto, DISPLAY=-, AI_SECURITY=true, AI_DISPLAY=SECURITY: crypto - validates encrypted happy path, AI_TAGS=security;crypto, AI_REASON=The test exercises a crypto-related security property., AI_INTERACTION_SCORE=0.0, AI_CONFIDENCE=0.9
 ```
 
 ## SARIF mode

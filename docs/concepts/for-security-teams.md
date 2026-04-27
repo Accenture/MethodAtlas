@@ -27,6 +27,7 @@ the source changes.
 | `method` | Always | The name of the test method |
 | `loc` | Always | Inclusive line count of the method declaration |
 | `tags` | Always | JUnit `@Tag` values declared in source (e.g. `security`, `auth`) |
+| `display_name` | Always | Text of the `@DisplayName` annotation declared on the method; empty when the annotation is absent |
 | `content_hash` | `-content-hash` flag | SHA-256 fingerprint of the enclosing class source — enables revision traceability |
 
 ### AI enrichment (present when AI classification is enabled)

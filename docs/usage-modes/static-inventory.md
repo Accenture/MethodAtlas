@@ -19,10 +19,10 @@ deciding on an AI strategy.
 Sample output:
 
 ```
-fqcn,method,loc,tags
-com.example.AuthServiceTest,loginWithValidCredentials,12,
-com.example.AuthServiceTest,loginWithExpiredToken,8,security
-com.example.PaymentTest,chargeCard,15,
+fqcn,method,loc,tags,display_name
+com.example.AuthServiceTest,loginWithValidCredentials,12,,
+com.example.AuthServiceTest,loginWithExpiredToken,8,security,
+com.example.PaymentTest,chargeCard,15,,
 ```
 
 ## Plain text output

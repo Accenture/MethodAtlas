@@ -27,6 +27,7 @@
  * <li>test method name</li>
  * <li>method size measured in lines of code (LOC)</li>
  * <li>JUnit {@code @Tag} annotations declared on the method</li>
+ * <li>text of any {@code @DisplayName} annotation declared on the method</li>
  * </ul>
  *
  * <p>
@@ -68,9 +69,9 @@
  * </p>
  *
  * <ul>
- * <li><b>CSV (default)</b> <pre>{@code fqcn,method,loc,tags}</pre> or, when AI
+ * <li><b>CSV (default)</b> <pre>{@code fqcn,method,loc,tags,display_name}</pre> or, when AI
  * enrichment is enabled:
- * <pre>{@code fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason}</pre>
+ * <pre>{@code fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score}</pre>
  * </li>
  * <li><b>Plain text</b>, enabled using the {@code -plain} command-line option
  * </li>
