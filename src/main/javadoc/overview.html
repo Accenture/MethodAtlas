@@ -68,11 +68,40 @@
     Core application layer.  Contains the main entry point
     ({@link org.egothor.methodatlas.MethodAtlasApp}), command-line argument
     parsing ({@link org.egothor.methodatlas.CliArgs},
-    {@link org.egothor.methodatlas.CliConfig}), output rendering
-    ({@link org.egothor.methodatlas.OutputEmitter},
-    {@link org.egothor.methodatlas.SarifEmitter}), annotation inspection
-    ({@link org.egothor.methodatlas.AnnotationInspector}), and source
-    write-back ({@link org.egothor.methodatlas.TagApplier}).
+    {@link org.egothor.methodatlas.CliConfig}), source write-back
+    ({@link org.egothor.methodatlas.TagApplier}), and cross-cutting value
+    types ({@link org.egothor.methodatlas.OutputMode},
+    {@link org.egothor.methodatlas.TagAiDrift},
+    {@link org.egothor.methodatlas.DeltaEntry},
+    {@link org.egothor.methodatlas.DeltaReport}).
+  </dd>
+
+  <dt>{@link org.egothor.methodatlas.api}</dt>
+  <dd>
+    Platform-neutral API contracts.  Defines the input side
+    ({@link org.egothor.methodatlas.api.TestDiscovery},
+    {@link org.egothor.methodatlas.api.DiscoveredMethod},
+    {@link org.egothor.methodatlas.api.SourceContent}) and the output side
+    ({@link org.egothor.methodatlas.api.TestMethodSink},
+    {@link org.egothor.methodatlas.api.ScanRecord}).
+  </dd>
+
+  <dt>{@link org.egothor.methodatlas.discovery.jvm}</dt>
+  <dd>
+    Java/JVM test discovery implementation.  Walks source trees with
+    JavaParser and emits {@link org.egothor.methodatlas.api.DiscoveredMethod}
+    records ({@link org.egothor.methodatlas.discovery.jvm.JavaTestDiscovery});
+    annotation inspection utilities are in
+    {@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector}.
+  </dd>
+
+  <dt>{@link org.egothor.methodatlas.emit}</dt>
+  <dd>
+    Output emitters.  Formats enriched records as CSV or plain text
+    ({@link org.egothor.methodatlas.emit.OutputEmitter}), SARIF&nbsp;2.1.0
+    ({@link org.egothor.methodatlas.emit.SarifEmitter}), GitHub Actions
+    workflow commands ({@link org.egothor.methodatlas.emit.GitHubAnnotationsEmitter}),
+    and delta reports ({@link org.egothor.methodatlas.emit.DeltaEmitter}).
   </dd>
 
   <dt>{@link org.egothor.methodatlas.ai}</dt>
