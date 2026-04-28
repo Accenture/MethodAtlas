@@ -1,12 +1,16 @@
 # Builds the MkDocs Material documentation site, Javadoc, JaCoCo coverage, PMD
 # static-analysis, and JUnit test reports, then assembles them under a single
-# site/ directory and deploys everything to GitHub Pages.  Runs on every push
-# to main and on manual dispatch.
+# site/ directory and deploys everything to GitHub Pages.
+#
+# Triggered only when a release tag (release@x.y.z) is pushed, so the public
+# documentation always matches a downloadable distribution artifact.
+# Manual dispatch is kept for emergency redeploys without a new tag.
 name: Pages
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'release@*'
   workflow_dispatch:
 
 # Only one deployment at a time; cancel any in-progress run when a newer one starts.
