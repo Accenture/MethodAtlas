@@ -138,4 +138,5 @@ nav:
     - CLI Examples: cli-examples.md
     - Discovery Plugins: discovery-plugins.md
     - Build Reports: reports.md
+  - Migration Guide: migration.md
   - Troubleshooting: troubleshooting.md

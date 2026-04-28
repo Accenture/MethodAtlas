@@ -75,7 +75,7 @@ fileSuffixes:
   - Test.java
   - IT.java
 testMarkers:             # annotation/attribute names for Java/.NET; empty = auto-detect
-  - Test
+  - Test                 # (renamed from testAnnotations: in 2.x — see Migration Guide)
   - ParameterizedTest
 properties:              # plugin-specific key/multi-value pairs (optional)
   functionNames:         # example: test function names for a Jest/Mocha/Vitest plugin
@@ -169,7 +169,7 @@ Extends or replaces the set of identifiers that MethodAtlas uses to recognise te
 | C# / .NET | Attribute simple name — `Test`, `TestMethod`, `Fact`, `Theory`, … |
 | TypeScript / JavaScript | Leave empty; use `-property functionNames=test` instead |
 
-`-test-annotation` is accepted as a backward-compatible alias and behaves identically.
+`-test-annotation` is accepted as a backward-compatible alias and behaves identically. If you are upgrading from 2.x, see the [Migration Guide](migration.md#-test-annotation--test-marker) for the recommended update steps.
 
 #### Automatic framework detection (JVM)
 
