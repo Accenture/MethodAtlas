@@ -12,11 +12,13 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -34,9 +36,10 @@ import org.egothor.methodatlas.ai.ManualPrepareEngine;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.SuggestionLookup;
 import org.egothor.methodatlas.api.DiscoveredMethod;
+import org.egothor.methodatlas.api.TestDiscovery;
+import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.api.TestMethodSink;
 import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
-import org.egothor.methodatlas.discovery.jvm.JavaTestDiscovery;
 import org.egothor.methodatlas.emit.DeltaEmitter;
 import org.egothor.methodatlas.emit.GitHubAnnotationsEmitter;
 import org.egothor.methodatlas.emit.OutputEmitter;
@@ -325,12 +328,12 @@ public final class MethodAtlasApp {
 
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
-            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, parser, roots, out, override, aiCache);
+            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, roots, out, override, aiCache);
         }
 
         // GitHub Annotations mode: emit ::notice/::warning workflow commands.
         if (cliConfig.outputMode() == OutputMode.GITHUB_ANNOTATIONS) {
-            return runGitHubAnnotations(cliConfig, aiEngine, parser, roots, out, override, aiCache);
+            return runGitHubAnnotations(cliConfig, aiEngine, roots, out, override, aiCache);
         }
 
         // CSV / PLAIN mode: emit incrementally.
@@ -351,14 +354,14 @@ public final class MethodAtlasApp {
         // Scan each root with its own sink so the source_root value can be captured
         // per root. When emitSourceRoot is false, sourceRoot is null and the column
         // is omitted from the output.
-        JavaTestDiscovery discovery = new JavaTestDiscovery(parser, cliConfig.fileSuffixes(),
-                cliConfig.testAnnotations());
+        List<TestDiscovery> providers = loadProviders(
+                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testAnnotations()));
         boolean hadErrors = false;
         for (Path root : roots) {
             String sourceRoot = emitSourceRoot ? computeFilePrefix(List.of(root)) : null;
             TestMethodSink rootSink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
                     emitter.emit(mode, fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
-            if (runDiscovery(root, discovery, cliConfig.aiOptions(), aiEngine,
+            if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine,
                     filterSink(rootSink, cliConfig.securityOnly()),
                     cliConfig.contentHash(), override, aiCache)) {
                 hadErrors = true;
@@ -559,7 +562,6 @@ public final class MethodAtlasApp {
      * @param aiEnabled         whether an AI engine is active
      * @param confidenceEnabled whether the {@code aiConfidence} property should be
      *                          included in SARIF properties
-     * @param parser            configured JavaParser instance
      * @param roots             source roots to scan
      * @param out               writer that receives the serialized SARIF document
      * @return {@code 0} if all files were processed successfully, {@code 1} if any
@@ -568,11 +570,11 @@ public final class MethodAtlasApp {
      */
     private static int runSarif(CliConfig cliConfig, AiSuggestionEngine aiEngine,
             boolean aiEnabled, boolean confidenceEnabled,
-            JavaParser parser, List<Path> roots, PrintWriter out,
+            List<Path> roots, PrintWriter out,
             ClassificationOverride override, AiResultCache aiCache) throws IOException {
         String filePrefix = computeFilePrefix(roots);
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix);
-        int result = scan(roots, cliConfig, aiEngine, parser,
+        int result = scan(roots, cliConfig, aiEngine,
                 filterSink(sarifEmitter, cliConfig.securityOnly()), override, aiCache);
         sarifEmitter.flush(out);
         return result;
@@ -584,7 +586,6 @@ public final class MethodAtlasApp {
      *
      * @param cliConfig full parsed CLI configuration
      * @param aiEngine  AI engine providing suggestions; may be {@code null}
-     * @param parser    configured JavaParser instance
      * @param roots     source roots to scan
      * @param out       writer that receives the workflow command lines
      * @return {@code 0} if all files were processed successfully, {@code 1} if any
@@ -592,11 +593,11 @@ public final class MethodAtlasApp {
      * @throws IOException if traversing a file tree fails
      */
     private static int runGitHubAnnotations(CliConfig cliConfig, AiSuggestionEngine aiEngine,
-            JavaParser parser, List<Path> roots, PrintWriter out,
+            List<Path> roots, PrintWriter out,
             ClassificationOverride override, AiResultCache aiCache) throws IOException {
         String filePrefix = computeFilePrefix(roots);
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
-        return scan(roots, cliConfig, aiEngine, parser, emitter, override, aiCache);
+        return scan(roots, cliConfig, aiEngine, emitter, override, aiCache);
     }
 
     /**
@@ -638,20 +639,19 @@ public final class MethodAtlasApp {
      * @param roots     source roots to scan
      * @param cliConfig full parsed CLI configuration
      * @param aiEngine  AI engine providing suggestions; may be {@code null}
-     * @param parser    configured JavaParser instance
      * @param sink      receiver of discovered test method records
      * @return {@code 0} if all files were processed successfully, {@code 1} if any
      *         file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
      */
     private static int scan(List<Path> roots, CliConfig cliConfig, AiSuggestionEngine aiEngine,
-            JavaParser parser, TestMethodSink sink, ClassificationOverride override,
+            TestMethodSink sink, ClassificationOverride override,
             AiResultCache aiCache) throws IOException {
-        JavaTestDiscovery discovery = new JavaTestDiscovery(parser, cliConfig.fileSuffixes(),
-                cliConfig.testAnnotations());
+        List<TestDiscovery> providers = loadProviders(
+                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testAnnotations()));
         boolean hadErrors = false;
         for (Path root : roots) {
-            if (runDiscovery(root, discovery, cliConfig.aiOptions(), aiEngine, sink,
+            if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine, sink,
                     cliConfig.contentHash(), override, aiCache)) {
                 hadErrors = true;
             }
@@ -660,26 +660,41 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Runs {@link JavaTestDiscovery} on {@code root}, orchestrates AI analysis
-     * per class, and forwards each method record to {@code sink}.
+     * Runs all configured {@link TestDiscovery} providers on {@code root},
+     * merges their results, orchestrates AI analysis per class, and forwards
+     * each method record to {@code sink}.
+     *
+     * <p>
+     * All providers are run against every root, and their streams are merged
+     * before grouping by class. This supports multi-language scanning: a JVM
+     * provider and a .NET provider on the classpath will each scan their own
+     * file types and contribute distinct {@link DiscoveredMethod} records.
+     * </p>
      *
      * @param root               directory to scan
-     * @param discovery          reusable discovery instance
+     * @param providers          list of pre-configured discovery providers
      * @param aiOptions          AI configuration for the current run
      * @param aiEngine           AI engine, or {@code null} when AI is disabled
      * @param sink               receiver of discovered test method records
      * @param contentHashEnabled whether to include the class content hash
      * @param override           human classification overrides
      * @param aiCache            AI result cache
-     * @return {@code true} if any file produced a parse or processing error
+     * @return {@code true} if any provider encountered a parse or processing error
      * @throws IOException if traversing the file tree fails
      */
-    private static boolean runDiscovery(Path root, JavaTestDiscovery discovery,
+    private static boolean runDiscovery(Path root, List<TestDiscovery> providers,
             AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
             boolean contentHashEnabled, ClassificationOverride override,
             AiResultCache aiCache) throws IOException {
 
-        List<DiscoveredMethod> methods = discovery.discover(root).toList();
+        List<DiscoveredMethod> methods = new ArrayList<>();
+        boolean hadErrors = false;
+        for (TestDiscovery provider : providers) {
+            provider.discover(root).forEach(methods::add);
+            if (provider.hadErrors()) {
+                hadErrors = true;
+            }
+        }
 
         Map<String, List<DiscoveredMethod>> byClass = methods.stream()
                 .collect(Collectors.groupingBy(DiscoveredMethod::fqcn,
@@ -713,7 +728,40 @@ public final class MethodAtlasApp {
             }
         }
 
-        return discovery.hadErrors();
+        return hadErrors;
+    }
+
+    /**
+     * Loads all {@link TestDiscovery} providers registered via
+     * {@link ServiceLoader}, configures each with {@code config}, and returns
+     * the list.
+     *
+     * <p>
+     * Providers are discovered from the classpath using the standard
+     * {@code META-INF/services/org.egothor.methodatlas.api.TestDiscovery}
+     * service file.  Adding a provider JAR to the classpath automatically
+     * enables the corresponding language/framework support without any code
+     * change in the application.
+     * </p>
+     *
+     * @param config runtime configuration forwarded to every provider via
+     *               {@link TestDiscovery#configure}
+     * @return non-empty list of configured providers
+     * @throws IllegalStateException if no providers are found on the classpath
+     */
+    private static List<TestDiscovery> loadProviders(TestDiscoveryConfig config) {
+        List<TestDiscovery> providers = new ArrayList<>();
+        for (TestDiscovery provider : ServiceLoader.load(TestDiscovery.class)) {
+            provider.configure(config);
+            providers.add(provider);
+        }
+        if (providers.isEmpty()) {
+            throw new IllegalStateException(
+                    "No TestDiscovery providers found on the classpath. "
+                    + "Ensure at least one provider JAR ships the service registration file "
+                    + "META-INF/services/org.egothor.methodatlas.api.TestDiscovery.");
+        }
+        return providers;
     }
 
     /**

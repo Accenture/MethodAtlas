@@ -3,6 +3,7 @@ package org.egothor.methodatlas.discovery.jvm;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -11,10 +12,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.egothor.methodatlas.api.DiscoveredMethod;
+import org.egothor.methodatlas.api.TestDiscovery;
+import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -770,5 +775,132 @@ class JavaTestDiscoveryTest {
 
         assertEquals(1, result.size());
         assertEquals("customTest", result.get(0).method());
+    }
+
+    // -------------------------------------------------------------------------
+    // ServiceLoader lifecycle: no-arg constructor + configure()
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("no-arg constructor + configure() discovers test methods correctly")
+    @Tag("positive")
+    void noArgConstructor_configure_discovers(@TempDir Path tmp) throws IOException {
+        write(tmp, "FooTest.java", """
+                import org.junit.jupiter.api.Test;
+                class FooTest {
+                    @Test void alpha() {}
+                    @Test void beta() {}
+                }
+                """);
+
+        JavaTestDiscovery configured = new JavaTestDiscovery();
+        configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of()));
+
+        List<DiscoveredMethod> result = configured.discover(tmp).collect(Collectors.toList());
+
+        assertEquals(2, result.size());
+        List<String> methods = result.stream().map(DiscoveredMethod::method).toList();
+        assertTrue(methods.contains("alpha"));
+        assertTrue(methods.contains("beta"));
+    }
+
+    @Test
+    @DisplayName("no-arg constructor + configure() with explicit annotations only finds those annotations")
+    @Tag("positive")
+    void noArgConstructor_configure_customAnnotations(@TempDir Path tmp) throws IOException {
+        write(tmp, "FooTest.java", """
+                import org.junit.jupiter.api.Test;
+                class FooTest {
+                    @Test void junit5() {}
+                    @MyCustomAnnotation void custom() {}
+                }
+                """);
+
+        JavaTestDiscovery configured = new JavaTestDiscovery();
+        configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of("MyCustomAnnotation")));
+
+        List<DiscoveredMethod> result = configured.discover(tmp).collect(Collectors.toList());
+
+        assertEquals(1, result.size());
+        assertEquals("custom", result.get(0).method());
+    }
+
+    @Test
+    @DisplayName("discover() before configure() throws IllegalStateException")
+    @Tag("negative")
+    void discover_beforeConfigure_throwsIllegalStateException(@TempDir Path tmp) {
+        JavaTestDiscovery unconfigured = new JavaTestDiscovery();
+
+        assertThrows(IllegalStateException.class, () -> unconfigured.discover(tmp),
+                "discover() on unconfigured instance should throw IllegalStateException");
+    }
+
+    @Test
+    @DisplayName("configure() can be re-applied to change suffix filter")
+    @Tag("positive")
+    void configure_reapply_changesSuffixFilter(@TempDir Path tmp) throws IOException {
+        write(tmp, "FooTest.java", """
+                import org.junit.jupiter.api.Test;
+                class FooTest { @Test void t() {} }
+                """);
+        write(tmp, "BarSpec.java", """
+                import org.junit.jupiter.api.Test;
+                class BarSpec { @Test void s() {} }
+                """);
+
+        JavaTestDiscovery d = new JavaTestDiscovery();
+
+        // First configure: only Test.java suffix
+        d.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of()));
+        List<DiscoveredMethod> first = d.discover(tmp).collect(Collectors.toList());
+
+        // Re-configure: only Spec.java suffix
+        d.configure(new TestDiscoveryConfig(List.of("Spec.java"), Set.of()));
+        List<DiscoveredMethod> second = d.discover(tmp).collect(Collectors.toList());
+
+        assertEquals(1, first.size());
+        assertEquals("t", first.get(0).method());
+
+        assertEquals(1, second.size());
+        assertEquals("s", second.get(0).method());
+    }
+
+    // -------------------------------------------------------------------------
+    // ServiceLoader registration
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("ServiceLoader finds JavaTestDiscovery via META-INF/services registration")
+    @Tag("positive")
+    void serviceLoader_findsJavaTestDiscovery() {
+        ServiceLoader<TestDiscovery> loader = ServiceLoader.load(TestDiscovery.class);
+        List<TestDiscovery> providers = StreamSupport.stream(loader.spliterator(), false)
+                .collect(Collectors.toList());
+
+        assertTrue(providers.stream().anyMatch(p -> p instanceof JavaTestDiscovery),
+                "ServiceLoader should find JavaTestDiscovery via META-INF/services");
+    }
+
+    @Test
+    @DisplayName("ServiceLoader-loaded provider works end-to-end after configure()")
+    @Tag("positive")
+    void serviceLoader_loadedProvider_worksAfterConfigure(@TempDir Path tmp) throws IOException {
+        write(tmp, "FooTest.java", """
+                import org.junit.jupiter.api.Test;
+                class FooTest { @Test void slTest() {} }
+                """);
+
+        ServiceLoader<TestDiscovery> loader = ServiceLoader.load(TestDiscovery.class);
+        TestDiscovery provider = StreamSupport.stream(loader.spliterator(), false)
+                .filter(p -> p instanceof JavaTestDiscovery)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("JavaTestDiscovery not found via ServiceLoader"));
+
+        provider.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of()));
+        List<DiscoveredMethod> result = provider.discover(tmp).collect(Collectors.toList());
+
+        assertEquals(1, result.size());
+        assertEquals("slTest", result.get(0).method());
+        assertFalse(provider.hadErrors());
     }
 }

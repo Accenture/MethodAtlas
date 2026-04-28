@@ -27,6 +27,19 @@ import java.util.stream.Stream;
  *     Jest, Vitest, Mocha, …</li>
  * </ul>
  *
+ * <h2>ServiceLoader integration</h2>
+ *
+ * <p>
+ * Providers are discovered via {@link java.util.ServiceLoader}.  Each provider
+ * JAR ships a
+ * {@code META-INF/services/org.egothor.methodatlas.api.TestDiscovery}
+ * registration file listing its implementation class.  The orchestration layer
+ * loads all available providers, calls {@link #configure} on each with the
+ * current {@link TestDiscoveryConfig}, and then runs all providers against
+ * every scan root, merging their result streams.  This means placing multiple
+ * provider JARs on the classpath automatically enables multi-language scanning.
+ * </p>
+ *
  * <h2>Error handling</h2>
  *
  * <p>
@@ -38,8 +51,32 @@ import java.util.stream.Stream;
  * </p>
  *
  * @see DiscoveredMethod
+ * @see TestDiscoveryConfig
  */
 public interface TestDiscovery {
+
+    /**
+     * Configures this provider before the first call to {@link #discover}.
+     *
+     * <p>
+     * The orchestration layer calls this method exactly once after loading the
+     * provider via {@link java.util.ServiceLoader} and before any call to
+     * {@link #discover}.  Providers that need no runtime configuration may
+     * leave this as the default no-op.
+     * </p>
+     *
+     * <p>
+     * Providers loaded programmatically (e.g. in tests) may also call this
+     * method to (re-)configure an existing instance, or use a constructor that
+     * accepts the same information directly.
+     * </p>
+     *
+     * @param config runtime configuration supplied by the calling application;
+     *               never {@code null}
+     */
+    default void configure(TestDiscoveryConfig config) {
+        // default: no-op — providers that need no runtime configuration omit this
+    }
 
     /**
      * Scans {@code root} and returns a stream of discovered test methods.

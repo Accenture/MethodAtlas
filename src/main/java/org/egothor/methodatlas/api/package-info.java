@@ -7,12 +7,17 @@
  * and platforms (JVM, .NET, TypeScript, etc.) without changing the core logic.
  * </p>
  *
- * <h2>Input side</h2>
+ * <h2>Input side — service-provider interfaces</h2>
  *
  * <ul>
- * <li>{@link org.egothor.methodatlas.api.TestDiscovery} — interface that a
- *     scanner implementation must provide; yields a stream of
+ * <li>{@link org.egothor.methodatlas.api.TestDiscovery} — SPI that a scanner
+ *     implementation must provide; loaded via {@link java.util.ServiceLoader}
+ *     and configured at runtime before each scan; yields a stream of
  *     {@link org.egothor.methodatlas.api.DiscoveredMethod} records.</li>
+ * <li>{@link org.egothor.methodatlas.api.TestDiscoveryConfig} — runtime
+ *     configuration record passed to each {@code TestDiscovery} provider via
+ *     {@link org.egothor.methodatlas.api.TestDiscovery#configure}; carries the
+ *     file-name suffixes and annotation set in effect for the current run.</li>
  * <li>{@link org.egothor.methodatlas.api.DiscoveredMethod} — data carrier
  *     produced by a scanner, conveying per-method metadata and a lazy
  *     {@link org.egothor.methodatlas.api.SourceContent} provider.</li>

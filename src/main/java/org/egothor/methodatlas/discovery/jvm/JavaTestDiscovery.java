@@ -14,9 +14,12 @@ import java.util.stream.Stream;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
+import org.egothor.methodatlas.api.TestDiscoveryConfig;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
+import com.github.javaparser.ParserConfiguration;
+import com.github.javaparser.ParserConfiguration.LanguageLevel;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
@@ -35,7 +38,7 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * Test-framework detection is automatic: import declarations are inspected to
  * select the appropriate annotation set for JUnit 4, JUnit 5 (Jupiter), or
  * TestNG. Callers can override this by supplying a custom annotation set at
- * construction time.
+ * construction time or via {@link #configure}.
  * </p>
  *
  * <p>
@@ -51,21 +54,49 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * (e.g. once per scan root). Error tracking is cumulative across calls.
  * </p>
  *
+ * <h2>ServiceLoader usage</h2>
+ *
+ * <p>
+ * This class is registered as a {@link TestDiscovery} provider via
+ * {@code META-INF/services/org.egothor.methodatlas.api.TestDiscovery}.
+ * When loaded that way the no-arg constructor is used and
+ * {@link #configure(TestDiscoveryConfig)} must be called before
+ * {@link #discover(Path)}.
+ * </p>
+ *
  * @see AnnotationInspector
  * @see TestDiscovery
+ * @see TestDiscoveryConfig
  */
 public final class JavaTestDiscovery implements TestDiscovery {
 
     private static final Logger LOG = Logger.getLogger(JavaTestDiscovery.class.getName());
 
-    private final JavaParser parser;
-    private final List<String> fileSuffixes;
-    private final Set<String> testAnnotations;
+    private JavaParser parser;
+    private List<String> fileSuffixes;
+    private Set<String> testAnnotations;
     private boolean errors;
 
     /**
-     * Creates a new scanner with the supplied parser, file suffixes, and
-     * annotation set.
+     * No-arg constructor for use by {@link java.util.ServiceLoader}.
+     *
+     * <p>
+     * {@link #configure(TestDiscoveryConfig)} must be called before the first
+     * call to {@link #discover(Path)}.
+     * </p>
+     */
+    public JavaTestDiscovery() {
+    }
+
+    /**
+     * Creates a fully configured scanner for programmatic use.
+     *
+     * <p>
+     * Use this constructor when you already have a {@link JavaParser} instance
+     * configured for a specific language level, or in tests that supply a
+     * custom parser. For {@link java.util.ServiceLoader}-based loading, prefer
+     * the no-arg constructor followed by {@link #configure}.
+     * </p>
      *
      * @param parser          configured JavaParser instance
      * @param fileSuffixes    one or more filename suffixes used to select source
@@ -84,6 +115,35 @@ public final class JavaTestDiscovery implements TestDiscovery {
     }
 
     /**
+     * Configures this provider from a {@link TestDiscoveryConfig}.
+     *
+     * <p>
+     * Creates a {@link JavaParser} set to Java&nbsp;21 language level,
+     * applies the supplied file suffixes, and uses the supplied annotation
+     * set. When {@code config.testAnnotations()} is empty, automatic
+     * framework detection is enabled via
+     * {@link AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}.
+     * </p>
+     *
+     * <p>
+     * This method may also be used to (re-)configure an existing instance
+     * after it was created with the no-arg constructor.
+     * </p>
+     *
+     * @param config runtime configuration; never {@code null}
+     */
+    @Override
+    public void configure(TestDiscoveryConfig config) {
+        ParserConfiguration cfg = new ParserConfiguration();
+        cfg.setLanguageLevel(LanguageLevel.JAVA_21);
+        this.parser = new JavaParser(cfg);
+        this.fileSuffixes = config.fileSuffixes();
+        this.testAnnotations = config.testAnnotations().isEmpty()
+                ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS
+                : config.testAnnotations();
+    }
+
+    /**
      * Scans {@code root} and returns a stream of all discovered JUnit test
      * methods.
      *
@@ -95,10 +155,19 @@ public final class JavaTestDiscovery implements TestDiscovery {
      *
      * @param root directory to scan
      * @return stream of discovered test methods; never {@code null}
-     * @throws IOException if traversing the file tree fails
+     * @throws IllegalStateException if {@link #configure} has not been called
+     *                               on an instance created with the no-arg
+     *                               constructor
+     * @throws IOException           if traversing the file tree fails
      */
     @Override
     public Stream<DiscoveredMethod> discover(Path root) throws IOException {
+        if (parser == null) {
+            throw new IllegalStateException(
+                    "JavaTestDiscovery is not configured. "
+                    + "Call configure(TestDiscoveryConfig) before discover(Path).");
+        }
+
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "Scanning {0} for files matching {1}",
                     new Object[] { root, fileSuffixes });
