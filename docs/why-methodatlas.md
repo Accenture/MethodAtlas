@@ -91,7 +91,7 @@ flowchart LR
 
 ### Phase 1 — deterministic method discovery
 
-The parser reads each Java source file lexically, without compiling it, and extracts a precise list of test methods. The test framework is detected automatically from the file's import declarations — JUnit 5 Jupiter, JUnit 4 (including `@Theory`), and TestNG are all supported. This step is entirely rule-based: it finds every method carrying a recognised test annotation, or any custom annotation configured via `-test-annotation`. The result is a canonical, repeatable inventory that does not depend on which AI model is used, which version is current, or whether the AI service is available at all.
+The parser reads each Java source file lexically, without compiling it, and extracts a precise list of test methods. The test framework is detected automatically from the file's import declarations — JUnit 5 Jupiter, JUnit 4 (including `@Theory`), and TestNG are all supported. This step is entirely rule-based: it finds every method carrying a recognised test annotation, or any custom annotation configured via `-test-marker`. The result is a canonical, repeatable inventory that does not depend on which AI model is used, which version is current, or whether the AI service is available at all.
 
 This matters because AI models are not reliable at structural enumeration. Given a raw source file, a model may:
 

@@ -18,7 +18,8 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-github-annotations` | Emit GitHub Actions `::notice`/`::warning` workflow commands for security-relevant methods; does not require a GitHub Advanced Security licence | CSV mode |
 | `-emit-metadata` | Prepend `# key: value` comment lines before the CSV header | Off |
 | `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated; first occurrence replaces the default | `Test.java` |
-| `-test-annotation <name>` | Treat methods carrying annotation `name` as test methods; may be repeated; first occurrence replaces the default set | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
+| `-test-marker <name>` | Treat methods carrying marker `name` as test methods; language-neutral: annotation simple names for Java/Kotlin, attribute names for C#; may be repeated; first occurrence replaces the default set; `-test-annotation` is accepted as a backward-compatible alias | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
+| `-property <key>=<value>` | Set a plugin-specific property; may be repeated; same key accumulates into a list; forwarded verbatim to each discovery plugin | — |
 | `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
 | `-apply-tags-from-csv <file>` | Apply reviewed annotation decisions from a MethodAtlas CSV back to the scanned source files; the CSV is the complete desired state for every test method's `@Tag` set and `@DisplayName` | Off |
@@ -73,9 +74,13 @@ overrideFile: .methodatlas-overrides.yaml   # optional
 fileSuffixes:
   - Test.java
   - IT.java
-testAnnotations:
+testMarkers:             # annotation/attribute names for Java/.NET; empty = auto-detect
   - Test
   - ParameterizedTest
+properties:              # plugin-specific key/multi-value pairs (optional)
+  functionNames:         # example: test function names for a Jest/Mocha/Vitest plugin
+    - test
+    - it
 ai:
   enabled: true
   provider: ollama
@@ -154,13 +159,21 @@ Filters which files are considered test classes. The flag may be repeated to mat
 
 The first occurrence replaces the built-in default (`Test.java`). Each subsequent occurrence adds an additional pattern.
 
-### `-test-annotation <name>`
+### `-test-marker <name>`
 
-Extends or replaces the set of annotation simple names that MethodAtlas uses to identify test methods.
+Extends or replaces the set of identifiers that MethodAtlas uses to recognise test methods. The flag is language-neutral:
 
-#### Automatic framework detection
+| Language / framework | What a "marker" means |
+|---|---|
+| Java / Kotlin (JVM) | Annotation simple name — `Test`, `ParameterizedTest`, `Fact`, … |
+| C# / .NET | Attribute simple name — `Test`, `TestMethod`, `Fact`, `Theory`, … |
+| TypeScript / JavaScript | Leave empty; use `-property functionNames=test` instead |
 
-When this flag is not set, MethodAtlas inspects the import declarations of each source file and selects the appropriate annotation set automatically:
+`-test-annotation` is accepted as a backward-compatible alias and behaves identically.
+
+#### Automatic framework detection (JVM)
+
+When this flag is not set, MethodAtlas inspects the import declarations of each Java/Kotlin source file and selects the appropriate annotation set automatically:
 
 | Detected framework | Imports matched | Annotation set used |
 |---|---|---|
@@ -172,14 +185,32 @@ Detection is per-file and accumulative: a file that imports both JUnit 4 and JUn
 
 #### Overriding the default set
 
-The first occurrence of `-test-annotation` replaces the entire default set and disables automatic framework detection; subsequent occurrences append to it:
+The first occurrence of `-test-marker` replaces the entire default set and disables automatic framework detection; subsequent occurrences append to it:
 
 ```bash
 # Recognise only @Test and @MyCustomTest (auto-detection disabled)
-./methodatlas -test-annotation Test -test-annotation MyCustomTest /path/to/tests
+./methodatlas -test-marker Test -test-marker MyCustomTest /path/to/tests
 ```
 
-Annotation matching is performed against the simple name only (symbol resolution is not available in source-only parsing mode). False positives are possible if a project defines a custom annotation with the same simple name as a supported test annotation.
+Marker matching is performed against the simple name only (symbol resolution is not available in source-only parsing mode). False positives are possible if a project defines a custom annotation with the same simple name as a supported test annotation.
+
+### `-property <key>=<value>`
+
+Sets a plugin-specific property and forwards it verbatim to each discovery plugin. The flag may be repeated; the same key accumulates into a list of values.
+
+```bash
+# Tell a Jest/Mocha/Vitest plugin which function names identify tests
+./methodatlas -property functionNames=test -property functionNames=it /path/to/ts
+```
+
+Properties are ignored by plugins that do not recognise the key. In YAML:
+
+```yaml
+properties:
+  functionNames:
+    - test
+    - it
+```
 
 ### `-content-hash`
 

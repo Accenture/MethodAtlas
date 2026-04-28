@@ -30,7 +30,7 @@ all rows have `ai_security_relevant=false`.
 | `-ai` flag not supplied | Add `-ai -ai-provider <provider>` to the command |
 | `auto` provider cannot find a running Ollama instance and no API key is set | Either start Ollama (`ollama serve`) or supply an API key with `-ai-api-key-env` |
 | The test suite genuinely has no security-relevant methods | This is a valid outcome; review with the AI rationale column (`ai_reason`) to confirm |
-| Custom annotation set via `-test-annotation` does not match the annotations in source | Verify that the annotation names supplied match those used in the test files |
+| Custom marker set via `-test-marker` does not match the annotations in source | Verify that the annotation names supplied match those used in the test files |
 
 ### JUnit 4 or TestNG tests not discovered
 
@@ -47,7 +47,7 @@ framework is imported via a wildcard at a different package prefix, override
 detection explicitly:
 
 ```bash
-./methodatlas -test-annotation Test -test-annotation Theory src/test/java
+./methodatlas -test-marker Test -test-marker Theory src/test/java
 ```
 
 ## AI enrichment issues

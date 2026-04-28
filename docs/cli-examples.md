@@ -25,8 +25,14 @@ reference see [CLI Reference](cli-reference.md).
 # Include integration tests alongside unit tests
 ./methodatlas -file-suffix Test.java -file-suffix IT.java /path/to/project
 
-# Recognise a custom test annotation
+# Recognise a custom test annotation (Java/Kotlin — use annotation simple name)
+./methodatlas -test-marker Test -test-marker ScenarioTest /path/to/project
+
+# Legacy alias -test-annotation is also accepted
 ./methodatlas -test-annotation Test -test-annotation ScenarioTest /path/to/project
+
+# Pass plugin-specific properties (e.g. test function names for a TypeScript plugin)
+./methodatlas -property functionNames=test -property functionNames=it /path/to/project
 ```
 
 ## Configuration file

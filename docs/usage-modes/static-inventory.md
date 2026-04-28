@@ -80,12 +80,13 @@ Useful for incremental scanning and correlating results across pipeline runs.
 # Include integration tests alongside unit tests
 ./methodatlas -file-suffix Test.java -file-suffix IT.java src/test/java
 
-# Recognise a custom test annotation
-./methodatlas -test-annotation Test -test-annotation ScenarioTest src/test/java
+# Recognise a custom test annotation (Java/Kotlin)
+./methodatlas -test-marker Test -test-marker ScenarioTest src/test/java
 ```
 
-The first occurrence of `-file-suffix` or `-test-annotation` replaces the built-in
-defaults; subsequent occurrences append to the active set.
+The first occurrence of `-file-suffix` or `-test-marker` replaces the built-in
+defaults; subsequent occurrences append to the active set. The legacy
+`-test-annotation` flag is still accepted as an alias for `-test-marker`.
 
 ## Scanning multiple source roots
 
