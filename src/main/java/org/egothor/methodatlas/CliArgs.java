@@ -5,9 +5,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import org.egothor.methodatlas.ai.AiOptions;
@@ -96,8 +98,12 @@ final class CliArgs {
         boolean emitMetadata = yamlConfig != null && yamlConfig.emitMetadata;
         List<String> fileSuffixes = yamlConfig != null && yamlConfig.fileSuffixes != null
                 ? new ArrayList<>(yamlConfig.fileSuffixes) : new ArrayList<>();
-        Set<String> testAnnotations = yamlConfig != null && yamlConfig.testAnnotations != null
-                ? new LinkedHashSet<>(yamlConfig.testAnnotations) : new LinkedHashSet<>();
+        Set<String> testMarkers = yamlConfig != null && yamlConfig.testMarkers != null
+                ? new LinkedHashSet<>(yamlConfig.testMarkers) : new LinkedHashSet<>();
+        Map<String, List<String>> properties = new LinkedHashMap<>();
+        if (yamlConfig != null && yamlConfig.properties != null) {
+            yamlConfig.properties.forEach((k, v) -> properties.put(k, new ArrayList<>(v)));
+        }
         AiOptions.Builder aiBuilder = AiOptions.builder();
         if (yamlConfig != null && yamlConfig.ai != null) {
             applyYamlAiConfig(aiBuilder, yamlConfig.ai);
@@ -155,7 +161,17 @@ final class CliArgs {
                     }
                     fileSuffixes.add(nextArg(args, ++i, arg));
                 }
-                case "-test-annotation" -> testAnnotations.add(nextArg(args, ++i, arg));
+                case "-test-marker", "-test-annotation" -> testMarkers.add(nextArg(args, ++i, arg));
+                case "-property" -> {
+                    String kv = nextArg(args, ++i, arg);
+                    int eq = kv.indexOf('=');
+                    if (eq < 0) {
+                        throw new IllegalArgumentException(
+                                "Invalid -property value: '" + kv + "'; expected key=value format");
+                    }
+                    properties.computeIfAbsent(kv.substring(0, eq), k -> new ArrayList<>())
+                            .add(kv.substring(eq + 1));
+                }
                 case "-emit-metadata" -> emitMetadata = true;
                 case "-security-only" -> securityOnly = true;
                 case FLAG_INCLUDE_NON_SECURITY -> includeNonSecurity = true;
@@ -198,11 +214,11 @@ final class CliArgs {
         }
 
         List<String> resolvedSuffixes = fileSuffixes.isEmpty() ? List.of(DEFAULT_FILE_SUFFIX) : fileSuffixes;
-        Set<String> resolvedAnnotations = testAnnotations.isEmpty()
-                ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testAnnotations;
-        return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedAnnotations,
-                emitMetadata, manualMode, applyTags, contentHash, overrideFilePath, securityOnly, aiCacheFile,
-                driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot);
+        Set<String> resolvedMarkers = testMarkers.isEmpty()
+                ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testMarkers;
+        return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedMarkers,
+                Map.copyOf(properties), emitMetadata, manualMode, applyTags, contentHash, overrideFilePath,
+                securityOnly, aiCacheFile, driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot);
     }
 
     // -------------------------------------------------------------------------

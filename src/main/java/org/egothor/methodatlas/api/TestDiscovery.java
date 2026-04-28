@@ -23,9 +23,19 @@ import java.util.stream.Stream;
  * <ul>
  * <li>{@code discovery.jvm} — Java source files with JUnit, TestNG, …</li>
  * <li>{@code discovery.dotnet} — (future) C# source files with xUnit, NUnit, …</li>
- * <li>{@code discovery.typescript} — (future) TypeScript source files with
- *     Jest, Vitest, Mocha, …</li>
+ * <li>{@code discovery.typescript} — (future) TypeScript/JavaScript source
+ *     files with Jest, Vitest, Mocha, …</li>
  * </ul>
+ *
+ * <p>
+ * {@link TestDiscoveryConfig} is deliberately language-neutral: it carries
+ * {@link TestDiscoveryConfig#fileSuffixes() fileSuffixes} (universally
+ * applicable), {@link TestDiscoveryConfig#testMarkers() testMarkers}
+ * (annotation/attribute names for JVM and .NET; unused for TypeScript), and
+ * an open-ended {@link TestDiscoveryConfig#properties() properties} map for
+ * plugin-specific settings such as test function names ({@code "test"},
+ * {@code "it"}) for a Jest/Mocha plugin.
+ * </p>
  *
  * <h2>ServiceLoader integration</h2>
  *

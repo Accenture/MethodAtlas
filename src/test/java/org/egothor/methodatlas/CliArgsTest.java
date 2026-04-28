@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
@@ -51,7 +52,7 @@ class CliArgsTest {
         assertFalse(cfg.aiOptions().enabled());
         assertEquals(List.of(), cfg.paths());
         assertEquals(List.of("Test.java"), cfg.fileSuffixes());
-        assertEquals(AnnotationInspector.DEFAULT_TEST_ANNOTATIONS, cfg.testAnnotations());
+        assertEquals(AnnotationInspector.DEFAULT_TEST_ANNOTATIONS, cfg.testMarkers());
         assertFalse(cfg.emitMetadata());
         assertNull(cfg.manualMode());
         assertFalse(cfg.applyTags());
@@ -126,25 +127,89 @@ class CliArgsTest {
     }
 
     // -------------------------------------------------------------------------
-    // Test annotations
+    // Test markers (-test-marker primary; -test-annotation legacy alias)
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("-test-annotation MyTest replaces defaults with {MyTest}")
+    @DisplayName("-test-marker MyTest replaces defaults with {MyTest}")
     @Tag("positive")
-    void parse_testAnnotation_replacesDefaults() {
-        CliConfig cfg = CliArgs.parse("-test-annotation", "MyTest");
-        assertEquals(1, cfg.testAnnotations().size());
-        assertTrue(cfg.testAnnotations().contains("MyTest"));
+    void parse_testMarker_replacesDefaults() {
+        CliConfig cfg = CliArgs.parse("-test-marker", "MyTest");
+        assertEquals(1, cfg.testMarkers().size());
+        assertTrue(cfg.testMarkers().contains("MyTest"));
     }
 
     @Test
-    @DisplayName("two -test-annotation flags accumulate both values")
+    @DisplayName("two -test-marker flags accumulate both values")
     @Tag("positive")
-    void parse_twoTestAnnotations_bothPresent() {
-        CliConfig cfg = CliArgs.parse("-test-annotation", "Test", "-test-annotation", "MyTest");
-        assertTrue(cfg.testAnnotations().contains("Test"));
-        assertTrue(cfg.testAnnotations().contains("MyTest"));
+    void parse_twoTestMarkers_bothPresent() {
+        CliConfig cfg = CliArgs.parse("-test-marker", "Test", "-test-marker", "MyTest");
+        assertTrue(cfg.testMarkers().contains("Test"));
+        assertTrue(cfg.testMarkers().contains("MyTest"));
+    }
+
+    @Test
+    @DisplayName("-test-annotation is accepted as a backward-compatible alias for -test-marker")
+    @Tag("positive")
+    void parse_testAnnotationAlias_sameAsTestMarker() {
+        CliConfig via_alias = CliArgs.parse("-test-annotation", "MyTest");
+        CliConfig via_primary = CliArgs.parse("-test-marker", "MyTest");
+        assertEquals(via_primary.testMarkers(), via_alias.testMarkers());
+    }
+
+    @Test
+    @DisplayName("-test-marker and -test-annotation can be mixed and accumulate together")
+    @Tag("positive")
+    void parse_markerAndAnnotationMixed_accumulate() {
+        CliConfig cfg = CliArgs.parse("-test-marker", "Fact", "-test-annotation", "Theory");
+        assertTrue(cfg.testMarkers().contains("Fact"));
+        assertTrue(cfg.testMarkers().contains("Theory"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Plugin properties (-property key=value)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("no -property flags produces an empty properties map")
+    @Tag("positive")
+    void parse_noProperty_emptyMap() {
+        CliConfig cfg = CliArgs.parse();
+        assertTrue(cfg.properties().isEmpty());
+    }
+
+    @Test
+    @DisplayName("-property key=value stores single value under key")
+    @Tag("positive")
+    void parse_singleProperty_stored() {
+        CliConfig cfg = CliArgs.parse("-property", "functionNames=test");
+        assertEquals(List.of("test"), cfg.properties().get("functionNames"));
+    }
+
+    @Test
+    @DisplayName("two -property flags with the same key accumulate into a list")
+    @Tag("positive")
+    void parse_twoPropertiesSameKey_accumulate() {
+        CliConfig cfg = CliArgs.parse("-property", "functionNames=test", "-property", "functionNames=it");
+        assertEquals(List.of("test", "it"), cfg.properties().get("functionNames"));
+    }
+
+    @Test
+    @DisplayName("two -property flags with different keys are both stored")
+    @Tag("positive")
+    void parse_twoPropertiesDifferentKeys_bothStored() {
+        CliConfig cfg = CliArgs.parse("-property", "functionNames=test", "-property", "traitFilters=security");
+        assertEquals(List.of("test"), cfg.properties().get("functionNames"));
+        assertEquals(List.of("security"), cfg.properties().get("traitFilters"));
+    }
+
+    @Test
+    @DisplayName("-property value missing '=' throws IllegalArgumentException")
+    @Tag("negative")
+    void parse_propertyMissingEquals_throwsException() {
+        assertThrows(IllegalArgumentException.class,
+                () -> CliArgs.parse("-property", "noequals"),
+                "A -property value without '=' should throw IllegalArgumentException");
     }
 
     // -------------------------------------------------------------------------

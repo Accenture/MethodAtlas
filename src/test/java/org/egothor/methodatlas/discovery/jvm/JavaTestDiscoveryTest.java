@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -794,7 +795,7 @@ class JavaTestDiscoveryTest {
                 """);
 
         JavaTestDiscovery configured = new JavaTestDiscovery();
-        configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of()));
+        configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of(), Map.of()));
 
         List<DiscoveredMethod> result = configured.discover(tmp).collect(Collectors.toList());
 
@@ -817,7 +818,7 @@ class JavaTestDiscoveryTest {
                 """);
 
         JavaTestDiscovery configured = new JavaTestDiscovery();
-        configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of("MyCustomAnnotation")));
+        configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of("MyCustomAnnotation"), Map.of()));
 
         List<DiscoveredMethod> result = configured.discover(tmp).collect(Collectors.toList());
 
@@ -851,11 +852,11 @@ class JavaTestDiscoveryTest {
         JavaTestDiscovery d = new JavaTestDiscovery();
 
         // First configure: only Test.java suffix
-        d.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of()));
+        d.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of(), Map.of()));
         List<DiscoveredMethod> first = d.discover(tmp).collect(Collectors.toList());
 
         // Re-configure: only Spec.java suffix
-        d.configure(new TestDiscoveryConfig(List.of("Spec.java"), Set.of()));
+        d.configure(new TestDiscoveryConfig(List.of("Spec.java"), Set.of(), Map.of()));
         List<DiscoveredMethod> second = d.discover(tmp).collect(Collectors.toList());
 
         assertEquals(1, first.size());
@@ -896,7 +897,7 @@ class JavaTestDiscoveryTest {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("JavaTestDiscovery not found via ServiceLoader"));
 
-        provider.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of()));
+        provider.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of(), Map.of()));
         List<DiscoveredMethod> result = provider.discover(tmp).collect(Collectors.toList());
 
         assertEquals(1, result.size());

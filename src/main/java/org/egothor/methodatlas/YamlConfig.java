@@ -3,6 +3,7 @@ package org.egothor.methodatlas;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -33,9 +34,13 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  * overrideFile: .methodatlas-overrides.yaml  # optional
  * fileSuffixes:
  *   - Test.java
- * testAnnotations:
+ * testMarkers:             # annotation/attribute names; empty = provider defaults
  *   - Test
  *   - ParameterizedTest
+ * properties:              # plugin-specific key/multi-value pairs (optional)
+ *   functionNames:         # example: for a Jest/Mocha/Vitest TypeScript plugin
+ *     - test
+ *     - it
  * ai:
  *   enabled: true
  *   provider: ollama       # auto | ollama | openai | openrouter | anthropic | azure_openai | groq | xai | github_models | mistral
@@ -102,9 +107,21 @@ final class YamlConfig {
         @JsonProperty("fileSuffixes")
         /* default */ List<String> fileSuffixes;
 
-        /** Annotation simple names that identify test methods. */
-        @JsonProperty("testAnnotations")
-        /* default */ List<String> testAnnotations;
+        /**
+         * Language-neutral test-marker identifiers (annotation/attribute simple
+         * names for JVM and .NET providers; ignored by TypeScript providers).
+         * Empty or absent means "use provider defaults".
+         */
+        @JsonProperty("testMarkers")
+        /* default */ List<String> testMarkers;
+
+        /**
+         * Plugin-specific key/multi-value pairs forwarded verbatim to each
+         * {@link org.egothor.methodatlas.api.TestDiscovery} provider.
+         * Providers ignore keys they do not recognise.
+         */
+        @JsonProperty("properties")
+        /* default */ Map<String, List<String>> properties;
 
         /**
          * Whether to include a SHA-256 content-hash fingerprint of each class

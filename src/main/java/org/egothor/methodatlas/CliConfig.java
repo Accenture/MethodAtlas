@@ -2,6 +2,7 @@ package org.egothor.methodatlas;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.egothor.methodatlas.ai.AiOptions;
@@ -19,12 +20,20 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                        limits, and timeouts
  * @param paths           root paths to scan; when empty, the current working
  *                        directory is scanned
- * @param fileSuffixes    one or more filename suffixes used to select source
- *                        files for scanning; a file is included if its name
- *                        ends with any of the listed suffixes
- * @param testAnnotations set of annotation simple names used to identify test
- *                        methods; defaults to
- *                        {@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}
+ * @param fileSuffixes one or more filename suffixes used to select source
+ *                     files for scanning; a file is included if its name
+ *                     ends with any of the listed suffixes
+ * @param testMarkers  language-neutral identifiers that mark test methods;
+ *                     for JVM providers these are annotation simple names
+ *                     (e.g. {@code "Test"}, {@code "ParameterizedTest"});
+ *                     for .NET providers they are attribute names; TypeScript
+ *                     providers typically ignore this and use function names
+ *                     via {@code properties} instead; defaults to
+ *                     {@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}
+ *                     when empty
+ * @param properties   plugin-specific key/multi-value pairs forwarded verbatim
+ *                     to each {@link org.egothor.methodatlas.api.TestDiscovery}
+ *                     provider; providers ignore keys they do not recognise
  * @param emitMetadata    whether to emit {@code # key: value} metadata comment
  *                        lines before the CSV header
  * @param manualMode      manual AI workflow mode, or {@code null} when using
@@ -78,7 +87,8 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                             or GitHub Annotations output
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
-        Set<String> testAnnotations, boolean emitMetadata, ManualMode manualMode, boolean applyTags,
-        boolean contentHash, Path overrideFile, boolean securityOnly, Path aiCacheFile, boolean driftDetect,
-        Path applyTagsFromCsvFile, int mismatchLimit, boolean emitSourceRoot) {
+        Set<String> testMarkers, Map<String, List<String>> properties, boolean emitMetadata,
+        ManualMode manualMode, boolean applyTags, boolean contentHash, Path overrideFile,
+        boolean securityOnly, Path aiCacheFile, boolean driftDetect, Path applyTagsFromCsvFile,
+        int mismatchLimit, boolean emitSourceRoot) {
 }

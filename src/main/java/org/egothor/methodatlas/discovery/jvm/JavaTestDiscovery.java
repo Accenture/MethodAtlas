@@ -37,7 +37,7 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
  * <p>
  * Test-framework detection is automatic: import declarations are inspected to
  * select the appropriate annotation set for JUnit 4, JUnit 5 (Jupiter), or
- * TestNG. Callers can override this by supplying a custom annotation set at
+ * TestNG. Callers can override this by supplying a custom marker set at
  * construction time or via {@link #configure}.
  * </p>
  *
@@ -105,7 +105,9 @@ public final class JavaTestDiscovery implements TestDiscovery {
      * @param testAnnotations set of annotation simple names that identify test
      *                        methods; pass
      *                        {@link AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}
-     *                        to enable automatic framework detection
+     *                        to enable automatic framework detection; maps to
+     *                        {@link org.egothor.methodatlas.api.TestDiscoveryConfig#testMarkers()}
+     *                        when configured via ServiceLoader
      */
     public JavaTestDiscovery(JavaParser parser, List<String> fileSuffixes,
             Set<String> testAnnotations) {
@@ -119,10 +121,13 @@ public final class JavaTestDiscovery implements TestDiscovery {
      *
      * <p>
      * Creates a {@link JavaParser} set to Java&nbsp;21 language level,
-     * applies the supplied file suffixes, and uses the supplied annotation
-     * set. When {@code config.testAnnotations()} is empty, automatic
+     * applies the supplied file suffixes, and uses
+     * {@link org.egothor.methodatlas.api.TestDiscoveryConfig#testMarkers()}
+     * as the annotation name set. When {@code testMarkers} is empty, automatic
      * framework detection is enabled via
      * {@link AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}.
+     * The {@link org.egothor.methodatlas.api.TestDiscoveryConfig#properties()}
+     * map is not used by this provider; it is reserved for future extensions.
      * </p>
      *
      * <p>
@@ -138,9 +143,9 @@ public final class JavaTestDiscovery implements TestDiscovery {
         cfg.setLanguageLevel(LanguageLevel.JAVA_21);
         this.parser = new JavaParser(cfg);
         this.fileSuffixes = config.fileSuffixes();
-        this.testAnnotations = config.testAnnotations().isEmpty()
+        this.testAnnotations = config.testMarkers().isEmpty()
                 ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS
-                : config.testAnnotations();
+                : config.testMarkers();
     }
 
     /**

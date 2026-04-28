@@ -355,7 +355,7 @@ public final class MethodAtlasApp {
         // per root. When emitSourceRoot is false, sourceRoot is null and the column
         // is omitted from the output.
         List<TestDiscovery> providers = loadProviders(
-                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testAnnotations()));
+                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties()));
         boolean hadErrors = false;
         for (Path root : roots) {
             String sourceRoot = emitSourceRoot ? computeFilePrefix(List.of(root)) : null;
@@ -417,7 +417,7 @@ public final class MethodAtlasApp {
                 cliConfig.applyTagsFromCsvFile(),
                 roots,
                 cliConfig.fileSuffixes(),
-                cliConfig.testAnnotations(),
+                cliConfig.testMarkers(),
                 cliConfig.mismatchLimit(),
                 parser,
                 log);
@@ -511,7 +511,7 @@ public final class MethodAtlasApp {
 
         CompilationUnit cu = parseResult.getResult().orElseThrow();
         LexicalPreservingPrinter.setup(cu);
-        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu, cliConfig.testAnnotations());
+        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu, cliConfig.testMarkers());
 
         String packageName = cu.getPackageDeclaration()
                 .map(NodeWithName::getNameAsString).orElse("");
@@ -648,7 +648,7 @@ public final class MethodAtlasApp {
             TestMethodSink sink, ClassificationOverride override,
             AiResultCache aiCache) throws IOException {
         List<TestDiscovery> providers = loadProviders(
-                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testAnnotations()));
+                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties()));
         boolean hadErrors = false;
         for (Path root : roots) {
             if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine, sink,
@@ -803,7 +803,7 @@ public final class MethodAtlasApp {
                                 .anyMatch(s -> path.toString().endsWith(s)))
                         .toList();
                 for (Path path : files) {
-                    int count = processFileForPrepare(root, path, engine, parser, log, cliConfig.testAnnotations());
+                    int count = processFileForPrepare(root, path, engine, parser, log, cliConfig.testMarkers());
                     if (count < 0) {
                         hadErrors = true;
                     } else {

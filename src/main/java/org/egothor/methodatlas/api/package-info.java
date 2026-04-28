@@ -16,8 +16,9 @@
  *     {@link org.egothor.methodatlas.api.DiscoveredMethod} records.</li>
  * <li>{@link org.egothor.methodatlas.api.TestDiscoveryConfig} — runtime
  *     configuration record passed to each {@code TestDiscovery} provider via
- *     {@link org.egothor.methodatlas.api.TestDiscovery#configure}; carries the
- *     file-name suffixes and annotation set in effect for the current run.</li>
+ *     {@link org.egothor.methodatlas.api.TestDiscovery#configure}; carries
+ *     file-name suffixes, language-neutral test markers (annotation/attribute
+ *     names), and a generic properties map for plugin-specific settings.</li>
  * <li>{@link org.egothor.methodatlas.api.DiscoveredMethod} — data carrier
  *     produced by a scanner, conveying per-method metadata and a lazy
  *     {@link org.egothor.methodatlas.api.SourceContent} provider.</li>

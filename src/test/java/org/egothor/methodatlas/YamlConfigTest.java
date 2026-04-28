@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -59,12 +60,22 @@ class YamlConfigTest {
     }
 
     @Test
-    @DisplayName("load parses testAnnotations list from YAML")
+    @DisplayName("load parses testMarkers list from YAML")
     @Tag("positive")
-    void load_parsesTestAnnotations(@TempDir Path tempDir) throws Exception {
-        Path config = write(tempDir, "testAnnotations:\n  - Test\n  - ParameterizedTest\n");
+    void load_parsesTestMarkers(@TempDir Path tempDir) throws Exception {
+        Path config = write(tempDir, "testMarkers:\n  - Test\n  - ParameterizedTest\n");
         YamlConfig.YamlConfigFile cfg = YamlConfig.load(config);
-        assertEquals(List.of("Test", "ParameterizedTest"), cfg.testAnnotations);
+        assertEquals(List.of("Test", "ParameterizedTest"), cfg.testMarkers);
+    }
+
+    @Test
+    @DisplayName("load parses properties map from YAML")
+    @Tag("positive")
+    void load_parsesProperties(@TempDir Path tempDir) throws Exception {
+        String yaml = "properties:\n  functionNames:\n    - test\n    - it\n";
+        Path config = write(tempDir, yaml);
+        YamlConfig.YamlConfigFile cfg = YamlConfig.load(config);
+        assertEquals(Map.of("functionNames", List.of("test", "it")), cfg.properties);
     }
 
     @Test
@@ -105,7 +116,8 @@ class YamlConfigTest {
 
         assertNull(cfg.outputMode);
         assertNull(cfg.fileSuffixes);
-        assertNull(cfg.testAnnotations);
+        assertNull(cfg.testMarkers);
+        assertNull(cfg.properties);
         assertNull(cfg.ai);
     }
 
