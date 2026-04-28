@@ -194,6 +194,8 @@ The first occurrence of `-test-marker` replaces the entire default set and disab
 
 Marker matching is performed against the simple name only (symbol resolution is not available in source-only parsing mode). False positives are possible if a project defines a custom annotation with the same simple name as a supported test annotation.
 
+For a per-language cheat sheet — what "marker" means for Java, C#, TypeScript, and how to combine `-test-marker` with `-property` — see [Discovery Plugins](discovery-plugins.md).
+
 ### `-property <key>=<value>`
 
 Sets a plugin-specific property and forwards it verbatim to each discovery plugin. The flag may be repeated; the same key accumulates into a list of values.

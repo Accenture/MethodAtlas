@@ -136,5 +136,6 @@ nav:
     - CLI Options: cli-reference.md
     - Output Formats: output-formats.md
     - CLI Examples: cli-examples.md
+    - Discovery Plugins: discovery-plugins.md
     - Build Reports: reports.md
   - Troubleshooting: troubleshooting.md
