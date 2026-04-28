@@ -86,6 +86,7 @@ public final class JavaTestDiscovery implements TestDiscovery {
      * </p>
      */
     public JavaTestDiscovery() {
+        // Required by ServiceLoader; call configure(TestDiscoveryConfig) before first use
     }
 
     /**

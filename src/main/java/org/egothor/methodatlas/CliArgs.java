@@ -169,7 +169,7 @@ final class CliArgs {
                         throw new IllegalArgumentException(
                                 "Invalid -property value: '" + kv + "'; expected key=value format");
                     }
-                    properties.computeIfAbsent(kv.substring(0, eq), k -> new ArrayList<>())
+                    properties.computeIfAbsent(kv.substring(0, eq), k -> new ArrayList<>()) // NOPMD - one list per unique key, not per iteration
                             .add(kv.substring(eq + 1));
                 }
                 case "-emit-metadata" -> emitMetadata = true;
