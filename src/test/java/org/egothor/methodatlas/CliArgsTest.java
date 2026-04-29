@@ -16,9 +16,10 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import java.util.Set;
+
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
-import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -52,7 +53,7 @@ class CliArgsTest {
         assertFalse(cfg.aiOptions().enabled());
         assertEquals(List.of(), cfg.paths());
         assertEquals(List.of("Test.java"), cfg.fileSuffixes());
-        assertEquals(AnnotationInspector.DEFAULT_TEST_ANNOTATIONS, cfg.testMarkers());
+        assertEquals(Set.of(), cfg.testMarkers());
         assertFalse(cfg.emitMetadata());
         assertNull(cfg.manualMode());
         assertFalse(cfg.applyTags());

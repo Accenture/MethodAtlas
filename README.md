@@ -2,7 +2,7 @@
 
 <img src="MethodAtlas.png" width="20%" align="right" alt="MethodAtlas logo" />
 
-MethodAtlas is a CLI tool that scans Java source trees for JUnit test methods and emits one structured record per discovered method — with optional AI-assisted security classification.
+MethodAtlas is a CLI tool that scans test source trees for test methods and emits one structured record per discovered method — with optional AI-assisted security classification. Java (JUnit 5, JUnit 4, TestNG) and C# (.NET — xUnit, NUnit, MSTest) are supported out of the box; additional languages can be added as plugins.
 
 It is built for teams that must demonstrate test coverage of security properties to auditors, regulators, or security review boards: it separates **deterministic source analysis** from **optional AI interpretation** so that every result is traceable, repeatable, and defensible.
 
@@ -10,7 +10,7 @@ It is built for teams that must demonstrate test coverage of security properties
 
 Security-focused teams in regulated industries need more than a passing test suite. They need to demonstrate *which* tests cover *which* security controls, at a level of detail that satisfies external review.
 
-MethodAtlas addresses this by turning an existing Java test suite (JUnit 5, JUnit 4, or TestNG — detected automatically) into a structured inventory with minimal setup:
+MethodAtlas addresses this by turning an existing test suite into a structured inventory with minimal setup. Java (JUnit 5, JUnit 4, TestNG) and C# (xUnit, NUnit, MSTest) are supported. The plugin architecture allows adding further languages without modifying the core tool.
 
 | Challenge | What MethodAtlas provides |
 | --- | --- |
@@ -25,7 +25,8 @@ MethodAtlas addresses this by turning an existing Java test suite (JUnit 5, JUni
 
 ## Key capabilities
 
-- **Deterministic test discovery** — JavaParser AST analysis; no inference, no false positives on method existence; JUnit 5, JUnit 4, and TestNG detected automatically from import declarations
+- **Deterministic test discovery** — AST-based analysis (JavaParser for Java, ANTLR4 grammar for C#); no inference, no false positives on method existence; framework detected automatically from imports/using directives
+- **Multi-language plugin architecture** — Java and C# plugins ship in separate JARs loaded via `ServiceLoader`; new languages require no changes to the core tool
 - **SARIF 2.1.0 output** — first-class integration with static analysis platforms and IDE tooling
 - **AI security classification** — classifies each test method against a closed security taxonomy; supports Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, and OpenRouter
 - **Confidence scoring** — per-method decimal score (`-ai-confidence`); filter by threshold for audit packages
@@ -78,9 +79,19 @@ cd methodatlas-<version>/bin
 
 See [docs/cli-reference.md](docs/cli-reference.md) for the complete option reference.
 
+## Supported languages and frameworks
+
+| Language | Plugin module | Test frameworks | Tag attribute | Display-name support |
+| --- | --- | --- | --- | --- |
+| Java | `methodatlas-discovery-jvm` | JUnit 5, JUnit 4, TestNG (auto-detected from imports) | `@Tag("value")` | `@DisplayName("text")` |
+| C# (.NET) | `methodatlas-discovery-dotnet` | xUnit, NUnit, MSTest (auto-detected from `using` directives) | `[Category]` / `[Trait]` / `[TestCategory]` | xUnit `DisplayName=` only |
+
+Both plugins ship with the default distribution. Additional languages can be added by implementing
+`TestDiscovery` and `SourcePatcher` (in `methodatlas-api`) and dropping the JAR into the classpath.
+
 ## What MethodAtlas reports
 
-For each discovered JUnit test method, MethodAtlas emits one record.
+For each discovered test method, MethodAtlas emits one record.
 
 **Source-derived fields:**
 
@@ -89,7 +100,7 @@ For each discovered JUnit test method, MethodAtlas emits one record.
 | `fqcn` | Always | Fully qualified class name |
 | `method` | Always | Test method name |
 | `loc` | Always | Inclusive line count of the method declaration |
-| `tags` | Always | Existing JUnit `@Tag` values declared on the method |
+| `tags` | Always | Existing tag-annotation values (`@Tag` for Java; `[Category]`/`[Trait]`/`[TestCategory]` for C#) |
 | `source_root` | `-emit-source-root` | CWD-relative path of the scan root that produced the record; disambiguates records in multi-root or monorepo projects |
 | `content_hash` | `-content-hash` | SHA-256 fingerprint of the enclosing class |
 

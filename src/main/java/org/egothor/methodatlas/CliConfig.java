@@ -28,9 +28,9 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                     (e.g. {@code "Test"}, {@code "ParameterizedTest"});
  *                     for .NET providers they are attribute names; TypeScript
  *                     providers typically ignore this and use function names
- *                     via {@code properties} instead; defaults to
- *                     {@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector#DEFAULT_TEST_ANNOTATIONS}
- *                     when empty
+ *                     via {@code properties} instead; when empty, each
+ *                     {@link org.egothor.methodatlas.api.TestDiscovery} provider
+ *                     falls back to its own built-in defaults
  * @param properties   plugin-specific key/multi-value pairs forwarded verbatim
  *                     to each {@link org.egothor.methodatlas.api.TestDiscovery}
  *                     provider; providers ignore keys they do not recognise

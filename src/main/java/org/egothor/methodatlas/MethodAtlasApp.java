@@ -6,7 +6,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -15,6 +14,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -23,7 +23,6 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
@@ -36,24 +35,13 @@ import org.egothor.methodatlas.ai.ManualPrepareEngine;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.SuggestionLookup;
 import org.egothor.methodatlas.api.DiscoveredMethod;
+import org.egothor.methodatlas.api.SourcePatcher;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
-import org.egothor.methodatlas.api.TestMethodSink;
-import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
 import org.egothor.methodatlas.emit.DeltaEmitter;
 import org.egothor.methodatlas.emit.GitHubAnnotationsEmitter;
 import org.egothor.methodatlas.emit.OutputEmitter;
 import org.egothor.methodatlas.emit.SarifEmitter;
-
-import com.github.javaparser.JavaParser;
-import com.github.javaparser.ParseResult;
-import com.github.javaparser.ParserConfiguration;
-import com.github.javaparser.ParserConfiguration.LanguageLevel;
-import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.nodeTypes.NodeWithName;
-import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 
 /**
  * Command-line application for scanning Java test sources, extracting JUnit
@@ -141,7 +129,8 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * occurrence replaces the default</li>
  * <li>{@code -test-annotation <name>} — recognises methods annotated with
  * {@code name} as test methods; may be repeated; the first occurrence replaces
- * the default set ({@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector#DEFAULT_TEST_ANNOTATIONS})</li>
+ * the JVM provider's default set (JUnit 5 {@code Test}, {@code ParameterizedTest},
+ * {@code RepeatedTest}, {@code TestFactory}, {@code TestTemplate})</li>
  * <li>{@code -emit-metadata} — emits {@code # key: value} comment lines
  * before the header row describing the tool version, scan timestamp, and
  * taxonomy configuration</li>
@@ -195,7 +184,7 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * </ul>
  *
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
- * @see org.egothor.methodatlas.discovery.jvm.AnnotationInspector
+ * @see org.egothor.methodatlas.api.SourcePatcher
  * @see org.egothor.methodatlas.emit.OutputEmitter
  * @see org.egothor.methodatlas.emit.SarifEmitter
  * @see #main(String[])
@@ -289,17 +278,16 @@ public final class MethodAtlasApp {
             }
         }
 
-        ParserConfiguration parserConfiguration = new ParserConfiguration();
-        parserConfiguration.setLanguageLevel(LanguageLevel.JAVA_21);
-        JavaParser parser = new JavaParser(parserConfiguration);
-
         CliConfig cliConfig = CliArgs.parse(args);
         ClassificationOverride override = loadClassificationOverride(cliConfig.overrideFile());
         AiResultCache aiCache = buildAiCache(cliConfig.aiCacheFile());
 
+        TestDiscoveryConfig discoveryConfig =
+                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties());
+
         // Manual prepare phase: write AI prompt work files; no CSV output.
         if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {
-            return runManualPrepare(prepare, cliConfig, parser, out);
+            return runManualPrepare(prepare, cliConfig, discoveryConfig, out);
         }
 
         // Determine AI engine: manual consume reads from files; normal mode calls APIs.
@@ -318,22 +306,24 @@ public final class MethodAtlasApp {
 
         // Apply-tags-from-csv mode: apply reviewed CSV decisions to source files.
         if (cliConfig.applyTagsFromCsvFile() != null) {
-            return runApplyTagsFromCsv(cliConfig, parser, roots, out);
+            List<SourcePatcher> patchers = loadPatchers(discoveryConfig);
+            return runApplyTagsFromCsv(cliConfig, patchers, roots, out);
         }
 
         // Apply-tags mode: annotate source files; no report emitted.
         if (cliConfig.applyTags()) {
-            return runApplyTags(cliConfig, aiEngine, parser, roots, out, override, aiCache);
+            List<SourcePatcher> patchers = loadPatchers(discoveryConfig);
+            return runApplyTags(cliConfig, aiEngine, roots, out, override, aiCache, patchers);
         }
 
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
-            return runSarif(cliConfig, aiEngine, aiEnabled, confidenceEnabled, roots, out, override, aiCache);
+            return runSarif(cliConfig, discoveryConfig, aiEngine, aiEnabled, confidenceEnabled, roots, out, override, aiCache);
         }
 
         // GitHub Annotations mode: emit ::notice/::warning workflow commands.
         if (cliConfig.outputMode() == OutputMode.GITHUB_ANNOTATIONS) {
-            return runGitHubAnnotations(cliConfig, aiEngine, roots, out, override, aiCache);
+            return runGitHubAnnotations(cliConfig, discoveryConfig, aiEngine, roots, out, override, aiCache);
         }
 
         // CSV / PLAIN mode: emit incrementally.
@@ -354,8 +344,7 @@ public final class MethodAtlasApp {
         // Scan each root with its own sink so the source_root value can be captured
         // per root. When emitSourceRoot is false, sourceRoot is null and the column
         // is omitted from the output.
-        List<TestDiscovery> providers = loadProviders(
-                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties()));
+        List<TestDiscovery> providers = loadProviders(discoveryConfig);
         boolean hadErrors = false;
         for (Path root : roots) {
             String sourceRoot = emitSourceRoot ? computeFilePrefix(List.of(root)) : null;
@@ -404,22 +393,20 @@ public final class MethodAtlasApp {
      * </p>
      *
      * @param cliConfig full parsed CLI configuration
-     * @param parser    configured JavaParser instance
+     * @param patchers  list of configured {@link SourcePatcher} implementations
      * @param roots     source roots to scan
      * @param log       writer for progress and summary output
      * @return {@code 0} on success, {@code 1} when the mismatch limit is exceeded
      *         or a fatal error occurs
      * @throws IOException if the CSV or source files cannot be read or written
      */
-    private static int runApplyTagsFromCsv(CliConfig cliConfig, JavaParser parser,
+    private static int runApplyTagsFromCsv(CliConfig cliConfig, List<SourcePatcher> patchers,
             List<Path> roots, PrintWriter log) throws IOException {
         return ApplyTagsFromCsvEngine.apply(
                 cliConfig.applyTagsFromCsvFile(),
                 roots,
-                cliConfig.fileSuffixes(),
-                cliConfig.testMarkers(),
                 cliConfig.mismatchLimit(),
-                parser,
+                patchers,
                 log);
     }
 
@@ -427,49 +414,72 @@ public final class MethodAtlasApp {
      * Applies AI-generated annotations to test method source files.
      *
      * <p>
-     * Scans every configured source root, resolves AI suggestions for each
-     * discovered test class, and uses {@link TagApplier} to insert
-     * {@code @DisplayName} and {@code @Tag} annotations. Each modified file is
-     * written back to disk using the lexical-preserving printer so that
-     * unrelated formatting is left intact. A summary line is written to
-     * {@code log} on completion.
+     * Discovers test methods via the configured {@link TestDiscovery} providers,
+     * resolves AI suggestions for each class, and delegates the actual source
+     * file write-back to the matching {@link SourcePatcher} implementation. A
+     * summary line is written to {@code log} on completion.
      * </p>
      *
      * @param cliConfig full parsed CLI configuration
      * @param aiEngine  AI engine providing suggestions; may be {@code null}
-     * @param parser    configured JavaParser instance
      * @param roots     source roots to scan
      * @param log       writer for progress and summary output
+     * @param override  human classification overrides
+     * @param aiCache   AI result cache
+     * @param patchers  list of configured {@link SourcePatcher} implementations
      * @return {@code 0} if all files were processed successfully, {@code 1}
      *         if any file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
      */
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private static int runApplyTags(CliConfig cliConfig, AiSuggestionEngine aiEngine,
-            JavaParser parser, List<Path> roots, PrintWriter log,
-            ClassificationOverride override, AiResultCache aiCache) throws IOException {
-        boolean hadErrors = false;
+            List<Path> roots, PrintWriter log,
+            ClassificationOverride override, AiResultCache aiCache,
+            List<SourcePatcher> patchers) throws IOException {
+
+        TestDiscoveryConfig discoveryConfig =
+                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties());
+        List<TestDiscovery> providers = loadProviders(discoveryConfig);
+        AiRuntime ai = new AiRuntime(cliConfig.aiOptions(), aiEngine, override, aiCache);
+
+        Map<Path, List<DiscoveredMethod>> byFile = collectMethodsByFile(roots, providers);
+        boolean hadErrors = providers.stream().anyMatch(TestDiscovery::hadErrors);
+
         int modifiedFiles = 0;
         int totalAnnotations = 0;
 
-        for (Path root : roots) {
-            try (Stream<Path> stream = Files.walk(root)) {
-                List<Path> files = stream
-                        .filter(path -> cliConfig.fileSuffixes().stream()
-                                .anyMatch(s -> path.toString().endsWith(s)))
-                        .toList();
-                for (Path path : files) {
-                    try {
-                        int added = applyTagsToFile(root, path, cliConfig, aiEngine, parser, log, override, aiCache);
-                        if (added > 0) {
-                            modifiedFiles++;
-                            totalAnnotations += added;
-                        }
-                    } catch (IOException e) {
-                        if (LOG.isLoggable(Level.WARNING)) {
-                            LOG.log(Level.WARNING, "Cannot process: " + path, e);
-                        }
-                        hadErrors = true;
+        for (Map.Entry<Path, List<DiscoveredMethod>> entry : byFile.entrySet()) {
+            Path sourceFile = entry.getKey();
+            List<DiscoveredMethod> methods = entry.getValue();
+
+            SourcePatcher patcher = patchers.stream()
+                    .filter(p -> p.supports(sourceFile))
+                    .findFirst().orElse(null);
+            if (patcher == null) {
+                continue;
+            }
+
+            Map<String, List<DiscoveredMethod>> byClass = methods.stream()
+                    .collect(Collectors.groupingBy(DiscoveredMethod::fqcn,
+                            LinkedHashMap::new, Collectors.toList()));
+
+            Map<String, List<String>> tagsToApply = new LinkedHashMap<>();
+            Map<String, String> displayNames = new LinkedHashMap<>();
+
+            gatherAiSuggestionsForFile(byClass, ai, aiCache, tagsToApply, displayNames);
+
+            if (!tagsToApply.isEmpty() || !displayNames.isEmpty()) {
+                try {
+                    int changes = patcher.patch(sourceFile, tagsToApply, displayNames, log);
+                    if (changes > 0) {
+                        modifiedFiles++;
+                        totalAnnotations += changes;
                     }
+                } catch (IOException e) {
+                    if (LOG.isLoggable(Level.WARNING)) {
+                        LOG.log(Level.WARNING, "Cannot process: " + sourceFile, e);
+                    }
+                    hadErrors = true;
                 }
             }
         }
@@ -480,77 +490,80 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Parses a single source file, applies AI-suggested security annotations,
-     * and writes the file back when at least one annotation was inserted.
+     * Collects all discovered methods from every root and provider, keyed by
+     * source-file path. Methods whose {@link DiscoveredMethod#filePath()} is
+     * {@code null} are silently skipped.
      *
-     * <p>
-     * {@link LexicalPreservingPrinter} is used so that only the inserted
-     * annotations affect the output; all other formatting is preserved.
-     * </p>
-     *
-     * @param root      scan root used to compute the path-based file stem
-     * @param path      source file to process
-     * @param cliConfig full parsed CLI configuration
-     * @param aiEngine  AI engine providing suggestions; may be {@code null}
-     * @param parser    configured JavaParser instance
-     * @param log       writer for progress output
-     * @return number of annotations added to the file
-     * @throws IOException if the file cannot be read or written
+     * @param roots     scan roots
+     * @param providers configured and already-loaded {@link TestDiscovery} providers
+     * @return mutable map from source-file path to the methods found in that file;
+     *         insertion order matches discovery order
+     * @throws IOException if directory traversal fails for any root
      */
-    private static int applyTagsToFile(Path root, Path path, CliConfig cliConfig,
-            AiSuggestionEngine aiEngine, JavaParser parser, PrintWriter log,
-            ClassificationOverride override, AiResultCache aiCache) throws IOException {
-        ParseResult<CompilationUnit> parseResult = parser.parse(path);
-        if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "Failed to parse {0}: {1}",
-                        new Object[] { path, parseResult.getProblems() });
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+    private static Map<Path, List<DiscoveredMethod>> collectMethodsByFile(
+            List<Path> roots, List<TestDiscovery> providers) throws IOException {
+        Map<Path, List<DiscoveredMethod>> byFile = new LinkedHashMap<>();
+        for (Path root : roots) {
+            for (TestDiscovery provider : providers) {
+                provider.discover(root).forEach(m -> {
+                    if (m.filePath() != null) {
+                        byFile.computeIfAbsent(m.filePath(), k -> new ArrayList<>()).add(m);
+                    }
+                });
             }
-            return 0;
         }
+        return byFile;
+    }
 
-        CompilationUnit cu = parseResult.getResult().orElseThrow();
-        LexicalPreservingPrinter.setup(cu);
-        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu, cliConfig.testMarkers());
+    /**
+     * Resolves AI security-classification suggestions for every class in
+     * {@code byClass} and populates {@code tagsToApply} and {@code displayNames}
+     * with the results for methods that are security-relevant.
+     *
+     * <p>A display-name suggestion is only placed into {@code displayNames} when
+     * the discovered method has no existing {@code @DisplayName} in source
+     * (i.e. {@link DiscoveredMethod#displayName()} returns {@code null}).
+     * This prevents AI-generated names from overwriting manually authored ones.</p>
+     *
+     * @param byClass      discovered methods grouped by FQCN for one source file
+     * @param ai           AI runtime carrying the engine, override, and cache
+     * @param aiCache      AI result cache used to compute the content-hash lookup key
+     * @param tagsToApply  output accumulator: method name → tag values to write
+     * @param displayNames output accumulator: method name → display name to write
+     */
+    private static void gatherAiSuggestionsForFile(Map<String, List<DiscoveredMethod>> byClass,
+            AiRuntime ai, AiResultCache aiCache,
+            Map<String, List<String>> tagsToApply, Map<String, String> displayNames) {
+        for (Map.Entry<String, List<DiscoveredMethod>> classEntry : byClass.entrySet()) {
+            String fqcn = classEntry.getKey();
+            List<DiscoveredMethod> classMethods = classEntry.getValue();
 
-        String packageName = cu.getPackageDeclaration()
-                .map(NodeWithName::getNameAsString).orElse("");
+            String classSource = classMethods.get(0).sourceContent().get().orElse(null);
+            String lookupHash = aiCache.isActive() && classSource != null
+                    ? computeContentHash(classSource) : null;
+            String fileStem = classMethods.get(0).fileStem();
+            List<String> methodNames = classMethods.stream().map(DiscoveredMethod::method).toList();
+            List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
+                    .map(MethodAtlasApp::toTargetMethod).toList();
 
-        int displayNamesAdded = 0;
-        int tagsAdded = 0;
+            SuggestionLookup suggestions = resolveSuggestionLookup(
+                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash);
 
-        AiRuntime ai = new AiRuntime(cliConfig.aiOptions(), aiEngine, override, aiCache);
-
-        for (ClassOrInterfaceDeclaration clazz : cu.findAll(ClassOrInterfaceDeclaration.class)) {
-            String fqcn = buildFqcn(packageName, clazz.getNameAsString());
-            String fileStem = buildFileStem(root, path, fqcn);
-            String classSource = clazz.toString();
-            String lookupHash = aiCache.isActive() ? computeContentHash(classSource) : null;
-            List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, effective);
-            List<String> methodNames = testMethods.stream().map(MethodDeclaration::getNameAsString).toList();
-            List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
-            SuggestionLookup suggestionLookup = resolveSuggestionLookup(fileStem, fqcn, classSource,
-                    methodNames, targetMethods, ai, lookupHash);
-
-            TagApplier.ClassResult result = TagApplier.applyToClass(clazz, suggestionLookup,
-                    effective);
-            displayNamesAdded += result.displayNamesAdded();
-            tagsAdded += result.tagsAdded();
-        }
-
-        int totalAdded = displayNamesAdded + tagsAdded;
-        if (totalAdded > 0) {
-            if (displayNamesAdded > 0) {
-                cu.addImport(TagApplier.IMPORT_DISPLAY_NAME);
+            for (DiscoveredMethod m : classMethods) {
+                AiMethodSuggestion suggestion = suggestions.find(m.method()).orElse(null);
+                if (suggestion == null || !suggestion.securityRelevant()) {
+                    continue;
+                }
+                if (suggestion.displayName() != null && !suggestion.displayName().isBlank()
+                        && m.displayName() == null) {
+                    displayNames.putIfAbsent(m.method(), suggestion.displayName());
+                }
+                if (suggestion.tags() != null && !suggestion.tags().isEmpty()) {
+                    tagsToApply.putIfAbsent(m.method(), suggestion.tags());
+                }
             }
-            if (tagsAdded > 0) {
-                cu.addImport(TagApplier.IMPORT_TAG);
-            }
-            Files.writeString(path, LexicalPreservingPrinter.print(cu), StandardCharsets.UTF_8);
-            log.println("Modified: " + path + " (+" + totalAdded + " annotation(s))");
         }
-
-        return totalAdded;
     }
 
     /**
@@ -568,13 +581,14 @@ public final class MethodAtlasApp {
      *         file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
      */
-    private static int runSarif(CliConfig cliConfig, AiSuggestionEngine aiEngine,
+    private static int runSarif(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
+            AiSuggestionEngine aiEngine,
             boolean aiEnabled, boolean confidenceEnabled,
             List<Path> roots, PrintWriter out,
             ClassificationOverride override, AiResultCache aiCache) throws IOException {
         String filePrefix = computeFilePrefix(roots);
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix);
-        int result = scan(roots, cliConfig, aiEngine,
+        int result = scan(roots, cliConfig, discoveryConfig, aiEngine,
                 filterSink(sarifEmitter, cliConfig.securityOnly()), override, aiCache);
         sarifEmitter.flush(out);
         return result;
@@ -592,12 +606,13 @@ public final class MethodAtlasApp {
      *         file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
      */
-    private static int runGitHubAnnotations(CliConfig cliConfig, AiSuggestionEngine aiEngine,
+    private static int runGitHubAnnotations(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
+            AiSuggestionEngine aiEngine,
             List<Path> roots, PrintWriter out,
             ClassificationOverride override, AiResultCache aiCache) throws IOException {
         String filePrefix = computeFilePrefix(roots);
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
-        return scan(roots, cliConfig, aiEngine, emitter, override, aiCache);
+        return scan(roots, cliConfig, discoveryConfig, aiEngine, emitter, override, aiCache);
     }
 
     /**
@@ -644,11 +659,11 @@ public final class MethodAtlasApp {
      *         file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
      */
-    private static int scan(List<Path> roots, CliConfig cliConfig, AiSuggestionEngine aiEngine,
+    private static int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
+            AiSuggestionEngine aiEngine,
             TestMethodSink sink, ClassificationOverride override,
             AiResultCache aiCache) throws IOException {
-        List<TestDiscovery> providers = loadProviders(
-                new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties()));
+        List<TestDiscovery> providers = loadProviders(discoveryConfig);
         boolean hadErrors = false;
         for (Path root : roots) {
             if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine, sink,
@@ -761,30 +776,100 @@ public final class MethodAtlasApp {
                     + "Ensure at least one provider JAR ships the service registration file "
                     + "META-INF/services/org.egothor.methodatlas.api.TestDiscovery.");
         }
+        requireUniqueDiscoveryIds(providers);
         return providers;
+    }
+
+    /**
+     * Verifies that every {@link TestDiscovery} provider in the list has a
+     * unique {@link TestDiscovery#pluginId()}.
+     *
+     * <p>Package-private to allow direct invocation from unit tests.</p>
+     *
+     * @param providers list of configured providers
+     * @throws IllegalStateException if two or more providers share the same ID
+     */
+    static void requireUniqueDiscoveryIds(List<TestDiscovery> providers) {
+        Set<String> seen = new LinkedHashSet<>();
+        for (TestDiscovery p : providers) {
+            String id = p.pluginId();
+            if (!seen.add(id)) {
+                throw new IllegalStateException(
+                        "Duplicate TestDiscovery plugin ID \"" + id + "\": two or more "
+                        + "registered providers claim the same pluginId(). "
+                        + "Each provider must declare a unique identifier.");
+            }
+        }
+    }
+
+    /**
+     * Loads all {@link SourcePatcher} providers registered via
+     * {@link ServiceLoader}, configures each with {@code config}, and returns
+     * the list.
+     *
+     * <p>
+     * Providers are discovered from the classpath using the standard
+     * {@code META-INF/services/org.egothor.methodatlas.api.SourcePatcher}
+     * service file. An empty list is returned when no patchers are found;
+     * this is not an error — some modes (e.g. scan-only) do not require patchers.
+     * </p>
+     *
+     * @param config runtime configuration forwarded to every patcher via
+     *               {@link SourcePatcher#configure}
+     * @return possibly-empty list of configured patchers
+     */
+    private static List<SourcePatcher> loadPatchers(TestDiscoveryConfig config) {
+        List<SourcePatcher> patchers = new ArrayList<>();
+        for (SourcePatcher patcher : ServiceLoader.load(SourcePatcher.class)) {
+            patcher.configure(config);
+            patchers.add(patcher);
+        }
+        requireUniquePatcherIds(patchers);
+        return patchers;
+    }
+
+    /**
+     * Verifies that every {@link SourcePatcher} in the list has a unique
+     * {@link SourcePatcher#pluginId()}.
+     *
+     * <p>Package-private to allow direct invocation from unit tests.</p>
+     *
+     * @param patchers list of configured patchers
+     * @throws IllegalStateException if two or more patchers share the same ID
+     */
+    static void requireUniquePatcherIds(List<SourcePatcher> patchers) {
+        Set<String> seen = new LinkedHashSet<>();
+        for (SourcePatcher p : patchers) {
+            String id = p.pluginId();
+            if (!seen.add(id)) {
+                throw new IllegalStateException(
+                        "Duplicate SourcePatcher plugin ID \"" + id + "\": two or more "
+                        + "registered patchers claim the same pluginId(). "
+                        + "Each patcher must declare a unique identifier.");
+            }
+        }
     }
 
     /**
      * Executes the manual AI prepare phase.
      *
      * <p>
-     * Scans the configured source roots, discovers test classes and their JUnit
-     * test methods, and writes one work file per class to the prepare work
-     * directory. Progress lines are written to {@code log}. No CSV output is
-     * produced.
+     * Discovers test classes via the configured {@link TestDiscovery} providers,
+     * then writes one work file per class to the prepare work directory.
+     * Progress lines are written to {@code log}. No CSV output is produced.
      * </p>
      *
-     * @param prepare    manual prepare mode configuration
-     * @param cliConfig  full parsed CLI configuration (used for paths, suffix,
-     *                   and taxonomy options)
-     * @param parser     configured JavaParser instance
-     * @param log        writer used for progress reporting
+     * @param prepare         manual prepare mode configuration
+     * @param cliConfig       full parsed CLI configuration (used for paths, suffix,
+     *                        and taxonomy options)
+     * @param discoveryConfig discovery configuration forwarded to providers
+     * @param log             writer used for progress reporting
      * @return {@code 0} if all files were processed successfully, {@code 1} if any
-     *         file produced a parse or processing error
+     *         provider encountered a processing error
      * @throws IOException if traversing a file tree fails
      */
-    private static int runManualPrepare(ManualMode.Prepare prepare, CliConfig cliConfig, JavaParser parser,
-            PrintWriter log) throws IOException {
+    private static int runManualPrepare(ManualMode.Prepare prepare, CliConfig cliConfig,
+            TestDiscoveryConfig discoveryConfig, PrintWriter log) throws IOException {
         ManualPrepareEngine engine;
         try {
             engine = new ManualPrepareEngine(prepare.workDir(), prepare.responseDir(), cliConfig.aiOptions());
@@ -793,21 +878,41 @@ public final class MethodAtlasApp {
         }
 
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
+        List<TestDiscovery> providers = loadProviders(discoveryConfig);
         boolean hadErrors = false;
         int prepared = 0;
 
         for (Path root : roots) {
-            try (Stream<Path> stream = Files.walk(root)) {
-                List<Path> files = stream
-                        .filter(path -> cliConfig.fileSuffixes().stream()
-                                .anyMatch(s -> path.toString().endsWith(s)))
-                        .toList();
-                for (Path path : files) {
-                    int count = processFileForPrepare(root, path, engine, parser, log, cliConfig.testMarkers());
-                    if (count < 0) {
-                        hadErrors = true;
-                    } else {
-                        prepared += count;
+            List<DiscoveredMethod> allMethods = new ArrayList<>(); // NOPMD - intentionally one list per scan root
+            for (TestDiscovery provider : providers) {
+                provider.discover(root).forEach(allMethods::add);
+                if (provider.hadErrors()) {
+                    hadErrors = true;
+                }
+            }
+
+            // Group by FQCN so each class produces one work file
+            Map<String, List<DiscoveredMethod>> byClass = allMethods.stream()
+                    .collect(Collectors.groupingBy(DiscoveredMethod::fqcn,
+                            LinkedHashMap::new, Collectors.toList()));
+
+            for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
+                String fqcn = entry.getKey();
+                List<DiscoveredMethod> classMethods = entry.getValue();
+                String classSource = classMethods.get(0).sourceContent().get().orElse(null);
+                if (classSource == null) {
+                    continue;
+                }
+                String fileStem = classMethods.get(0).fileStem();
+                List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
+                        .map(MethodAtlasApp::toTargetMethod).toList();
+                try {
+                    Path workFile = engine.prepare(fileStem, fqcn, classSource, targetMethods);
+                    log.println("Prepared: " + workFile);
+                    prepared++;
+                } catch (AiSuggestionException e) {
+                    if (LOG.isLoggable(Level.WARNING)) {
+                        LOG.log(Level.WARNING, "Failed to prepare work file for " + fqcn, e);
                     }
                 }
             }
@@ -816,83 +921,6 @@ public final class MethodAtlasApp {
         log.println("Manual prepare complete. Wrote " + prepared + " work file(s) to " + prepare.workDir()
                 + " (response stubs in " + prepare.responseDir() + ")");
         return hadErrors ? 1 : 0;
-    }
-
-    /**
-     * Parses a single Java source file and writes work files for each discovered
-     * test class.
-     *
-     * @param root   scan root used to compute the path-based file stem
-     * @param path   source file to parse
-     * @param engine prepare engine used to write work files
-     * @param parser configured JavaParser instance
-     * @param log    writer used for progress reporting
-     * @param testAnnotations set of annotation simple names that identify test
-     *                        methods
-     * @return number of work files written, or {@code -1} if the file could not
-     *         be parsed
-     */
-    private static int processFileForPrepare(Path root, Path path, ManualPrepareEngine engine, JavaParser parser,
-            PrintWriter log, Set<String> testAnnotations) {
-        try {
-            ParseResult<CompilationUnit> parseResult = parser.parse(path);
-
-            if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
-                if (LOG.isLoggable(Level.WARNING)) {
-                    LOG.log(Level.WARNING, "Failed to parse {0}: {1}",
-                            new Object[] { path, parseResult.getProblems() });
-                }
-                return -1;
-            }
-
-            CompilationUnit compilationUnit = parseResult.getResult().orElseThrow();
-            Set<String> effective = AnnotationInspector.effectiveAnnotations(compilationUnit, testAnnotations);
-            String packageName = compilationUnit.getPackageDeclaration()
-                    .map(NodeWithName::getNameAsString).orElse("");
-
-            int count = 0;
-            for (ClassOrInterfaceDeclaration clazz : compilationUnit
-                    .findAll(ClassOrInterfaceDeclaration.class)) {
-                String fqcn = buildFqcn(packageName, clazz.getNameAsString());
-                List<MethodDeclaration> testMethods = findJUnitTestMethods(clazz, effective);
-
-                if (testMethods.isEmpty()) {
-                    continue;
-                }
-
-                String fileStem = buildFileStem(root, path, fqcn);
-                List<PromptBuilder.TargetMethod> targetMethods = toTargetMethods(testMethods);
-                try {
-                    Path workFile = engine.prepare(fileStem, fqcn, clazz.toString(), targetMethods);
-                    log.println("Prepared: " + workFile);
-                    count++;
-                } catch (AiSuggestionException e) {
-                    if (LOG.isLoggable(Level.WARNING)) {
-                        LOG.log(Level.WARNING, "Failed to prepare work file for " + fqcn, e);
-                    }
-                }
-            }
-
-            return count;
-
-        } catch (IOException e) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "Cannot read file: " + path, e);
-            }
-            return -1;
-        }
-    }
-
-    /**
-     * Builds a fully qualified class name from a package name and a simple class
-     * name.
-     *
-     * @param packageName package name; may be empty for the default package
-     * @param className   simple class name
-     * @return fully qualified class name
-     */
-    private static String buildFqcn(String packageName, String className) {
-        return packageName.isEmpty() ? className : packageName + "." + className;
     }
 
     /**
@@ -961,21 +989,6 @@ public final class MethodAtlasApp {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);
         }
-    }
-
-    /**
-     * Returns all JUnit test methods declared within the specified class.
-     *
-     * @param clazz parsed class declaration whose methods should be inspected
-     * @return list of JUnit test method declarations; possibly empty but never
-     *         {@code null}
-     * @param testAnnotations set of annotation simple names to match
-     * @see org.egothor.methodatlas.discovery.jvm.AnnotationInspector#isJUnitTest(MethodDeclaration, Set)
-     */
-    private static List<MethodDeclaration> findJUnitTestMethods(ClassOrInterfaceDeclaration clazz,
-            Set<String> testAnnotations) {
-        return clazz.findAll(MethodDeclaration.class).stream()
-                .filter(m -> AnnotationInspector.isJUnitTest(m, testAnnotations)).toList();
     }
 
     /**
@@ -1077,22 +1090,6 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Converts parsed JUnit test method declarations into prompt target descriptors.
-     *
-     * @param testMethods list of parsed JUnit test method declarations
-     * @return list of prompt target descriptors; possibly empty but never
-     *         {@code null}
-     * @see PromptBuilder.TargetMethod
-     */
-    private static List<PromptBuilder.TargetMethod> toTargetMethods(List<MethodDeclaration> testMethods) {
-        return testMethods.stream()
-                .map(method -> new PromptBuilder.TargetMethod(method.getNameAsString(),
-                        method.getRange().map(range -> range.begin.line).orElse(null),
-                        method.getRange().map(range -> range.end.line).orElse(null)))
-                .toList();
-    }
-
-    /**
      * Converts a single discovered test method into a prompt target descriptor.
      *
      * @param m discovered test method
@@ -1125,7 +1122,7 @@ public final class MethodAtlasApp {
     }
 
     /**
-     * Wraps a {@link org.egothor.methodatlas.api.TestMethodSink} so that only security-relevant records are
+     * Wraps a {@link TestMethodSink} so that only security-relevant records are
      * forwarded to {@code delegate}.
      *
      * <p>

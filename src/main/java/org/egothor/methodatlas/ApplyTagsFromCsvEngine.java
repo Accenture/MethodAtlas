@@ -2,31 +2,24 @@ package org.egothor.methodatlas;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.github.javaparser.JavaParser;
-import com.github.javaparser.ParseResult;
-import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.nodeTypes.NodeWithName;
-import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
+import java.util.stream.Stream;
 
 import org.egothor.methodatlas.api.ScanRecord;
-import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
+import org.egothor.methodatlas.api.SourcePatcher;
 
 /**
- * Engine that applies annotation changes to Java source files driven by a
+ * Engine that applies annotation changes to source files driven by a
  * reviewed MethodAtlas CSV export.
  *
  * <p>
@@ -40,10 +33,10 @@ import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
  *
  * <h2>Invariant</h2>
  * <p>
- * The CSV must be complete — it must contain one row for every JUnit test
- * method currently present in the scanned source tree (matching the configured
- * file suffixes and test annotations). A method that appears in the source but
- * not in the CSV, or in the CSV but not in the source, constitutes a
+ * The CSV must be complete — it must contain one row for every test method
+ * currently present in the scanned source tree (matching the configured file
+ * suffixes and test annotations). A method that appears in the source but not
+ * in the CSV, or in the CSV but not in the source, constitutes a
  * <em>mismatch</em> and is reported as a warning. When a mismatch limit is
  * configured, the engine aborts without making any source changes if the
  * number of mismatches reaches or exceeds that limit.
@@ -71,7 +64,7 @@ import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
  * This class is a non-instantiable utility holder.
  * </p>
  *
- * @see TagApplier
+ * @see SourcePatcher
  * @see MethodAtlasApp
  */
 final class ApplyTagsFromCsvEngine {
@@ -84,24 +77,30 @@ final class ApplyTagsFromCsvEngine {
     /**
      * Applies annotation changes from a reviewed CSV to source files.
      *
+     * <p>
+     * Source-method inventory (for mismatch detection) and source file write-back
+     * are both delegated to the supplied {@link SourcePatcher} implementations via
+     * {@link SourcePatcher#discoverMethodsByClass(java.nio.file.Path)} and
+     * {@link SourcePatcher#patch(java.nio.file.Path, java.util.Map, java.util.Map,
+     * java.io.PrintWriter)} respectively.
+     * </p>
+     *
      * @param csvFile         path to a MethodAtlas CSV produced with a previous
      *                        scan and reviewed by the team; must contain
      *                        {@code fqcn}, {@code method}, {@code tags}, and
      *                        {@code display_name} columns
      * @param roots           source root directories to scan for test files
-     * @param fileSuffixes    filename suffixes used to identify test source files
-     * @param testAnnotations annotation simple names that identify test methods
      * @param mismatchLimit   maximum number of mismatches before aborting;
      *                        {@code -1} means no limit (warn and proceed)
-     * @param parser          configured JavaParser instance
+     * @param patchers        list of configured {@link SourcePatcher} implementations
      * @param log             writer for progress and summary output
      * @return {@code 0} on success, {@code 1} when the mismatch limit is
      *         exceeded or a fatal error occurs
      * @throws IOException if the CSV file or source files cannot be read or
      *                     written
      */
-    /* default */ static int apply(Path csvFile, List<Path> roots, List<String> fileSuffixes,
-            Set<String> testAnnotations, int mismatchLimit, JavaParser parser, PrintWriter log)
+    /* default */ static int apply(Path csvFile, List<Path> roots,
+            int mismatchLimit, List<SourcePatcher> patchers, PrintWriter log)
             throws IOException {
 
         // ── Step 1: load the desired-state CSV ────────────────────────────────
@@ -117,7 +116,10 @@ final class ApplyTagsFromCsvEngine {
         }
 
         // ── Step 2: scan source to build current method inventory ─────────────
-        Map<Path, List<MethodKey>> sourceIndex = buildSourceIndex(roots, fileSuffixes, testAnnotations, parser);
+        // Build a map from source file path → list of (fqcn, methodName) pairs
+        // by asking each SourcePatcher to discover methods in supported files.
+        Map<Path, List<MethodKey>> sourceIndex =
+                buildSourceIndex(roots, patchers);
 
         Set<String> sourceKeys = new LinkedHashSet<>();
         for (List<MethodKey> methods : sourceIndex.values()) {
@@ -144,7 +146,7 @@ final class ApplyTagsFromCsvEngine {
         warnMismatches(inCsvNotSource, inSourceNotCsv);
 
         // ── Step 6: apply changes file by file ────────────────────────────────
-        return applyFilesLoop(sourceIndex, desiredState, testAnnotations, parser, mismatchCount, log);
+        return applyFilesLoop(sourceIndex, desiredState, patchers, mismatchCount, log);
     }
 
     private static int reportMismatchesAndAbort(Set<String> inCsvNotSource, Set<String> inSourceNotCsv,
@@ -171,9 +173,10 @@ final class ApplyTagsFromCsvEngine {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private static int applyFilesLoop(Map<Path, List<MethodKey>> sourceIndex,
-            Map<String, ScanRecord> desiredState, Set<String> testAnnotations,
-            JavaParser parser, int mismatchCount, PrintWriter log) {
+            Map<String, ScanRecord> desiredState, List<SourcePatcher> patchers,
+            int mismatchCount, PrintWriter log) {
         int modifiedFiles = 0;
         int totalChanges = 0;
         boolean hadErrors = false;
@@ -183,12 +186,39 @@ final class ApplyTagsFromCsvEngine {
             if (!hasRelevantMethod(entry.getValue(), desiredState)) {
                 continue;
             }
+
+            SourcePatcher patcher = patchers.stream()
+                    .filter(p -> p.supports(path))
+                    .findFirst().orElse(null);
+            if (patcher == null) {
+                continue;
+            }
+
+            // Build per-method desired state maps for this file
+            Map<String, List<String>> tagsToApply = new LinkedHashMap<>();
+            Map<String, String> displayNames = new LinkedHashMap<>();
+
+            for (MethodKey mk : entry.getValue()) {
+                String k = key(mk.fqcn(), mk.method());
+                ScanRecord desired = desiredState.get(k);
+                if (desired == null) {
+                    continue;
+                }
+                if (desired.tags() != null) {
+                    tagsToApply.put(mk.method(), desired.tags());
+                }
+                // null means the column was absent from the CSV (old format) — leave @DisplayName untouched.
+                // "" means the column was present but empty — remove @DisplayName.
+                if (desired.displayName() != null) {
+                    displayNames.put(mk.method(), desired.displayName());
+                }
+            }
+
             try {
-                int changes = applyToFile(path, desiredState, testAnnotations, parser);
+                int changes = patcher.patch(path, tagsToApply, displayNames, log);
                 if (changes > 0) {
                     modifiedFiles++;
                     totalChanges += changes;
-                    log.println("Modified: " + path + " (+" + changes + " change(s))");
                 }
             } catch (IOException e) {
                 if (LOG.isLoggable(Level.WARNING)) {
@@ -213,104 +243,27 @@ final class ApplyTagsFromCsvEngine {
     }
 
     /**
-     * Applies desired-state annotations to the matching methods in a single
-     * source file and writes the file back when at least one change was made.
-     *
-     * @param path         source file to modify
-     * @param desiredState desired annotation state keyed by {@code fqcn::method}
-     * @param testAnnotations annotation simple names identifying test methods
-     * @param parser       configured JavaParser instance
-     * @return total number of annotation changes (adds + removals) made to the
-     *         file
-     * @throws IOException if the file cannot be read or written
-     */
-    private static int applyToFile(Path path, Map<String, ScanRecord> desiredState,
-            Set<String> testAnnotations, JavaParser parser) throws IOException {
-
-        ParseResult<CompilationUnit> parseResult = parser.parse(path);
-        if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.warning("Failed to parse: " + path + " — " + parseResult.getProblems());
-            }
-            return 0;
-        }
-
-        CompilationUnit cu = parseResult.getResult().orElseThrow();
-        LexicalPreservingPrinter.setup(cu);
-
-        String packageName = cu.getPackageDeclaration()
-                .map(NodeWithName::getNameAsString).orElse("");
-
-        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu, testAnnotations);
-
-        boolean needsTagImport = false;
-        boolean needsDisplayNameImport = false;
-        int totalChanges = 0;
-
-        for (ClassOrInterfaceDeclaration clazz : cu.findAll(ClassOrInterfaceDeclaration.class)) {
-            String fqcn = buildFqcn(packageName, clazz.getNameAsString());
-
-            for (MethodDeclaration method : clazz.getMethods()) {
-                if (!AnnotationInspector.isJUnitTest(method, effective)) {
-                    continue;
-                }
-                String methodKey = key(fqcn, method.getNameAsString());
-                ScanRecord desired = desiredState.get(methodKey);
-                if (desired == null) {
-                    // Method is in source but not in CSV — already counted as mismatch; skip.
-                    continue;
-                }
-
-                List<String> desiredTags = desired.tags();
-                // null means the column was absent from the CSV (old format) — leave @DisplayName untouched.
-                // "" means the column was present but empty — remove @DisplayName.
-                String desiredDisplayName = desired.displayName();
-
-                TagApplier.MethodApplyResult result = TagApplier.applyDesiredState(
-                        method, desiredTags, desiredDisplayName);
-
-                if (result.modified()) {
-                    int changes = result.tagsAdded() + result.tagsRemoved()
-                            + (result.displayNameChanged() ? 1 : 0);
-                    totalChanges += changes;
-                    if (result.needsTagImport()) {
-                        needsTagImport = true;
-                    }
-                    if (result.needsDisplayNameImport()) {
-                        needsDisplayNameImport = true;
-                    }
-                }
-            }
-        }
-
-        if (totalChanges > 0) {
-            if (needsTagImport) {
-                cu.addImport(TagApplier.IMPORT_TAG);
-            }
-            if (needsDisplayNameImport) {
-                cu.addImport(TagApplier.IMPORT_DISPLAY_NAME);
-            }
-            Files.writeString(path, LexicalPreservingPrinter.print(cu), StandardCharsets.UTF_8);
-        }
-
-        return totalChanges;
-    }
-
-    /**
      * Scans source roots and builds an index mapping each source file to the
-     * list of test methods it contains.
+     * list of (FQCN, method) pairs for all test methods it contains.
      *
-     * @param roots           source root directories
-     * @param fileSuffixes    filename suffixes selecting test source files
-     * @param testAnnotations annotation simple names identifying test methods
-     * @param parser          configured JavaParser instance
+     * <p>
+     * Each supported source file is passed to
+     * {@link SourcePatcher#discoverMethodsByClass(Path)} to obtain the actual
+     * test-method inventory. This gives the correct FQCN–method pairs
+     * regardless of whether the source tree uses the standard
+     * {@code package/to/ClassName.java} directory structure.
+     * </p>
+     *
+     * @param roots    source root directories
+     * @param patchers list of configured patchers used to identify supported files
      * @return map from source file path to list of {@link MethodKey} entries;
      *         never {@code null}
      * @throws IOException if a file tree cannot be traversed
      */
-    private static Map<Path, List<MethodKey>> buildSourceIndex(List<Path> roots,
-            List<String> fileSuffixes, Set<String> testAnnotations, JavaParser parser)
-            throws IOException {
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+    private static Map<Path, List<MethodKey>> buildSourceIndex(
+            List<Path> roots,
+            List<SourcePatcher> patchers) throws IOException {
 
         Map<Path, List<MethodKey>> index = new HashMap<>();
 
@@ -318,25 +271,28 @@ final class ApplyTagsFromCsvEngine {
             if (!Files.isDirectory(root)) {
                 continue;
             }
-            try (java.util.stream.Stream<Path> stream = Files.walk(root)) {
-                for (Path path : (Iterable<Path>) stream.filter(Files::isRegularFile)::iterator) {
-                    Path fileNamePath = path.getFileName();
-                    if (fileNamePath == null) {
+            try (Stream<Path> stream = Files.walk(root)) {
+                for (Path path : (Iterable<Path>) stream
+                        .filter(Files::isRegularFile)::iterator) {
+
+                    SourcePatcher patcher = patchers.stream()
+                            .filter(p -> p.supports(path))
+                            .findFirst().orElse(null);
+                    if (patcher == null) {
                         continue;
                     }
-                    String name = fileNamePath.toString();
-                    if (fileSuffixes.stream().noneMatch(name::endsWith)) {
-                        continue;
+
+                    // Ask the patcher to discover test methods in this file
+                    Map<String, List<String>> byClass = patcher.discoverMethodsByClass(path);
+                    List<MethodKey> keys = new ArrayList<>();
+                    for (Map.Entry<String, List<String>> classEntry : byClass.entrySet()) {
+                        String fqcn = classEntry.getKey();
+                        for (String methodName : classEntry.getValue()) {
+                            keys.add(new MethodKey(fqcn, methodName));
+                        }
                     }
-                    try {
-                        List<MethodKey> methods = extractMethodKeys(path, testAnnotations, parser);
-                        if (!methods.isEmpty()) {
-                            index.put(path, methods);
-                        }
-                    } catch (IOException e) {
-                        if (LOG.isLoggable(Level.WARNING)) {
-                            LOG.log(Level.WARNING, "Cannot read: " + path, e);
-                        }
+                    if (!keys.isEmpty()) {
+                        index.put(path, keys);
                     }
                 }
             }
@@ -345,48 +301,8 @@ final class ApplyTagsFromCsvEngine {
         return index;
     }
 
-    /**
-     * Parses a single source file and returns the (FQCN, method-name) pairs
-     * for all JUnit test methods it contains.
-     *
-     * @param path            source file to parse
-     * @param testAnnotations annotation simple names identifying test methods
-     * @param parser          configured JavaParser instance
-     * @return list of method keys; empty when no test methods are found or
-     *         the file cannot be parsed
-     * @throws IOException if the file cannot be read
-     */
-    private static List<MethodKey> extractMethodKeys(Path path, Set<String> testAnnotations,
-            JavaParser parser) throws IOException {
-
-        ParseResult<CompilationUnit> parseResult = parser.parse(path);
-        if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
-            return List.of();
-        }
-
-        CompilationUnit cu = parseResult.getResult().orElseThrow();
-        String packageName = cu.getPackageDeclaration()
-                .map(NodeWithName::getNameAsString).orElse("");
-        Set<String> effective = AnnotationInspector.effectiveAnnotations(cu, testAnnotations);
-
-        List<MethodKey> keys = new ArrayList<>();
-        for (ClassOrInterfaceDeclaration clazz : cu.findAll(ClassOrInterfaceDeclaration.class)) {
-            String fqcn = buildFqcn(packageName, clazz.getNameAsString());
-            for (MethodDeclaration method : clazz.getMethods()) {
-                if (AnnotationInspector.isJUnitTest(method, effective)) {
-                    keys.add(new MethodKey(fqcn, method.getNameAsString()));
-                }
-            }
-        }
-        return keys;
-    }
-
     private static String key(String fqcn, String method) {
         return fqcn + "::" + method;
-    }
-
-    private static String buildFqcn(String packageName, String className) {
-        return packageName.isEmpty() ? className : packageName + "." + className;
     }
 
     /** Lightweight tuple holding a fully qualified class name and a method name. */

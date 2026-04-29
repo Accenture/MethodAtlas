@@ -12,10 +12,11 @@
  * <h2>Overview</h2>
  *
  * <p>
- * The application traverses one or more directory roots, parses Java source
- * files using the <a href="https://javaparser.org/">JavaParser</a> library, and
- * extracts information about test methods declared in classes whose file names
- * follow the conventional {@code *Test.java} pattern.
+ * The application traverses one or more directory roots and discovers test
+ * methods via pluggable {@link org.egothor.methodatlas.api.TestDiscovery}
+ * providers. The default JVM provider uses
+ * <a href="https://javaparser.org/">JavaParser</a> internally; file selection
+ * follows the conventional {@code *Test.java} pattern.
  * </p>
  *
  * <p>
@@ -97,27 +98,30 @@
  * <h2>Implementation Notes</h2>
  *
  * <ul>
- * <li>Parsing is performed using {@link com.github.javaparser.JavaParser}
- * (instance API, not the static singleton).</li>
- * <li>Test detection is based on JUnit Jupiter annotations such as
- * {@code @Test}, {@code @ParameterizedTest}, {@code @RepeatedTest},
+ * <li>Test method discovery is performed by pluggable
+ * {@link org.egothor.methodatlas.api.TestDiscovery} providers loaded via
+ * {@link java.util.ServiceLoader}; the JVM provider ships in the
+ * {@code methodatlas-discovery-jvm} module.</li>
+ * <li>Source file write-back is performed by pluggable
+ * {@link org.egothor.methodatlas.api.SourcePatcher} providers, also loaded
+ * via {@link java.util.ServiceLoader}.</li>
+ * <li>Test detection in the JVM provider is based on JUnit Jupiter annotations
+ * such as {@code @Test}, {@code @ParameterizedTest}, {@code @RepeatedTest},
  * {@code @TestFactory}, and {@code @TestTemplate}.</li>
- * <li>Tag extraction supports both {@code @Tag} annotations and the container
- * form {@code @Tags}.</li>
  * </ul>
  *
  * <h2>Sub-packages</h2>
  *
  * <ul>
- * <li>{@code org.egothor.methodatlas.api} — platform-neutral API contracts:
+ * <li>{@code org.egothor.methodatlas.api} — platform-neutral SPI contracts:
  *     {@link org.egothor.methodatlas.api.TestDiscovery},
- *     {@link org.egothor.methodatlas.api.TestMethodSink},
+ *     {@link org.egothor.methodatlas.api.SourcePatcher},
  *     {@link org.egothor.methodatlas.api.DiscoveredMethod},
  *     {@link org.egothor.methodatlas.api.ScanRecord}</li>
  * <li>{@code org.egothor.methodatlas.discovery.jvm} — Java/JVM test discovery
  *     implementation:
  *     {@link org.egothor.methodatlas.discovery.jvm.JavaTestDiscovery},
- *     {@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector}</li>
+ *     {@link org.egothor.methodatlas.discovery.jvm.JavaSourcePatcher}</li>
  * <li>{@code org.egothor.methodatlas.emit} — output emitters:
  *     {@link org.egothor.methodatlas.emit.OutputEmitter},
  *     {@link org.egothor.methodatlas.emit.SarifEmitter},
@@ -128,7 +132,7 @@
  * </ul>
  *
  * @see org.egothor.methodatlas.MethodAtlasApp
- * @see org.egothor.methodatlas.discovery.jvm.AnnotationInspector
+ * @see org.egothor.methodatlas.api.SourcePatcher
  * @see org.egothor.methodatlas.emit.OutputEmitter
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  * @see org.egothor.methodatlas.ai.ManualPrepareEngine

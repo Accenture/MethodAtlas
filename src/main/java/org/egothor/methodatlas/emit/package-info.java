@@ -4,7 +4,7 @@
  * <p>
  * This package contains formatting components that consume enriched test
  * method records and produce human- or machine-readable output. All emitters
- * implement or use {@link org.egothor.methodatlas.api.TestMethodSink} and
+ * implement or use {@link org.egothor.methodatlas.TestMethodSink} and
  * receive pre-computed {@link org.egothor.methodatlas.ai.AiMethodSuggestion}
  * data — they never call the AI engine directly.
  * </p>
@@ -25,7 +25,7 @@
  *     MethodAtlas delta report comparing two scan CSV outputs.</li>
  * </ul>
  *
- * @see org.egothor.methodatlas.api.TestMethodSink
+ * @see org.egothor.methodatlas.TestMethodSink
  * @see org.egothor.methodatlas.OutputMode
  */
 package org.egothor.methodatlas.emit;

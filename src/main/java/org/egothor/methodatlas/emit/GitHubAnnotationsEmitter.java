@@ -4,7 +4,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 import org.egothor.methodatlas.TagAiDrift;
-import org.egothor.methodatlas.api.TestMethodSink;
+import org.egothor.methodatlas.TestMethodSink;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
 /**

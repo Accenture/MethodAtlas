@@ -1,0 +1,95 @@
+plugins {
+    id 'java-library'
+    id 'antlr'
+    id 'eclipse'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+generateGrammarSource {
+    maxHeapSize = '64m'
+    arguments += [
+        '-package', 'org.egothor.methodatlas.discovery.dotnet.parser',
+        '-visitor',
+        '-no-listener'
+    ]
+    // Use the conventional source root; the ANTLR plugin mirrors the grammar
+    // file's relative path within the antlr source set into this directory, so
+    // CSharpTest.g4 (at src/main/antlr4/org/.../parser/) produces:
+    //   build/generated-src/antlr/main/org/.../parser/CSharpTest*.java
+    // The plugin also registers this directory as the Java source root
+    // automatically, so no manual srcDir override is needed.
+    outputDirectory = file("${buildDir}/generated-src/antlr/main")
+}
+
+compileJava.dependsOn generateGrammarSource
+
+sourceSets {
+    main {
+        // Tell the ANTLR plugin where to find grammar files.
+        // Default is src/main/antlr; we use the conventional antlr4 directory.
+        antlr {
+            srcDirs = ['src/main/antlr4']
+        }
+        // No java.srcDir override needed: the ANTLR plugin registers
+        // generateGrammarSource.outputDirectory (build/generated-src/antlr/main)
+        // as a Java source root automatically.
+    }
+}
+
+// Make Eclipse aware of the generated source directory so that import
+// resolution works without a full Gradle build first.
+// The ANTLR plugin registers build/generated-src/antlr/main as a source root,
+// which Buildship picks up; this block ensures the same for the eclipse task.
+eclipse {
+    classpath {
+        file.whenMerged { cp ->
+            def genSrc = 'build/generated-src/antlr/main'
+            if (!cp.entries.any {
+                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder &&
+                    it.path == genSrc }) {
+                cp.entries.add(new org.gradle.plugins.ide.eclipse.model.SourceFolder(
+                        genSrc, null))
+            }
+        }
+    }
+}
+
+dependencies {
+    antlr 'org.antlr:antlr4:4.13.2'
+    api    project(':methodatlas-api')
+    implementation 'org.antlr:antlr4-runtime:4.13.2'
+
+    testImplementation(platform("org.junit:junit-bom:5.14.2"))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core:5.22.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.22.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+configurations {
+    mockitoAgent
+}
+
+dependencies {
+    mockitoAgent('org.mockito:mockito-core:5.22.0') { transitive = false }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
+}
+
+javadoc {
+    failOnError = true
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    options.addBooleanOption('html5', true)
+}

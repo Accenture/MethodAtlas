@@ -14,7 +14,6 @@ import java.util.Set;
 
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
-import org.egothor.methodatlas.discovery.jvm.AnnotationInspector;
 
 /**
  * Parses command-line arguments into a {@link CliConfig}.
@@ -214,8 +213,7 @@ final class CliArgs {
         }
 
         List<String> resolvedSuffixes = fileSuffixes.isEmpty() ? List.of(DEFAULT_FILE_SUFFIX) : fileSuffixes;
-        Set<String> resolvedMarkers = testMarkers.isEmpty()
-                ? AnnotationInspector.DEFAULT_TEST_ANNOTATIONS : testMarkers;
+        Set<String> resolvedMarkers = testMarkers.isEmpty() ? Set.of() : testMarkers;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedMarkers,
                 Map.copyOf(properties), emitMetadata, manualMode, applyTags, contentHash, overrideFilePath,
                 securityOnly, aiCacheFile, driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot);

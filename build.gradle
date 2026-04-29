@@ -72,7 +72,10 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.javaparser:javaparser-core:3.28.0'
+    implementation project(':methodatlas-api')
+    runtimeOnly project(':methodatlas-discovery-jvm')
+    runtimeOnly project(':methodatlas-discovery-dotnet')
+
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.1'
 
@@ -195,10 +198,21 @@ dependencyCheck {
 
 // ---------------------------------------------------------------------------
 // CycloneDX SBOM
+// The SBOM is generated only for the root project (the distribution artifact).
+// CycloneDX 3.x registers its tasks on every subproject in a multi-project
+// build, which conflicts with java-library's configuration consumption order.
+// Disabling the tasks in subprojects avoids that conflict while keeping the
+// root-level SBOM generation intact.
 // ---------------------------------------------------------------------------
 cyclonedxBom {
     // includeConfigs was removed in 3.x; the task scans runtime configurations automatically.
     schemaVersion = org.cyclonedx.Version.VERSION_15
+}
+
+subprojects {
+    tasks.matching { it.name.startsWith('cyclonedx') }.configureEach {
+        enabled = false
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -253,9 +267,39 @@ tasks.named('jar') {
     }
 }
 
-gradle.taskGraph.whenReady { taskGraph ->
-    def banner = """
-\u001B[34m
+// ---------------------------------------------------------------------------
+// Build banner – printed once per project that has explicitly-requested tasks.
+//
+// Strategy: register one taskGraph.whenReady listener per project (via
+// allprojects). Each listener extracts the project path from each requested
+// task name and prints the banner only when its own project is targeted.
+//
+// Task-name → project-path resolution:
+//   ":sub:task"  →  ":sub"   (non-root subproject)
+//   ":task"      →  ":"      (root project, single-segment absolute path)
+//   "task"       →  ":"      (root project, unqualified)
+//
+// Examples:
+//   ./gradlew :methodatlas-discovery-dotnet:build  →  methodatlas-discovery-dotnet
+//   ./gradlew build                                →  methodatlas
+//   ./gradlew :a:build :b:build                   →  two banners
+// ---------------------------------------------------------------------------
+allprojects {
+    def proj = project
+    gradle.taskGraph.whenReady {
+        boolean isTargeted = gradle.startParameter.taskNames.any { taskName ->
+            String projPath
+            if (taskName.startsWith(':')) {
+                int lastColon = taskName.lastIndexOf(':')
+                projPath = lastColon > 0 ? taskName.substring(0, lastColon) : ':'
+            } else {
+                projPath = ':'
+            }
+            projPath == proj.path
+        }
+        if (isTargeted) {
+            println """
+[34m
 
 8888888888 .d8888b.   .d88888b. 88888888888 888    888  .d88888b.  8888888b.
 888       d88P  Y88b d88P" "Y88b    888     888    888 d88P" "Y88b 888   Y88b
@@ -266,10 +310,11 @@ gradle.taskGraph.whenReady { taskGraph ->
 888       Y88b  d88P Y88b. .d88P    888     888    888 Y88b. .d88P 888  T88b
 8888888888 "Y8888P88  "Y88888P"     888     888    888  "Y88888P"  888   T88b
 
-\u001B[36m
- Project : ${project.name}
- Version : ${project.version}
-\u001B[0m
+[36m
+ Project : ${proj.name}
+ Version : ${rootProject.version}
+[0m
 """
-    println banner
+        }
+    }
 }

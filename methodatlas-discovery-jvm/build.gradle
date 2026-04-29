@@ -1,0 +1,77 @@
+plugins {
+    id 'java-library'
+    id 'pmd'
+    id 'net.ltgt.errorprone' version '4.1.0'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+pmd {
+    consoleOutput = true
+    toolVersion = '7.20.0'
+    sourceSets = [sourceSets.main]
+    ruleSetFiles = files(rootProject.file(".ruleset"))
+}
+
+tasks.withType(Pmd) {
+    maxHeapSize = "512m"
+    reports {
+        html.required = true
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    mockitoAgent
+}
+
+dependencies {
+    api project(':methodatlas-api')
+    implementation 'com.github.javaparser:javaparser-core:3.28.0'
+
+    testImplementation(platform("org.junit:junit-bom:5.14.2"))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core:5.22.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.22.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    mockitoAgent('org.mockito:mockito-core:5.22.0') {
+        transitive = false
+    }
+
+    errorprone 'com.google.errorprone:error_prone_core:2.36.0'
+}
+
+tasks.named('compileJava') {
+    options.errorprone.enabled = true
+}
+tasks.named('compileTestJava') {
+    options.errorprone.enabled = false
+    options.release = JavaVersion.current().majorVersion.toInteger()
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
+}
+
+javadoc {
+    failOnError = true
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    options.addBooleanOption('html5', true)
+    options.tags('apiNote:a:API Note:')
+    options.tags('implSpec:a:Implementation Requirements:')
+    options.tags('implNote:a:Implementation Note:')
+    options.tags('param')
+    options.tags('return')
+    options.tags('throws')
+    options.tags('since')
+    options.tags('version')
+    options.tags('see')
+}

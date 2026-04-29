@@ -5,6 +5,13 @@
     {"moduleLicense": "Apache License, Version 2.0"},
     {"moduleLicense": "Apache License 2.0"},
     {"moduleLicense": "Apache 2.0"},
-    {"moduleLicense": "Apache-2.0"}
+    {"moduleLicense": "Apache-2.0"},
+    {"moduleLicense": "BSD 3-Clause License"},
+    {"moduleLicense": "The BSD 3-Clause License"},
+    {"moduleLicense": "BSD-3-Clause"},
+    {"moduleLicense": "3-Clause BSD License"},
+    {"moduleLicense": "MIT License"},
+    {"moduleLicense": "The MIT License"},
+    {"moduleLicense": "MIT"}
   ]
 }

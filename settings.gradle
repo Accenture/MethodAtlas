@@ -1,1 +1,5 @@
 rootProject.name = 'methodatlas'
+
+include 'methodatlas-api'
+include 'methodatlas-discovery-jvm'
+include 'methodatlas-discovery-dotnet'

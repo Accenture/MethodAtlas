@@ -15,15 +15,16 @@ import com.tngtech.archunit.lang.ArchRule;
  * MethodAtlas architecture.
  *
  * <p>
- * Four packages exist in this project:
+ * The project uses a multi-module architecture with four key packages visible
+ * at test time:
  * </p>
  * <ul>
  * <li>{@code org.egothor.methodatlas} – scanner core and CLI</li>
- * <li>{@code org.egothor.methodatlas.api} – architectural API contracts
- * ({@code TestMethodSink}, {@code TestDiscovery}, {@code DiscoveredMethod},
- * {@code ScanRecord})</li>
+ * <li>{@code org.egothor.methodatlas.api} – SPI contracts:
+ * {@code TestDiscovery}, {@code SourcePatcher}, {@code DiscoveredMethod},
+ * {@code ScanRecord}</li>
  * <li>{@code org.egothor.methodatlas.discovery.jvm} – Java/JVM test discovery
- * implementation</li>
+ * and source patching implementation (runtime-only dependency)</li>
  * <li>{@code org.egothor.methodatlas.emit} – output emitter implementations</li>
  * <li>{@code org.egothor.methodatlas.ai} – AI subsystem, HTTP clients,
  * prompt builder</li>
@@ -116,21 +117,27 @@ class ArchitectureTest {
                             + "a reverse dependency from ai.* to the root package creates cyclic coupling");
 
     /**
-     * {@code CliArgs} must not depend on the JavaParser scan engine.
+     * Root-package and API classes must not depend on discovery implementations.
      *
      * <p>
-     * {@code CliArgs} is a pure argument-parsing utility.  Pulling in the
-     * JavaParser library would mean that changing the parser API could force
-     * argument-parsing changes — a violation of the single-responsibility
-     * principle and a source of surprising transitive coupling.
+     * The core module uses the {@code TestDiscovery} and {@code SourcePatcher}
+     * SPIs exclusively; it must never take a compile-time dependency on a
+     * concrete provider such as {@code JavaTestDiscovery} or
+     * {@code AnnotationInspector}.  All provider code is loaded via
+     * {@link java.util.ServiceLoader} at runtime from the provider JAR.
      * </p>
      */
     @ArchTest
-    static final ArchRule CLI_ARGS_DOES_NOT_DEPEND_ON_SCAN_ENGINE =
-            noClasses().that().haveSimpleName("CliArgs")
-                    .should().dependOnClassesThat().resideInAPackage("com.github.javaparser..")
-                    .because("CliArgs is a pure argument-parsing utility; "
-                            + "it must not depend on the JavaParser scan engine");
+    static final ArchRule CORE_DOES_NOT_DEPEND_ON_DISCOVERY_IMPLEMENTATIONS =
+            noClasses().that().resideInAPackage("org.egothor.methodatlas..")
+                    .and().resideOutsideOfPackages(
+                            "org.egothor.methodatlas.discovery..",
+                            "org.egothor.methodatlas.api..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("org.egothor.methodatlas.discovery..")
+                    .because("core classes must access discovery providers via SPI only; "
+                            + "compile-time coupling to a concrete discovery implementation "
+                            + "prevents provider substitution and breaks the plugin model");
 
     /**
      * Output-emitter classes must not orchestrate AI suggestion calls.
