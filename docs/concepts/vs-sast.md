@@ -1,5 +1,11 @@
 # MethodAtlas and SAST Tools
 
+MethodAtlas and static application security testing (SAST) tools are complementary: each answers a question the other cannot.
+
+## When to use each tool
+
+Use a SAST tool when you need to find vulnerabilities in production code. Use MethodAtlas when you need to inventory and measure the quality of the tests that verify your security controls. The two tools operate on different inputs, produce different outputs, and answer different questions — they are most valuable when used together.
+
 Static application security testing (SAST) tools and MethodAtlas address
 distinct problems in the security verification process. Understanding where
 each tool operates is essential for configuring them correctly, avoiding

@@ -182,7 +182,7 @@ appropriate for single-language projects. The colon character was chosen as the
 separator because it cannot appear in a valid file name on Windows, macOS, or
 Linux.
 
-Built-in plugin IDs: `java` and `dotnet`. Third-party plugins declare their own
+Built-in plugin IDs: `java`, `dotnet`, and `typescript`. Third-party plugins declare their own
 ID via `TestDiscovery.pluginId()` / `SourcePatcher.pluginId()`.
 
 If no suffix — global or plugin-specific — reaches a plugin after routing, that
@@ -239,8 +239,10 @@ For a per-language cheat sheet — what "marker" means for Java, C#, TypeScript,
 
 Sets a plugin-specific property and forwards it verbatim to each discovery plugin. The flag may be repeated; the same key accumulates into a list of values.
 
+The most commonly used property is **`functionNames`**, which controls which function call names the TypeScript plugin treats as test declarations (default: `test`, `it`). The Java and .NET plugins ignore this key.
+
 ```bash
-# Tell a Jest/Mocha/Vitest plugin which function names identify tests
+# Tell the TypeScript plugin which function names identify tests
 ./methodatlas -property functionNames=test -property functionNames=it /path/to/ts
 ```
 
@@ -308,7 +310,7 @@ See [Security-Only Filter](usage-modes/security-only.md) for SDLC integration
 examples including CI count gates, audit CSV exports, and combining with the
 delta report.
 
-### `-include-non-security`
+### `-include-non-security` {#-include-non-security}
 
 Opts in to including all test methods in **SARIF output**, disabling the
 automatic security-only filter that SARIF mode applies by default. Has no effect
@@ -346,7 +348,7 @@ The column appears at the end of each row, after `ai_confidence` when that flag 
 | `tag-only` | `@Tag("security")` is present but AI disagrees — the annotation may be stale |
 | `ai-only` | AI classifies as security-relevant but no `@Tag("security")` is present in source |
 
-**SARIF and GitHub Annotations** include drift automatically when AI is enabled — no flag is needed. The column opt-in applies only to CSV/plain output to avoid breaking downstream scripts that don't expect the extra column.
+**SARIF and GitHub Annotations** include drift automatically when AI is enabled — no flag is needed. The column opt-in applies only to CSV/plain output to avoid breaking downstream scripts that do not expect the extra column.
 
 See [Tag vs AI drift detection](ai/drift-detection.md) for use cases, regulated environment context, and a delta report integration example.
 
@@ -500,7 +502,7 @@ A score of `1.0` on a security-relevant test is a strong signal of a **placebo t
 
 In CSV output the column is named `ai_interaction_score` and appears immediately after `ai_reason` (before `ai_confidence` when that flag is enabled). In plain-text output it appears as `AI_INTERACTION_SCORE=`. In SARIF the value is stored in `properties.aiInteractionScore` and is also embedded in the result message text (e.g. `Interaction score: 0.90.`) so that operators using tooling such as GitHub Code Scanning — which does not render the `properties` bag — can see the value in the inline annotation. See [`-sarif-omit-scores`](#-sarif-omit-scores) for details and for how to suppress the inline embedding when it is not needed.
 
-### `-sarif-omit-scores`
+### `-sarif-omit-scores` {#-sarif-omit-scores}
 
 Controls whether the interaction score and confidence percentage are embedded in SARIF result message text. Understanding this flag requires a brief explanation of how SARIF viewers work.
 

@@ -178,6 +178,47 @@ file.
 ./methodatlas -ai -sarif -ai-cache scan.csv src/test/java > scan.sarif
 ```
 
+## TypeScript/JavaScript plugin issues
+
+### TypeScript tests not discovered
+
+**Symptom:** TypeScript or JavaScript test files produce no output rows.
+
+**Causes and remedies:**
+
+| Cause | Remedy |
+|---|---|
+| Node.js not on PATH or below version 18 | Install Node.js 18+ and ensure `node --version` is accessible from the shell that runs MethodAtlas |
+| File suffix not matched | Default suffixes are `.test.ts`, `.spec.ts`, `.test.js`, `.spec.js` etc. If your project uses `.spec.tsx` or another variant not in the list, add it: `-file-suffix typescript:.spec.tsx` |
+| Custom test function names | If tests use `specify(…)` or another call not in the default set, add `-property functionNames=specify` |
+
+### Warning: TypeScript plugin disabled
+
+**Symptom:** MethodAtlas emits a warning like `TypeScript plugin disabled: Node.js 18+ not found` and TypeScript files are skipped.
+
+**Cause:** The `node` executable is not on the PATH, or it reports a version below 18.
+
+**Remedy:** Install Node.js 18 or later. Verify with `node --version`. If Node.js is installed but not on the system PATH in the environment where MethodAtlas runs (e.g. a CI container), ensure the PATH is configured before the MethodAtlas step.
+
+### Worker timeout or circuit breaker triggered
+
+**Symptom:** MethodAtlas logs `Worker timeout` for a specific file, or `TypeScript plugin circuit-breaker tripped — plugin disabled for this run`.
+
+**Causes and remedies:**
+
+| Cause | Remedy |
+|---|---|
+| A very large test file causes the worker to exceed the 30-second timeout | Increase the timeout: `-property typescript.workerTimeoutSec=120` |
+| Repeated worker crashes caused the circuit breaker to trip | Check for syntax errors in the test files. If files are valid, increase the restart limit: `-property typescript.maxConsecutiveRestarts=10` |
+
+### Bundle integrity check failed
+
+**Symptom:** MethodAtlas refuses to start the TypeScript plugin with an error referencing `TS-Scanner-Bundle-SHA256` mismatch.
+
+**Cause:** The `ts-scanner.bundle.js` file embedded in the JAR does not match the hash recorded at build time. This indicates JAR corruption or tampering.
+
+**Remedy:** Re-download the distribution archive from the [GitHub Releases page](https://github.com/Accenture/MethodAtlas/releases) and verify the checksum (see [Installation — verifying the archive](installation.md#verifying-the-distribution-archive)).
+
 ## Java parsing issues
 
 ### Parse warnings for newer Java syntax

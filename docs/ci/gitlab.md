@@ -10,21 +10,21 @@ pipeline. The techniques can be used individually or combined:
 
 ## Prerequisites
 
-| Requirement | Details |
-|---|---|
-| Java runtime | Java 21 or later; the examples use the `eclipse-temurin:21-jdk` Docker image |
-| MethodAtlas | Downloaded at job start from the GitHub release; no build step required |
+| Requirement       | Details |
+|-------------------|---------|
+| Java runtime      | Java 21 or later; the examples use the `eclipse-temurin:21-jdk` Docker image |
+| MethodAtlas       | Downloaded at job start from the GitHub release; the binary is cached between runs using the `cache` directive |
 | AI provider API key | Stored as a GitLab CI/CD variable (masked); not required for static inventory mode |
-| GitLab tier | SARIF upload to the Security Dashboard requires GitLab Ultimate; annotation output has no tier requirement |
+| GitLab tier       | SARIF upload to the Security Dashboard requires GitLab Ultimate; annotation output has no tier requirement |
 
 ## Project configuration
 
 Store your AI provider API key as a masked, protected CI/CD variable. In
 the GitLab UI navigate to **Settings → CI/CD → Variables** and add:
 
-| Variable | Value | Flags |
-|---|---|---|
-| `OPENAI_API_KEY` | Your OpenAI API key | Masked, Protected |
+| Variable          | Value                  | Flags              |
+|-------------------|------------------------|--------------------|
+| `OPENAI_API_KEY`  | Your OpenAI API key    | Masked, Protected  |
 
 Use a different variable name and the `-ai-provider` flag if you are using
 a provider other than OpenAI. See [AI Providers](../ai/providers.md).
@@ -38,9 +38,17 @@ all test methods with their structural metadata:
 methodatlas-inventory:
   image: eclipse-temurin:21-jdk
   stage: test
+  cache:
+    key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
+    paths:
+      - methodatlas.jar
+    policy: pull-push
   script:
-    - curl -fsSL -o methodatlas.jar
-        https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+    - |
+      if [ ! -f methodatlas.jar ]; then
+        curl -fsSL -o methodatlas.jar \
+          https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+      fi
     - java -jar methodatlas.jar src/test/java > inventory.csv
   artifacts:
     paths:
@@ -59,9 +67,17 @@ Dashboard (GitLab Ultimate required for the dashboard).
 methodatlas-scan:
   image: eclipse-temurin:21-jdk
   stage: test
+  cache:
+    - key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
+      paths:
+        - methodatlas.jar
+      policy: pull-push
   script:
-    - curl -fsSL -o methodatlas.jar
-        https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+    - |
+      if [ ! -f methodatlas.jar ]; then
+        curl -fsSL -o methodatlas.jar \
+          https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+      fi
     - |
       java -jar methodatlas.jar \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
@@ -97,41 +113,55 @@ methodatlas-scan:
   image: eclipse-temurin:21-jdk
   stage: test
   cache:
-    key: "methodatlas-$CI_COMMIT_REF_SLUG"
-    paths:
-      - .methodatlas-cache.csv
-    policy: pull-push
+    - key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
+      paths:
+        - methodatlas.jar
+      policy: pull-push
+    - key: "methodatlas-ai-$CI_COMMIT_REF_SLUG"
+      paths:
+        - .methodatlas-cache.csv
+      policy: pull-push
   script:
-    - curl -fsSL -o methodatlas.jar
-        https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+    - |
+      if [ ! -f methodatlas.jar ]; then
+        curl -fsSL -o methodatlas.jar \
+          https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+      fi
     - |
       CACHE_ARG=""
       if [ -f .methodatlas-cache.csv ]; then
         CACHE_ARG="-ai-cache .methodatlas-cache.csv"
       fi
 
+      # Pass 1: CSV — refreshes cache, calls AI only for changed classes
       java -jar methodatlas.jar \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
         -content-hash \
-        -sarif -security-only \
+        -security-only \
         $CACHE_ARG \
         src/test/java \
-        | tee .methodatlas-cache.csv > methodatlas.sarif
+        > .methodatlas-cache-new.csv
+      mv .methodatlas-cache-new.csv .methodatlas-cache.csv
+
+      # Pass 2: SARIF — reads exclusively from cache, zero AI calls
+      java -jar methodatlas.jar \
+        -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+        -sarif -security-only \
+        -content-hash \
+        -ai-cache .methodatlas-cache.csv \
+        src/test/java \
+        > methodatlas.sarif
   artifacts:
     reports:
       sast: methodatlas.sarif
+    paths:
+      - methodatlas.sarif
     expire_in: 90 days
 ```
 
 On the first run for a branch (cache miss) every class is classified via the
 AI provider. On subsequent runs only classes whose `content_hash` has changed
 incur an API call.
-
-!!! warning "Combined output stream"
-    The example above uses `tee` to write to both the cache file and the
-    SARIF output simultaneously. This works when `-sarif` is the only output
-    mode. If you also want `-github-annotations` output, run the two modes as
-    separate steps to avoid mixing annotation commands into the SARIF JSON.
 
 ## Security test count gate
 
@@ -147,9 +177,17 @@ stages:
 save-baseline:
   image: eclipse-temurin:21-jdk
   stage: test
+  cache:
+    key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
+    paths:
+      - methodatlas.jar
+    policy: pull-push
   script:
-    - curl -fsSL -o methodatlas.jar
-        https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+    - |
+      if [ ! -f methodatlas.jar ]; then
+        curl -fsSL -o methodatlas.jar \
+          https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+      fi
     - |
       java -jar methodatlas.jar \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
@@ -170,9 +208,17 @@ security-gate:
     - job: save-baseline
       artifacts: true
       optional: true
+  cache:
+    key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
+    paths:
+      - methodatlas.jar
+    policy: pull
   script:
-    - curl -fsSL -o methodatlas.jar
-        https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+    - |
+      if [ ! -f methodatlas.jar ]; then
+        curl -fsSL -o methodatlas.jar \
+          https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+      fi
     - |
       java -jar methodatlas.jar \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
@@ -200,9 +246,9 @@ security-gate:
 
 ## Full pipeline
 
-The following `.gitlab-ci.yml` combines caching, SARIF upload, and the count
-gate. Adjust stage names and `needs` references to match your project's
-existing pipeline structure.
+The following `.gitlab-ci.yml` combines binary caching, AI result caching,
+SARIF upload, and the count gate. Adjust stage names and `needs` references
+to match your project's existing pipeline structure.
 
 ```yaml
 stages:
@@ -211,37 +257,58 @@ stages:
 
 variables:
   METHODATLAS_JAR: methodatlas.jar
+  METHODATLAS_VERSION: latest   # pin to a version tag for reproducibility, e.g. 1.2.0
 
-.methodatlas-setup: &methodatlas-setup
-  - curl -fsSL -o $METHODATLAS_JAR
-      https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+.methodatlas-binary-cache: &methodatlas-binary-cache
+  key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
+  paths:
+    - $METHODATLAS_JAR
+  policy: pull-push
+
+.download-methodatlas: &download-methodatlas
+  - |
+    if [ ! -f "$METHODATLAS_JAR" ]; then
+      curl -fsSL -o "$METHODATLAS_JAR" \
+        "https://github.com/Accenture/MethodAtlas/releases/${METHODATLAS_VERSION}/download/methodatlas.jar"
+    fi
 
 methodatlas-scan:
   image: eclipse-temurin:21-jdk
   stage: test
   cache:
-    key: "methodatlas-$CI_COMMIT_REF_SLUG"
-    paths:
-      - .methodatlas-cache.csv
-    policy: pull-push
+    - <<: *methodatlas-binary-cache
+    - key: "methodatlas-ai-$CI_COMMIT_REF_SLUG"
+      paths:
+        - .methodatlas-cache.csv
+      policy: pull-push
   script:
-    - *methodatlas-setup
+    - *download-methodatlas
     - |
       CACHE_ARG=""
       if [ -f .methodatlas-cache.csv ]; then
         CACHE_ARG="-ai-cache .methodatlas-cache.csv"
       fi
 
-      # Step 1: classify and update cache, emit SARIF
-      java -jar $METHODATLAS_JAR \
+      # Pass 1: classify and update cache
+      java -jar "$METHODATLAS_JAR" \
+        -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+        -content-hash \
+        -security-only \
+        $CACHE_ARG \
+        src/test/java \
+        > .methodatlas-cache-new.csv
+      mv .methodatlas-cache-new.csv .methodatlas-cache.csv
+
+      # Pass 2: emit SARIF from cache (zero AI calls)
+      java -jar "$METHODATLAS_JAR" \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
         -sarif -security-only \
         -content-hash \
-        $CACHE_ARG \
+        -ai-cache .methodatlas-cache.csv \
         src/test/java \
-        | tee .methodatlas-cache.csv > methodatlas.sarif
+        > methodatlas.sarif
 
-      # Step 2: count gate (compare against previous run on this branch)
+      # Count gate (compare against baseline from previous run on this branch)
       if [ -f baseline.csv ]; then
         baseline=$(tail -n +2 baseline.csv | wc -l)
         current=$(tail -n +2 .methodatlas-cache.csv | wc -l)

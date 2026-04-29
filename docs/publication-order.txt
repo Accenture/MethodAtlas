@@ -1,0 +1,91 @@
+# MethodAtlas — Documentation publication order
+#
+# This file lists every documentation source in the logical reading order
+# suitable for building a single combined document with pandoc.
+#
+# Usage (from the repository root):
+#
+#   pandoc $(grep -v '^#' docs/publication-order.txt) \
+#     --toc --toc-depth=3 \
+#     --metadata title="MethodAtlas Documentation" \
+#     -o methodatlas-docs.pdf
+#
+# For HTML output:
+#
+#   pandoc $(grep -v '^#' docs/publication-order.txt) \
+#     --toc --toc-depth=3 \
+#     --standalone \
+#     --metadata title="MethodAtlas Documentation" \
+#     -o methodatlas-docs.html
+#
+# File paths are relative to the repository root.
+# Lines beginning with '#' are comments and must be stripped before passing
+# to pandoc (the grep command above handles this automatically).
+
+# ── Introduction ─────────────────────────────────────────────────────────────
+README.md
+docs/why-methodatlas.md
+
+# ── Getting started ───────────────────────────────────────────────────────────
+docs/installation.md
+docs/index.md
+
+# ── Reference ─────────────────────────────────────────────────────────────────
+docs/cli-reference.md
+docs/cli-examples.md
+docs/output-formats.md
+docs/discovery-plugins.md
+
+# ── Usage modes ───────────────────────────────────────────────────────────────
+docs/usage-modes/index.md
+docs/usage-modes/static-inventory.md
+docs/usage-modes/api-ai.md
+docs/usage-modes/manual.md
+docs/usage-modes/apply-tags.md
+docs/usage-modes/apply-tags-from-csv.md
+docs/usage-modes/delta.md
+docs/usage-modes/security-only.md
+docs/usage-modes/multi-root.md
+
+# ── AI enrichment ─────────────────────────────────────────────────────────────
+docs/ai/index.md
+docs/ai/providers.md
+docs/ai/confidence.md
+docs/ai/interaction-score.md
+docs/ai/taxonomy.md
+docs/ai/custom-taxonomy.md
+docs/ai/overrides.md
+docs/ai/remote-overrides.md
+docs/ai/caching.md
+docs/ai/drift-detection.md
+
+# ── CI integration ────────────────────────────────────────────────────────────
+docs/ci-setup.md
+docs/ci/github-actions.md
+docs/ci/gitlab.md
+docs/ci/azure-devops.md
+docs/ci/monorepo.md
+docs/ci/release-gating.md
+
+# ── Concepts ──────────────────────────────────────────────────────────────────
+docs/concepts/for-security-teams.md
+docs/concepts/vs-sast.md
+docs/concepts/data-governance.md
+docs/concepts/asvs-mapping.md
+docs/concepts/remediation.md
+
+# ── Compliance and regulated environments ─────────────────────────────────────
+docs/compliance.md
+docs/deployment/index.md
+docs/deployment/onboarding.md
+docs/deployment/pci-dss.md
+docs/deployment/iso-27001.md
+docs/deployment/nist-ssdf.md
+docs/deployment/dora.md
+docs/deployment/soc2.md
+docs/deployment/air-gapped.md
+
+# ── Migration and support ─────────────────────────────────────────────────────
+docs/migration.md
+docs/troubleshooting.md
+docs/reports.md

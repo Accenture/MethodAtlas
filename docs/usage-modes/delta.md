@@ -1,8 +1,32 @@
 # Delta Report
 
-The `-diff` flag compares two MethodAtlas scan outputs and reports which test
-methods were added, removed, or modified between the two runs. It is intended
-for change-tracking, audit evidence, and CI gating on security-test coverage.
+The `-diff` flag compares two MethodAtlas scan outputs (CSV files) and reports which test methods were added, removed, or modified between the two runs. It is the primary mechanism for change-tracking, audit evidence, and CI gating on security-test coverage.
+
+## When to use this mode
+
+- You want to prove to an auditor that security-test coverage did not regress between two releases.
+- You want to gate a CI pipeline on whether any security-relevant test was removed or reclassified.
+- You want a change log of which security tests were added during a sprint or on a pull request.
+- You want to detect source edits to existing security tests (requires both scans to use [`-content-hash`](../cli-reference.md#-content-hash)).
+
+## How the comparison works
+
+```mermaid
+sequenceDiagram
+    participant A as Before scan<br/>(e.g. v1.2-scan.csv)
+    participant D as Delta engine<br/>(MethodAtlas -diff)
+    participant B as After scan<br/>(e.g. v1.3-scan.csv)
+
+    A->>D: load all rows<br/>(fqcn + method = key)
+    B->>D: load all rows<br/>(fqcn + method = key)
+    D->>D: key in A only → mark as REMOVED (-)
+    D->>D: key in B only → mark as ADDED (+)
+    D->>D: key in both → compare shared fields<br/>loc, tags, display_name, content_hash, security, ai_tags
+    D->>D: fields differ → mark as MODIFIED (~)
+    D-->>D: emit summary with counts
+```
+
+The two CSV files are compared using the `(fqcn, method)` pair as the key. Fields that are present in both files are compared; fields absent from either file (because the two scans used different flag sets) are skipped silently.
 
 ## Basic usage
 
@@ -56,16 +80,29 @@ the fields common to both files are compared.
 
 ## Change detail notation
 
-For `~` (modified) entries, a bracketed summary follows the method name:
+A `~` (modified) line means the method is present in both the before and after scan, but at least one field changed. The bracketed summary after the method name lists every field that changed and, where possible, the old and new values.
 
-| Notation | Meaning |
+Reading the example from above:
+
+```
+~ com.acme.crypto.AesGcmTest    roundTrip_encryptDecrypt  [source; security: false → true]
+```
+
+This means: the `content_hash` changed (the source was edited — indicated by `source`) and the AI security classification changed from `false` to `true`. Both changes happened in the same method between the two scans.
+
+The full set of possible bracket tokens:
+
+| Token | Meaning |
 |---|---|
-| `source` | `content_hash` differs — the class source was edited |
-| `loc: 5 → 8` | Lines of code grew from 5 to 8 |
-| `tags` | JUnit `@Tag` set changed |
-| `display_name` | `@DisplayName` annotation added, removed, or its text changed |
-| `security: false → true` | AI classification changed from not-security to security-relevant |
-| `ai_tags` | AI taxonomy tags changed |
+| `source` | `content_hash` differs — the class source was edited since the before scan |
+| `loc: 5 → 8` | Lines of code in the method declaration changed (5 in before, 8 in after) |
+| `tags` | The JUnit `@Tag` set changed (tags were added, removed, or renamed) |
+| `display_name` | The `@DisplayName` annotation was added, removed, or its text changed |
+| `security: false → true` | AI classification flipped from not-security-relevant to security-relevant |
+| `security: true → false` | AI classification flipped from security-relevant to not-security-relevant (regression) |
+| `ai_tags` | The AI taxonomy tag set changed (e.g. `auth` was added or removed) |
+
+Multiple tokens are separated by semicolons. A method may appear with several changed fields at once.
 
 ## Why the delta report matters in the SDLC
 

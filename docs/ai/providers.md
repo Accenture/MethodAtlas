@@ -1,23 +1,25 @@
-# AI providers
+# AI Providers
 
-Each provider differs in where requests are sent, what authentication is required, and what data-sovereignty guarantees it offers. This page covers each provider in detail.
+MethodAtlas supports ten AI providers. This page covers each one in detail: the provider value string, required CLI flags, authentication method, recommended model, and a complete example command.
+
+Each provider differs in where requests are sent, what authentication is required, and what data-sovereignty guarantees it offers. For a high-level comparison table and a quick decision guide, see the [AI Enrichment overview](index.md#choosing-a-provider).
 
 ## Which AI product uses which provider?
 
 Many well-known AI assistants are end-user products — not developer APIs. When users encounter them as colleagues' tools (ChatGPT, Claude, Copilot, Grok), they may not know which underlying API to configure in MethodAtlas. This table maps the most common AI products to the correct provider value.
 
-| AI assistant / product | Underlying platform | MethodAtlas provider | Free tier |
-| --- | --- | --- | --- |
-| **ChatGPT** (OpenAI) | OpenAI API | `openai` | No |
-| **Claude** (Anthropic) | Anthropic API | `anthropic` | No |
-| **Grok** (xAI) | xAI API (OpenAI-compatible) | `xai` | Limited |
-| **GitHub Copilot** | GitHub proprietary — IDE tool | *not applicable* | — |
-| **Microsoft Copilot / M365 Copilot** | Microsoft Graph — enterprise product | *not applicable* | — |
-| **Gemini** (Google) | Google AI / Vertex AI | *not yet supported* | Yes |
-| **GitHub Models** | OpenAI-compatible inference by GitHub | `github_models` | Yes (GitHub account) |
-| **Meta Llama** (any platform) | Varies — use a hosting service | `groq`, `openrouter`, `ollama` | Via partner |
-| **Mistral Le Chat** | Mistral AI API | `mistral` | Limited |
-| **Local models** (LM Studio, Ollama, etc.) | Local HTTP | `ollama` | — |
+| AI assistant / product                      | Underlying platform                            | MethodAtlas provider               | Free tier             |
+|---------------------------------------------|------------------------------------------------|------------------------------------|-----------------------|
+| **ChatGPT** (OpenAI)                        | OpenAI API                                     | `openai`                           | No                    |
+| **Claude** (Anthropic)                      | Anthropic API                                  | `anthropic`                        | No                    |
+| **Grok** (xAI)                              | xAI API (OpenAI-compatible)                    | `xai`                              | Limited               |
+| **GitHub Copilot**                          | GitHub proprietary — IDE tool                  | *not applicable*                   | —                     |
+| **Microsoft Copilot / M365 Copilot**        | Microsoft Graph — enterprise product           | *not applicable*                   | —                     |
+| **Gemini** (Google)                         | Google AI / Vertex AI                          | *not yet supported*                | Yes                   |
+| **GitHub Models**                           | OpenAI-compatible inference by GitHub          | `github_models`                    | Yes (GitHub account)  |
+| **Meta Llama** (any platform)               | Varies — use a hosting service                 | `groq`, `openrouter`, `ollama`     | Via partner           |
+| **Mistral Le Chat**                         | Mistral AI API                                 | `mistral`                          | Limited               |
+| **Local models** (LM Studio, Ollama, etc.)  | Local HTTP                                     | `ollama`                           | —                     |
 
 **GitHub Copilot** and **Microsoft Copilot / M365 Copilot** are end-user productivity assistants embedded in IDEs, Office, and Teams. They do not expose a public inference API that external tools can call. There is no MethodAtlas provider for them because they cannot be used programmatically for custom classification tasks.
 
@@ -27,6 +29,8 @@ Many well-known AI assistants are end-user products — not developer APIs. When
 
 ## Ollama — local inference
 
+**Provider value:** `ollama`
+
 **What it is:** [Ollama](https://ollama.ai/) is an open-source runtime that runs large language models entirely on your local machine. No data leaves the host, no API key is required, and no account is needed.
 
 **Data residency:** Requests are sent to `http://localhost:11434` and never leave the machine. This is the only provider where source code is never transmitted over a network.
@@ -35,7 +39,9 @@ Many well-known AI assistants are end-user products — not developer APIs. When
 
 **When to use:** Development workstations, CI runners with local GPUs, environments with strict data-egress policies.
 
-**Credentials:** None required.
+**Authentication:** None required.
+
+**Recommended model:** `qwen2.5-coder:7b` — suitable for code classification and runs on consumer hardware with 8 GB VRAM, or on CPU.
 
 **Setup:**
 
@@ -47,9 +53,18 @@ Many well-known AI assistants are end-user products — not developer APIs. When
 ./methodatlas -ai -ai-provider ollama -ai-model qwen2.5-coder:7b /path/to/tests
 ```
 
-The default model (`qwen2.5-coder:7b`) is suitable for code classification and runs on consumer hardware with 8 GB VRAM, or on CPU.
+Or via YAML:
+
+```yaml
+ai:
+  enabled: true
+  provider: ollama
+  model: qwen2.5-coder:7b
+```
 
 ## Azure OpenAI — corporate cloud inference
+
+**Provider value:** `azure_openai`
 
 **What it is:** [Azure OpenAI Service](https://azure.microsoft.com/en-us/products/ai-services/openai-service) is a managed offering from Microsoft that hosts OpenAI models (GPT-4o, GPT-4, etc.) inside a customer's own Azure subscription. It is distinct from the public OpenAI API: requests go to infrastructure your organization controls, not to OpenAI's shared platform.
 
@@ -65,12 +80,14 @@ The default model (`qwen2.5-coder:7b`) is suitable for code classification and r
     **Azure OpenAI Service API**, which requires an Azure subscription and a dedicated
     resource provisioned by your IT or cloud team — independent of any M365 licence.
 
-**Credentials:** A resource-scoped API key generated in the Azure portal.
+**Authentication:** A resource-scoped API key generated in the Azure portal. Supply it via the environment variable named in `-ai-api-key-env`.
+
+**The `-ai-model` value is the deployment name, not the model family name.** When you deploy a model in Azure, you assign it a name (e.g. `gpt-4o-prod`). That deployment name — not `gpt-4o` or any other OpenAI model identifier — is what MethodAtlas passes to the API. You must also supply `-ai-base-url` pointing to your Azure resource endpoint.
 
 **How to obtain credentials (coordinate with your IT or cloud team):**
 
 1. Provision an **Azure OpenAI resource** in the Azure portal under your subscription. Choose a region close to your users (EU regions satisfy EU Data Boundary requirements).
-2. **Deploy a model** within that resource. The deployment gets a name you choose (e.g. `gpt-4o-prod`). This deployment name — not the model family name — is what you supply as `model` in MethodAtlas.
+2. **Deploy a model** within that resource. The deployment gets a name you choose (e.g. `gpt-4o-prod`). This deployment name is what you supply as `-ai-model`.
 3. Copy the **API key** from *Azure Portal → your resource → Keys and Endpoint*. Two keys are available (Key 1 / Key 2); either works and both can be rotated independently.
 4. Copy the **endpoint URL** from the same page (e.g. `https://contoso.openai.azure.com`).
 
@@ -104,19 +121,23 @@ The `apiVersion` YAML field (or `-ai-api-version` CLI flag) selects the Azure Op
 
 ## OpenAI
 
+**Provider value:** `openai`
+
 **What it is:** The [OpenAI API](https://platform.openai.com/) provides direct access to GPT-4o, GPT-4, and other models hosted on OpenAI's infrastructure in the United States.
 
 **Data residency:** Requests are sent to `https://api.openai.com` and processed on OpenAI's infrastructure. Data leaves the organization's control and is governed by OpenAI's API data usage policy. By default, OpenAI does not use API data to train models, but confirm the current policy with your legal team before use in regulated contexts.
 
 **Regulatory perspective:** Not suitable for environments where source code must not be transmitted to third-party services. Acceptable for teams with explicit approval for external cloud AI usage.
 
-**Credentials:** An OpenAI platform API key.
+**Authentication:** An OpenAI platform API key.
 
 **How to obtain:**
 
 1. Create an account at [platform.openai.com](https://platform.openai.com/)
 2. Go to *API keys → Create new secret key*
 3. Add a payment method or enable a usage limit
+
+**Recommended model:** `gpt-4o-mini` — strong classification accuracy at low cost. Use `gpt-4o` for the highest accuracy on complex test bodies.
 
 **Configuration:**
 
@@ -128,7 +149,21 @@ export OPENAI_API_KEY=sk-...
   /path/to/tests
 ```
 
+Or via YAML:
+
+```yaml
+ai:
+  enabled: true
+  provider: openai
+  model: gpt-4o-mini
+  apiKeyEnv: OPENAI_API_KEY
+  timeoutSec: 60
+  maxRetries: 2
+```
+
 ## Anthropic
+
+**Provider value:** `anthropic`
 
 **What it is:** The [Anthropic API](https://www.anthropic.com/) provides access to Claude models hosted on Anthropic's infrastructure in the United States.
 
@@ -136,12 +171,14 @@ export OPENAI_API_KEY=sk-...
 
 **Regulatory perspective:** Same as OpenAI — not suitable where source code must stay within the organization. Acceptable for teams with explicit approval for external cloud AI.
 
-**Credentials:** An Anthropic API key.
+**Authentication:** An Anthropic API key.
 
 **How to obtain:**
 
 1. Create an account at [console.anthropic.com](https://console.anthropic.com/)
 2. Go to *API keys → Create key*
+
+**Recommended model:** `claude-3-haiku-20240307` for fast, cost-effective classification. Use `claude-sonnet-4-5` for the highest accuracy.
 
 **Configuration:**
 
@@ -153,7 +190,21 @@ export ANTHROPIC_API_KEY=sk-ant-...
   /path/to/tests
 ```
 
+Or via YAML:
+
+```yaml
+ai:
+  enabled: true
+  provider: anthropic
+  model: claude-3-haiku-20240307
+  apiKeyEnv: ANTHROPIC_API_KEY
+  timeoutSec: 60
+  maxRetries: 2
+```
+
 ## OpenRouter
+
+**Provider value:** `openrouter`
 
 **What it is:** [OpenRouter](https://openrouter.ai/) is an API aggregation service that routes requests to multiple underlying AI providers (OpenAI, Anthropic, Google, Meta, Mistral, and others) through a single endpoint using an OpenAI-compatible interface.
 
@@ -161,12 +212,14 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 **Regulatory perspective:** Not suitable for environments where source code must not leave the organization. Acceptable for development use where access to many models through one key is convenient.
 
-**Credentials:** An OpenRouter API key.
+**Authentication:** An OpenRouter API key.
 
 **How to obtain:**
 
 1. Create an account at [openrouter.ai](https://openrouter.ai/)
 2. Go to *Keys → Create key*
+
+**Recommended model:** `stepfun/step-3.5-flash:free` for zero-cost experimentation. Use `openai/gpt-4o-mini` or `anthropic/claude-3-haiku` for production quality.
 
 **Configuration:**
 
@@ -178,7 +231,21 @@ export OPENROUTER_API_KEY=sk-or-...
   /path/to/tests
 ```
 
+Or via YAML:
+
+```yaml
+ai:
+  enabled: true
+  provider: openrouter
+  model: stepfun/step-3.5-flash:free
+  apiKeyEnv: OPENROUTER_API_KEY
+  timeoutSec: 120
+  maxRetries: 2
+```
+
 ## Groq
+
+**Provider value:** `groq`
 
 **What it is:** [Groq](https://groq.com/) is a cloud inference service built on custom LPU (Language Processing Unit) hardware that delivers very low latency responses. It exposes an OpenAI-compatible REST API and offers a free tier suitable for CI pipelines and experimentation.
 
@@ -186,13 +253,15 @@ export OPENROUTER_API_KEY=sk-or-...
 
 **Regulatory perspective:** Same considerations as OpenAI and Anthropic — not suitable where source code must remain within the organization. Acceptable for teams with explicit approval for external cloud AI usage. The free tier makes it particularly convenient for open-source projects and public CI pipelines.
 
-**Credentials:** A Groq API key from [console.groq.com](https://console.groq.com/).
+**Authentication:** A Groq API key from [console.groq.com](https://console.groq.com/).
 
 **How to obtain:**
 
 1. Create an account at [console.groq.com](https://console.groq.com/)
 2. Go to *API Keys → Create API key*
 3. The free tier provides generous rate limits for development and CI use
+
+**Recommended model:** `llama-3.3-70b-versatile`. See [console.groq.com/docs/models](https://console.groq.com/docs/models) for the current list.
 
 **Configuration:**
 
@@ -216,9 +285,9 @@ ai:
   maxRetries: 1
 ```
 
-**Recommended models:** `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`. Check [console.groq.com/docs/models](https://console.groq.com/docs/models) for the current list.
-
 ## xAI — Grok models
+
+**Provider value:** `xai`
 
 **What it is:** [xAI](https://x.ai/) is the company behind the Grok family of language models. It exposes an OpenAI-compatible REST API at `https://api.x.ai/v1`. API keys are available at [console.x.ai](https://console.x.ai/).
 
@@ -226,7 +295,9 @@ ai:
 
 **Regulatory perspective:** Not suitable for environments that prohibit transmitting source code to external services.
 
-**Credentials:** An xAI API key from [console.x.ai](https://console.x.ai/).
+**Authentication:** An xAI API key from [console.x.ai](https://console.x.ai/).
+
+**Recommended model:** `grok-3-mini`. See [x.ai/api](https://x.ai/api) for the current list.
 
 **Configuration:**
 
@@ -238,9 +309,21 @@ export XAI_API_KEY=xai-...
   /path/to/tests
 ```
 
-**Recommended models:** `grok-3`, `grok-3-mini`, `grok-2`. Check [x.ai/api](https://x.ai/api) for the current list.
+Or via YAML:
+
+```yaml
+ai:
+  enabled: true
+  provider: xai
+  model: grok-3-mini
+  apiKeyEnv: XAI_API_KEY
+  timeoutSec: 60
+  maxRetries: 2
+```
 
 ## GitHub Models — free inference with a GitHub account
+
+**Provider value:** `github_models`
 
 **What it is:** [GitHub Models](https://github.com/marketplace/models) is a free inference service that makes a broad selection of models available to any GitHub account holder. It uses an OpenAI-compatible endpoint and authenticates with a standard GitHub personal access token or the `GITHUB_TOKEN` available in every GitHub Actions workflow — no separate API key or billing setup is required.
 
@@ -248,7 +331,9 @@ export XAI_API_KEY=xai-...
 
 **Regulatory perspective:** Suitable for open-source projects and public CI pipelines. Not suitable for environments that prohibit transmitting source code to cloud services.
 
-**Credentials:** A GitHub personal access token or the `GITHUB_TOKEN` Actions secret.
+**Authentication:** The `GITHUB_TOKEN` Actions secret (injected automatically in every GitHub Actions run), or a GitHub personal access token. Set the environment variable name with `-ai-api-key-env GITHUB_TOKEN`. No separate API key signup is required.
+
+**Recommended model:** `gpt-4o-mini`. See [github.com/marketplace/models](https://github.com/marketplace/models) for the full list, which includes GPT-4o, Meta Llama 3.x, Mistral Large, and Phi-4.
 
 **Configuration:**
 
@@ -263,14 +348,31 @@ In a GitHub Actions workflow, `GITHUB_TOKEN` is injected automatically:
 
 ```yaml
 - name: Run MethodAtlas
-  run: ./methodatlas -ai -ai-provider github_models -ai-model gpt-4o-mini ${{ github.workspace }}/src/test
+  run: |
+    ./methodatlas -ai \
+      -ai-provider github_models \
+      -ai-api-key-env GITHUB_TOKEN \
+      -ai-model gpt-4o-mini \
+      ${{ github.workspace }}/src/test
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-**Available models:** GPT-4o, GPT-4o mini, Meta Llama 3.x, Mistral Large, Phi-4, and others. See [github.com/marketplace/models](https://github.com/marketplace/models) for the current list.
+Or via YAML:
+
+```yaml
+ai:
+  enabled: true
+  provider: github_models
+  model: gpt-4o-mini
+  apiKeyEnv: GITHUB_TOKEN
+  timeoutSec: 60
+  maxRetries: 2
+```
 
 ## Mistral AI
+
+**Provider value:** `mistral`
 
 **What it is:** [Mistral AI](https://mistral.ai/) is a European AI company offering a family of open-weight models with an OpenAI-compatible API at `https://api.mistral.ai/v1`. A free tier is available at [console.mistral.ai](https://console.mistral.ai/).
 
@@ -278,7 +380,9 @@ In a GitHub Actions workflow, `GITHUB_TOKEN` is injected automatically:
 
 **Regulatory perspective:** The EU data residency may satisfy GDPR-based restrictions on data transfers outside the EU, but confirm with your legal team. Mistral's enterprise agreements may offer additional guarantees.
 
-**Credentials:** A Mistral API key from [console.mistral.ai](https://console.mistral.ai/).
+**Authentication:** A Mistral API key from [console.mistral.ai](https://console.mistral.ai/).
+
+**Recommended model:** `mistral-small-latest` for a balance of cost and accuracy. Use `codestral-latest` (code-specialized) for the best classification quality. See [docs.mistral.ai/getting-started/models](https://docs.mistral.ai/getting-started/models/) for the current list.
 
 **Configuration:**
 
@@ -290,13 +394,30 @@ export MISTRAL_API_KEY=...
   /path/to/tests
 ```
 
-**Recommended models:** `mistral-small-latest`, `mistral-large-latest`, `codestral-latest` (code-specialized). Check [docs.mistral.ai/getting-started/models](https://docs.mistral.ai/getting-started/models/) for the current list.
+Or via YAML:
+
+```yaml
+ai:
+  enabled: true
+  provider: mistral
+  model: mistral-small-latest
+  apiKeyEnv: MISTRAL_API_KEY
+  timeoutSec: 60
+  maxRetries: 2
+```
 
 ## Auto mode
+
+**Provider value:** `auto`
 
 `auto` first probes the local Ollama endpoint (`http://localhost:11434`). If Ollama is reachable, it is used and no data leaves the machine. If Ollama is not available and an API key has been configured, an OpenAI-compatible provider is used instead.
 
 Auto mode is convenient for developer workstations where Ollama is typically running, with a cloud provider as fallback for CI environments that lack a local GPU.
+
+!!! warning "Data residency in auto mode"
+    The provider selected at runtime determines where data goes. Do not use `auto`
+    in configurations where data residency must be guaranteed — use an explicit
+    provider value instead.
 
 ## Configuration file
 

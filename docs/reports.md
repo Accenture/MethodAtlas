@@ -87,3 +87,21 @@ The workflow is designed to be copied and adapted for other projects. See [CI/CD
 | Dependency vulnerabilities | OWASP Dependency-Check | CVSS < 7.0 | On demand / weekly — only when `NVD_API_KEY` is set |
 
 See [CI/CD Setup](ci-setup.md) for the full workflow configuration.
+
+## Documentation PDF
+
+A combined single-document PDF of the full documentation set can be built on demand from the `methodatlas-docs` Gradle module. It is **not generated automatically** during the standard build or CI pipeline.
+
+**Prerequisites:** pandoc, XeLaTeX (MikTeX on Windows, TeX Live on Linux/macOS), `mmdc` (`npm install -g @mermaid-js/mermaid-cli`), and Python 3.9+.
+
+```bash
+# Windows
+.\gradlew :methodatlas-docs:generatePdf
+
+# Linux / macOS
+./gradlew :methodatlas-docs:generatePdf
+```
+
+Output: `methodatlas-docs/build/MethodAtlas.pdf`
+
+The Mermaid diagrams embedded in the documentation are rendered to PNG before the PDF is assembled. See `docs/publication-order.txt` for the document order and `methodatlas-docs/build.gradle` for all pandoc options.

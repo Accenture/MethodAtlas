@@ -25,10 +25,27 @@ The framework emphasises that organisations should be able to demonstrate
 requirement that informal test naming conventions or coverage metrics alone
 cannot satisfy.
 
+## Control mapping
+
+| SSDF task                                                                 | MethodAtlas feature                                                                          | Evidence produced |
+|---------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|-------------------|
+| PW.8.1 — Test using techniques appropriate to risk                        | AI taxonomy assigns tags tied to risk categories (`auth`, `crypto`, `injection`, `session`)  | `ai_tags` column in CSV/SARIF |
+| PW.8.1 — Review results                                                   | `ai_reason` column provides human-readable rationale for each classification decision         | `ai_reason` values in CSV output |
+| PW.8.1 — Document testing approach                                        | [`-emit-metadata`](../cli-reference.md#-emit-metadata) prepends scan timestamp and MethodAtlas version | Metadata comment block at top of CSV output |
+| PW.8.2 — Verify security controls and document results                    | SARIF output provides a machine-readable, timestamped record of which test methods cover which controls | `security-tests.sarif` per release |
+| PW.8.2 — Trace tests to security requirements                             | Taxonomy tags provide a structured mapping from test method to requirement category           | `ai_tags` column; custom taxonomy via [`-ai-taxonomy`](../cli-reference.md#-ai-taxonomy) |
+
 ## Recommended configuration
 
-The following produces output that directly supports PW.8 evidence
-requirements:
+**Context:** PW.8 requires that organisations document *which* tests cover
+*which* security requirements. The following command produces output that
+satisfies this traceability requirement directly.
+
+**MethodAtlas capability:** AI classification with
+[`-content-hash`](../cli-reference.md#-content-hash) and
+[`-emit-metadata`](../cli-reference.md#-emit-metadata) produces a
+machine-verifiable link between each test method and its security requirement
+category.
 
 ```bash
 java -jar methodatlas.jar \
@@ -52,14 +69,9 @@ java -jar methodatlas.jar \
   > security-tests.sarif
 ```
 
-## Mapping to PW.8 tasks
-
-| SSDF task | How MethodAtlas addresses it |
-|---|---|
-| PW.8.1 — Test using techniques appropriate to risk | AI classification assigns taxonomy tags tied to risk categories (auth, crypto, injection, etc.); `-ai-confidence` reports model certainty |
-| PW.8.1 — Review results | CSV output with `ai_reason` column provides a human-readable rationale for each classification decision |
-| PW.8.2 — Verify security controls and document results | SARIF output provides a machine-readable, timestamped record of which test methods cover which controls |
-| PW.8.2 — Trace tests to security requirements | Taxonomy tags provide a structured mapping from test method to security requirement category |
+**Evidence output:** `security-tests.csv` provides the PW.8.1 review record;
+`security-tests.sarif` provides the PW.8.2 documentation record in a
+standardised, tool-importable format.
 
 ## Traceability model
 
@@ -69,14 +81,17 @@ mechanisms:
 
 1. **Taxonomy tags** (`ai_tags` column): each security-relevant method is
    assigned one or more tags from the built-in security taxonomy (or a custom
-   taxonomy provided via `-ai-taxonomy`). Tags correspond to requirement
-   categories such as `auth`, `crypto`, `injection`, and `session`.
+   taxonomy provided via
+   [`-ai-taxonomy`](../cli-reference.md#-ai-taxonomy)). Tags correspond to
+   requirement categories such as `auth`, `crypto`, `injection`, and `session`.
 
-2. **Content hash** (`content_hash` column, enabled with `-content-hash`): a
-   SHA-256 fingerprint of each test class's source. Ties the result to a
-   specific source revision independent of version control metadata.
+2. **Content hash** (`content_hash` column, enabled with
+   [`-content-hash`](../cli-reference.md#-content-hash)): a SHA-256
+   fingerprint of each test class's source. Ties the result to a specific
+   source revision independent of version control metadata.
 
-3. **Scan metadata** (prepended with `-emit-metadata`): records the scan
+3. **Scan metadata** (prepended with
+   [`-emit-metadata`](../cli-reference.md#-emit-metadata)): records the scan
    timestamp and MethodAtlas version alongside the results.
 
 ## Using a custom taxonomy
@@ -99,11 +114,11 @@ the file format.
 
 ## Artefact package
 
-| Artefact | Flags | Purpose |
-|---|---|---|
-| CSV inventory | `-content-hash -emit-metadata` | Primary evidence record; human-readable |
-| SARIF output | `-sarif -security-only` | Tool-importable; suitable for dashboard integration |
-| Taxonomy file | `-ai-taxonomy` (if custom) | Documents classification criteria used |
+| Artefact            | Flags                              | Purpose |
+|---------------------|------------------------------------|---------|
+| CSV inventory       | `-content-hash -emit-metadata`     | Primary evidence record; human-readable; supports PW.8.1 review |
+| SARIF output        | `-sarif -security-only`            | Tool-importable; supports PW.8.2 documentation; suitable for dashboard integration |
+| Taxonomy file       | [`-ai-taxonomy`](../cli-reference.md#-ai-taxonomy) (if custom) | Documents classification criteria used; links tags to NIST control identifiers |
 
 ## Further reading
 

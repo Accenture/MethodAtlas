@@ -91,8 +91,17 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ./methodatlas -content-hash -sarif /path/to/project > results.sarif
 
 # Filter high-confidence findings (requires -ai-confidence)
-./methodatlas -ai -ai-confidence /path/to/tests | \
-  awk -F',' 'NR==1 || ($11+0) >= 0.7'
+# The ai_confidence column position varies with other flags — filter by name:
+./methodatlas -ai -ai-confidence /path/to/tests > scan.csv
+python3 -c "
+import csv, sys
+r = csv.DictReader(open('scan.csv'))
+w = csv.DictWriter(sys.stdout, fieldnames=r.fieldnames)
+w.writeheader()
+for row in r:
+    if float(row.get('ai_confidence') or 0) >= 0.7:
+        w.writerow(row)
+"
 ```
 
 ## Source write-back

@@ -1,9 +1,16 @@
 # Guide for Security Teams
 
-This guide is written for security managers, compliance officers, and CISOs
-who receive MethodAtlas output and need to interpret it, act on findings, and
-incorporate results into audit evidence packages. It does not assume
-familiarity with Java development or CI/CD tooling.
+MethodAtlas scans a project's Java test source code and produces a structured inventory of test methods that are relevant to security. This guide is written for security managers, compliance officers, and CISOs who receive MethodAtlas output and need to interpret it, act on findings, and incorporate results into audit evidence packages. It does not assume familiarity with Java development or CI/CD tooling.
+
+## When you receive a CSV
+
+When a development team or CI pipeline delivers a MethodAtlas output file, it will typically be a comma-separated values (CSV) file — a table where each row describes one test method and each column contains a specific piece of information about that method.
+
+Open the file in a spreadsheet application (Microsoft Excel, Google Sheets, LibreOffice Calc) or a CSV viewer. The first row contains column headings. Each subsequent row corresponds to one test method found in the project's test code.
+
+The column set varies depending on which options the engineering team used when running the scan. The tables below describe every column you may encounter.
+
+For a complete column reference, see [Output Formats](../output-formats.md).
 
 ## What MethodAtlas produces
 
@@ -92,6 +99,25 @@ measured by the interaction score.
 | `0.8` – `1.0` | High confidence — the model is certain. Treat the classification as reliable. |
 | `0.5` – `0.8` | Moderate confidence — the model is fairly certain but human review is advisable, particularly if the method is a high-stakes security control. |
 | `0.0` – `0.5` | Low confidence — the AI is uncertain. Human review is required before including or excluding this method from an audit evidence package. |
+
+## Source-level tags versus AI classifications
+
+MethodAtlas produces two independent kinds of security labels for each test method:
+
+**Source-level tags** (`tags` column) are labels (`@Tag("security")`, `@Tag("auth")`, etc.) that a developer typed directly into the Java source file. They are factual — they represent what the developer intended when writing the test. They do not change unless a developer edits the source.
+
+**AI classifications** (`ai_security_relevant`, `ai_tags`, `ai_display_name`, `ai_reason` columns) are produced by an AI model that reads the test method body and reasons about what the test actually does. The AI does not rely on the developer's intent; it reads the code.
+
+These two sources will sometimes disagree, and both disagreement directions are significant:
+
+| Scenario | Likely explanation | Action |
+|---|---|---|
+| Developer labelled the test `security`; AI agrees | Test is correctly labelled and correctly implemented | No action |
+| Developer labelled the test `security`; AI does not consider it security-relevant | The annotation may be historical or aspirational; the test body does not actually exercise a security property | Developer review: tighten the test or remove the label |
+| Developer did not label the test; AI considers it security-relevant | A security property is being tested but is not labelled — tag-based reports will miss it | Add `@Tag("security")` or document why the AI is wrong |
+| Neither developer nor AI considers the test security-relevant | Ordinary functional or performance test | No action regarding security |
+
+When drift detection is enabled (see below), the `tag_ai_drift` column makes these disagreements visible in a single field.
 
 ## Understanding drift detection
 
@@ -187,9 +213,7 @@ inline annotations on pull request diffs — no separate dashboard is required.
 The following structure can be used as a basis for a security test coverage
 section in an audit evidence package or security review document:
 
----
-
-**Security Test Coverage Summary**
+### Security test coverage summary
 
 *Prepared by:* [role] *Date:* [date] *Source revision:* [git commit SHA]
 
@@ -209,8 +233,6 @@ section in an audit evidence package or security review document:
 *Open findings:* [brief description of any critical or high priority items above, or "None"]
 
 *Artefacts retained:* [file names of SARIF and CSV outputs, with content hashes]
-
----
 
 ## Further reading
 

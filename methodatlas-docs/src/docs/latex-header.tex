@@ -1,0 +1,172 @@
+% =============================================================================
+% MethodAtlas Documentation — LaTeX preamble extension
+% Included via pandoc -H; appended to the auto-generated preamble.
+% Compatible with: XeLaTeX + MikTeX (Windows) / TeX Live (Linux / macOS)
+% =============================================================================
+
+% ── XeLaTeX logo ─────────────────────────────────────────────────────────────
+% \XeLaTeX is normally provided by xltxtra, which pandoc does not load.
+% Define it here as a fallback so back-matter.tex can use \XeLaTeX safely.
+\providecommand{\XeLaTeX}{Xe\LaTeX}
+
+% ── Colour palette ────────────────────────────────────────────────────────────
+% xcolor is already loaded by pandoc's template; we only define our colours.
+\definecolor{MA@navy}{HTML}{1B2A4A}
+\definecolor{MA@teal}{HTML}{00848E}
+\definecolor{MA@codebg}{HTML}{F7F7F9}
+\definecolor{MA@codeframe}{HTML}{DADCE0}
+\definecolor{MA@comment}{HTML}{5C7A29}
+\definecolor{MA@string}{HTML}{C0392B}
+
+% Override pandoc's hyperref colours with our palette.
+% Deferred to \AtBeginDocument so hyperref is guaranteed to be loaded first.
+% (pandoc inserts -H content before its own \usepackage{hyperref}.)
+\AtBeginDocument{%
+  \hypersetup{%
+    linkcolor=MA@navy,%
+    urlcolor=MA@teal,%
+    citecolor=MA@navy,%
+    filecolor=MA@navy,%
+    pdftitle={MethodAtlas Documentation},%
+    pdfauthor={Egothor / Accenture},%
+    pdfsubject={Security test discovery, AI classification, SARIF 2.1.0},%
+    pdfkeywords={MethodAtlas, security testing, test inventory, SARIF, AI, OWASP},%
+  }%
+}
+
+% ── Unicode character fallbacks ───────────────────────────────────────────────
+% Map Unicode characters that Latin Modern lacks to equivalent LaTeX commands.
+% newunicodechar intercepts at the TeX level, before the font engine, so it
+% works correctly with XeLaTeX + fontspec.
+\usepackage{newunicodechar}
+\newunicodechar{≥}{\ensuremath{\geq}}        % U+2265 GREATER-THAN OR EQUAL TO
+\newunicodechar{↪}{\ensuremath{\hookrightarrow}} % U+21AA RIGHTWARDS ARROW WITH HOOK
+\newunicodechar{⚠}{\textbf{[!]}}             % U+26A0 WARNING SIGN
+% U+FE0F VARIATION SELECTOR-16 is an invisible emoji modifier; set its
+% catcode to 9 (ignored) so XeLaTeX silently drops it everywhere.
+\catcode`\^^^^fe0f=9
+
+% ── Subliminal refinements ────────────────────────────────────────────────────
+\usepackage{microtype}   % kerning, tracking, protrusion — perceptible improvement
+
+% ── Code-block line wrapping (key feature) ────────────────────────────────────
+% fvextra extends fancyvrb with breaklines and breakanywhere.
+% pandoc wraps every highlighted code block in the Highlighting environment
+% (a subclass of Verbatim).  Redefining it here with breaklines=true causes
+% long command lines, URLs, and deeply nested JSON/YAML to wrap gracefully
+% instead of running off the right margin.
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{%
+  breaklines=true,%
+  breakanywhere=true,%
+  breakanywheresymbolpre={},%
+  breaksymbol={\mbox{\tiny$\hookrightarrow$}},%
+  breaksymbolright={},%
+  commandchars=\\\{\}%
+}
+
+% ── Better tables ─────────────────────────────────────────────────────────────
+\usepackage{booktabs}    % \toprule, \midrule, \bottomrule
+\usepackage{longtable}   % tables that span page breaks (pandoc emits these)
+\usepackage{array}       % extended column specifiers
+
+% ── Section heading typography ────────────────────────────────────────────────
+\usepackage{titlesec}
+
+% Chapter: large, navy, ruled below
+\titleformat{\chapter}[display]
+  {\normalfont\LARGE\bfseries\color{MA@navy}}
+  {\chaptertitlename~\thechapter}
+  {10pt}
+  {\huge}
+  [\vspace{2pt}{\color{MA@teal}\titlerule[1.2pt]}]
+
+% Section: bold navy
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{MA@navy}}
+  {\thesection}{1em}{}
+
+% Subsection: medium weight, teal
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{MA@teal}}
+  {\thesubsection}{1em}{}
+
+% Subsubsection: normal weight, navy
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{MA@navy}}
+  {\thesubsubsection}{1em}{}
+
+% ── Running headers and footers ───────────────────────────────────────────────
+\usepackage{fancyhdr}
+\usepackage{emptypage}   % suppress headers/footers on empty pages
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE]{\small\color{MA@navy}\leftmark}        % left even: chapter title
+\fancyhead[RO]{\small\color{MA@navy}\rightmark}       % right odd: section title
+\fancyfoot[LE,RO]{\small\thepage}
+\fancyfoot[C]{\small\color{MA@teal}MethodAtlas Documentation}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Plain style for chapter opening pages
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \fancyfoot[LE,RO]{\small\thepage}%
+  \renewcommand{\headrulewidth}{0pt}%
+}
+
+% ── Custom title page ─────────────────────────────────────────────────────────
+% Redefine \maketitle to produce a full-bleed cover page in navy.
+% pandoc calls \maketitle at the start of the document body when a title is set.
+% \makeatletter is required so that \@date (an internal LaTeX macro, with @
+% as part of the control-sequence name) is accessible in user code loaded
+% via pandoc -H, where @ has catcode 12 (punctuation) by default.
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{titlepage}%
+    \pagecolor{MA@navy}%
+    \color{white}%
+    \vspace*{3cm}%
+    \begin{center}%
+      % Logotype: Method in white, Atlas in teal
+      {\fontsize{54}{64}\selectfont\bfseries%
+        Method\textcolor{MA@teal}{Atlas}}\\[0.6em]
+      {\large\itshape Security Test Intelligence Platform}\\[3.5em]
+      {\color{MA@teal}\rule{0.42\textwidth}{0.8pt}}\\[2.5em]
+      {\Large\bfseries Developer Reference}\\[0.7em]
+      {\normalsize Full Documentation Set}\\[4.5em]
+      {\small Security test discovery\enspace·\enspace AI classification\enspace·\enspace SARIF\,2.1.0}\\[0.35em]
+      {\small OWASP SAMM\enspace·\enspace NIST SSDF\enspace·\enspace
+              ISO\,27001\enspace·\enspace DORA\enspace·\enspace PCI\,DSS\enspace·\enspace SOC\,2}%
+    \end{center}%
+    \vfill%
+    \begin{center}%
+      {\small\color{white!80}\@date}\\[0.5em]
+      {\footnotesize\textcopyright\enspace Egothor\,/\,Accenture
+        \quad\textbullet\quad
+        Apache\,License\,2.0}\\[0.4em]
+      {\footnotesize ISBN:\enspace(not yet assigned)}%
+    \end{center}%
+    \vspace{1.5cm}%
+  \end{titlepage}%
+  % Verso of title page — copyright details on white
+  \nopagecolor%
+  \thispagestyle{empty}%
+  \vspace*{\fill}%
+  \noindent\small%
+  \textbf{MethodAtlas — Developer Reference}\\[0.4em]
+  Copyright \textcopyright\ 2024--\the\year\ Egothor s.r.o.\ and Accenture.\\[0.3em]
+  Licensed under the Apache License, Version 2.0.  You may obtain a copy of the
+  licence at \url{https://www.apache.org/licenses/LICENSE-2.0}.\\[0.3em]
+  Unless required by applicable law or agreed to in writing, software distributed
+  under the Licence is distributed on an \textsc{``as is''} basis, without
+  warranties or conditions of any kind, either express or implied.\\[0.6em]
+  Source code and current online documentation:\\
+  \url{https://accenture.github.io/MethodAtlas/}\\[0.6em]
+  \textit{ISBN: (not yet assigned)}\\[0.4em]
+  \textit{First edition.  Built: \@date.}%
+  \vspace*{1cm}%
+  \clearpage%
+}
+\makeatother

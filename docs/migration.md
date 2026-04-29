@@ -93,10 +93,10 @@ forwarded to each discovery plugin. No action is needed for existing Java
 configurations — the Java plugin ignores unknown properties.
 
 This is relevant for non-JVM plugins that require plugin-specific settings.
-The C# (.NET) plugin is available now; a TypeScript plugin is planned.
+The C# (.NET) and TypeScript plugins ship with the 3.x distribution.
 
 ```yaml
-# Example: TypeScript plugin configuration (planned)
+# TypeScript plugin configuration
 properties:
   functionNames:
     - test

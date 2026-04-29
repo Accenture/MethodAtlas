@@ -26,16 +26,26 @@ whether security testing is performed before changes are deployed to
 production, whether the results of that testing are documented, and whether
 the evidence is retained for the observation period.
 
-MethodAtlas supports CC8.1 by producing a structured, timestamped record of
-which security test methods existed at a given source revision, what security
-properties they cover, and how thoroughly they assert their intended outcomes.
-This record provides the kind of documentation auditors look for when
-assessing whether changes were tested for security before deployment.
+## Control mapping
+
+| CC8.1 implementation requirement                    | MethodAtlas feature                                                                           | Evidence produced |
+|-----------------------------------------------------|-----------------------------------------------------------------------------------------------|-------------------|
+| Changes are authorised and tracked                  | Scans are run in CI and tied to specific commits via [`-content-hash`](../cli-reference.md#-content-hash) and the git SHA in the output file name | `content_hash` column in CSV/SARIF; SHA-tagged artefact filenames |
+| Security testing is performed before deployment     | CI gate runs MethodAtlas on every pull request targeting the production branch                | Gate job status in CI build log per commit |
+| Test results are documented                         | SARIF and CSV outputs provide a structured, machine-readable record per build                 | `security-tests-<sha>.sarif` and `.csv` per release |
+| Evidence is retained for the observation period     | Outputs archived as CI artefacts or release assets with `retention-days` ≥ 400               | CI artefact store or release asset attachments |
+| Test coverage did not regress                       | [`-diff`](../cli-reference.md#-diff) mode detects removed or reclassified security tests between releases | `delta.txt` artefact per pull request and per release |
+| Human review decisions are recorded                 | [`-override-file`](../cli-reference.md#-override-file) in version control provides a tamper-evident record | Override file git history; `override_applied` column in CSV |
 
 ## Recommended configuration
 
-The following command produces the evidence artefact appropriate for CC8.1
-review. Run it on every release candidate and retain the output:
+**Context:** CC8.1 requires evidence that security testing ran before each
+production deployment and that the results are documented. The output file
+must be tied to the specific commit that was deployed.
+
+**MethodAtlas capability:** [`-content-hash`](../cli-reference.md#-content-hash)
+and [`-emit-metadata`](../cli-reference.md#-emit-metadata) together satisfy
+the documentation and traceability requirements.
 
 ```bash
 java -jar methodatlas.jar \
@@ -59,19 +69,10 @@ java -jar methodatlas.jar \
   > security-tests-$(git rev-parse --short HEAD).csv
 ```
 
-## Mapping to CC8.1 objectives
-
-The following table maps each CC8.1 implementation requirement to the
-corresponding MethodAtlas capability:
-
-| CC8.1 implementation requirement | MethodAtlas capability |
-|---|---|
-| Changes are authorised and tracked | MethodAtlas scans are run in CI and tied to specific commits via `content_hash` and the git SHA in the file name |
-| Security testing is performed before deployment | CI gate runs MethodAtlas on every pull request targeting the production branch |
-| Test results are documented | SARIF and CSV outputs provide a structured, machine-readable record |
-| Evidence is retained for the observation period | Outputs are archived as CI artefacts or release assets (see below) |
-| Test coverage did not regress | `-diff` mode detects removed or reclassified security tests between releases |
-| Human review decisions are recorded | Override file in version control provides a tamper-evident record of manual classification decisions |
+**Evidence output:** `security-tests-<sha>.sarif` and
+`security-tests-<sha>.csv` — a machine-readable and a human-readable record,
+both tied to the specific source revision via the commit SHA in the filename
+and the `content_hash` column.
 
 ## CI integration for continuous evidence
 
@@ -118,19 +119,19 @@ fi
 ```
 
 See [Release Gating](../ci/release-gating.md) for a complete pipeline
-implementation.
+implementation including both count-gate and delta-gate patterns.
 
 ## Artefact package for the auditor
 
 At the close of each observation period or during an audit, provide the
 following materials in response to CC8.1 evidence requests:
 
-| Artefact | Content | Retention |
-|---|---|---|
-| SARIF output per production release | Security test inventory at the time of each release | Observation period plus 12 months |
-| Delta reports between releases | Evidence that coverage did not regress | Same as above |
-| CI pipeline logs | Proof that MethodAtlas ran as part of the pre-deployment process | Same as above |
-| Override file (version-controlled) | Record of all human classification decisions | Git history; no expiry |
+| Artefact                           | Content                                                      | Retention |
+|------------------------------------|--------------------------------------------------------------|-----------|
+| SARIF output per production release | Security test inventory at the time of each release         | Observation period plus 12 months |
+| Delta reports between releases     | Evidence that coverage did not regress                       | Same as above |
+| CI pipeline logs                   | Proof that MethodAtlas ran as part of the pre-deployment process | Same as above |
+| Override file (version-controlled) | Record of all human classification decisions                 | Git history; no expiry |
 
 !!! tip "Auditor presentation"
     Most SOC 2 auditors are not familiar with SARIF. Supplement the SARIF

@@ -1,12 +1,15 @@
 # API AI Enrichment
 
-Scan test sources and automatically submit each class to an AI provider for
-security classification. The provider analyses the full source of each class and
-returns per-method security relevance, taxonomy tags, a suggested display name,
-and a human-readable rationale.
+API AI enrichment scans test sources and automatically submits each class to a configured AI provider for security classification, returning per-method relevance, taxonomy tags, a suggested display name, and a human-readable rationale.
 
-**When to use:** Development workflows with direct network access to an AI API,
-automated nightly classification jobs, or CI pipelines with a hosted AI gateway.
+## When to use this mode
+
+- Your scan host has direct network access to an AI provider API (cloud-hosted or internal Ollama).
+- You want automatic, hands-free security classification as part of a nightly or PR CI pipeline.
+- You have an API key for a supported provider (OpenAI, Anthropic, Azure OpenAI, Mistral, Groq, xAI, GitHub Models, OpenRouter) or a local Ollama instance.
+- You need the full AI enrichment columns (`ai_security_relevant`, `ai_tags`, `ai_reason`, `ai_interaction_score`) in your CSV output.
+
+If direct API access is not permitted from the scan host, use the [Manual AI workflow](manual.md) instead.
 
 ## How it works
 
@@ -113,17 +116,75 @@ Adds an `ai_confidence` column (values `0.0`–`1.0`). See
 
 ## Output columns (CSV)
 
-| Column | Description |
-|---|---|
-| `fqcn` | Fully qualified class name |
-| `method` | Method name |
-| `loc` | Line count of the method declaration |
-| `tags` | `@Tag` values already present in source |
-| `ai_security_relevant` | `true` or `false` |
-| `ai_display_name` | Suggested `@DisplayName` value |
-| `ai_tags` | Semicolon-separated security taxonomy tags |
-| `ai_reason` | Human-readable rationale for the classification |
-| `ai_confidence` | `0.0`–`1.0` (only with `-ai-confidence`) |
+| Column              | Always present | Description                                                  |
+|---------------------|----------------|--------------------------------------------------------------|
+| `fqcn`              | Yes            | Fully qualified class name                                   |
+| `method`            | Yes            | Method name                                                  |
+| `loc`               | Yes            | Line count of the method declaration                         |
+| `tags`              | Yes            | `@Tag` values already present in source                      |
+| `display_name`      | Yes            | `@DisplayName` text present in source; empty if absent       |
+| `ai_security_relevant` | Yes         | `true` or `false`                                            |
+| `ai_display_name`   | Yes            | Suggested `@DisplayName` value from the AI                   |
+| `ai_tags`           | Yes            | Semicolon-separated security taxonomy tags assigned by the AI |
+| `ai_reason`         | Yes            | Human-readable rationale for the classification              |
+| `ai_interaction_score` | Yes        | Test quality score from `0.0` (outcome assertions) to `1.0` (interaction-only) |
+| `ai_confidence`     | With [`-ai-confidence`](../cli-reference.md#-ai-confidence) | AI certainty from `0.0` (uncertain) to `1.0` (certain) |
+
+For a full description of each column and its interpretation, see [Guide for Security Teams](../concepts/for-security-teams.md) and [Output Formats](../output-formats.md).
+
+## End-to-end scenario: nightly security classification
+
+A team runs MethodAtlas nightly against their monolith's test suite, stores the enriched CSV as a CI artifact, and uses GitHub Code Scanning for security visibility.
+
+```bash
+# .github/workflows/security-scan.yml (excerpt)
+- name: MethodAtlas AI enrichment
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  run: |
+    ./methodatlas \
+      -ai \
+      -ai-provider anthropic \
+      -ai-model claude-haiku-4-5-20251001 \
+      -ai-api-key-env ANTHROPIC_API_KEY \
+      -ai-confidence \
+      -content-hash \
+      -emit-metadata \
+      -sarif \
+      src/test/java > security-tests.sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: security-tests.sarif
+
+- name: Also export CSV for audit archive
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  run: |
+    ./methodatlas \
+      -ai \
+      -ai-provider anthropic \
+      -ai-model claude-haiku-4-5-20251001 \
+      -ai-api-key-env ANTHROPIC_API_KEY \
+      -ai-confidence \
+      -security-only \
+      -content-hash \
+      -emit-metadata \
+      src/test/java > security-tests-$(date +%F).csv
+
+- name: Upload CSV artifact
+  uses: actions/upload-artifact@v4
+  with:
+    name: security-tests-${{ github.run_id }}
+    path: security-tests-*.csv
+```
+
+The resulting SARIF is uploaded to GitHub Code Scanning. Each finding carries the `ai_reason` as its description and the `ai_interaction_score` embedded in the finding message, allowing the security team to triage directly from the GitHub Security tab.
+
+The CSV artifact is retained as audit evidence. Its `content_hash` column allows the security team to verify that the scanned source was not modified between the scan and the review.
+
+To understand the output columns, see [Guide for Security Teams](../concepts/for-security-teams.md). To compare two scan outputs over time, see [Delta Report](delta.md).
 
 ## Taxonomy and prompt tuning
 

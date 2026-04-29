@@ -4,3 +4,7 @@ include 'methodatlas-api'
 include 'methodatlas-discovery-jvm'
 include 'methodatlas-discovery-dotnet'
 include 'methodatlas-discovery-typescript'
+
+// Documentation PDF module — not part of the binary distribution.
+// Build on request: ./gradlew :methodatlas-docs:generatePdf
+include 'methodatlas-docs'

@@ -22,17 +22,32 @@ security testing throughout the development process, including before
 software is deployed to production.
 
 Among the verification activities QSAs typically review are:
+
 - Evidence that security testing is performed as part of the SDLC.
 - Records showing which security tests exist, what they cover, and when
   they were last executed.
 - Artefacts that allow a specific test result to be correlated with a
   specific source revision.
 
-MethodAtlas supports Requirement 6 by producing a structured, machine-readable
-inventory of security-relevant test methods, classified by taxonomy tag, with
-per-class content hashes that enable revision correlation.
+## Control mapping
+
+| PCI-DSS v4.0 control              | MethodAtlas feature                                                      | Evidence produced |
+|-----------------------------------|--------------------------------------------------------------------------|-------------------|
+| 6.2.4 — Software development practices prevent common vulnerabilities | AI taxonomy tags identify tests covering injection, auth, crypto, and access-control requirements | `ai_tags` column in CSV/SARIF listing security categories covered per test method |
+| 6.3.2 — Inventory of bespoke and custom software | Full structural inventory of test methods with FQCNs, line counts, and tags | `inventory.csv` produced by static scan |
+| 6.4.1 — Security testing is performed before software is released to production | CI gate runs MethodAtlas on every release candidate; SARIF output proves the scan ran | `security-tests.sarif` artifact attached to CI build log |
+| 6.4.2 — Internal vulnerability scan after significant change | Delta report flags removed or reclassified security tests between releases | `delta-report.csv` produced by `-diff` mode |
+| 6.4.3 — Web-application protection using a technical control | Tests in the `injection` and `input-validation` taxonomy categories demonstrate coverage of web-application controls | `ai_tags` values in CSV filterable by category |
 
 ## Recommended configuration
+
+**Context:** PCI-DSS Requirement 6.4.1 requires that security testing evidence
+can be correlated with the release. The following command embeds the metadata
+needed for that correlation.
+
+**MethodAtlas capability:** [`-content-hash`](../cli-reference.md#-content-hash)
+and [`-emit-metadata`](../cli-reference.md#-emit-metadata) produce a
+tamper-evident record tied to a specific source revision.
 
 ```bash
 java -jar methodatlas.jar \
@@ -60,8 +75,9 @@ java -jar methodatlas.jar \
   > security-tests.csv
 ```
 
-The CSV format is more readable for human review; the SARIF format integrates
-with code scanning tools and can be attached to assessment submissions.
+**Evidence output:** the CSV format is more readable for human review; the
+SARIF format integrates with code scanning tools and can be attached to
+assessment submissions.
 
 ## Regression detection
 
@@ -82,12 +98,12 @@ whose interaction score worsened.
 
 For each release or quarterly review period, retain the following artefacts:
 
-| Artefact | Source | Minimum retention |
-|---|---|---|
-| `security-tests.sarif` | MethodAtlas SARIF output | 1 year (align with QSA assessment cycle) |
-| `security-tests.csv` | MethodAtlas CSV output with `-emit-metadata` | 1 year |
-| `delta-report.csv` | MethodAtlas `-diff` output | 1 year |
-| CI build log with commit SHA | CI platform | 1 year |
+| Artefact              | Source                                      | Minimum retention |
+|-----------------------|---------------------------------------------|-------------------|
+| `security-tests.sarif`| MethodAtlas SARIF output                    | 1 year (align with QSA assessment cycle) |
+| `security-tests.csv`  | MethodAtlas CSV output with `-emit-metadata` | 1 year |
+| `delta-report.csv`    | MethodAtlas `-diff` output                  | 1 year |
+| CI build log with commit SHA | CI platform                          | 1 year |
 
 !!! warning "Retention period"
     PCI-DSS does not specify a universal artefact retention period; your QSA

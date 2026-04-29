@@ -2,8 +2,8 @@
 
 This page describes how to integrate MethodAtlas into projects built as
 multiple Maven or Gradle submodules within a single repository. It covers
-per-module scanning, cache management, CSV aggregation, and cross-module
-coverage analysis.
+per-module scanning, the `-emit-source-root` flag for record disambiguation,
+cache management, CSV aggregation, and cross-module coverage analysis.
 
 ## How MethodAtlas handles multi-module projects
 
@@ -17,6 +17,30 @@ separate per-module invocations and aggregating the results.
 Both approaches are valid; the choice depends on whether you need per-module
 caching and per-module SARIF artefacts, or a single consolidated output.
 
+## Disambiguating records in multi-root scans
+
+When multiple modules contain test classes with the same fully qualified class
+name — which can happen in monorepos that follow an identical package
+convention — the default CSV output does not distinguish which scan root a
+record came from. Use **`-emit-source-root`** to append the scan root path as
+an additional column in every output row:
+
+```bash
+java -jar methodatlas.jar \
+  -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+  -content-hash \
+  -emit-source-root \
+  module-auth/src/test/java \
+  module-payment/src/test/java \
+  module-reporting/src/test/java \
+  > security-tests-all.csv
+```
+
+The `source_root` column in the output identifies which scan root produced
+each record, making the CSV unambiguous even when class names collide across
+modules. This column is preserved when the CSV is used as an
+[`-ai-cache`](../cli-reference.md#-ai-cache) on subsequent runs.
+
 ## Approach 1: single invocation across all modules
 
 Supply all test source roots as positional arguments to a single MethodAtlas
@@ -26,6 +50,7 @@ invocation. The tool scans all paths and emits one unified CSV or SARIF:
 java -jar methodatlas.jar \
   -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
   -content-hash -sarif -security-only \
+  -emit-source-root \
   module-auth/src/test/java \
   module-payment/src/test/java \
   module-reporting/src/test/java \
@@ -53,15 +78,16 @@ for module in module-auth module-payment module-reporting; do
   java -jar methodatlas.jar \
     -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
     -content-hash \
+    -emit-source-root \
     -ai-cache .methodatlas-cache-${module}.csv \
     ${module}/src/test/java \
     > scan-${module}.csv
 done
 ```
 
-Each module has its own cache file (`-ai-cache .methodatlas-cache-${module}.csv`),
-so a change in one module does not force re-classification of classes in
-other modules.
+Each module has its own cache file
+(`.methodatlas-cache-${module}.csv`), so a change in one module does not
+force re-classification of classes in other modules.
 
 ### Aggregating CSV outputs
 
@@ -89,6 +115,7 @@ Run a second pass with `-sarif` using the aggregated cache:
 java -jar methodatlas.jar \
   -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
   -sarif -security-only \
+  -emit-source-root \
   -ai-cache .methodatlas-cache-combined.csv \
   module-auth/src/test/java \
   module-payment/src/test/java \
@@ -102,6 +129,13 @@ For projects where each module's scan should appear as a separate pipeline
 job, use a matrix strategy:
 
 ```yaml
+name: Security test scan — monorepo
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -109,6 +143,8 @@ jobs:
       matrix:
         module: [module-auth, module-payment, module-reporting]
       fail-fast: false
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -142,10 +178,20 @@ jobs:
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
             -content-hash -sarif -security-only \
+            -emit-source-root \
             $CACHE_ARG \
             ${{ matrix.module }}/src/test/java \
-            | tee .methodatlas-cache-${{ matrix.module }}.csv \
             > scan-${{ matrix.module }}.sarif
+
+          # Also emit CSV for aggregation and caching
+          java -jar methodatlas.jar \
+            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -content-hash -security-only \
+            -emit-source-root \
+            -ai-cache ${{ matrix.module }}/src/test/java \
+            $CACHE_ARG \
+            ${{ matrix.module }}/src/test/java \
+            > .methodatlas-cache-${{ matrix.module }}.csv
 
       - uses: actions/upload-artifact@v4
         with:
@@ -153,10 +199,14 @@ jobs:
           path: |
             scan-${{ matrix.module }}.sarif
             .methodatlas-cache-${{ matrix.module }}.csv
+          retention-days: 30
 
   aggregate:
     runs-on: ubuntu-latest
     needs: scan
+    permissions:
+      contents: read
+
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -176,7 +226,8 @@ jobs:
 
       - name: Aggregate CSVs
         run: |
-          head -n 1 scans/$(ls scans/*.csv | head -1 | xargs basename) > security-tests-all.csv
+          FIRST_CSV=$(ls scans/*.csv | head -1)
+          head -n 1 "$FIRST_CSV" > security-tests-all.csv
           for f in scans/*.csv; do tail -n +2 "$f"; done >> security-tests-all.csv
 
       - uses: actions/upload-artifact@v4
@@ -240,6 +291,7 @@ TEST_ROOTS=$(find . -path '*/src/test/java' -not -path '*/build/*' | tr '\n' ' '
 java -jar methodatlas.jar \
   -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
   -content-hash -sarif -security-only \
+  -emit-source-root \
   $TEST_ROOTS \
   > security-tests.sarif
 ```

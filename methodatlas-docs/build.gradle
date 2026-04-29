@@ -1,0 +1,337 @@
+/**
+ * methodatlas-docs — Documentation PDF build module.
+ *
+ * This module is intentionally NOT part of the binary distribution
+ * and is excluded from the root 'build' lifecycle task.
+ * It is built on request only.
+ *
+ * Build the PDF:
+ *   Windows : .\gradlew :methodatlas-docs:generatePdf
+ *   Linux   : ./gradlew :methodatlas-docs:generatePdf
+ *
+ * Prerequisites (all must be on PATH):
+ *   pandoc 3+                    https://pandoc.org/installing.html
+ *   xelatex (MikTeX / TeX Live)  https://miktex.org  |  https://tug.org/texlive/
+ *   mmdc (Mermaid CLI)           npm install -g @mermaid-js/mermaid-cli
+ *   Python 3.9+                  https://python.org
+ *
+ * Required LaTeX packages (all bundled with MikTeX and TeX Live):
+ *   fvextra, microtype, titlesec, fancyhdr, emptypage, booktabs,
+ *   longtable, array, xcolor, hyperref, fontspec, geometry
+ *
+ * Output: build/MethodAtlas.pdf
+ */
+plugins {
+    id 'base'
+}
+
+description = 'Builds the MethodAtlas documentation PDF. Not part of the distribution.'
+
+// ---------------------------------------------------------------------------
+// OS detection — consistent with methodatlas-discovery-typescript
+// ---------------------------------------------------------------------------
+
+def isWindows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+def pythonCmd = isWindows ? 'python'   : 'python3'
+
+// ---------------------------------------------------------------------------
+// Source files
+// ---------------------------------------------------------------------------
+
+def srcDocsDir       = file('src/docs')
+def preprocessScript = new File(srcDocsDir, 'mermaid_preprocess.py')
+def latexHeaderFile  = new File(srcDocsDir, 'latex-header.tex')
+def prefaceFile      = new File(srcDocsDir, 'preface.md')
+def backMatterFile   = new File(srcDocsDir, 'back-matter.tex')
+
+// ---------------------------------------------------------------------------
+// Output directories
+// ---------------------------------------------------------------------------
+
+def pubOrderFile   = rootProject.file('docs/publication-order.txt')
+def buildDocsDir   = layout.buildDirectory.dir('docs').get().asFile
+def imgDir         = new File(buildDocsDir, 'mermaid_imgs')
+def processedDir   = new File(buildDocsDir, 'processed')
+def processedList  = new File(buildDocsDir, 'processed-files.txt')
+def puppeteerCfg   = new File(buildDocsDir, 'puppeteer.json')
+def outputPdf      = layout.buildDirectory.file('MethodAtlas.pdf').get().asFile
+
+// ---------------------------------------------------------------------------
+// Task: preprocessMermaid
+//
+// Converts every ```mermaid … ``` block in each documentation source file to
+// a PNG image and writes a clean copy to processedDir.  The preface is
+// prepended to the file list so it appears first in the processed output.
+// The list of processed file paths is written to processedList for use by
+// the pandoc step.
+// ---------------------------------------------------------------------------
+
+tasks.register('preprocessMermaid') {
+    group       = 'documentation'
+    description = 'Render Mermaid code blocks to PNG images and emit clean Markdown copies.'
+
+    inputs.file preprocessScript
+    inputs.file pubOrderFile
+    inputs.file prefaceFile
+    // Declare each Markdown source file as an input for incremental build.
+    // The guard handles a fresh clone where publication-order.txt may not exist yet.
+    if (pubOrderFile.exists()) {
+        inputs.files(
+            pubOrderFile.readLines()
+                .findAll { !it.startsWith('#') && !it.isBlank() }
+                .collect { rootProject.file(it) }
+        )
+    }
+
+    outputs.dir  processedDir
+    outputs.file processedList
+
+    doLast {
+        [buildDocsDir, imgDir, processedDir].each { it.mkdirs() }
+
+        // Write a puppeteer config appropriate for this OS.
+        puppeteerCfg.text = buildPuppeteerConfig(isWindows)
+
+        def mdFiles = pubOrderFile.readLines()
+            .findAll { !it.startsWith('#') && !it.isBlank() }
+            .collect { rootProject.file(it).absolutePath }
+
+        if (mdFiles.isEmpty()) {
+            throw new GradleException(
+                'docs/publication-order.txt contains no Markdown file entries.')
+        }
+
+        logger.lifecycle('Preprocessing {} Markdown files for Mermaid rendering...',
+            mdFiles.size() + 1)  // +1 for preface
+
+        def pyCmd = ([pythonCmd, preprocessScript.absolutePath,
+                      prefaceFile.absolutePath] + mdFiles).join(' ')
+        logger.lifecycle('Running: {}', pyCmd)
+        logger.lifecycle('  OUTPUT_DIR={}', processedDir.absolutePath)
+        logger.lifecycle('  IMG_DIR={}',    imgDir.absolutePath)
+        logger.lifecycle('  PUPPETEER_CFG={}', puppeteerCfg.absolutePath)
+        logger.lifecycle('  LIST_FILE={}',  processedList.absolutePath)
+
+        // Project.exec() was removed in Gradle 9; use ExecOperations instead.
+        services.get(org.gradle.process.ExecOperations).exec {
+            // Preface is the first file so it appears first in processedList.
+            commandLine([pythonCmd, preprocessScript.absolutePath,
+                         prefaceFile.absolutePath] + mdFiles)
+            environment 'OUTPUT_DIR',    processedDir.absolutePath
+            environment 'IMG_DIR',       imgDir.absolutePath
+            environment 'PUPPETEER_CFG', puppeteerCfg.absolutePath
+            environment 'LIST_FILE',     processedList.absolutePath
+            workingDir rootProject.projectDir
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Task: generatePdf
+//
+// Invokes pandoc with XeLaTeX to produce the combined documentation PDF.
+//
+// Document class: book (openany = chapters may start on any page, suitable
+// for a digital/screen PDF; switch to twoside for print-ready output).
+//
+// Fonts: TeX Gyre Termes / Heros / Cursor — included in both MikTeX and
+// TeX Live on all platforms.  To use GNU FreeFont instead (requires separate
+// font installation), comment the TeX Gyre lines and uncomment the FreeFont
+// alternatives below.
+//
+// Line wrapping in code blocks is handled by the fvextra package configured
+// in latex-header.tex; no --listings flag is used, so pandoc's built-in
+// syntax highlighting (--highlight-style=tango) is preserved.
+// ---------------------------------------------------------------------------
+
+tasks.register('generatePdf') {
+    group       = 'documentation'
+    description = 'Build build/MethodAtlas.pdf. ' +
+                  'Requires pandoc + xelatex (MikTeX/TeX Live) + mmdc + Python 3.'
+    dependsOn   'preprocessMermaid'
+
+    inputs.file  processedList
+    inputs.dir   processedDir
+    inputs.file  latexHeaderFile
+    inputs.file  backMatterFile
+    outputs.file outputPdf
+
+    doLast {
+        if (!processedList.exists()) {
+            throw new GradleException(
+                'Processed file list not found. Ensure preprocessMermaid completed successfully.')
+        }
+
+        def files = processedList.readLines().findAll { !it.isBlank() }
+        if (files.isEmpty()) {
+            throw new GradleException(
+                'No processed Markdown files found in build/docs/processed-files.txt.')
+        }
+
+        logger.lifecycle('Invoking pandoc on {} files (preface + {} chapters) -> {}',
+            files.size(), files.size() - 1, outputPdf.name)
+
+        def pandocArgs = ['pandoc'] + files + [
+                    '--pdf-engine=xelatex',
+                    '--pdf-engine-opt=-interaction=nonstopmode',
+                    '--pdf-engine-opt=-no-shell-escape',
+                    '--dpi=300',
+                    '-V', 'documentclass=book',
+                    '-V', 'classoption=openany',
+                    '-V', "geometry:a4paper,top=2.5cm,bottom=2.5cm,left=3cm,right=2.5cm",
+                    '-V', 'fontsize=11pt',
+                    '-V', 'mainfont=Latin Modern Roman',
+                    '-V', 'sansfont=Latin Modern Sans',
+                    '-V', 'monofont=Latin Modern Mono',
+                    '-V', 'monofontoptions=Scale=0.85',
+                    '-V', 'colorlinks=true',
+                    '--toc', '--toc-depth=3', '--number-sections',
+                    '--syntax-highlighting=tango',
+                    '--from=markdown+smart',
+                    '-H', latexHeaderFile.absolutePath,
+                    '-A', backMatterFile.absolutePath,
+                    '--extract-media', new File(buildDocsDir, 'media').absolutePath,
+                    '-M', "title=MethodAtlas Documentation",
+                    '-M', "date=${new Date().format('yyyy-MM-dd')}",
+                    '-o', outputPdf.absolutePath
+                ]
+        logger.lifecycle('Running: {}', pandocArgs.join(' '))
+
+        // Project.exec() was removed in Gradle 9; use ExecOperations instead.
+        services.get(org.gradle.process.ExecOperations).exec {
+            commandLine(
+                ['pandoc'] + files + [
+                    // ── PDF engine ───────────────────────────────────────────
+                    '--pdf-engine=xelatex',
+                    // -interaction=nonstopmode: never pause for keyboard input on
+                    //   a LaTeX error; log it and continue (prevents infinite hangs).
+                    // -no-shell-escape: disable \write18 shell execution; removes
+                    //   the "security risk: running with elevated privileges" warning
+                    //   that MikTeX emits when xelatex is started as Administrator.
+                    '--pdf-engine-opt=-interaction=nonstopmode',
+                    '--pdf-engine-opt=-no-shell-escape',
+                    '--dpi=300',
+
+                    // ── Document structure ───────────────────────────────────
+                    // 'book' class: H1→chapter, H2→section, H3→subsection.
+                    // openany: chapters may start on any page (screen-optimised).
+                    // Remove openany and add twoside for print-ready output.
+                    '-V', 'documentclass=book',
+                    '-V', 'classoption=openany',
+
+                    // ── Page geometry ────────────────────────────────────────
+                    '-V', 'geometry:a4paper,top=2.5cm,bottom=2.5cm,left=3cm,right=2.5cm',
+                    '-V', 'fontsize=11pt',
+
+                    // ── Fonts ────────────────────────────────────────────────
+                    // Latin Modern is always present in any MikTeX / TeX Live
+                    // installation and requires no extra package download.
+                    // Switch to TeX Gyre (Termes/Heros/Cursor) once MikTeX has
+                    // been updated and the tex-gyre package is installed.
+                    // Consolas is used for monospace because it covers box-drawing
+                    // characters (U+2500 range) that Latin Modern Mono lacks; it is
+                    // a standard Windows system font and is also available on macOS
+                    // and Linux via Microsoft fonts packages.
+                    '-V', 'mainfont=Latin Modern Roman',
+                    '-V', 'sansfont=Latin Modern Sans',
+                    '-V', 'monofont=Consolas',
+                    '-V', 'monofontoptions=Scale=0.85',
+
+                    // ── Colour links ─────────────────────────────────────────
+                    // Enables hyperref colour-links mode; our custom colours
+                    // are set via \hypersetup in latex-header.tex.
+                    '-V', 'colorlinks=true',
+
+                    // ── Table of contents ────────────────────────────────────
+                    '--toc',
+                    '--toc-depth=3',
+                    '--number-sections',
+
+                    // ── Syntax highlighting ──────────────────────────────────
+                    // fvextra (in latex-header.tex) handles line wrapping;
+                    // pandoc's built-in highlighter provides token colouring.
+                    '--syntax-highlighting=tango',
+
+                    // ── Input format ─────────────────────────────────────────
+                    '--from=markdown+smart',
+
+                    // ── Custom LaTeX preamble ────────────────────────────────
+                    // Contains: fvextra line-wrap, section styling, running
+                    // headers/footers, custom title page, back-cover definition.
+                    '-H', latexHeaderFile.absolutePath,
+
+                    // ── Back matter ──────────────────────────────────────────
+                    // Colophon page followed by the navy back-cover page.
+                    '-A', backMatterFile.absolutePath,
+
+                    // ── Media extraction ─────────────────────────────────────
+                    // Redirect any media pandoc extracts into the build tree so
+                    // nothing is written to the project root.
+                    '--extract-media', new File(buildDocsDir, 'media').absolutePath,
+
+                    // ── Document metadata ─────────────────────────────────────
+                    '-M', "title=MethodAtlas Documentation",
+                    '-M', "date=${new Date().format('yyyy-MM-dd')}",
+                    '-o', outputPdf.absolutePath
+                ]
+            )
+            // Run from the build directory so any incidental output (e.g. a
+            // pandoc media/ folder) stays inside the build tree, never at the
+            // project root.
+            workingDir buildDocsDir
+        }
+
+        logger.lifecycle('PDF written to: {}', outputPdf)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: build a puppeteer config string for the current OS
+// ---------------------------------------------------------------------------
+
+String buildPuppeteerConfig(boolean win) {
+    if (win) {
+        // 1. Probe for Chrome downloaded by: npx puppeteer browsers install chrome
+        //    Installed under %USERPROFILE%\.cache\puppeteer\chrome\<version>\chrome-win64\chrome.exe
+        def puppeteerCache = new File(System.getProperty('user.home'), '.cache/puppeteer/chrome')
+        if (puppeteerCache.isDirectory()) {
+            def chromeExe = puppeteerCache.listFiles()
+                ?.collect { new File(it, 'chrome-win64/chrome.exe') }
+                ?.find    { it.exists() }
+            if (chromeExe) {
+                def safe = chromeExe.absolutePath.replace('\\', '/')
+                logger.lifecycle('Using puppeteer-cached Chrome: {}', safe)
+                return "{\n  \"executablePath\": \"${safe}\",\n  \"args\": [\"--no-sandbox\"]\n}\n"
+            }
+        }
+        // 2. Probe for a system Chrome or Edge installation.
+        def systemCandidates = [
+            'C:/Program Files/Google/Chrome/Application/chrome.exe',
+            'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+            'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+            'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+        ]
+        def systemBrowser = systemCandidates.find { new File(it).exists() }
+        if (systemBrowser) {
+            logger.lifecycle('Using system browser: {}', systemBrowser)
+            return "{\n  \"executablePath\": \"${systemBrowser.replace('\\\\', '/')}\",\n  \"args\": [\"--no-sandbox\"]\n}\n"
+        }
+        // 3. Fall back -- let puppeteer/mermaid-cli find a browser on its own.
+        logger.warn('No Chrome/Edge found; mmdc will attempt auto-detection.')
+        return '{\n  "args": ["--no-sandbox"]\n}\n'
+    }
+    // On Linux / macOS, probe for a system Chromium installation first.
+    def chromium = [
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/usr/bin/google-chrome',
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    ].find { new File(it).exists() }
+
+    if (chromium) {
+        def safe = chromium.replace('\\', '/')
+        return "{\n  \"executablePath\": \"${safe}\",\n" +
+               "  \"args\": [\"--no-sandbox\", \"--disable-setuid-sandbox\"]\n}\n"
+    }
+    return '{\n  "args": ["--no-sandbox", "--disable-setuid-sandbox"]\n}\n'
+}

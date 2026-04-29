@@ -1,8 +1,15 @@
 # Security-Only Output Filter
 
-The security-only filter restricts output to methods classified as
-security-relevant. All other test methods are silently dropped before any output
-is written.
+The security-only filter restricts output to methods classified as security-relevant, dropping all other test methods before any output is written.
+
+## When to use this mode
+
+- You are producing a CSV for an auditor and want it to contain only the tests that are relevant to security — not the full test suite.
+- You are uploading SARIF to GitHub Code Scanning and want the Security tab to show only security-relevant findings, not every test method.
+- You are running a CI gate that checks the count of security-relevant tests and want a focused output to count from.
+- You are combining with the [delta report](delta.md) to produce change reports that focus purely on the security-test layer.
+
+Note: the filter requires a source of security classifications — either [`-ai`](../cli-reference.md#-ai), the [manual workflow](manual.md) consume phase, or an [`-override-file`](../cli-reference.md#-override-file). Without one of these, the output will be empty.
 
 ## SARIF mode: security-only by default
 

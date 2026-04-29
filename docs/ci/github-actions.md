@@ -10,11 +10,11 @@ workflow. The techniques can be used individually or combined:
 
 ## Prerequisites
 
-| Requirement | Details |
-|---|---|
-| Java runtime | Java 21 or later; the examples use `actions/setup-java` with Eclipse Temurin |
-| MethodAtlas | Downloaded at runtime from the GitHub release; no build step required |
-| AI provider API key | Stored as a repository secret; not required for static inventory mode |
+| Requirement              | Details |
+|--------------------------|---------|
+| Java runtime             | Java 21 or later; the examples use `actions/setup-java` with Eclipse Temurin |
+| MethodAtlas              | Downloaded at runtime from the GitHub release; no build step required |
+| AI provider API key      | Stored as a repository secret; not required for static inventory mode |
 | GitHub Advanced Security | Required only for SARIF upload to Code Scanning; not required for annotations |
 
 ## Minimal workflow: PR annotations
@@ -36,6 +36,9 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -66,11 +69,35 @@ jobs:
     `upload-sarif` action requires GitHub Advanced Security; annotation output
     does not.
 
+## Using GitHub Models as the AI provider
+
+[GitHub Models](https://github.com/marketplace/models) provides free inference
+for supported models using the `GITHUB_TOKEN` automatically available in every
+GitHub Actions run. No additional secrets or billing setup is required.
+
+```yaml
+      - name: Run MethodAtlas with GitHub Models
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          java -jar methodatlas.jar \
+            -ai -ai-provider github_models \
+            -ai-model gpt-4o-mini \
+            -ai-api-key-env GITHUB_TOKEN \
+            -content-hash \
+            -github-annotations \
+            src/test/java
+```
+
+See [AI Providers — GitHub Models](../ai/providers.md) for the list of
+available models and rate limits.
+
 ## Caching AI results across runs
 
-AI classification is the most expensive step in each scan. Use `-ai-cache`
-together with `actions/cache` to skip re-classification of test classes whose
-source has not changed since the last run.
+AI classification is the most expensive step in each scan. Use
+[`-content-hash`](../cli-reference.md#-content-hash) together with
+`actions/cache` to skip re-classification of test classes whose source has
+not changed since the last run.
 
 MethodAtlas computes a SHA-256 content fingerprint (`content_hash`) for each
 test class and stores it alongside the AI classification in CSV output. On the
@@ -196,6 +223,7 @@ so findings appear in **Security → Code scanning**:
         run: |
           java -jar methodatlas.jar \
             -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -content-hash \
             -sarif \
             src/test/java \
             > methodatlas.sarif
@@ -289,7 +317,7 @@ silent removal of security tests.
 ## Full workflow
 
 The following workflow combines all four techniques — caching, annotations,
-SARIF upload, and count gate — into a single reusable definition.
+SARIF upload, and count gate — into a single, runnable definition.
 
 The cache is refreshed in a CSV pass that calls the AI only for changed or new
 classes. The annotation and SARIF passes both read from that cache and make
@@ -337,14 +365,16 @@ jobs:
       # the last run; all other classes are served from the restored cache.
       - name: Run MethodAtlas — CSV pass (cache refresh + annotations)
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           [ -f .methodatlas-cache.csv.gz ] && gunzip -k .methodatlas-cache.csv.gz
           CACHE_ARGS=()
           [ -f .methodatlas-cache.csv ] && CACHE_ARGS=("-ai-cache" ".methodatlas-cache.csv")
 
           java -jar methodatlas.jar \
-            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -ai -ai-provider github_models \
+            -ai-model gpt-4o-mini \
+            -ai-api-key-env GITHUB_TOKEN \
             -content-hash \
             -github-annotations \
             "${CACHE_ARGS[@]}" \
@@ -359,10 +389,12 @@ jobs:
       - name: Run MethodAtlas — SARIF pass (zero AI calls)
         if: github.ref == 'refs/heads/main'
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           java -jar methodatlas.jar \
-            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -ai -ai-provider github_models \
+            -ai-model gpt-4o-mini \
+            -ai-api-key-env GITHUB_TOKEN \
             -content-hash \
             -ai-cache .methodatlas-cache.csv \
             -sarif \
@@ -382,7 +414,22 @@ jobs:
         with:
           sarif_file: methodatlas.sarif
           category: security-tests
+
+      - name: Upload SARIF as workflow artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodatlas-sarif
+          path: methodatlas.sarif
+          retention-days: 30
 ```
+
+!!! tip "Switching to a different AI provider"
+    The full workflow above uses `github_models` (no extra secrets required).
+    To use OpenAI, replace `-ai-provider github_models -ai-model gpt-4o-mini
+    -ai-api-key-env GITHUB_TOKEN` with
+    `-ai-provider openai -ai-api-key-env OPENAI_API_KEY` and store
+    `OPENAI_API_KEY` as a repository secret. All other steps are identical.
 
 ## Persisting human corrections with an override file
 
@@ -392,12 +439,13 @@ different tags or a different security-relevance verdict across runs. An
 survive model changes, prompt updates, and re-runs.
 
 Store the file in version control (conventionally `.methodatlas-overrides.yaml`
-at the repository root). Pass it on every scan with `-override-file`:
+at the repository root). Pass it on every scan with
+[`-override-file`](../cli-reference.md#-override-file):
 
 ```yaml
       - name: Run MethodAtlas with overrides
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           OVERRIDE_ARGS=()
           if [ -f .methodatlas-overrides.yaml ]; then
@@ -405,7 +453,10 @@ at the repository root). Pass it on every scan with `-override-file`:
           fi
 
           java -jar methodatlas.jar \
-            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -ai -ai-provider github_models \
+            -ai-model gpt-4o-mini \
+            -ai-api-key-env GITHUB_TOKEN \
+            -content-hash \
             -sarif \
             "${OVERRIDE_ARGS[@]}" \
             src/test/java \
@@ -421,25 +472,3 @@ See [Classification Overrides](../ai/overrides.md) for the file format
 reference and [Remote Override Sources](../ai/remote-overrides.md) for a
 strategy comparison that covers security-team repositories, HTTPS artifact
 servers, and reusable workflows.
-
-## Using GitHub Models as the AI provider
-
-[GitHub Models](https://github.com/marketplace/models) provides free inference
-for supported models using the `GITHUB_TOKEN` automatically available in every
-GitHub Actions run. No additional secrets or billing setup is required.
-
-```yaml
-      - name: Run MethodAtlas with GitHub Models
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          java -jar methodatlas.jar \
-            -ai -ai-provider github_models \
-            -ai-model gpt-4o-mini \
-            -ai-api-key-env GITHUB_TOKEN \
-            -github-annotations \
-            src/test/java
-```
-
-See [AI Providers — GitHub Models](../ai/providers.md) for the list of
-available models and rate limits.

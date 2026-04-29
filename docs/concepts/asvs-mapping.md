@@ -11,19 +11,23 @@ against specific ASVS verification levels.
 
 ## Mapping table
 
-| MethodAtlas tag | ASVS chapter | ASVS title | Notes |
-|---|---|---|---|
-| `auth` | V2 | Authentication Verification Requirements | Covers identity verification, credential storage, MFA, account recovery |
-| `auth` | V3 | Session Management Verification Requirements | Session creation, binding, expiry, and termination |
-| `access-control` | V4 | Access Control Verification Requirements | Authorisation checks, role enforcement, resource boundaries |
-| `input-validation` | V5 | Validation, Sanitization and Encoding | Input format enforcement, boundary checking, output encoding |
-| `injection` | V5 | Validation, Sanitization and Encoding | Injection prevention requirements fall within V5 in ASVS 4.0 |
-| `crypto` | V6 | Stored Cryptography Verification Requirements | At-rest encryption, key management, hashing algorithms |
-| `crypto` | V9 | Communications Verification Requirements | TLS configuration, certificate validation, transport encryption |
-| `logging` | V7 | Error Handling and Logging Verification Requirements | Audit log content, sensitive data in logs, log protection |
-| `error-handling` | V7 | Error Handling and Logging Verification Requirements | Error response design, exception handling, fail-safe defaults |
-| `data-protection` | V8 | Data Protection Verification Requirements | PII handling, data minimisation, sensitive data at rest and in transit |
-| `owasp` | Multiple | (general coverage) | Methods tagged `owasp` address scenarios from multiple ASVS chapters |
+The table below maps each MethodAtlas security taxonomy tag to the corresponding ASVS 4.0 chapter and to representative specific requirement identifiers within that chapter. The requirement identifiers (e.g. `2.1.1`) are taken directly from the ASVS 4.0 standard.
+
+| MethodAtlas tag    | ASVS chapter | ASVS title                                           | Representative requirement IDs        | Notes                                                                               |
+|--------------------|--------------|------------------------------------------------------|---------------------------------------|-------------------------------------------------------------------------------------|
+| `auth`             | V2           | Authentication Verification Requirements             | 2.1.1, 2.1.7, 2.2.1, 2.4.1, 2.6.1   | Identity verification, credential storage, MFA, account recovery                   |
+| `auth`             | V3           | Session Management Verification Requirements         | 3.2.1, 3.3.1, 3.3.2, 3.4.1, 3.7.1   | Session creation, binding, expiry, and termination                                  |
+| `access-control`   | V4           | Access Control Verification Requirements             | 4.1.1, 4.1.2, 4.1.3, 4.2.1, 4.3.1   | Authorisation checks, role enforcement, resource boundaries                         |
+| `input-validation` | V5           | Validation, Sanitization and Encoding                | 5.1.1, 5.1.2, 5.1.3, 5.2.1, 5.3.1   | Input format enforcement, boundary checking, output encoding                        |
+| `injection`        | V5           | Validation, Sanitization and Encoding                | 5.3.4, 5.3.5, 5.3.8, 5.3.10, 5.3.14 | Injection prevention requirements fall within V5 in ASVS 4.0                       |
+| `crypto`           | V6           | Stored Cryptography Verification Requirements        | 6.2.1, 6.2.2, 6.2.3, 6.3.1, 6.4.1   | At-rest encryption, key management, hashing algorithms                              |
+| `crypto`           | V9           | Communications Verification Requirements             | 9.1.1, 9.1.2, 9.1.3, 9.2.1, 9.3.1   | TLS configuration, certificate validation, transport encryption                     |
+| `logging`          | V7           | Error Handling and Logging Verification Requirements | 7.1.1, 7.1.2, 7.2.1, 7.2.2, 7.3.1   | Audit log content, sensitive data in logs, log protection                           |
+| `error-handling`   | V7           | Error Handling and Logging Verification Requirements | 7.4.1, 7.4.2                         | Error response design, exception handling, fail-safe defaults                       |
+| `data-protection`  | V8           | Data Protection Verification Requirements            | 8.1.1, 8.2.1, 8.2.2, 8.3.1, 8.3.4   | PII handling, data minimisation, sensitive data at rest and in transit              |
+| `owasp`            | Multiple     | (general coverage)                                   | —                                     | Methods tagged `owasp` address scenarios from multiple ASVS chapters simultaneously |
+
+"Representative requirement IDs" are examples; the tag may apply to additional requirements within the chapter. See the [ASVS 4.0 full standard](https://owasp.org/www-project-application-security-verification-standard/) for the complete requirement text.
 
 ## ASVS verification levels
 

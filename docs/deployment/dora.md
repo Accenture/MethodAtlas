@@ -33,9 +33,26 @@ For software teams in scope, security regression tests — which verify that
 detection and prevention mechanisms continue to function correctly — fall
 within this scope.
 
+## Control mapping
+
+| DORA Article 25 requirement                                                      | MethodAtlas feature                                                                           | Evidence produced |
+|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|-------------------|
+| Sound and comprehensive resilience testing programme                             | Structured inventory of security tests, classified by category, run on a documented schedule  | `security-tests.sarif` per release; `ai_tags` categorising tests by `auth`, `session`, `anomaly`, and other control types |
+| Applied on a regular, documented basis                                           | CI integration produces a timestamped artefact on every push to `main` or on a scheduled pipeline | [`-emit-metadata`](../cli-reference.md#-emit-metadata) prepends scan timestamp and tool version to each output |
+| Results available to competent authorities                                       | SARIF 2.1.0 is a standardised, tool-importable format; retained alongside build artefacts    | `security-tests.sarif` stored in CI artifact store or release assets |
+| Detection mechanisms regularly tested (Art. 25(3)(d))                           | Tests in the `auth`, `session`, and `anomaly` taxonomy categories are identified and counted  | `ai_tags` column filterable by category in CSV output |
+| ICT systems supporting critical functions tested at least annually               | Scheduled CI scan with retained output satisfies the annual documentation requirement         | Timestamped SARIF artefacts with commit SHA in filename |
+| Coverage has not regressed between assessment periods                            | [`-diff`](../cli-reference.md#-diff) mode flags removed or reclassified security tests        | `delta.csv` listing all changes; summary line shows security-relevant count delta |
+
 ## Recommended configuration
 
-For each release or at the cadence required by your testing programme:
+**Context:** Article 25 requires a timestamped, per-release record that can be
+presented to competent authorities on request. The combination of date and
+commit SHA in the output file name produces an unambiguous archive key.
+
+**MethodAtlas capability:** [`-emit-metadata`](../cli-reference.md#-emit-metadata),
+[`-content-hash`](../cli-reference.md#-content-hash), and `-sarif` together
+produce an artefact suitable for supervisory submission.
 
 ```bash
 java -jar methodatlas.jar \
@@ -48,19 +65,9 @@ java -jar methodatlas.jar \
   > security-tests-$(date +%Y%m%d)-$(git rev-parse --short HEAD).sarif
 ```
 
-The combination of date and commit SHA in the output file name produces an
-unambiguous record that can be archived and retrieved in response to a
-supervisory request.
-
-## Mapping to Article 25 requirements
-
-| DORA Article 25 requirement | MethodAtlas capability |
-|---|---|
-| Sound and comprehensive resilience testing programme | Structured inventory of security tests, classified by category, run on a documented schedule |
-| Applied on a regular, documented basis | CI integration produces a timestamped artefact on every push to `main` or on a scheduled pipeline |
-| Results available to competent authorities | SARIF output is a standardised, tool-importable format; retained alongside build artefacts |
-| Detection mechanisms regularly tested | Test methods in the `auth`, `session`, and `anomaly` taxonomy categories cover detection-related tests |
-| ICT systems supporting critical functions tested at least annually | Scheduled CI scan with retained output satisfies the annual documentation requirement |
+**Evidence output:** `security-tests-YYYYMMDD-<sha>.sarif` — a SARIF file
+suitable for archiving and supervisory presentation, with embedded metadata
+linking the scan to a specific date and source revision.
 
 ## Regression testing programme
 
@@ -69,7 +76,7 @@ controls remain effective* — a requirement that extends beyond confirming
 new tests exist to confirming that existing tests have not been degraded or
 removed.
 
-The MethodAtlas `-diff` mode supports this:
+MethodAtlas produces evidence for this requirement directly:
 
 ```bash
 # Produce the baseline at the start of the review period
@@ -93,10 +100,10 @@ period for your entity is determined by sector-specific regulatory technical
 standards (RTS) issued by the European Supervisory Authorities (ESAs).
 As a baseline:
 
-| Artefact | Minimum retention guidance |
-|---|---|
-| SARIF output per release | 5 years (align with ICT incident record requirements) |
-| Baseline and delta CSVs | 5 years |
+| Artefact                      | Minimum retention guidance |
+|-------------------------------|----------------------------|
+| SARIF output per release      | 5 years (align with ICT incident record requirements) |
+| Baseline and delta CSVs       | 5 years |
 | CI pipeline logs with commit SHA | 5 years |
 
 !!! warning "Retention period"

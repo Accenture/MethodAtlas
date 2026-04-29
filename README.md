@@ -10,7 +10,7 @@ It is built for teams that must demonstrate test coverage of security properties
 
 Security-focused teams in regulated industries need more than a passing test suite. They need to demonstrate *which* tests cover *which* security controls, at a level of detail that satisfies external review.
 
-MethodAtlas addresses this by turning an existing test suite into a structured inventory with minimal setup. Java (JUnit 5, JUnit 4, TestNG), C# (xUnit, NUnit, MSTest), and TypeScript/JavaScript (Jest, Vitest, Mocha) are supported. The plugin architecture allows adding further languages without modifying the core tool.
+MethodAtlas addresses this by turning an existing test suite into a structured inventory with minimal setup. See [Supported languages and frameworks](#supported-languages-and-frameworks) for the full list. The plugin architecture allows adding further languages without modifying the core tool.
 
 | Challenge | What MethodAtlas provides |
 | --- | --- |
@@ -26,7 +26,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 ## Key capabilities
 
 - **Deterministic test discovery** — AST-based analysis (JavaParser for Java, ANTLR4 grammar for C#); no inference, no false positives on method existence; framework detected automatically from imports/using directives
-- **Multi-language plugin architecture** — Java and C# plugins ship in separate JARs loaded via `ServiceLoader`; new languages require no changes to the core tool
+- **Multi-language plugin architecture** — Java, C#, and TypeScript/JavaScript plugins ship in separate JARs loaded via `ServiceLoader`; new languages require no changes to the core tool
 - **SARIF 2.1.0 output** — first-class integration with static analysis platforms and IDE tooling
 - **AI security classification** — classifies each test method against a closed security taxonomy; supports Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, and OpenRouter
 - **Confidence scoring** — per-method decimal score (`-ai-confidence`); filter by threshold for audit packages
@@ -164,22 +164,17 @@ See [docs/output-formats.md](docs/output-formats.md) for full format description
 
 ## SARIF for regulated environments
 
-SARIF is the OASIS standard interchange format for static analysis results. Adopting it means that MethodAtlas findings can be imported into any SARIF-compatible platform without custom tooling, and the format itself provides a stable, auditable record.
+SARIF (OASIS Static Analysis Results Interchange Format) gives each finding a physical location, a logical location (fully qualified method name), and a structured properties bag that includes all AI enrichment fields and, when `-content-hash` is used, a SHA-256 fingerprint traceable to an exact class revision. This makes MethodAtlas output independently auditable without custom tooling.
 
-A SARIF result from MethodAtlas includes:
-- **Physical location** — source file path relative to `%SRCROOT%` and the method's start line
-- **Logical location** — fully qualified method name (`com.acme.auth.LoginTest.testLoginWithValidCredentials`) with kind `member`
-- **Properties bag** — `loc`, optional `contentHash`, and all AI enrichment fields including `tagAiDrift`
-
-This makes each SARIF finding independently traceable to a specific method in a specific class at a specific revision.
+For the full result schema, rule IDs, and platform-specific integration notes, see [docs/output-formats.md](docs/output-formats.md#sarif-mode). For regulated-environment deployment guidance (PCI-DSS, ISO 27001, air-gapped), see [docs/deployment/](docs/deployment/index.md).
 
 ## AI security classification
 
 When `-ai` is enabled, MethodAtlas submits each parsed test class to a configured AI provider for security classification. The model receives:
 
 1. The **closed security taxonomy** — a controlled set of tags that constrains what the model can return
-2. The **exact list of JUnit methods** discovered by the parser — the model cannot invent or skip methods
-3. The **full class source** as context for semantic interpretation
+2. The **exact list of test methods** discovered by the parser — the model cannot invent or skip methods
+3. The **full source text** as context for semantic interpretation
 
 Because discovery is AST-based and AI classification is constrained by a fixed tag set, the structural inventory is deterministic even when the semantic interpretation uses a language model.
 
@@ -202,14 +197,23 @@ See [docs/ai/providers.md](docs/ai/providers.md) for per-provider setup instruct
 
 ### Confidence scoring
 
-Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method:
+Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method. The score appears in the `ai_confidence` column, whose position shifts when optional columns such as `-content-hash` or `-emit-source-root` are enabled. Use the header row to locate it:
 
 ```bash
-./methodatlas -ai -ai-confidence /path/to/tests | \
-  awk -F',' 'NR==1 || ($11+0) >= 0.7'   # keep only high-confidence findings
-```
+./methodatlas -ai -ai-confidence /path/to/tests > scan.csv
 
-`ai_confidence` is column 11 in standard output (column 12 when `-content-hash` is also passed).
+# Keep header + rows where ai_confidence >= 0.7
+# Locate the column index from the header, then filter by name:
+python3 -c "
+import csv, sys
+r = csv.DictReader(open('scan.csv'))
+w = csv.DictWriter(sys.stdout, fieldnames=r.fieldnames)
+w.writeheader()
+for row in r:
+    if float(row.get('ai_confidence') or 0) >= 0.7:
+        w.writerow(row)
+"
+```
 
 | Score | Meaning |
 | --- | --- |
@@ -228,7 +232,7 @@ Pass `-content-hash` to append a SHA-256 fingerprint of each class to every emit
 ./methodatlas -content-hash -sarif /path/to/tests > results.sarif
 ```
 
-The hash is computed from the JavaParser AST text of the enclosing class. All methods in the same class share the same value, and the hash changes only when the class body changes — not when unrelated files are modified.
+The hash is computed from the parsed AST text of the enclosing class (JavaParser for Java; ANTLR4 parse tree for C#; source text for TypeScript). All methods in the same class share the same value, and the hash changes only when the class body changes — not when unrelated files are modified.
 
 Practical applications:
 - **Incremental scanning** — skip classes whose hash has not changed since the last run
@@ -327,7 +331,11 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 | Document | Contents |
 | --- | --- |
 | [docs/cli-reference.md](docs/cli-reference.md) | Complete option reference, YAML schema, exit codes, and example commands |
+| [docs/cli-examples.md](docs/cli-examples.md) | Practical command-line examples grouped by use case |
 | [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, and GitHub Annotations format descriptions |
+| [docs/migration.md](docs/migration.md) | Breaking-change notes and upgrade steps for each major version boundary |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Diagnosis and remedies for common problems |
+| [docs/discovery-plugins.md](docs/discovery-plugins.md) | Per-language plugin configuration: Java, C#, TypeScript/JavaScript |
 | [docs/usage-modes/](docs/usage-modes/index.md) | All operating modes: static inventory, API AI, manual workflow, apply-tags, apply-tags-from-csv, delta, security-only |
 | [docs/ai/providers.md](docs/ai/providers.md) | Per-provider setup: Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter |
 | [docs/ai/overrides.md](docs/ai/overrides.md) | Classification override file: format, governance, and CI integration |
@@ -339,3 +347,8 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 | [docs/deployment/](docs/deployment/index.md) | Regulated environment guidance: PCI-DSS, ISO 27001, NIST SSDF, DORA, SOC 2, air-gapped |
 | [docs/deployment/onboarding.md](docs/deployment/onboarding.md) | Onboarding a brownfield codebase: six-phase progression from static scan to CI gate |
 | [docs/concepts/data-governance.md](docs/concepts/data-governance.md) | What data is submitted to AI providers, data residency options, enterprise secret management |
+| [docs/concepts/for-security-teams.md](docs/concepts/for-security-teams.md) | MethodAtlas from a security-team perspective: evidence packages, audit trails |
+| [docs/concepts/asvs-mapping.md](docs/concepts/asvs-mapping.md) | Mapping MethodAtlas taxonomy tags to OWASP ASVS requirements |
+| [docs/concepts/vs-sast.md](docs/concepts/vs-sast.md) | How MethodAtlas differs from and complements traditional SAST tooling |
+| [docs/concepts/remediation.md](docs/concepts/remediation.md) | Guidance on acting on MethodAtlas findings: fixing placebo tests, adding assertions |
+| [docs/publication-order.txt](docs/publication-order.txt) | pandoc publication order — all 50 documents in reading sequence; used by `methodatlas-docs:generatePdf` |

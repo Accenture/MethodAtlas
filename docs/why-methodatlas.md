@@ -2,7 +2,7 @@
 
 ## The problem
 
-Modern Java projects routinely contain hundreds or thousands of JUnit test methods.
+Projects in Java, C#, or TypeScript routinely contain hundreds or thousands of test methods.
 A fraction of those tests explicitly verify security properties — correct
 authentication behaviour, cryptographic correctness, input validation, access
 control boundaries — but they live side-by-side with purely functional tests and
@@ -15,7 +15,8 @@ current as the codebase evolves.
 
 MethodAtlas automates the discovery and classification step: it reads source
 files lexically (without compiling them), identifies every test method
-(JUnit 5, JUnit 4, and TestNG are detected automatically from import declarations),
+(framework is detected automatically — JUnit 5/4/TestNG for Java, xUnit/NUnit/MSTest for C#,
+Jest/Vitest/Mocha for TypeScript/JavaScript),
 and asks an AI provider to decide whether each method is security-relevant,
 assign taxonomy tags, and provide a human-readable rationale.
 
@@ -72,7 +73,7 @@ MethodAtlas does not simply forward source files to an AI and ask "which tests a
 flowchart LR
     subgraph p1["Phase 1 — Deterministic parser"]
         direction TB
-        SRC[/"Java source files"/] --> AST["JavaParser AST"]
+        SRC[/"Source files\n(Java · C# · TypeScript)"/] --> AST["Language-specific AST\n/ parse tree"]
         AST --> ML(["Method inventory\n(complete · stable · repeatable)"])
     end
     subgraph p2["Phase 2 — AI classification"]
@@ -91,7 +92,7 @@ flowchart LR
 
 ### Phase 1 — deterministic method discovery
 
-The parser reads each Java source file lexically, without compiling it, and extracts a precise list of test methods. The test framework is detected automatically from the file's import declarations — JUnit 5 Jupiter, JUnit 4 (including `@Theory`), and TestNG are all supported. This step is entirely rule-based: it finds every method carrying a recognised test annotation, or any custom annotation configured via `-test-marker`. The result is a canonical, repeatable inventory that does not depend on which AI model is used, which version is current, or whether the AI service is available at all.
+The parser reads each source file lexically, without compiling it, and extracts a precise list of test methods. The test framework is detected automatically from each file — JUnit 5 Jupiter, JUnit 4 (including `@Theory`), and TestNG for Java; xUnit, NUnit, and MSTest for C#; Jest, Vitest, and Mocha for TypeScript/JavaScript. This step is entirely rule-based: it finds every method carrying a recognised test annotation (or attribute, or function call), or any custom marker configured via `-test-marker`. The result is a canonical, repeatable inventory that does not depend on which AI model is used, which version is current, or whether the AI service is available at all.
 
 This matters because AI models are not reliable at structural enumeration. Given a raw source file, a model may:
 
@@ -104,7 +105,7 @@ None of these failure modes are possible when the method list is established by 
 
 ### Phase 2 — AI classification against a fixed list
 
-The prompt sent to the AI provider contains the taxonomy, the class source, and — critically — the exact list of method names the parser found. The model is instructed to classify *only* those methods and to return one entry per name. It cannot add entries or omit them without the mismatch being detectable.
+The prompt sent to the AI provider contains the taxonomy, the source text, and — critically — the exact list of method names the parser found. The model is instructed to classify *only* those methods and to return one entry per name. It cannot add entries or omit them without the mismatch being detectable.
 
 This constraint produces several practical benefits:
 

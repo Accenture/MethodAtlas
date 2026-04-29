@@ -16,7 +16,7 @@ Every plugin receives three pieces of configuration:
 |---|---|---|---|
 | **File suffixes** | `-file-suffix` | `fileSuffixes` | Selects which files the plugin should read. Universal — every language has files with extensions. May be prefixed with a plugin ID to target one plugin (see below). |
 | **Test markers** | `-test-marker` | `testMarkers` | Names the identifiers that mark a method as a test. The *meaning* of "marker" is language-specific (see below). Empty = use plugin defaults. |
-| **Properties** | `-property key=value` | `properties` | Open-ended key/value pairs for plugin-specific settings that don't fit either field above. Plugins ignore keys they don't recognise. |
+| **Properties** | `-property key=value` | `properties` | Open-ended key/value pairs for plugin-specific settings that do not fit either field above. Plugins ignore keys they do not recognise. |
 
 ### Targeting a suffix at one plugin
 

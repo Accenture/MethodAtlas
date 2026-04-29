@@ -2,13 +2,16 @@
 
 ## Requirements
 
-| Requirement | Version |
-|-------------|---------|
-| Java runtime | 21 or later (Temurin recommended) |
-| Operating system | Linux, macOS, Windows |
+| Requirement | Version | Required for |
+|-------------|---------|--------------|
+| Java runtime | 21 or later (Temurin recommended) | All functionality |
+| Node.js | 18 or later | TypeScript/JavaScript test discovery only |
+| Operating system | Linux, macOS, Windows | — |
 
-MethodAtlas parses Java source files without compiling them, so no project build
-tool (Gradle, Maven, etc.) is required at runtime.
+MethodAtlas parses source files without compiling them, so no project build
+tool (Gradle, Maven, etc.) is required at runtime. Node.js is only needed when
+scanning TypeScript or JavaScript test files — if it is absent or below version 18,
+the TypeScript plugin disables itself gracefully and all other plugins continue normally.
 
 
 ## Option 1 — Distribution archive (recommended)

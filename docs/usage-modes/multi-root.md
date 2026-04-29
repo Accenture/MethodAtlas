@@ -1,8 +1,51 @@
 # Multi-root and monorepo scanning
 
-In standard Maven and Gradle projects the test sources live under a single root — typically `src/test/java/` — and every fully qualified class name (FQCN) is unique within that root. In monorepos and multi-module builds the same FQCN can appear under multiple source trees. When that happens, records from different modules become indistinguishable in the output: the `fqcn`, `method`, and `loc` columns are identical even though the classes have different implementations, owners, or security relevance.
+Multi-root scanning allows MethodAtlas to scan test sources across multiple directories in a single pass, producing a unified output. The [`-emit-source-root`](../cli-reference.md#-emit-source-root) flag adds a `source_root` column so that each row can be attributed to the correct module.
 
-This page explains the problem, the `-emit-source-root` flag that solves it, and how to integrate the flag into CI pipelines and downstream tools.
+## When to use this mode
+
+- Your project is a Maven or Gradle multi-module build and test sources are spread across several `src/test/java` directories.
+- You are scanning a monorepo where multiple microservices or libraries each have their own test tree.
+- You want a single consolidated security inventory across all modules, with per-module attribution.
+- You are running per-module CI gates (e.g. "module-a must have at least 10 security tests") from a single scan output.
+
+## Why the same FQCN can appear in multiple source roots
+
+In Java, a fully qualified class name (FQCN) combines the package name and the class name, for example `com.acme.auth.AuthTest`. The FQCN does not encode the module or the directory it came from. This is intentional in single-module projects — every FQCN in a project must be unique. In a monorepo, however, this uniqueness requirement applies only within each module's classpath, not across all modules simultaneously.
+
+Two common patterns produce duplicate FQCNs across modules:
+
+### Pattern 1: shared package conventions
+
+Large organisations often adopt a single Java package namespace (e.g. `com.acme`) across all teams. When each team independently names their authentication test class `AuthTest` and places it in `com.acme.auth`, the result is:
+
+```
+my-monorepo/
+  payments-service/
+    src/test/java/
+      com/acme/auth/AuthTest.java      ← verifies payments service auth
+  identity-service/
+    src/test/java/
+      com/acme/auth/AuthTest.java      ← verifies identity service auth
+```
+
+Both files compile correctly because each module's classpath is independent. But both produce the FQCN `com.acme.auth.AuthTest` in the MethodAtlas output.
+
+### Pattern 2: shared test utilities and test modules
+
+Some Gradle builds extract common test infrastructure into a separate `:test-utils` module that other modules depend on. If the test utility module shares the same base package as the modules that use it, and both are passed to MethodAtlas as scan roots, the same FQCN can appear from multiple paths:
+
+```
+my-monorepo/
+  test-utils/
+    src/test/java/
+      com/acme/security/BaseSecurityTest.java
+  module-a/
+    src/test/java/
+      com/acme/security/BaseSecurityTest.java  ← copied or customised variant
+```
+
+In both patterns, MethodAtlas cannot distinguish between the two classes without knowing the source root.
 
 ## The problem: duplicate FQCNs across modules
 

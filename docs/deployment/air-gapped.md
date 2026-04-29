@@ -8,14 +8,17 @@ is appropriate.
 
 ## Approach comparison
 
-| Approach | Outbound connections from scan host | AI quality | Operator effort |
-|---|---|---|---|
-| **Local inference (Ollama)** | None — inference runs on the same network segment | Comparable to hosted models for supported sizes | Initial server setup; model distribution |
-| **Manual AI workflow** | None in either phase | Depends on the AI interface used by the operator | Per-class copy-paste; suitable for small codebases or selective classification |
+| Approach                            | Outbound connections from scan host | AI quality                                          | Operator effort |
+|-------------------------------------|-------------------------------------|-----------------------------------------------------|-----------------|
+| **Local inference (Ollama)**        | None — inference runs on the same network segment | Comparable to hosted models for supported sizes | Initial server setup; model distribution |
+| **Manual AI workflow**              | None in either phase                | Depends on the AI interface used by the operator    | Per-class copy-paste; suitable for small codebases or selective classification |
 
 Both approaches produce output identical in format to an API-connected scan.
 
-**Approach 1 — Local inference (Ollama)**
+## Approach 1: local inference with Ollama
+
+In the Ollama approach, MethodAtlas communicates with a language model running
+on the organisation's own infrastructure. No data leaves the network segment.
 
 ```mermaid
 flowchart LR
@@ -30,30 +33,6 @@ flowchart LR
     style EXT fill:#ffebee,stroke:#ef9a9a,color:#bdbdbd
     style org fill:#f9f9f9,stroke:#9e9e9e
 ```
-
-**Approach 2 — Manual AI workflow**
-
-```mermaid
-flowchart LR
-    subgraph controlled["Controlled environment"]
-        SH["Scan host\n-manual-prepare\n-manual-consume"]
-    end
-    XFER[/"Encrypted\ntransfer medium"/]
-    subgraph auth["Authorised workstation"]
-        OP["Operator\n+ approved AI interface"]
-    end
-    SH -->|"prompt files"| XFER
-    XFER -->|"prompts"| OP
-    OP -->|"response files"| XFER
-    XFER -->|"responses"| SH
-    style SH       fill:#e8eaf6,stroke:#3f51b5
-    style OP       fill:#c5cae9,stroke:#283593
-    style XFER     fill:#fff8e1,stroke:#ffc107
-    style controlled fill:#f9f9f9,stroke:#9e9e9e
-    style auth     fill:#f9f9f9,stroke:#9e9e9e
-```
-
-## Approach 1: local inference with Ollama
 
 [Ollama](https://ollama.com) runs open-weight language models locally.
 MethodAtlas connects to it over HTTP on the same host or internal network;
@@ -112,11 +91,11 @@ variable to point to it before starting the Ollama server.
 
 ### Recommended models for code classification
 
-| Model | Size | Notes |
-|---|---|---|
-| `qwen2.5-coder:7b` | ~4 GB | MethodAtlas default; strong code understanding |
-| `qwen2.5-coder:14b` | ~8 GB | Higher classification accuracy; requires more RAM |
-| `llama3.1:8b` | ~5 GB | General-purpose; good alternative if Qwen is unavailable |
+| Model                    | Size    | Notes |
+|--------------------------|---------|-------|
+| `qwen2.5-coder:7b`       | ~4 GB   | MethodAtlas default; strong code understanding |
+| `qwen2.5-coder:14b`      | ~8 GB   | Higher classification accuracy; requires more RAM |
+| `llama3.1:8b`            | ~5 GB   | General-purpose; good alternative if Qwen is unavailable |
 
 For GPU-accelerated inference, the Docker run command should include
 `--gpus all` and the host must have the NVIDIA Container Toolkit installed.
@@ -146,9 +125,9 @@ contentHash: true
 If the scan host and the Ollama server are on separate network segments,
 the following connectivity is required:
 
-| Source | Destination | Port | Protocol |
-|---|---|---|---|
-| Scan host | Ollama server | 11434 | TCP (HTTP) |
+| Source      | Destination   | Port  | Protocol     |
+|-------------|---------------|-------|--------------|
+| Scan host   | Ollama server | 11434 | TCP (HTTP)   |
 
 No other outbound connectivity is required when using Ollama.
 
@@ -191,6 +170,12 @@ jobs:
             -ai-model qwen2.5-coder:7b \
             -sarif -security-only -content-hash \
             src/test/java > security-tests.sarif
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: methodatlas-sarif
+          path: security-tests.sarif
+          retention-days: 30
 ```
 
 ## Approach 2: manual AI workflow
@@ -200,7 +185,43 @@ zero network connectivity from the scan host. An operator carries prompt
 files to an authorised workstation and pastes them into an approved AI
 interface.
 
+**Important: no source code leaves the controlled environment in either
+phase.** The prompt files produced by `-manual-prepare` contain only class
+names, method names, and the classification taxonomy — not the method bodies
+or any other source text. The operator never has access to implementation
+details.
+
+```mermaid
+sequenceDiagram
+    participant SH as Scan host<br/>(controlled env)
+    participant XF as Transfer medium<br/>(encrypted USB / secure drop)
+    participant OP as Operator<br/>(authorised workstation)
+
+    Note over SH: Phase 1 — Prepare
+    SH->>SH: java -jar methodatlas.jar -manual-prepare ./work ./responses src/test/java
+    Note over SH: Writes one prompt file per class<br/>Contains: class name, method names, taxonomy<br/>Does NOT contain source code
+    SH->>XF: Copy ./work/ (prompt files only)
+
+    XF->>OP: Deliver prompt files
+
+    Note over OP: Operator phase
+    loop For each file in ./work/
+        OP->>OP: Open prompt file
+        OP->>OP: Paste into approved AI interface
+        OP->>OP: Copy JSON response
+        OP->>OP: Save as ./responses/<class>.response.txt
+    end
+    OP->>XF: Return ./responses/ (response files only)
+
+    XF->>SH: Deliver response files
+
+    Note over SH: Phase 2 — Consume
+    SH->>SH: java -jar methodatlas.jar -manual-consume ./work ./responses -content-hash -sarif src/test/java
+    Note over SH: Produces security-tests.sarif<br/>No network calls made
+```
+
 This approach is appropriate when:
+
 - No internal server is available to run Ollama.
 - The approved AI interface is a supervised, organisation-controlled
   deployment (e.g. Microsoft Azure OpenAI in a private endpoint configuration,
@@ -217,8 +238,9 @@ java -jar methodatlas.jar \
 ```
 
 MethodAtlas writes one work file per test class into `./work/`. Each work
-file contains the full AI prompt: the taxonomy text, the list of method names
-the parser found, and the class source. No network call is made.
+file contains the AI prompt: the taxonomy text, the list of method names
+the parser found, and the class name. **No method bodies, no source code.**
+No network call is made.
 
 ### Operator phase — on an authorised workstation
 
@@ -248,12 +270,14 @@ the consume phase never fails due to missing responses.
 ### Combining with override file
 
 For repeated scans of a stable codebase, the overhead of the manual
-operator phase can be reduced by combining it with an [override file](../ai/overrides.md):
+operator phase can be reduced by combining it with an
+[override file](../ai/overrides.md):
 
 1. Run the manual workflow once to classify the full codebase.
 2. Commit the SARIF or CSV output alongside an override file that captures
    all confirmed classifications.
-3. On subsequent scans, run in static mode (`-override-file` without `-ai`).
+3. On subsequent scans, run in static mode
+   ([`-override-file`](../cli-reference.md#-override-file) without `-ai`).
    Only new or changed classes need to go through the manual workflow.
 
 ```bash

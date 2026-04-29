@@ -24,12 +24,12 @@ None of the above steps initiate any network connection.
 
 ## Data submitted to external AI providers
 
-When AI enrichment is enabled with `-ai` and a non-local provider is
-configured, MethodAtlas submits one HTTP request per test class to the
+When AI enrichment is enabled with [`-ai`](../cli-reference.md#-ai) and a non-local provider is
+configured, MethodAtlas submits one HTTPS request per test class to the
 provider's inference API. Each request contains exactly:
 
 1. **The taxonomy text** — either the built-in taxonomy or the content of
-   the file supplied with `-ai-taxonomy`. This is configuration data
+   the file supplied with [`-ai-taxonomy`](../cli-reference.md#-ai-taxonomy). This is configuration data
    describing tag definitions; it contains no project-specific content.
 
 2. **The list of test method names** — the exact set of JUnit methods
@@ -38,7 +38,19 @@ provider's inference API. Each request contains exactly:
    methods; only methods the parser found are classified.
 
 3. **The test class source file** — the full text of one Java source file
-   from the scan root, used as semantic context for classification.
+   from the scan root, used as semantic context for classification. The file
+   is truncated to the character limit set by [`-ai-max-class-chars`](../cli-reference.md#-ai-max-class-chars)
+   (default: 40 000 characters) before transmission. The class name and all
+   method names are always included; if the class body exceeds the limit, the
+   trailing lines of the file are omitted.
+
+**In concrete terms**, a single request to the AI provider contains:
+
+- The class name (e.g. `com.example.AuthServiceTest`)
+- All test method names found in that class (e.g. `loginWithExpiredToken`, `loginWithValidCredentials`)
+- The full source text of that class file, up to `ai-max-class-chars` characters
+
+Nothing else from the project is included.
 
 **What is never submitted:**
 
@@ -101,7 +113,40 @@ and transfer requirements when submitted to a hosted AI provider.
 
 ## Data residency
 
-| Provider | Data residency option |
+MethodAtlas supports three data-residency tiers. Choose the tier that matches your organisation's data governance requirements.
+
+### Tier 1 — data never leaves the machine
+
+Configure [`-ai-provider ollama`](../cli-reference.md#-ai-provider) with [`-ai-base-url`](../cli-reference.md#-ai-base-url) pointing to an Ollama
+server on the local host or internal network. All AI inference runs on your
+infrastructure. No API key is required. No outbound connection is made.
+
+This is the appropriate choice for: air-gapped environments, strict DLP policies,
+or any scenario where no test source code may leave the organisation's network.
+
+See [Air-Gapped and Offline Deployment](../deployment/air-gapped.md) for setup instructions.
+
+### Tier 2 — operator controls what leaves the network (manual workflow)
+
+Use [`-manual-prepare`](../cli-reference.md#-manual-prepare) to produce prompt files on the scan host (no network required),
+then carry those files to an authorised workstation with internet access, interact
+with the AI chat interface there, and return the responses to the scan host for
+[`-manual-consume`](../cli-reference.md#-manual-consume). The operator decides exactly which prompts — and therefore which
+class sources — are submitted to the AI provider, and when.
+
+This is the appropriate choice for: regulated environments with supervised AI
+access, teams that require human sign-off before any data leaves the network, or
+pipelines where the scan host has no internet connectivity at all.
+
+See [Manual AI Workflow](../usage-modes/manual.md) for the complete procedure.
+
+### Tier 3 — data is processed by a cloud AI provider
+
+When a hosted provider is configured, class source files are transmitted to that
+provider's inference API over HTTPS. The provider's data processing policies govern
+what is retained and for how long.
+
+| Provider | Data residency |
 |---|---|
 | `ollama` | Fully local — data never leaves the host |
 | `azure_openai` | Customer's chosen Azure region; EU regions available |
@@ -117,23 +162,12 @@ choices.
 
 ## DLP-compatible deployment
 
-Organisations operating Data Loss Prevention (DLP) controls on outbound
-traffic can deploy MethodAtlas in one of two DLP-compatible configurations:
+Data Loss Prevention (DLP) controls that block or inspect outbound traffic are fully compatible with MethodAtlas. Use Tier 1 (Ollama) or Tier 2 (manual workflow) from the data residency options above — neither configuration initiates any outbound connection from the scan host.
 
-**Configuration A — local inference:**
-Configure `-ai-provider ollama` with `-ai-base-url` pointing to an Ollama
-server on the internal network. All AI inference traffic remains within the
-organisation's network boundary. No DLP rule needs to allow MethodAtlas
-traffic.
-
-**Configuration B — manual workflow:**
-Use `-manual-prepare` to produce prompt files locally, carry them to an
-authorised workstation outside the DLP boundary, and use `-manual-consume`
-to produce output back on the controlled host. Zero outbound connections
-originate from the scan host.
+For Tier 3 (cloud providers), AI calls can be routed through an internal proxy or HTTPS inspection point; configure the proxy via standard environment variables (`HTTPS_PROXY`, `NO_PROXY`) before invoking MethodAtlas.
 
 See [Air-Gapped and Offline Deployment](../deployment/air-gapped.md) for
-complete implementation guidance for both configurations.
+complete implementation guidance.
 
 ## Auditing outbound AI calls
 

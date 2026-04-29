@@ -380,7 +380,7 @@ SARIF is natively supported by many static-analysis platforms and IDEs:
 - **GitHub Advanced Security** — upload via the `upload-sarif` action to surface findings in the Security tab
 - **VS Code** — the [SARIF Viewer](https://marketplace.visualstudio.com/items?itemName=MS-SarifVSCode.sarif-viewer) extension renders results inline
 - **Azure DevOps** — the `PublishBuildArtifacts` + SARIF viewer extension pipeline tasks
-- **SonarQube** — import via the generic issue import format after conversion
+- **SonarQube** — import via the [generic issue import format](https://docs.sonarsource.com/sonarqube/latest/analyzing-source-code/importing-external-issues/generic-issue-import-format/) after conversion; MethodAtlas does not ship a SARIF-to-SonarQube converter — community-maintained converters are available via the [SonarQube community forum](https://community.sonarsource.com/)
 
 ## GitHub Actions annotations mode
 

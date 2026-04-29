@@ -1,11 +1,17 @@
 # Source Write-back
 
-The `-apply-tags` modifier instructs MethodAtlas to insert AI-generated
-`@DisplayName` and `@Tag` annotations directly into the scanned `.java` source
-files, instead of writing a CSV report.
+The `-apply-tags` modifier instructs MethodAtlas to insert AI-generated `@DisplayName` and `@Tag` annotations directly into the scanned `.java` source files, instead of writing a CSV report.
 
-It can be combined with [API AI enrichment](api-ai.md) or with the
-[Manual AI workflow](manual.md) consume phase.
+## When to use this mode
+
+- You want to apply AI-suggested annotations to test source files automatically, without manually editing each file.
+- You have completed an AI enrichment run (via [API AI enrichment](api-ai.md) or the [Manual AI workflow](manual.md)) and want to persist the suggested labels as source annotations.
+- You want to annotate tests so that tag-based dashboards and CI gates reflect the AI's security classification immediately, without waiting for a separate annotation step.
+- You have an existing [override file](../ai/overrides.md) with reviewed classifications and want to replay those decisions as source annotations without re-running AI.
+
+If you want human review of each annotation decision before any source file is touched, use [Apply Tags from CSV](apply-tags-from-csv.md) instead — it separates the review step from the write-back.
+
+It can be combined with [API AI enrichment](api-ai.md) or with the [Manual AI workflow](manual.md) consume phase.
 
 ## With API AI enrichment
 
@@ -78,5 +84,51 @@ AI-generated annotations are a starting point. Review the suggested `@DisplayNam
 values and `@Tag` assignments for accuracy before merging them into the main
 branch.
 
-See [CLI reference — -apply-tags](../cli-reference.md#-apply-tags)
+## End-to-end scenario: annotating a legacy test suite
+
+A team has a large legacy test suite with no `@Tag` or `@DisplayName` annotations. They want to quickly annotate all security-relevant tests so that their CI security gate can filter on `@Tag("security")`.
+
+```bash
+# Step 1: run AI enrichment with write-back enabled
+./methodatlas \
+  -ai \
+  -ai-provider ollama \
+  -ai-model qwen2.5-coder:7b \
+  -apply-tags \
+  src/test/java
+```
+
+Output:
+
+```
+Apply-tags complete: 23 annotation(s) added to 7 file(s)
+```
+
+```bash
+# Step 2: review the changes
+git diff src/test/java
+```
+
+A typical diff looks like:
+
+```diff
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Tag;
++
+ @Test
++@Tag("security")
++@Tag("auth")
++@DisplayName("SECURITY: auth — login is rejected when the token has expired")
+ void loginWithExpiredToken() {
+```
+
+```bash
+# Step 3: commit reviewed annotations
+git add src/test/java
+git commit -m "chore: apply MethodAtlas security annotations to legacy tests"
+```
+
+After this commit, any CI pipeline that filters on `@Tag("security")` or uses MethodAtlas with `-security-only` will include these tests in its security inventory.
+
+See [CLI reference — `-apply-tags`](../cli-reference.md#-apply-tags)
 for annotation placement guarantees and formatting details.

@@ -1,21 +1,74 @@
 # Tag vs AI drift detection
 
-## Overview
+Drift detection compares two independent classification sources — developer-applied `@Tag` annotations and AI classification — and surfaces disagreements that indicate stale annotations, missing tags, or tests that changed meaning after being labelled.
 
-MethodAtlas can compare two independent sources of security classification for each test method and surface disagreements automatically:
+## When to use
 
-| Source | What it represents |
-|---|---|
-| `@Tag("security")` in source code | A developer's (or tool's) intent at the time the annotation was written |
-| AI `securityRelevant` classification | The model's judgment based on reading the test body |
+Enable drift detection when your team uses `@Tag("security")` to drive CI gates, coverage counts, or audit evidence, and you want to verify that those tags remain accurate as the codebase evolves. It is especially valuable when onboarding AI classification onto an existing test suite that was tagged manually.
 
-When these sources agree, there is nothing to report. When they disagree the discrepancy is called **drift**, and it falls into one of two categories:
+## How drift is computed
 
-| Drift value | Meaning |
-|---|---|
-| `tag-only` | `@Tag("security")` is present but AI considers the method non-security-relevant. The annotation may be stale, inaccurate, or copied from a nearby method. Tag-based CI gates and audit dashboards **over-count** security coverage. |
-| `ai-only` | AI classifies the method as security-relevant but no `@Tag("security")` annotation exists in source. Tag-based CI gates and coverage dashboards **silently miss** this test. |
-| `none` | Both sources agree — either both say security-relevant or neither does. |
+MethodAtlas compares two independent sources of security classification for each test method:
+
+| Source                            | What it represents                                                                    |
+|-----------------------------------|---------------------------------------------------------------------------------------|
+| `@Tag("security")` in source code | A developer's (or tool's) intent at the time the annotation was written               |
+| AI `securityRelevant` classification | The model's judgment based on reading the test body                                |
+
+When these sources agree, there is nothing to report. When they disagree the discrepancy is called **drift**.
+
+## Drift values
+
+| Drift value | Meaning                                                                                                                       |
+|-------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `none`      | Both sources agree — either both say security-relevant or neither does.                                                       |
+| `tag-only`  | `@Tag("security")` is present but AI considers the method non-security-relevant. Tag-based CI gates and audit dashboards **over-count** security coverage. |
+| `ai-only`   | AI classifies the method as security-relevant but no `@Tag("security")` annotation exists in source. Tag-based CI gates and coverage dashboards **silently miss** this test. |
+
+### Concrete examples
+
+**`none` — sources agree, both say security-relevant:**
+
+```java
+@Test
+@Tag("security")
+void testSQLInjectionBlocked() {
+    // asserts that a parameterised query rejects ' OR 1=1 --
+    assertThrows(InvalidInputException.class, () -> dao.find("' OR 1=1 --"));
+}
+```
+
+AI output: `securityRelevant=true, ai_tags=security;injection`. Both the `@Tag` annotation and the AI agree. `tag_ai_drift=none`.
+
+**`tag-only` — tag present, AI disagrees:**
+
+```java
+@Test
+@Tag("security")
+void testAuditLogFormat() {
+    // Only checks that log message matches a string pattern; no security property verified
+    String msg = auditLogger.format(event);
+    assertEquals("AUDIT [INFO]: user login", msg);
+}
+```
+
+AI output: `securityRelevant=false`. The test asserts a log format but not a security property (e.g., it does not verify that a login failure is logged, or that sensitive data is absent). The `@Tag("security")` was applied when the test was created alongside genuine security tests, but the test body does not exercise a security concern. `tag_ai_drift=tag-only`.
+
+**`ai-only` — AI classifies as security-relevant, no tag:**
+
+```java
+@Test
+void testRateLimitingEnforced() {
+    // Sends 11 requests and asserts the 11th returns HTTP 429
+    for (int i = 0; i < 11; i++) {
+        Response r = client.get("/api/resource");
+        if (i < 10) assertEquals(200, r.status());
+        else assertEquals(429, r.status());
+    }
+}
+```
+
+AI output: `securityRelevant=true, ai_tags=security;auth`. The method clearly tests a security control (rate limiting / brute-force prevention) but has no `@Tag("security")`. This test is excluded from all tag-based security gates. `tag_ai_drift=ai-only`.
 
 ## Why drift matters in regulated environments
 
@@ -35,6 +88,12 @@ Add `-drift-detect` to any scan that also uses `-ai`:
 ```
 
 A `tag_ai_drift` column is appended to the end of every CSV row (after `ai_confidence` when that flag is also set). In plain-text output the field appears as `TAG_AI_DRIFT=`. The column is absent when `-drift-detect` is omitted so that scripts not expecting it are unaffected.
+
+Or via YAML:
+
+```yaml
+driftDetect: true
+```
 
 ### SARIF output
 
@@ -69,14 +128,6 @@ In this example:
 - `testLoginSuccess` — tag and AI agree: security-relevant. No action needed.
 - `testLoginRateLimiting` — AI identified a security test but no `@Tag("security")` was added. Consider adding the tag to include this test in tag-based CI gates.
 - `testAuditLog` — `@Tag("security")` is present but AI considers it non-security-relevant. Review whether the tag should be removed or the test should be strengthened.
-
-## YAML configuration
-
-```yaml
-driftDetect: true
-```
-
-This is equivalent to passing `-drift-detect` on the command line. Command-line flags always override YAML values.
 
 ## Deployment rationale
 

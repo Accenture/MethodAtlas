@@ -1,12 +1,17 @@
 # Apply Tags from CSV
 
-The `-apply-tags-from-csv <file>` mode applies reviewed annotation decisions
-back to Java source files. Instead of adding AI suggestions automatically, it
-reads a MethodAtlas CSV that a human has already reviewed and edited — then
-writes exactly the `@Tag` and `@DisplayName` annotations recorded in that CSV.
+The `-apply-tags-from-csv <file>` mode applies reviewed annotation decisions back to Java source files. It reads a MethodAtlas CSV that a human has already reviewed and edited, then writes exactly the `@Tag` and `@DisplayName` annotations recorded in that CSV.
 
-This mode is the recommended approach for teams that want human oversight before
-touching source code.
+## When to use this mode
+
+- Your organisation requires human sign-off before any source annotation is written — the CSV is the review artefact.
+- You want a permanent, version-controlled record of every annotation decision (the committed CSV serves this purpose).
+- You are applying bulk annotation decisions across a large test suite and want a single review step before any file is touched.
+- You want to integrate with a spreadsheet-based review workflow: export the CSV, distribute it for review, collect the approved version, apply it.
+
+If you want AI annotations applied immediately without a separate review step, use [`-apply-tags`](apply-tags.md) instead.
+
+This mode is the recommended approach for teams that want human oversight before touching source code.
 
 ## Typical workflow
 
@@ -41,6 +46,27 @@ are added only to files where they become necessary.
 
 All other formatting — whitespace, comments, blank lines, import order — is
 preserved by JavaParser's lexical-preserving printer.
+
+### The `display_name` three-way contract
+
+The three behaviours of the `display_name` column are illustrated by this example CSV:
+
+```csv
+fqcn,method,loc,tags,display_name
+com.example.AuthTest,loginWithExpiredToken,8,security;auth,SECURITY: auth — login is rejected when the token has expired
+com.example.AuthTest,loginWithValidCredentials,12,,"" 
+com.example.PaymentTest,chargeCard,15,payment,
+```
+
+| Row | `display_name` value | What happens in source |
+|-----|----------------------|------------------------|
+| `loginWithExpiredToken` | `SECURITY: auth — login is rejected…` (non-empty) | `@DisplayName` is added with this text, or existing value is replaced |
+| `loginWithValidCredentials` | `""` (empty string — note the quoted empty field) | Any existing `@DisplayName` is removed from the source |
+| `chargeCard` | *(column present but cell is empty — no quotes)* | `@DisplayName` in source is left exactly as it is |
+
+The distinction between an empty string (`""`) and an absent value (empty cell without quotes) is significant: the former is an explicit instruction to remove the annotation; the latter means "do not touch it". This allows you to produce a CSV that only specifies tags for some methods while leaving display names alone.
+
+For flags and full format documentation, see [CLI reference — `-apply-tags-from-csv`](../cli-reference.md#-apply-tags-from-csv).
 
 ## The CSV as desired state
 
@@ -81,6 +107,45 @@ Apply-tags-from-csv aborted: 1 mismatch(es) >= limit 1. No source files were mod
 The mismatch count is computed before any file is written. Either all source
 files are modified or none are.
 
+## End-to-end scenario: human-reviewed annotation campaign
+
+A security team wants to annotate 40 test methods across a legacy codebase. They require sign-off on every annotation before any source file is touched.
+
+```bash
+# Step 1: produce AI suggestions as a CSV
+./methodatlas \
+  -ai \
+  -ai-provider openai \
+  -ai-api-key-env OPENAI_API_KEY \
+  src/test/java > review.csv
+```
+
+The `review.csv` file now contains AI-suggested `display_name` and `ai_tags` values for every test method. The security team opens it in a spreadsheet application and:
+
+- Copies `ai_display_name` values they agree with into the `display_name` column.
+- Copies `ai_tags` values they agree with into the `tags` column (replacing `security;auth` etc. as appropriate).
+- Leaves `display_name` blank (not `""`) for methods where they do not want to set a display name.
+- Removes rows for methods they do not want to annotate.
+
+After review, the security team saves the file as `approved.csv` and sends it back to the engineering team.
+
+```bash
+# Step 2: apply approved decisions — dry run with permissive mismatch limit
+./methodatlas \
+  -apply-tags-from-csv approved.csv \
+  -mismatch-limit -1 \
+  src/test/java
+
+# Step 3: review the diff
+git diff src/test/java
+
+# Step 4: commit
+git add src/test/java approved.csv
+git commit -m "chore: apply security team approved annotations"
+```
+
+Committing `approved.csv` alongside the source changes preserves the full record of what was approved, by whom, and when (via git log).
+
 ## CI integration
 
 Use a strict mismatch limit in automated pipelines to guard against a stale CSV:
@@ -94,6 +159,16 @@ Use a strict mismatch limit in automated pipelines to guard against a stale CSV:
 
 A non-zero exit code fails the pipeline if the codebase has diverged from the
 reviewed CSV, requiring the team to re-run the review cycle before re-applying.
+
+### `-mismatch-limit` examples
+
+The following examples illustrate the three meaningful settings:
+
+| Command | Behaviour |
+|---------|-----------|
+| `./methodatlas -apply-tags-from-csv r.csv -mismatch-limit -1 src/test/java` | Apply all matched rows; log mismatches as warnings and continue. Use during initial adoption or exploratory runs. |
+| `./methodatlas -apply-tags-from-csv r.csv -mismatch-limit 1 src/test/java` | Abort immediately on the first mismatch, before modifying any file. Use in CI to enforce that the CSV is always current. |
+| `./methodatlas -apply-tags-from-csv r.csv -mismatch-limit 5 src/test/java` | Allow up to 4 mismatches; abort if 5 or more are detected. Use when a small number of pending method additions is acceptable during a transition period. |
 
 ## Summary output
 

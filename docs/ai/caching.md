@@ -1,16 +1,23 @@
-# AI Result Caching
+# AI result caching
 
-## Overview
+The `-ai-cache` flag lets MethodAtlas reuse stored AI classifications for test classes that have not changed since the previous scan, eliminating redundant API calls in CI pipelines where most classes remain unchanged between runs.
 
-Every AI-enriched scan submits each test class to an AI provider and waits for a response.
-In a CI pipeline that runs on every commit this cost is often unnecessary: most test classes
-do not change between runs, so their classifications are already known.
+## When to use
 
-The `-ai-cache <file>` flag addresses this. It accepts a MethodAtlas CSV output from a
-previous scan — produced with `-content-hash -ai` — and reuses the stored AI
-classification for any class whose `content_hash` matches an entry in the cache. Classes
-whose source has changed (different hash) are classified normally by calling the AI
-provider.
+Enable caching in any CI pipeline where AI enrichment is enabled and the full test suite changes only partially between runs. Without caching, every run submits every test class to the AI provider, regardless of whether the class changed. With caching, only modified or new classes incur API calls.
+
+See [AI Providers](providers.md) for provider configuration and the [`-ai-cache`](../cli-reference.md#-ai-cache) flag description in the CLI reference.
+
+## How it works
+
+1. **Hash computation** — MethodAtlas computes a SHA-256 fingerprint of each class's AST string representation. This is the same value stored in the `content_hash` CSV column.
+2. **Cache lookup** — before calling the AI provider for a class, MethodAtlas checks whether that fingerprint is present in the cache file.
+3. **Cache hit** — the stored `AiClassSuggestion` is used directly; **no API call is made**. The stored result is written into the new output file as-is.
+4. **Cache miss** — the class has changed or was not in the cache. The AI provider is called, the result is received, and it is written to the new output file.
+
+The new output file can be used as the cache for the next run. The cache grows naturally as the codebase grows and shrinks when classes are deleted.
+
+## Basic usage
 
 ```bash
 # Day 1 – full scan; save the result as the cache
@@ -20,34 +27,20 @@ provider.
 ./methodatlas -ai -content-hash -ai-cache scan.csv src/test/java > scan-new.csv
 ```
 
-## How it works
-
-1. **Hash computation** — MethodAtlas computes a SHA-256 fingerprint of each class's AST
-   string representation. This is the same value stored in the `content_hash` CSV column.
-2. **Cache lookup** — before calling the AI provider for a class, MethodAtlas checks
-   whether that fingerprint is present in the cache file.
-3. **Hit** — the stored `AiClassSuggestion` is used directly; no API call is made.
-4. **Miss** — the class has changed (or was not in the cache); the AI provider is called
-   and the result is written to the new output file.
-
-The new output file can be used as the cache for the next run.
-
 ## Requirements
 
 The cache input file must have been produced with:
 
-- **`-content-hash`** — without this column the cache loader finds no usable entries and
-  treats every class as a cache miss.
+- **`-content-hash`** — without this column the cache loader finds no usable entries and treats every class as a cache miss.
 - **`-ai`** — without AI columns there is no classification to restore.
 
-If either column is absent, the cache silently degrades to a no-op: every class is
-classified by the AI provider as normal.
+If either column is absent, the cache silently degrades to a no-op: every class is classified by the AI provider as normal.
 
 ## Two-pass pattern for SARIF output
 
-SARIF output does not carry the `content_hash` column, so a SARIF file cannot itself serve
-as a cache for the next run. When you need both a persistent cache **and** SARIF output,
-use two consecutive MethodAtlas invocations in the same CI job:
+SARIF output does not carry the `content_hash` column, so a SARIF file cannot itself serve as a cache for the next run. When you need both a persistent cache **and** SARIF output, run MethodAtlas twice in the same CI job.
+
+**Pass 1** produces an up-to-date CSV cache, calling the AI only for classes that changed. **Pass 2** reads exclusively from the pass-1 cache to produce SARIF — it makes zero AI calls.
 
 ```bash
 # Pass 1: CSV — calls AI only for classes that changed since the cached run.
@@ -55,7 +48,7 @@ use two consecutive MethodAtlas invocations in the same CI job:
 ./methodatlas \
   -ai -ai-provider github_models -ai-api-key-env GITHUB_TOKEN \
   -content-hash \
-  -ai-cache prev-cache.csv \   # omit on the very first run
+  -ai-cache prev-cache.csv \
   src/test/java \
   > current-cache.csv
 
@@ -70,26 +63,19 @@ use two consecutive MethodAtlas invocations in the same CI job:
   > results.sarif
 ```
 
+On the very first run omit `-ai-cache prev-cache.csv` (the file does not yet exist). Every subsequent run passes the previous scan's CSV as the cache.
+
 The two-pass approach guarantees:
 
 - The SARIF findings and the stored cache are always in sync.
-- No AI calls are made during the SARIF pass, eliminating rate-limit exposure for that
-  pass entirely.
-- All findings from unchanged classes remain present in the SARIF output, so GitHub Code
-  Scanning does not close them as resolved between runs.
+- No AI calls are made during the SARIF pass, eliminating rate-limit exposure for that pass entirely.
+- All findings from unchanged classes remain present in the SARIF output, so GitHub Code Scanning does not close them as resolved between runs.
 
-The reusable workflow `methodatlas-analysis.yml` shipped with this project implements this
-pattern automatically. See [GitHub Actions](../ci/github-actions.md) for the full workflow
-and [CI Setup](../ci-setup.md) for integration guidance.
+The reusable workflow `methodatlas-analysis.yml` shipped with this project implements this pattern automatically. See [GitHub Actions](../ci/github-actions.md) for the full workflow and [CI Setup](../ci-setup.md) for integration guidance.
 
-## CI workflow
+## CI workflow examples
 
-The following examples show how to wire the cache into a GitHub Actions workflow using
-`actions/cache`.
-
-The cache file is stored in compressed form (`.gz`) to minimise GitHub Actions
-cache storage consumption. CSV text typically compresses to 10–20 % of its
-original size, making the cache practical even for very large test suites.
+The cache file is stored in compressed form (`.gz`) to minimise GitHub Actions cache storage consumption. CSV text typically compresses to 10–20 % of its original size, making the cache practical even for very large test suites.
 
 ### CSV output with caching
 
@@ -114,8 +100,7 @@ original size, making the cache practical even for very large test suites.
     gzip -c .methodatlas-cache.csv > .methodatlas-cache.csv.gz
 ```
 
-On the first run (cold cache) every class is classified by the AI. On subsequent runs,
-only modified classes incur API calls.
+On the first run (cold cache) every class is classified by the AI. On subsequent runs, only modified classes incur API calls.
 
 ### SARIF output with caching (two-pass)
 
@@ -155,7 +140,7 @@ only modified classes incur API calls.
     key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
 ```
 
-## Combining with -diff
+## Combining with `-diff`
 
 The cache output is a valid MethodAtlas CSV that can be diffed against a baseline:
 
@@ -164,12 +149,8 @@ The cache output is a valid MethodAtlas CSV that can be diffed against a baselin
 ./methodatlas -diff last-release.csv current.csv
 ```
 
-This shows exactly which security test classifications changed — useful for release notes
-and compliance evidence.
+This shows exactly which security test classifications changed — useful for release notes and compliance evidence.
 
 ## Cache staleness
 
-The cache is keyed by content hash, not by class name. If a class is renamed without
-changing its body the hash changes and the cache misses. If the class body changes the
-hash changes. The cache never returns stale results: a hash match is a cryptographic
-guarantee that the source is identical to when the classification was produced.
+The cache is keyed by content hash, not by class name. If a class is renamed without changing its body the hash changes and the cache misses. If the class body changes the hash changes. The cache never returns stale results: a hash match is a cryptographic guarantee that the source is identical to when the classification was produced.

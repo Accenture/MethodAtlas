@@ -10,12 +10,12 @@ YAML pipeline. The techniques can be used individually or combined:
 
 ## Prerequisites
 
-| Requirement | Details |
-|---|---|
-| Java runtime | Java 21 or later; available as `PreInstalled` on `ubuntu-latest` agents, or configured via `JavaToolInstaller@0` |
-| MethodAtlas | Downloaded at job start from the GitHub release; no separate installation step |
-| AI provider API key | Stored as a masked pipeline variable or in a variable group in the ADO Library |
-| GitHub Advanced Security for ADO | Required only for SARIF upload to the security dashboard; not required for CSV output or count gating |
+| Requirement                         | Details |
+|-------------------------------------|---------|
+| Java runtime                        | Java 21 or later; available as `PreInstalled` on `ubuntu-latest` agents, or configured via `JavaToolInstaller@0` |
+| MethodAtlas                         | Downloaded at job start from the GitHub release; no separate installation step |
+| AI provider API key                 | Stored as a masked pipeline variable or in a variable group in the ADO Library |
+| GitHub Advanced Security for ADO    | Required only for SARIF upload to the security dashboard; not required for CSV output or count gating |
 
 ## Variable group configuration
 
@@ -24,9 +24,9 @@ every pipeline file. In the ADO UI navigate to
 **Pipelines → Library → Variable groups** and create a group named
 `methodatlas-secrets` containing:
 
-| Variable | Value | Secret |
-|---|---|---|
-| `openaiApiKey` | Your OpenAI API key | Yes — mark as secret |
+| Variable          | Value                  | Secret |
+|-------------------|------------------------|--------|
+| `openaiApiKey`    | Your OpenAI API key    | Yes — mark as secret |
 
 Reference the group in any pipeline that needs it:
 
@@ -40,7 +40,7 @@ provider other than OpenAI. See [AI Providers](../ai/providers.md).
 
 ## Minimal pipeline: static inventory
 
-The following job requires no AI provider and produces a CSV inventory of
+The following pipeline requires no AI provider and produces a CSV inventory of
 all test methods with their structural metadata. No secrets or variable
 group are required.
 
@@ -161,13 +161,24 @@ steps:
         CACHE_ARG="-ai-cache .methodatlas-cache.csv"
       fi
 
+      # Pass 1: CSV — refreshes cache, calls AI only for changed classes
       java -jar methodatlas.jar \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
         -content-hash \
-        -sarif -security-only \
+        -security-only \
         $CACHE_ARG \
         src/test/java \
-        | tee .methodatlas-cache.csv > methodatlas.sarif
+        > .methodatlas-cache-new.csv
+      mv .methodatlas-cache-new.csv .methodatlas-cache.csv
+
+      # Pass 2: SARIF — reads exclusively from cache, zero AI calls
+      java -jar methodatlas.jar \
+        -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+        -sarif -security-only \
+        -content-hash \
+        -ai-cache .methodatlas-cache.csv \
+        src/test/java \
+        > methodatlas.sarif
     displayName: Run MethodAtlas with cache
     env:
       OPENAI_API_KEY: $(openaiApiKey)
@@ -256,8 +267,8 @@ error annotation visible in the build summary.
 ## Full pipeline
 
 The following `azure-pipelines.yml` combines caching, SARIF output, count
-gate, and baseline management. Adapt stage names and `dependsOn` references
-to match your project's existing pipeline structure.
+gate, and baseline management into a single runnable file. Adapt stage names
+and `dependsOn` references to match your project's existing pipeline structure.
 
 ```yaml
 trigger:
@@ -306,21 +317,27 @@ stages:
                 CACHE_ARG="-ai-cache .methodatlas-cache.csv"
               fi
 
-              # Step 1: classify and produce SARIF
+              # Pass 1: classify and update cache
+              java -jar methodatlas.jar \
+                -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+                -content-hash \
+                -security-only \
+                $CACHE_ARG \
+                src/test/java \
+                > .methodatlas-cache-new.csv
+              mv .methodatlas-cache-new.csv .methodatlas-cache.csv
+
+              # Pass 2: emit SARIF from cache (zero AI calls)
               java -jar methodatlas.jar \
                 -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
                 -sarif -security-only \
                 -content-hash \
-                $CACHE_ARG \
-                src/test/java \
-                | tee .methodatlas-cache.csv > methodatlas.sarif
-
-              # Step 2: produce CSV for delta gating
-              java -jar methodatlas.jar \
-                -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-                -security-only -content-hash \
                 -ai-cache .methodatlas-cache.csv \
-                src/test/java > current.csv
+                src/test/java \
+                > methodatlas.sarif
+
+              # Produce CSV for delta gating
+              cp .methodatlas-cache.csv current.csv
             displayName: Run MethodAtlas
             env:
               OPENAI_API_KEY: $(openaiApiKey)

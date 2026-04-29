@@ -1,10 +1,17 @@
 # Developer Remediation Guide
 
-MethodAtlas identifies security test methods and measures their quality.
-This guide explains how to act on the findings: how to improve tests with
-a high interaction score, how to add missing outcome assertions, and how to
-write companion tests when an existing test's structure limits what can be
-asserted.
+MethodAtlas identifies security test methods and measures their quality. This guide explains how to act on findings: how to improve tests with a high interaction score, how to add missing outcome assertions, and how to write companion tests when an existing test's structure limits what can be asserted.
+
+## When to use this guide
+
+Use this guide when MethodAtlas has flagged one or more of the following:
+
+- A security-relevant test method with `ai_interaction_score >= 0.8` — the test does not adequately assert outcomes.
+- A test method with `tag_ai_drift = ai-only` — a security property is tested but the method is not labelled.
+- A test method with `tag_ai_drift = tag-only` — the `@Tag("security")` annotation may be stale.
+- A test method with `ai_confidence < 0.5` — the AI is uncertain about the classification and the test's intent is unclear.
+
+For each finding type, the corresponding section below explains the root cause and the remediation steps.
 
 The examples throughout this guide use JUnit 5 and Mockito — the frameworks
 in widest use in the Java ecosystem — but the principles apply to any testing

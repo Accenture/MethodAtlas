@@ -2,8 +2,9 @@
 
 This page describes how to use MethodAtlas as a pre-release gate that
 prevents security test coverage from silently degrading between releases.
-It covers baseline management, gate condition design, and integration with
-GitHub branch protection rules and Azure DevOps environment approvals.
+It covers baseline management, gate condition design, count-gate patterns,
+and integration with GitHub branch protection rules and Azure DevOps
+environment approvals.
 
 ## How the delta mode works
 
@@ -19,10 +20,10 @@ java -jar methodatlas.jar -diff baseline.csv current.csv
 The output lists each changed method with a change-type indicator:
 
 | Indicator | Meaning |
-|---|---|
-| `+` | Method is new in the current scan — added since the baseline |
-| `-` | Method is absent from the current scan — removed or renamed since the baseline |
-| `~` | Method is present in both scans but one or more fields changed |
+|-----------|---------|
+| `+`       | Method is new in the current scan — added since the baseline |
+| `-`       | Method is absent from the current scan — removed or renamed since the baseline |
+| `~`       | Method is present in both scans but one or more fields changed |
 
 For `~` entries, a bracketed summary identifies which fields changed:
 `source` (class edited), `loc: 5 → 8` (method grew), `security: true → false`
@@ -42,21 +43,54 @@ See [Delta Report](../usage-modes/delta.md) for the full output format.
 Not every change in the delta report warrants blocking the release. The
 following table defines recommended gate conditions:
 
-| Delta condition | Gate action | Rationale |
-|---|---|---|
-| `-` entry for a security-relevant method | **Block** | A security test was removed. Require explicit justification before release. |
-| `~` entry with `security: true → false` | **Block** | A method previously classified as security-relevant is now classified otherwise. Regression in coverage. |
-| `~` entry with `source` change on a security-relevant method | **Warn** | The test was edited; verify the change did not weaken the assertion. |
-| `+` entry for a security-relevant method | **Allow** | New security test added. No action required. |
-| Count of security-relevant methods decreased | **Block** | Aggregate regression; investigate specific removals. |
+| Delta condition                                                  | Gate action | Rationale |
+|------------------------------------------------------------------|-------------|-----------|
+| `-` entry for a security-relevant method                         | **Block**   | A security test was removed. Require explicit justification before release. |
+| `~` entry with `security: true → false`                          | **Block**   | A method previously classified as security-relevant is now classified otherwise. Regression in coverage. |
+| `~` entry with `source` change on a security-relevant method     | **Warn**    | The test was edited; verify the change did not weaken the assertion. |
+| `+` entry for a security-relevant method                         | **Allow**   | New security test added. No action required. |
+| Count of security-relevant methods decreased                     | **Block**   | Aggregate regression; investigate specific removals. |
 
 A "Block" condition should cause the pipeline job to exit non-zero. A "Warn"
 condition should emit a notice and allow the pipeline to continue, but the
 finding should appear in the release checklist for human review.
 
+## Count-gate pattern
+
+A count gate fails the release when the absolute number of security-relevant
+test methods falls below the baseline count. This is the simplest gate to
+implement and requires no baseline CSV — only a stored count:
+
+```bash
+# Produce the current scan
+java -jar methodatlas.jar \
+  -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+  -security-only -content-hash \
+  src/test/java > current.csv
+
+# Compare counts
+baseline=$(cat .methodatlas-baseline-count 2>/dev/null || echo 0)
+current=$(tail -n +2 current.csv | wc -l | tr -d ' ')
+
+echo "Baseline security tests: $baseline"
+echo "Current security tests:  $current"
+
+if [ "$current" -lt "$baseline" ]; then
+  echo "::error::Security test count dropped from $baseline to $current — release blocked"
+  exit 1
+fi
+
+# Update the stored count on the default branch
+echo "$current" > .methodatlas-baseline-count
+```
+
+Commit `.methodatlas-baseline-count` to version control. Each push to the
+default branch updates the stored value; each pull request gate compares
+against it.
+
 ## Shell gate implementation
 
-The following shell fragment implements the blocking conditions. It uses the
+The following shell fragment implements the blocking conditions using the
 `-diff` output and `grep` pattern matching — no additional tooling is required:
 
 ```bash
@@ -81,8 +115,9 @@ exit $BLOCKED
 ```
 
 The `::error::` prefix emits a GitHub Actions workflow error annotation when
-the script runs in a GitHub Actions context. Replace it with a plain `echo`
-for other CI environments.
+the script runs in a GitHub Actions context. Replace it with
+`echo "##vso[task.logissue type=error]..."` for Azure DevOps, or with a plain
+`echo` for other CI environments.
 
 ## Baseline management
 
@@ -112,8 +147,9 @@ the gate job and pass it as `baseline.csv`.
 Store one baseline representing the tip of the default branch. Update it on
 every successful push to `main`. Gate every pull request against it.
 
-This strategy requires that the baseline is produced with `-ai-cache` to
-limit repeated AI API costs on unchanged classes.
+This strategy requires that the baseline is produced with
+[`-ai-cache`](../cli-reference.md#-ai-cache) to limit repeated AI API costs
+on unchanged classes.
 
 ## GitHub Actions integration
 
@@ -138,6 +174,9 @@ jobs:
   scan:
     name: MethodAtlas scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -161,11 +200,16 @@ jobs:
             -content-hash -emit-metadata \
             src/test/java > baseline.csv
 
+          # Store the security test count for the lightweight count gate
+          tail -n +2 baseline.csv | wc -l | tr -d ' ' > .methodatlas-baseline-count
+
       - uses: actions/upload-artifact@v4
         if: github.ref == 'refs/heads/main'
         with:
           name: methodatlas-baseline
-          path: baseline.csv
+          path: |
+            baseline.csv
+            .methodatlas-baseline-count
           retention-days: 90
 
   security-gate:
@@ -173,6 +217,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: scan
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -200,6 +247,17 @@ jobs:
             -ai -ai-provider openai -ai-api-key-env AI_API_KEY \
             -content-hash \
             src/test/java > current.csv
+
+      - name: Count gate
+        run: |
+          baseline_count=$(cat .methodatlas-baseline-count 2>/dev/null || echo 0)
+          current_count=$(tail -n +2 current.csv | wc -l | tr -d ' ')
+          echo "Baseline security tests: $baseline_count"
+          echo "Current security tests:  $current_count"
+          if [ "$current_count" -lt "$baseline_count" ]; then
+            echo "::error::Security test count dropped from $baseline_count to $current_count"
+            exit 1
+          fi
 
       - name: Evaluate delta
         run: |
@@ -267,6 +325,16 @@ stages:
                 -content-hash \
                 src/test/java > current.csv
 
+              # Count gate
+              baseline_count=$(cat .methodatlas-baseline-count 2>/dev/null || echo 0)
+              current_count=$(tail -n +2 current.csv | wc -l | tr -d ' ')
+              echo "Baseline: $baseline_count  Current: $current_count"
+              if [ "$current_count" -lt "$baseline_count" ]; then
+                echo "##vso[task.logissue type=error]Security test count dropped from $baseline_count to $current_count"
+                exit 1
+              fi
+
+              # Delta gate
               java -jar methodatlas.jar \
                 -diff baseline.csv current.csv > delta.txt
               cat delta.txt
