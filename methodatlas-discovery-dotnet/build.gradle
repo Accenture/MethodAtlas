@@ -62,6 +62,10 @@ eclipse {
     }
 }
 
+configurations {
+    mockitoAgent
+}
+
 dependencies {
     antlr 'org.antlr:antlr4:4.13.2'
     api    project(':methodatlas-api')
@@ -72,13 +76,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core:5.22.0'
     testImplementation 'org.mockito:mockito-junit-jupiter:5.22.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
 
-configurations {
-    mockitoAgent
-}
-
-dependencies {
     mockitoAgent('org.mockito:mockito-core:5.22.0') { transitive = false }
 }
 
@@ -93,3 +91,7 @@ javadoc {
     options.addStringOption('Xdoclint:all,-missing', '-quiet')
     options.addBooleanOption('html5', true)
 }
+
+// Publish Javadoc as part of the standard build so plugin documentation is
+// generated and archived alongside the plugin JAR.
+build.dependsOn javadoc

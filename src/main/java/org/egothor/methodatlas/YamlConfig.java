@@ -30,6 +30,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  * contentHash: false       # (default: false)
  * securityOnly: false      # (default: false)
  * includeNonSecurity: false  # opt-in: include non-security methods in SARIF output (default: false)
+ * sarifOmitScores: false   # opt-out: omit interaction score / confidence from SARIF message text (default: false)
  * driftDetect: false       # (default: false)
  * overrideFile: .methodatlas-overrides.yaml  # optional
  * fileSuffixes:
@@ -159,6 +160,15 @@ final class YamlConfig {
          */
         @JsonProperty("driftDetect")
         /* default */ boolean driftDetect;
+
+        /**
+         * When {@code true}, the interaction score and confidence percentage are
+         * omitted from SARIF result message text. Use this when the consuming
+         * system already renders the {@code properties} bag and the extra text is
+         * unwanted. Default: {@code false} (scores are embedded in messages).
+         */
+        @JsonProperty("sarifOmitScores")
+        /* default */ boolean sarifOmitScores;
 
         /** AI enrichment settings. */
         @JsonProperty("ai")

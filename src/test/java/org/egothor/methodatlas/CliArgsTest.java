@@ -14,7 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 
 import java.util.Set;
 
@@ -52,7 +51,7 @@ class CliArgsTest {
         assertEquals(OutputMode.CSV, cfg.outputMode());
         assertFalse(cfg.aiOptions().enabled());
         assertEquals(List.of(), cfg.paths());
-        assertEquals(List.of("Test.java"), cfg.fileSuffixes());
+        assertEquals(List.of("java:Test.java"), cfg.fileSuffixes());
         assertEquals(Set.of(), cfg.testMarkers());
         assertFalse(cfg.emitMetadata());
         assertNull(cfg.manualMode());

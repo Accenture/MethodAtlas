@@ -49,8 +49,10 @@ import java.util.List;
  *                           or {@code ai-only}), or {@code null} when the
  *                           {@code tag_ai_drift} column was absent
  *
- * @see org.egothor.methodatlas.DeltaReport
- * @see org.egothor.methodatlas.DeltaEntry
+ * <p>
+ * Consumed by {@code DeltaReport} and {@code DeltaEntry} in the scanner core
+ * for baseline-comparison workflows.
+ * </p>
  */
 public record ScanRecord(
         String fqcn,

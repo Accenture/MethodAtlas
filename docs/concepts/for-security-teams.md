@@ -174,7 +174,7 @@ When SARIF output is uploaded to GitHub Code Scanning, findings appear under
 - The rule ID (taxonomy tag assigned by MethodAtlas).
 - The affected file and line number.
 - The AI rationale as the finding description.
-- The interaction score and confidence in the finding properties.
+- The interaction score and, when `-ai-confidence` is active, the confidence percentage — both embedded in the finding message text so they are visible without leaving the GitHub Security tab.
 
 Findings can be filtered by rule, by file path, and by state (open, closed,
 dismissed). Dismissed findings are retained as an audit trail.

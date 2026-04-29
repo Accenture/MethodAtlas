@@ -71,10 +71,35 @@ repositories {
     mavenCentral()
 }
 
+// ---------------------------------------------------------------------------
+// Exclude the ANTLR4 grammar-compiler tool from the distribution archive.
+// ---------------------------------------------------------------------------
+// The Gradle ANTLR plugin wires the 'antlr' configuration directly into the
+// dotnet subproject's runtimeClasspath in a way that also surfaces in its
+// runtimeElements (what consumers see).  Excluding at the subproject level via
+// setExtendsFrom or configurations.runtimeClasspath.exclude has no effect
+// because the plugin uses file-collection unions (plus/from) that bypass
+// configuration-level exclude rules.
+//
+// Excluding at THIS level works: when the root project resolves
+// project(':methodatlas-discovery-dotnet'), it does so through the normal
+// dependency resolution graph (not a file-collection union), so exclude rules
+// on runtimeClasspath are fully honoured here.
+//
+// antlr4-runtime (the actual runtime API used by the generated parser) stays
+// because it is declared separately as 'implementation' in the dotnet module.
+// The five excluded JARs are pure build-time grammar-compiler artefacts:
+//   antlr4-4.13.2.jar (1.35 MB), antlr-runtime-3.5.3.jar, ST4-4.3.4.jar,
+//   icu4j-72.1.jar (14 MB), org.abego.treelayout.core-1.0.3.jar.
+configurations.runtimeClasspath {
+    exclude group: 'org.antlr', module: 'antlr4'
+}
+
 dependencies {
     implementation project(':methodatlas-api')
     runtimeOnly project(':methodatlas-discovery-jvm')
     runtimeOnly project(':methodatlas-discovery-dotnet')
+    runtimeOnly project(':methodatlas-discovery-typescript')
 
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.1'

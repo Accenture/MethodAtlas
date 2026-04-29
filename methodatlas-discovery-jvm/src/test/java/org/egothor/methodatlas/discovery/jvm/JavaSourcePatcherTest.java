@@ -247,8 +247,7 @@ class JavaSourcePatcherTest {
     void applyDesiredState_tagsContainer_removed() {
         MethodDeclaration method = firstMethod(
                 "class C { @Test @Tags({@Tag(\"a\"), @Tag(\"b\")}) void m() {} }");
-        JavaSourcePatcher.MethodApplyResult result =
-                JavaSourcePatcher.applyDesiredState(method, List.of("c"), null);
+        JavaSourcePatcher.applyDesiredState(method, List.of("c"), null);
         assertFalse(method.toString().contains("@Tags"), method.toString());
         assertTrue(method.toString().contains("@Tag(\"c\")"), method.toString());
     }
@@ -421,8 +420,6 @@ class JavaSourcePatcherTest {
                 """;
         Path file = tempDir.resolve("FooTest.java");
         Files.writeString(file, original, StandardCharsets.UTF_8);
-        long modifiedBefore = Files.getLastModifiedTime(file).toMillis();
-
         StringWriter sw = new StringWriter();
         patcherWithDefaults().patch(file,
                 Map.of("testFoo", List.of("security")),

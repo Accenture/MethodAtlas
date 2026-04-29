@@ -321,7 +321,7 @@ class JavaTestDiscoveryTest {
     @DisplayName("filePath is set to the absolute path of the source file")
     @Tag("positive")
     void discover_filePath_absoluteAndExists(@TempDir Path tmp) throws IOException {
-        Path file = write(tmp, "FooTest.java", """
+        write(tmp, "FooTest.java", """
                 import org.junit.jupiter.api.Test;
                 class FooTest {
                     @Test void foo() {}
@@ -463,34 +463,34 @@ class JavaTestDiscoveryTest {
     @DisplayName("multiple configured suffixes are all honoured")
     @Tag("positive")
     void discover_multipleSuffixes_allHonoured(@TempDir Path tmp) throws IOException {
-        JavaTestDiscovery multi = new JavaTestDiscovery(parser, List.of("Test.java", "Spec.java"),
-                AnnotationInspector.DEFAULT_TEST_ANNOTATIONS);
+        try (JavaTestDiscovery multi = new JavaTestDiscovery(parser, List.of("Test.java", "Spec.java"),
+                AnnotationInspector.DEFAULT_TEST_ANNOTATIONS)) {
+            write(tmp, "FooTest.java", """
+                    import org.junit.jupiter.api.Test;
+                    class FooTest {
+                        @Test void test1() {}
+                    }
+                    """);
+            write(tmp, "BarSpec.java", """
+                    import org.junit.jupiter.api.Test;
+                    class BarSpec {
+                        @Test void spec1() {}
+                    }
+                    """);
+            write(tmp, "Baz.java", """
+                    import org.junit.jupiter.api.Test;
+                    class Baz {
+                        @Test void ignored() {}
+                    }
+                    """);
 
-        write(tmp, "FooTest.java", """
-                import org.junit.jupiter.api.Test;
-                class FooTest {
-                    @Test void test1() {}
-                }
-                """);
-        write(tmp, "BarSpec.java", """
-                import org.junit.jupiter.api.Test;
-                class BarSpec {
-                    @Test void spec1() {}
-                }
-                """);
-        write(tmp, "Baz.java", """
-                import org.junit.jupiter.api.Test;
-                class Baz {
-                    @Test void ignored() {}
-                }
-                """);
+            List<DiscoveredMethod> result = multi.discover(tmp).collect(Collectors.toList());
 
-        List<DiscoveredMethod> result = multi.discover(tmp).collect(Collectors.toList());
-
-        assertEquals(2, result.size());
-        List<String> methods = result.stream().map(DiscoveredMethod::method).toList();
-        assertTrue(methods.contains("test1"));
-        assertTrue(methods.contains("spec1"));
+            assertEquals(2, result.size());
+            List<String> methods = result.stream().map(DiscoveredMethod::method).toList();
+            assertTrue(methods.contains("test1"));
+            assertTrue(methods.contains("spec1"));
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -759,23 +759,23 @@ class JavaTestDiscoveryTest {
     @DisplayName("custom annotation set discovers only methods with matching annotations")
     @Tag("positive")
     void discover_customAnnotationSet_onlyMatchingAnnotations(@TempDir Path tmp) throws IOException {
-        JavaTestDiscovery custom = new JavaTestDiscovery(parser, List.of("Test.java"),
-                Set.of("MyCustomTest"));
+        try (JavaTestDiscovery custom = new JavaTestDiscovery(parser, List.of("Test.java"),
+                Set.of("MyCustomTest"))) {
+            write(tmp, "FooTest.java", """
+                    import org.junit.jupiter.api.Test;
+                    class FooTest {
+                        @Test void junit5Test() {}
 
-        write(tmp, "FooTest.java", """
-                import org.junit.jupiter.api.Test;
-                class FooTest {
-                    @Test void junit5Test() {}
+                        @MyCustomTest
+                        void customTest() {}
+                    }
+                    """);
 
-                    @MyCustomTest
-                    void customTest() {}
-                }
-                """);
+            List<DiscoveredMethod> result = custom.discover(tmp).collect(Collectors.toList());
 
-        List<DiscoveredMethod> result = custom.discover(tmp).collect(Collectors.toList());
-
-        assertEquals(1, result.size());
-        assertEquals("customTest", result.get(0).method());
+            assertEquals(1, result.size());
+            assertEquals("customTest", result.get(0).method());
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -794,15 +794,16 @@ class JavaTestDiscoveryTest {
                 }
                 """);
 
-        JavaTestDiscovery configured = new JavaTestDiscovery();
-        configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of(), Map.of()));
+        try (JavaTestDiscovery configured = new JavaTestDiscovery()) {
+            configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of(), Map.of()));
 
-        List<DiscoveredMethod> result = configured.discover(tmp).collect(Collectors.toList());
+            List<DiscoveredMethod> result = configured.discover(tmp).collect(Collectors.toList());
 
-        assertEquals(2, result.size());
-        List<String> methods = result.stream().map(DiscoveredMethod::method).toList();
-        assertTrue(methods.contains("alpha"));
-        assertTrue(methods.contains("beta"));
+            assertEquals(2, result.size());
+            List<String> methods = result.stream().map(DiscoveredMethod::method).toList();
+            assertTrue(methods.contains("alpha"));
+            assertTrue(methods.contains("beta"));
+        }
     }
 
     @Test
@@ -817,23 +818,24 @@ class JavaTestDiscoveryTest {
                 }
                 """);
 
-        JavaTestDiscovery configured = new JavaTestDiscovery();
-        configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of("MyCustomAnnotation"), Map.of()));
+        try (JavaTestDiscovery configured = new JavaTestDiscovery()) {
+            configured.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of("MyCustomAnnotation"), Map.of()));
 
-        List<DiscoveredMethod> result = configured.discover(tmp).collect(Collectors.toList());
+            List<DiscoveredMethod> result = configured.discover(tmp).collect(Collectors.toList());
 
-        assertEquals(1, result.size());
-        assertEquals("custom", result.get(0).method());
+            assertEquals(1, result.size());
+            assertEquals("custom", result.get(0).method());
+        }
     }
 
     @Test
     @DisplayName("discover() before configure() throws IllegalStateException")
     @Tag("negative")
-    void discover_beforeConfigure_throwsIllegalStateException(@TempDir Path tmp) {
-        JavaTestDiscovery unconfigured = new JavaTestDiscovery();
-
-        assertThrows(IllegalStateException.class, () -> unconfigured.discover(tmp),
-                "discover() on unconfigured instance should throw IllegalStateException");
+    void discover_beforeConfigure_throwsIllegalStateException(@TempDir Path tmp) throws IOException {
+        try (JavaTestDiscovery unconfigured = new JavaTestDiscovery()) {
+            assertThrows(IllegalStateException.class, () -> unconfigured.discover(tmp),
+                    "discover() on unconfigured instance should throw IllegalStateException");
+        }
     }
 
     @Test
@@ -849,21 +851,21 @@ class JavaTestDiscoveryTest {
                 class BarSpec { @Test void s() {} }
                 """);
 
-        JavaTestDiscovery d = new JavaTestDiscovery();
+        try (JavaTestDiscovery d = new JavaTestDiscovery()) {
+            // First configure: only Test.java suffix
+            d.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of(), Map.of()));
+            List<DiscoveredMethod> first = d.discover(tmp).collect(Collectors.toList());
 
-        // First configure: only Test.java suffix
-        d.configure(new TestDiscoveryConfig(List.of("Test.java"), Set.of(), Map.of()));
-        List<DiscoveredMethod> first = d.discover(tmp).collect(Collectors.toList());
+            // Re-configure: only Spec.java suffix
+            d.configure(new TestDiscoveryConfig(List.of("Spec.java"), Set.of(), Map.of()));
+            List<DiscoveredMethod> second = d.discover(tmp).collect(Collectors.toList());
 
-        // Re-configure: only Spec.java suffix
-        d.configure(new TestDiscoveryConfig(List.of("Spec.java"), Set.of(), Map.of()));
-        List<DiscoveredMethod> second = d.discover(tmp).collect(Collectors.toList());
+            assertEquals(1, first.size());
+            assertEquals("t", first.get(0).method());
 
-        assertEquals(1, first.size());
-        assertEquals("t", first.get(0).method());
-
-        assertEquals(1, second.size());
-        assertEquals("s", second.get(0).method());
+            assertEquals(1, second.size());
+            assertEquals("s", second.get(0).method());
+        }
     }
 
     // -------------------------------------------------------------------------

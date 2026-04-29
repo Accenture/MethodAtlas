@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.antlr.v4.runtime.ParserRuleContext;
 import org.egothor.methodatlas.discovery.dotnet.parser.CSharpTestBaseVisitor;
 import org.egothor.methodatlas.discovery.dotnet.parser.CSharpTestParser;
 

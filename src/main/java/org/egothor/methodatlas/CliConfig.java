@@ -85,10 +85,18 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                             (e.g. module-a and module-b each contain
  *                             {@code com.acme.FooTest}); has no effect on SARIF
  *                             or GitHub Annotations output
+ * @param sarifOmitScores      when {@code true}, the interaction score and
+ *                             confidence percentage are omitted from SARIF result
+ *                             message text; use this when the consuming system
+ *                             already renders the {@code properties} bag and the
+ *                             extra text in the message is unwanted; default is
+ *                             {@code false} (scores are embedded in messages so
+ *                             they are visible in GitHub Code Scanning and similar
+ *                             tooling that does not render the properties bag)
  */
 record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testMarkers, Map<String, List<String>> properties, boolean emitMetadata,
         ManualMode manualMode, boolean applyTags, boolean contentHash, Path overrideFile,
         boolean securityOnly, Path aiCacheFile, boolean driftDetect, Path applyTagsFromCsvFile,
-        int mismatchLimit, boolean emitSourceRoot) {
+        int mismatchLimit, boolean emitSourceRoot, boolean sarifOmitScores) {
 }

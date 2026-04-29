@@ -75,3 +75,7 @@ javadoc {
     options.tags('version')
     options.tags('see')
 }
+
+// Publish Javadoc as part of the standard build so plugin documentation is
+// generated and archived alongside the plugin JAR.
+build.dependsOn javadoc

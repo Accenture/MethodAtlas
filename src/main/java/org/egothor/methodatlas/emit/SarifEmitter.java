@@ -41,7 +41,10 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
  * <p>
  * AI enrichment fields (display name, tags, reason, confidence) are stored in
  * the SARIF result {@code properties} bag when an {@link AiMethodSuggestion}
- * is available.
+ * is available.  The interaction score and, when confidence reporting is
+ * enabled, the confidence percentage are also embedded directly in the
+ * result message text so they remain visible in tooling (such as GitHub Code
+ * Scanning) that does not render the {@code properties} bag.
  * </p>
  *
  * <p>
@@ -51,6 +54,9 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
  *
  * @see TestMethodSink
  */
+// SarifEmitter handles multiple SARIF rule types, severity tiers, and output variants;
+// its aggregate class CC legitimately exceeds the 80 default.
+@SuppressWarnings("PMD.CyclomaticComplexity")
 public final class SarifEmitter implements TestMethodSink {
 
     private static final String SARIF_SCHEMA =
@@ -107,9 +113,27 @@ public final class SarifEmitter implements TestMethodSink {
 
     private final boolean aiEnabled;
     private final boolean confidenceEnabled;
+    private final boolean scoresInMessage;
     private final String filePrefix;
     private final String toolVersion;
     private final List<ResultRecord> records = new ArrayList<>();
+
+    /**
+     * Creates a new SARIF emitter with scores embedded in result message text
+     * (the default behaviour).
+     *
+     * @param aiEnabled         whether AI enrichment columns should be included
+     * @param confidenceEnabled whether the {@code aiConfidence} property should
+     *                          be included; only meaningful when {@code aiEnabled}
+     *                          is {@code true}
+     * @param filePrefix        forward-slash path prefix prepended to every
+     *                          artifact URI to produce a repo-relative path (e.g.
+     *                          {@code "src/test/java/"}); use empty string when
+     *                          the scan root is already the repository root
+     */
+    public SarifEmitter(boolean aiEnabled, boolean confidenceEnabled, String filePrefix) {
+        this(aiEnabled, confidenceEnabled, filePrefix, true);
+    }
 
     /**
      * Creates a new SARIF emitter.
@@ -122,10 +146,19 @@ public final class SarifEmitter implements TestMethodSink {
      *                          artifact URI to produce a repo-relative path (e.g.
      *                          {@code "src/test/java/"}); use empty string when
      *                          the scan root is already the repository root
+     * @param scoresInMessage   when {@code true} (the default), the interaction
+     *                          score and confidence percentage are embedded in the
+     *                          result message text so they are visible in tooling
+     *                          (such as GitHub Code Scanning) that does not render
+     *                          the {@code properties} bag; set to {@code false}
+     *                          when the consuming system already displays
+     *                          {@code properties} and the extra text is unwanted
      */
-    public SarifEmitter(boolean aiEnabled, boolean confidenceEnabled, String filePrefix) {
+    public SarifEmitter(boolean aiEnabled, boolean confidenceEnabled, String filePrefix,
+            boolean scoresInMessage) {
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
+        this.scoresInMessage = scoresInMessage;
         this.filePrefix = filePrefix;
         String v = SarifEmitter.class.getPackage().getImplementationVersion();
         this.toolVersion = v != null ? v : "dev";
@@ -273,8 +306,10 @@ public final class SarifEmitter implements TestMethodSink {
                 + "trace in security audit logs. Replace @DisplayName(\"\") with a meaningful "
                 + "description of what the test verifies.";
             case RULE_SECURITY_PLACEBO ->
-                "This security test has an interaction score >= 0.8, meaning its assertions "
-                + "primarily verify that methods were called (e.g. Mockito verify(), spy call counts) "
+                "This security test has an interaction score at or above the threshold of "
+                + PLACEBO_THRESHOLD + " (the actual score is shown in the finding message). "
+                + "The score measures what fraction of the test's assertions only verify "
+                + "that methods were called (e.g. Mockito verify(), spy call counts) "
                 + "rather than asserting on return values, thrown exceptions, or observable state. "
                 + "Such tests may give false confidence: the code under test could return wrong data "
                 + "or corrupt state and the test would still pass. "
@@ -286,8 +321,10 @@ public final class SarifEmitter implements TestMethodSink {
                 "MethodAtlas detected this test method as security-relevant via AI analysis. "
                 + "Review the suggested @DisplayName and @Tag values in the result message. "
                 + "If correct, apply them by running: ./methodatlas -ai -apply-tags SOURCE_ROOT. "
-                + "An interaction score ≥ 0.8 in the result properties means the test verifies "
-                + "only method calls, not actual outcomes — consider adding outcome assertions.";
+                + "The finding message also includes the interaction score and, when enabled, "
+                + "the AI confidence score. An interaction score ≥ 0.8 means the test verifies "
+                + "only method calls, not actual outcomes — in that case a separate "
+                + "security-test/placebo finding is also raised.";
         };
     }
 
@@ -340,12 +377,40 @@ public final class SarifEmitter implements TestMethodSink {
             }
         }
 
-        if (s.interactionScore() >= PLACEBO_THRESHOLD) {
-            sb.append(String.format(Locale.ROOT,
-                    " Interaction score %.1f: assertions verify only method calls, not actual outcomes.",
-                    s.interactionScore()));
+        sb.append(resolveScoreText(s));
+
+        return sb.toString();
+    }
+
+    /**
+     * Returns an optional score/confidence suffix to append to a security-method
+     * message, or an empty string when {@code scoresInMessage} is {@code false}.
+     *
+     * <p>
+     * Extracted from {@link #resolveMessageText(ResultRecord)} to keep its
+     * NPath and cyclomatic complexity within PMD thresholds.
+     * </p>
+     *
+     * @param s the AI suggestion for the method
+     * @return formatted score text, possibly empty; never {@code null}
+     */
+    private String resolveScoreText(AiMethodSuggestion s) {
+        if (!scoresInMessage) {
+            return "";
+        }
+        // Embed numeric scores so the operator can see them in tooling
+        // (such as GitHub Code Scanning) that does not render the properties bag.
+        StringBuilder sb = new StringBuilder(192);
+        sb.append(String.format(Locale.ROOT, " Interaction score: %.2f.", s.interactionScore()));
+
+        if (confidenceEnabled && s.confidence() > 0.0) {
+            sb.append(String.format(Locale.ROOT, " Confidence: %.0f%%.", s.confidence() * 100));
         }
 
+        if (s.interactionScore() >= PLACEBO_THRESHOLD) {
+            sb.append(" Assertions primarily verify method calls, not actual outcomes."
+                    + " See the security-test/placebo finding for remediation guidance.");
+        }
         return sb.toString();
     }
 
@@ -399,12 +464,19 @@ public final class SarifEmitter implements TestMethodSink {
         SarifLocation location = new SarifLocation(physicalLocation, List.of(logicalLocation));
 
         AiMethodSuggestion s = rec.suggestion();
-        String message = String.format(Locale.ROOT,
-                "Interaction score %.1f: this security test only verifies that methods were called, "
+        StringBuilder placeboMsg = new StringBuilder(512);
+        placeboMsg.append(String.format(Locale.ROOT,
+                "Interaction score: %.2f (threshold: %.1f). "
+                + "This security test only verifies that methods were called, "
                 + "not what values they returned or what state they produced. "
                 + "Tests that do not assert outcomes cannot catch regressions in security-critical logic. "
                 + "Add assertions on return values, thrown exceptions, or observable state changes.",
-                s.interactionScore());
+                s.interactionScore(), PLACEBO_THRESHOLD));
+        if (scoresInMessage && confidenceEnabled && s.confidence() > 0.0) {
+            placeboMsg.append(String.format(Locale.ROOT,
+                    " Confidence: %.0f%%.", s.confidence() * 100));
+        }
+        String message = placeboMsg.toString();
 
         String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
         SarifProperties properties = new SarifProperties(rec.loc(), null, sourceTags,

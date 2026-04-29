@@ -118,6 +118,16 @@ public final class JavaTestDiscovery implements TestDiscovery {
     }
 
     /**
+     * Returns the unique identifier of this discovery provider: {@code "java"}.
+     *
+     * @return {@code "java"}
+     */
+    @Override
+    public String pluginId() {
+        return "java";
+    }
+
+    /**
      * Configures this provider from a {@link TestDiscoveryConfig}.
      *
      * <p>
@@ -138,11 +148,6 @@ public final class JavaTestDiscovery implements TestDiscovery {
      *
      * @param config runtime configuration; never {@code null}
      */
-    @Override
-    public String pluginId() {
-        return "java";
-    }
-
     @Override
     public void configure(TestDiscoveryConfig config) {
         ParserConfiguration cfg = new ParserConfiguration();

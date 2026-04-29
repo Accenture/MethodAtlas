@@ -346,15 +346,19 @@ public final class MethodAtlasApp {
         // is omitted from the output.
         List<TestDiscovery> providers = loadProviders(discoveryConfig);
         boolean hadErrors = false;
-        for (Path root : roots) {
-            String sourceRoot = emitSourceRoot ? computeFilePrefix(List.of(root)) : null;
-            TestMethodSink rootSink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
-                    emitter.emit(mode, fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
-            if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine,
-                    filterSink(rootSink, cliConfig.securityOnly()),
-                    cliConfig.contentHash(), override, aiCache)) {
-                hadErrors = true;
+        try {
+            for (Path root : roots) {
+                String sourceRoot = emitSourceRoot ? computeFilePrefix(List.of(root)) : null;
+                TestMethodSink rootSink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
+                        emitter.emit(mode, fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
+                if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine,
+                        filterSink(rootSink, cliConfig.securityOnly()),
+                        cliConfig.contentHash(), override, aiCache)) {
+                    hadErrors = true;
+                }
             }
+        } finally {
+            closeAll(providers);
         }
         int result = hadErrors ? 1 : 0;
 
@@ -440,10 +444,18 @@ public final class MethodAtlasApp {
         TestDiscoveryConfig discoveryConfig =
                 new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties());
         List<TestDiscovery> providers = loadProviders(discoveryConfig);
+        // Initializers are omitted: both variables are assigned unconditionally in the try
+        // block, which satisfies JLS §16.2.15 definite-assignment for try-finally without
+        // a catch clause. The providers list is closed by closeAll() in the finally block.
+        Map<Path, List<DiscoveredMethod>> byFile;
+        boolean hadErrors;
+        try {
+            byFile = collectMethodsByFile(roots, providers);
+            hadErrors = providers.stream().anyMatch(TestDiscovery::hadErrors);
+        } finally {
+            closeAll(providers);
+        }
         AiRuntime ai = new AiRuntime(cliConfig.aiOptions(), aiEngine, override, aiCache);
-
-        Map<Path, List<DiscoveredMethod>> byFile = collectMethodsByFile(roots, providers);
-        boolean hadErrors = providers.stream().anyMatch(TestDiscovery::hadErrors);
 
         int modifiedFiles = 0;
         int totalAnnotations = 0;
@@ -500,7 +512,8 @@ public final class MethodAtlasApp {
      *         insertion order matches discovery order
      * @throws IOException if directory traversal fails for any root
      */
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+    @SuppressWarnings({"PMD.AvoidInstantiatingObjectsInLoops",
+            "PMD.CloseResource"}) // providers are owned by the caller; this method does not close them
     private static Map<Path, List<DiscoveredMethod>> collectMethodsByFile(
             List<Path> roots, List<TestDiscovery> providers) throws IOException {
         Map<Path, List<DiscoveredMethod>> byFile = new LinkedHashMap<>();
@@ -574,7 +587,7 @@ public final class MethodAtlasApp {
      * @param aiEngine          AI engine providing suggestions; may be {@code null}
      * @param aiEnabled         whether an AI engine is active
      * @param confidenceEnabled whether the {@code aiConfidence} property should be
-     *                          included in SARIF properties
+     *                          included in SARIF properties and message text
      * @param roots             source roots to scan
      * @param out               writer that receives the serialized SARIF document
      * @return {@code 0} if all files were processed successfully, {@code 1} if any
@@ -587,7 +600,9 @@ public final class MethodAtlasApp {
             List<Path> roots, PrintWriter out,
             ClassificationOverride override, AiResultCache aiCache) throws IOException {
         String filePrefix = computeFilePrefix(roots);
-        SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix);
+        boolean scoresInMessage = !cliConfig.sarifOmitScores();
+        SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix,
+                scoresInMessage);
         int result = scan(roots, cliConfig, discoveryConfig, aiEngine,
                 filterSink(sarifEmitter, cliConfig.securityOnly()), override, aiCache);
         sarifEmitter.flush(out);
@@ -665,11 +680,15 @@ public final class MethodAtlasApp {
             AiResultCache aiCache) throws IOException {
         List<TestDiscovery> providers = loadProviders(discoveryConfig);
         boolean hadErrors = false;
-        for (Path root : roots) {
-            if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine, sink,
-                    cliConfig.contentHash(), override, aiCache)) {
-                hadErrors = true;
+        try {
+            for (Path root : roots) {
+                if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine, sink,
+                        cliConfig.contentHash(), override, aiCache)) {
+                    hadErrors = true;
+                }
             }
+        } finally {
+            closeAll(providers);
         }
         return hadErrors ? 1 : 0;
     }
@@ -697,6 +716,7 @@ public final class MethodAtlasApp {
      * @return {@code true} if any provider encountered a parse or processing error
      * @throws IOException if traversing the file tree fails
      */
+    @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
     private static boolean runDiscovery(Path root, List<TestDiscovery> providers,
             AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
             boolean contentHashEnabled, ClassificationOverride override,
@@ -764,6 +784,7 @@ public final class MethodAtlasApp {
      * @return non-empty list of configured providers
      * @throws IllegalStateException if no providers are found on the classpath
      */
+    @SuppressWarnings("PMD.CloseResource") // callers are responsible for closing providers via closeAll()
     private static List<TestDiscovery> loadProviders(TestDiscoveryConfig config) {
         List<TestDiscovery> providers = new ArrayList<>();
         for (TestDiscovery provider : ServiceLoader.load(TestDiscovery.class)) {
@@ -781,6 +802,33 @@ public final class MethodAtlasApp {
     }
 
     /**
+     * Closes every provider in the list, logging any {@link IOException} at
+     * {@link Level#FINE} and continuing so that all providers are attempted.
+     *
+     * <p>
+     * This is a best-effort shutdown: a failure to close one provider does not
+     * prevent subsequent providers from being closed. In practice, close failures
+     * for stateless providers (whose default {@code close()} is a no-op) are
+     * impossible; they can only occur in providers that manage external resources
+     * such as sub-process pools.
+     * </p>
+     *
+     * @param providers list of providers to close; never {@code null}
+     */
+    @SuppressWarnings("PMD.CloseResource") // this method IS the close mechanism; p.close() is called explicitly
+    private static void closeAll(List<TestDiscovery> providers) {
+        for (TestDiscovery p : providers) {
+            try {
+                p.close();
+            } catch (IOException e) {
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.log(Level.FINE, "Failed to close provider " + p.pluginId(), e);
+                }
+            }
+        }
+    }
+
+    /**
      * Verifies that every {@link TestDiscovery} provider in the list has a
      * unique {@link TestDiscovery#pluginId()}.
      *
@@ -789,7 +837,8 @@ public final class MethodAtlasApp {
      * @param providers list of configured providers
      * @throws IllegalStateException if two or more providers share the same ID
      */
-    static void requireUniqueDiscoveryIds(List<TestDiscovery> providers) {
+    @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
+    /* default */ static void requireUniqueDiscoveryIds(List<TestDiscovery> providers) {
         Set<String> seen = new LinkedHashSet<>();
         for (TestDiscovery p : providers) {
             String id = p.pluginId();
@@ -837,7 +886,7 @@ public final class MethodAtlasApp {
      * @param patchers list of configured patchers
      * @throws IllegalStateException if two or more patchers share the same ID
      */
-    static void requireUniquePatcherIds(List<SourcePatcher> patchers) {
+    /* default */ static void requireUniquePatcherIds(List<SourcePatcher> patchers) {
         Set<String> seen = new LinkedHashSet<>();
         for (SourcePatcher p : patchers) {
             String id = p.pluginId();
@@ -868,6 +917,7 @@ public final class MethodAtlasApp {
      *         provider encountered a processing error
      * @throws IOException if traversing a file tree fails
      */
+    @SuppressWarnings("PMD.CloseResource") // providers closed by closeAll() in the finally block below
     private static int runManualPrepare(ManualMode.Prepare prepare, CliConfig cliConfig,
             TestDiscoveryConfig discoveryConfig, PrintWriter log) throws IOException {
         ManualPrepareEngine engine;
@@ -882,40 +932,44 @@ public final class MethodAtlasApp {
         boolean hadErrors = false;
         int prepared = 0;
 
-        for (Path root : roots) {
-            List<DiscoveredMethod> allMethods = new ArrayList<>(); // NOPMD - intentionally one list per scan root
-            for (TestDiscovery provider : providers) {
-                provider.discover(root).forEach(allMethods::add);
-                if (provider.hadErrors()) {
-                    hadErrors = true;
+        try {
+            for (Path root : roots) {
+                List<DiscoveredMethod> allMethods = new ArrayList<>(); // NOPMD - intentionally one list per scan root
+                for (TestDiscovery provider : providers) {
+                    provider.discover(root).forEach(allMethods::add);
+                    if (provider.hadErrors()) {
+                        hadErrors = true;
+                    }
                 }
-            }
 
-            // Group by FQCN so each class produces one work file
-            Map<String, List<DiscoveredMethod>> byClass = allMethods.stream()
-                    .collect(Collectors.groupingBy(DiscoveredMethod::fqcn,
-                            LinkedHashMap::new, Collectors.toList()));
+                // Group by FQCN so each class produces one work file
+                Map<String, List<DiscoveredMethod>> byClass = allMethods.stream()
+                        .collect(Collectors.groupingBy(DiscoveredMethod::fqcn,
+                                LinkedHashMap::new, Collectors.toList()));
 
-            for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
-                String fqcn = entry.getKey();
-                List<DiscoveredMethod> classMethods = entry.getValue();
-                String classSource = classMethods.get(0).sourceContent().get().orElse(null);
-                if (classSource == null) {
-                    continue;
-                }
-                String fileStem = classMethods.get(0).fileStem();
-                List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
-                        .map(MethodAtlasApp::toTargetMethod).toList();
-                try {
-                    Path workFile = engine.prepare(fileStem, fqcn, classSource, targetMethods);
-                    log.println("Prepared: " + workFile);
-                    prepared++;
-                } catch (AiSuggestionException e) {
-                    if (LOG.isLoggable(Level.WARNING)) {
-                        LOG.log(Level.WARNING, "Failed to prepare work file for " + fqcn, e);
+                for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
+                    String fqcn = entry.getKey();
+                    List<DiscoveredMethod> classMethods = entry.getValue();
+                    String classSource = classMethods.get(0).sourceContent().get().orElse(null);
+                    if (classSource == null) {
+                        continue;
+                    }
+                    String fileStem = classMethods.get(0).fileStem();
+                    List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
+                            .map(MethodAtlasApp::toTargetMethod).toList();
+                    try {
+                        Path workFile = engine.prepare(fileStem, fqcn, classSource, targetMethods);
+                        log.println("Prepared: " + workFile);
+                        prepared++;
+                    } catch (AiSuggestionException e) {
+                        if (LOG.isLoggable(Level.WARNING)) {
+                            LOG.log(Level.WARNING, "Failed to prepare work file for " + fqcn, e);
+                        }
                     }
                 }
             }
+        } finally {
+            closeAll(providers);
         }
 
         log.println("Manual prepare complete. Wrote " + prepared + " work file(s) to " + prepare.workDir()

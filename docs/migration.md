@@ -92,11 +92,11 @@ The 3.x release adds optional support for plugin-specific key/value pairs
 forwarded to each discovery plugin. No action is needed for existing Java
 configurations — the Java plugin ignores unknown properties.
 
-This is only relevant when a future non-JVM plugin (TypeScript, C#) is added
-and requires plugin-specific settings such as test function names.
+This is relevant for non-JVM plugins that require plugin-specific settings.
+The C# (.NET) plugin is available now; a TypeScript plugin is planned.
 
 ```yaml
-# Example: future TypeScript plugin configuration
+# Example: TypeScript plugin configuration (planned)
 properties:
   functionNames:
     - test

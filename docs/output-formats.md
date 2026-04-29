@@ -189,20 +189,55 @@ The SARIF `level` field distinguishes security-relevant methods from ordinary te
 
 ### Result messages
 
-Each SARIF result message is written to support professional review without switching tools:
+Each SARIF result carries a `message.text` field that stands alone as a complete, human-readable annotation. The design goal is that an operator should be able to act on a finding without leaving the SARIF viewer or opening the raw JSON.
 
-- **Security-relevant method** (`security/<tag>` or `security-test`) — the message states the AI's suggested `@DisplayName` and `@Tag` values, the AI reasoning, and — when the interaction score is ≥ 0.8 — a sentence noting the placebo risk. Example:
-  ```
-  AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score 0.9: assertions verify only method calls, not actual outcomes.
-  ```
-- **`security-test/placebo`** — a second result emitted alongside the primary security result when `ai_interaction_score >= 0.8`. The message names the score and explains the remediation. Example:
-  ```
-  Interaction score 0.9: this security test only verifies that methods were called, not what values they returned or what state they produced. Tests that do not assert outcomes cannot catch regressions in security-critical logic. Add assertions on return values, thrown exceptions, or observable state changes.
-  ```
-- **`annotation/empty-display-name`** — the message names the class and method, explains the impact, and states the corrective action. Example:
-  ```
-  @DisplayName("") on com.acme.util.HelperTest.testHelper is explicitly empty — the test will appear unnamed in CI reports and audit evidence packages. Replace with a meaningful description, e.g. @DisplayName("Verifies that ...").
-  ```
+#### Why scores appear in the message text by default
+
+SARIF results have two parallel channels for data:
+
+- **`message.text`** — the visible annotation shown in every SARIF-aware tool (GitHub Code Scanning, Azure DevOps, SonarQube, IDE plugins, and custom viewers alike).
+- **`properties` bag** — structured key/value metadata attached to each result. Whether this bag is surfaced in the UI depends entirely on the consuming tool.
+
+**GitHub Code Scanning does not display the `properties` bag.** When a SARIF file is uploaded to GitHub, the Security tab shows only the `message.text` field as the inline annotation on the code. The `properties` values (interaction score, confidence, tags, reason) are stored in GitHub's database and accessible via the API, but they are not shown in the finding panel that an operator reviews during triage.
+
+Because of this, MethodAtlas embeds the interaction score and, when `-ai-confidence` is active, the confidence percentage directly in the `message.text` by default. An operator reviewing findings in GitHub sees the score immediately in the annotation without needing to download and inspect the raw SARIF JSON.
+
+**For SARIF viewers that do surface the `properties` bag** (custom tooling, enterprise SAST dashboards, etc.), the scores would appear twice — once in the message and once in the structured properties. In that case, pass `-sarif-omit-scores` to suppress the inline embedding and keep the message clean. See [`-sarif-omit-scores`](cli-reference.md#-sarif-omit-scores) for details.
+
+#### Message examples
+
+**Security-relevant method** (`security/<tag>` or `security-test`) — states the AI's suggested `@DisplayName` and `@Tag` values, the reasoning, and the interaction score. When `-ai-confidence` is active the confidence percentage follows. When the score is ≥ 0.8 an additional sentence points to the `security-test/placebo` finding.
+
+Default (no `-ai-confidence`):
+```
+AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score: 0.12.
+```
+
+With `-ai-confidence` and a low interaction score:
+```
+AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score: 0.12. Confidence: 88%.
+```
+
+With `-ai-confidence` and a high interaction score (≥ 0.8):
+```
+AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score: 0.90. Confidence: 88%. Assertions primarily verify method calls, not actual outcomes. See the security-test/placebo finding for remediation guidance.
+```
+
+With `-sarif-omit-scores` (scores suppressed from message):
+```
+AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401.
+```
+
+**`security-test/placebo`** — a separate result emitted alongside the primary security finding when `ai_interaction_score >= 0.8`. The message always states the actual score and the threshold it was compared against, because those values are the core content of this finding, not supplementary context. The interaction score is never suppressed from this message even when `-sarif-omit-scores` is active.
+
+```
+Interaction score: 0.90 (threshold: 0.8). This security test only verifies that methods were called, not what values they returned or what state they produced. Tests that do not assert outcomes cannot catch regressions in security-critical logic. Add assertions on return values, thrown exceptions, or observable state changes.
+```
+
+**`annotation/empty-display-name`** — names the class and method, explains the audit impact, and states the corrective action:
+```
+@DisplayName("") on com.acme.util.HelperTest.testHelper is explicitly empty — the test will appear unnamed in CI reports and audit evidence packages. Replace with a meaningful description, e.g. @DisplayName("Verifies that ...").
+```
 
 ### Rule IDs
 
@@ -244,6 +279,8 @@ AI enrichment fields are stored in the result `properties` object when AI is ena
 | `aiConfidence` | Confidence score `0.0–1.0`, or omitted when `-ai-confidence` was not passed |
 
 Properties with `null` or absent values are omitted from the JSON output entirely.
+
+The `properties` bag is the machine-readable counterpart of the result message. It exposes every AI-enrichment field in a structured form suitable for API queries, custom dashboards, and policy automation. Whether a given SARIF viewer surfaces this bag in its UI is tool-dependent. See [Result messages — Why scores appear in the message text by default](#why-scores-appear-in-the-message-text-by-default) for an explanation of how MethodAtlas handles this difference and how to control it.
 
 ### Example output
 

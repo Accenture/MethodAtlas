@@ -42,12 +42,13 @@ import org.egothor.methodatlas.ai.AiProvider;
 @SuppressWarnings("PMD.CyclomaticComplexity")
 final class CliArgs {
 
-    private static final String DEFAULT_FILE_SUFFIX = "Test.java";
+    private static final String DEFAULT_FILE_SUFFIX = "java:Test.java";
     private static final String FLAG_CONFIG = "-config";
     private static final String FLAG_AI_CACHE = "-ai-cache";
     private static final String FLAG_DRIFT_DETECT = "-drift-detect";
     private static final String FLAG_EMIT_SOURCE_ROOT = "-emit-source-root";
     private static final String FLAG_INCLUDE_NON_SECURITY = "-include-non-security";
+    private static final String FLAG_SARIF_OMIT_SCORES = "-sarif-omit-scores";
     private static final String FLAG_APPLY_TAGS_FROM_CSV = "-apply-tags-from-csv";
     private static final String FLAG_MISMATCH_LIMIT = "-mismatch-limit";
 
@@ -118,6 +119,7 @@ final class CliArgs {
                 ? Paths.get(yamlConfig.overrideFile) : null;
         boolean securityOnly = yamlConfig != null && yamlConfig.securityOnly;
         boolean includeNonSecurity = yamlConfig != null && yamlConfig.includeNonSecurity;
+        boolean sarifOmitScores = yamlConfig != null && yamlConfig.sarifOmitScores;
         boolean driftDetect = yamlConfig != null && yamlConfig.driftDetect;
         boolean emitSourceRoot = false;
         Path aiCacheFile = null;
@@ -174,6 +176,7 @@ final class CliArgs {
                 case "-emit-metadata" -> emitMetadata = true;
                 case "-security-only" -> securityOnly = true;
                 case FLAG_INCLUDE_NON_SECURITY -> includeNonSecurity = true;
+                case FLAG_SARIF_OMIT_SCORES -> sarifOmitScores = true;
                 case FLAG_DRIFT_DETECT -> driftDetect = true;
                 case FLAG_EMIT_SOURCE_ROOT -> emitSourceRoot = true;
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
@@ -216,7 +219,8 @@ final class CliArgs {
         Set<String> resolvedMarkers = testMarkers.isEmpty() ? Set.of() : testMarkers;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedMarkers,
                 Map.copyOf(properties), emitMetadata, manualMode, applyTags, contentHash, overrideFilePath,
-                securityOnly, aiCacheFile, driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot);
+                securityOnly, aiCacheFile, driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot,
+                sarifOmitScores);
     }
 
     // -------------------------------------------------------------------------

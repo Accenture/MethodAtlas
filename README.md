@@ -2,7 +2,7 @@
 
 <img src="MethodAtlas.png" width="20%" align="right" alt="MethodAtlas logo" />
 
-MethodAtlas is a CLI tool that scans test source trees for test methods and emits one structured record per discovered method — with optional AI-assisted security classification. Java (JUnit 5, JUnit 4, TestNG) and C# (.NET — xUnit, NUnit, MSTest) are supported out of the box; additional languages can be added as plugins.
+MethodAtlas is a CLI tool that scans test source trees for test methods and emits one structured record per discovered method — with optional AI-assisted security classification. Java (JUnit 5, JUnit 4, TestNG), C# (.NET — xUnit, NUnit, MSTest), and TypeScript/JavaScript (Jest, Vitest, Mocha) are supported out of the box; additional languages can be added as plugins.
 
 It is built for teams that must demonstrate test coverage of security properties to auditors, regulators, or security review boards: it separates **deterministic source analysis** from **optional AI interpretation** so that every result is traceable, repeatable, and defensible.
 
@@ -10,7 +10,7 @@ It is built for teams that must demonstrate test coverage of security properties
 
 Security-focused teams in regulated industries need more than a passing test suite. They need to demonstrate *which* tests cover *which* security controls, at a level of detail that satisfies external review.
 
-MethodAtlas addresses this by turning an existing test suite into a structured inventory with minimal setup. Java (JUnit 5, JUnit 4, TestNG) and C# (xUnit, NUnit, MSTest) are supported. The plugin architecture allows adding further languages without modifying the core tool.
+MethodAtlas addresses this by turning an existing test suite into a structured inventory with minimal setup. Java (JUnit 5, JUnit 4, TestNG), C# (xUnit, NUnit, MSTest), and TypeScript/JavaScript (Jest, Vitest, Mocha) are supported. The plugin architecture allows adding further languages without modifying the core tool.
 
 | Challenge | What MethodAtlas provides |
 | --- | --- |
@@ -81,13 +81,17 @@ See [docs/cli-reference.md](docs/cli-reference.md) for the complete option refer
 
 ## Supported languages and frameworks
 
-| Language | Plugin module | Test frameworks | Tag attribute | Display-name support |
-| --- | --- | --- | --- | --- |
-| Java | `methodatlas-discovery-jvm` | JUnit 5, JUnit 4, TestNG (auto-detected from imports) | `@Tag("value")` | `@DisplayName("text")` |
-| C# (.NET) | `methodatlas-discovery-dotnet` | xUnit, NUnit, MSTest (auto-detected from `using` directives) | `[Category]` / `[Trait]` / `[TestCategory]` | xUnit `DisplayName=` only |
+| Language | Plugin module | Test frameworks | Tag attribute | Display-name support | Requires |
+| --- | --- | --- | --- | --- | --- |
+| Java | `methodatlas-discovery-jvm` | JUnit 5, JUnit 4, TestNG (auto-detected from imports) | `@Tag("value")` | `@DisplayName("text")` | — |
+| C# (.NET) | `methodatlas-discovery-dotnet` | xUnit, NUnit, MSTest (auto-detected from `using` directives) | `[Category]` / `[Trait]` / `[TestCategory]` | xUnit `DisplayName=` only | — |
+| TypeScript / JavaScript | `methodatlas-discovery-typescript` | Jest, Vitest, Mocha (identified by function call names) | — | — | Node.js 18+ on PATH |
 
-Both plugins ship with the default distribution. Additional languages can be added by implementing
-`TestDiscovery` and `SourcePatcher` (in `methodatlas-api`) and dropping the JAR into the classpath.
+All three plugins ship with the default distribution. The TypeScript plugin
+disables itself gracefully when Node.js is not on the PATH. Additional languages
+can be added by implementing `TestDiscovery` (in `methodatlas-api`), declaring a
+unique `pluginId()`, and dropping the JAR on the classpath — no changes to the
+core tool are required.
 
 ## What MethodAtlas reports
 
@@ -97,8 +101,8 @@ For each discovered test method, MethodAtlas emits one record.
 
 | Field | Present when | Description |
 | --- | --- | --- |
-| `fqcn` | Always | Fully qualified class name |
-| `method` | Always | Test method name |
+| `fqcn` | Always | Fully qualified class name (Java/C#); dot-separated relative file path without extension (TypeScript) |
+| `method` | Always | Test method name; for TypeScript includes describe-block hierarchy (e.g. `AuthService > should authenticate`) |
 | `loc` | Always | Inclusive line count of the method declaration |
 | `tags` | Always | Existing tag-annotation values (`@Tag` for Java; `[Category]`/`[Trait]`/`[TestCategory]` for C#) |
 | `source_root` | `-emit-source-root` | CWD-relative path of the scan root that produced the record; disambiguates records in multi-root or monorepo projects |

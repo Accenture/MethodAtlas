@@ -43,7 +43,10 @@
  *     comparison and AI result caching.</li>
  * </ul>
  *
- * @see org.egothor.methodatlas.discovery.jvm.JavaTestDiscovery
- * @see org.egothor.methodatlas.emit.OutputEmitter
+ * <p>
+ * Concrete implementations reside in sibling modules: {@code JavaTestDiscovery}
+ * in {@code methodatlas-discovery-jvm}, and the scanner core registers output
+ * emitters such as {@code OutputEmitter} via {@code methodatlas-core}.
+ * </p>
  */
 package org.egothor.methodatlas.api;

@@ -17,7 +17,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-sarif` | Emit SARIF 2.1.0 JSON instead of CSV; security-only filtering is applied automatically (see below) | CSV mode |
 | `-github-annotations` | Emit GitHub Actions `::notice`/`::warning` workflow commands for security-relevant methods; does not require a GitHub Advanced Security licence | CSV mode |
 | `-emit-metadata` | Prepend `# key: value` comment lines before the CSV header | Off |
-| `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated; first occurrence replaces the default | `Test.java` |
+| `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated; first occurrence replaces the default; prefix with `pluginId:` to target one plugin (e.g. `java:Test.java`) | `java:Test.java` |
 | `-test-marker <name>` | Treat methods carrying marker `name` as test methods; language-neutral: annotation simple names for Java/Kotlin, attribute names for C#; may be repeated; first occurrence replaces the default set; `-test-annotation` is accepted as a backward-compatible alias | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
 | `-property <key>=<value>` | Set a plugin-specific property; may be repeated; same key accumulates into a list; forwarded verbatim to each discovery plugin | — |
 | `-content-hash` | Append a SHA-256 fingerprint of each class source to every emitted record | Off |
@@ -26,6 +26,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-mismatch-limit <n>` | Used with `-apply-tags-from-csv`: abort without making any changes if the number of mismatches between the CSV and the current source tree reaches or exceeds `n`; `-1` means warn and proceed | `-1` |
 | `-security-only` | Suppress non-security methods from CSV and plain-text output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect; in SARIF mode this filter is already applied by default | Off |
 | `-include-non-security` | Opt-in to include all test methods in SARIF output, disabling the automatic security-only filter; has no effect in CSV or plain-text modes | Off |
+| `-sarif-omit-scores` | Opt-out: suppress the interaction score and confidence percentage from SARIF result message text; use this when the consuming system already renders the `properties` bag and the extra text is unwanted; scores are always embedded by default so they are visible in GitHub Code Scanning | Off |
 | `-drift-detect` | Append a `tag_ai_drift` column to CSV/plain output comparing the source-level `@Tag("security")` annotation against the AI security-relevance classification; values are `none`, `tag-only`, or `ai-only`; SARIF and GitHub Annotations always include drift when AI is enabled | Off |
 | `-emit-source-root` | Append a `source_root` column to CSV output (and a `SRCROOT=` token to plain-text output) identifying which scan root each record originated from; essential when the same FQCN can appear under multiple source trees | Off |
 | `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
@@ -72,13 +73,16 @@ emitMetadata: false
 contentHash: false         # append SHA-256 fingerprint column  (default: false)
 overrideFile: .methodatlas-overrides.yaml   # optional
 fileSuffixes:
-  - Test.java
-  - IT.java
+  - java:Test.java           # java plugin only (prefix optional — omit for single-language projects)
+  - dotnet:Test.cs           # dotnet plugin only
+  - typescript:.test.ts      # typescript plugin only
+  - typescript:.spec.ts      # typescript plugin only
+  - IT.java                  # global — every plugin receives this
 testMarkers:             # annotation/attribute names for Java/.NET; empty = auto-detect
   - Test                 # (renamed from testAnnotations: in 2.x — see Migration Guide)
   - ParameterizedTest
 properties:              # plugin-specific key/multi-value pairs (optional)
-  functionNames:         # example: test function names for a Jest/Mocha/Vitest plugin
+  functionNames:         # test function names for Jest/Mocha/Vitest (typescript plugin)
     - test
     - it
 ai:
@@ -97,6 +101,7 @@ ai:
   apiVersion: 2024-02-01   # Azure OpenAI REST API version (azure_openai only)
 driftDetect: false       # append tag_ai_drift column to CSV/plain output  (default: false)
 includeNonSecurity: false  # include non-security methods in SARIF output  (default: false)
+sarifOmitScores: false   # opt-out: omit scores from SARIF message text    (default: false)
 ```
 
 All fields are optional. Unknown fields are silently ignored. This makes it safe to add future fields to a shared configuration file without breaking older versions.
@@ -157,7 +162,41 @@ Filters which files are considered test classes. The flag may be repeated to mat
 ./methodatlas -file-suffix Test.java -file-suffix IT.java /path/to/tests
 ```
 
-The first occurrence replaces the built-in default (`Test.java`). Each subsequent occurrence adds an additional pattern.
+The first occurrence replaces the built-in default (`java:Test.java`). Each subsequent occurrence adds an additional pattern.
+
+#### Targeting a suffix at one plugin
+
+Prefix the value with a plugin ID and a colon (`:`) to deliver the suffix to
+**one specific plugin** and exclude it from all others:
+
+```bash
+# Mixed Java + C# project: each plugin gets only its own suffix
+./methodatlas \
+  -file-suffix java:Test.java \
+  -file-suffix dotnet:Test.cs \
+  src/
+```
+
+A value without a colon is **global** and is delivered to every loaded plugin —
+appropriate for single-language projects. The colon character was chosen as the
+separator because it cannot appear in a valid file name on Windows, macOS, or
+Linux.
+
+Built-in plugin IDs: `java` and `dotnet`. Third-party plugins declare their own
+ID via `TestDiscovery.pluginId()` / `SourcePatcher.pluginId()`.
+
+If no suffix — global or plugin-specific — reaches a plugin after routing, that
+plugin falls back to its built-in language default (`Test.java` for Java,
+`.cs` for .NET).
+
+In YAML:
+
+```yaml
+fileSuffixes:
+  - java:Test.java   # java plugin only
+  - dotnet:Test.cs   # dotnet plugin only
+  - IT.java          # global — both plugins receive this
+```
 
 ### `-test-marker <name>`
 
@@ -445,6 +484,8 @@ Enables AI enrichment. Without this flag, MethodAtlas behaves as a pure static s
 
 Instructs the model to include a confidence score for each classification. The score appears as `ai_confidence` in CSV output (or `AI_CONFIDENCE=` in plain mode). Scores range from `0.0` (not security-relevant) to `1.0` (explicitly and unambiguously tests a named security property). See [Confidence scoring](ai/confidence.md) for the full interpretation table.
 
+In SARIF output the confidence percentage is also embedded in the result message text (e.g. `Confidence: 88%.`) so it is visible in tooling such as GitHub Code Scanning that does not render the `properties` bag. See [`-sarif-omit-scores`](#-sarif-omit-scores) for an explanation of why this is the default and how to disable it when the consuming tool already surfaces the properties bag.
+
 ### AI interaction score
 
 When AI enrichment is enabled, every record carries an `ai_interaction_score` regardless of other flags. The score (0.0–1.0) answers: *what fraction of this test's assertions only verify that methods were called, rather than what they returned or produced?*
@@ -457,7 +498,75 @@ When AI enrichment is enabled, every record carries an `ai_interaction_score` re
 
 A score of `1.0` on a security-relevant test is a strong signal of a **placebo test**: CI passes, coverage tools see the lines as covered, but no output or state is ever verified. Standard tooling (JaCoCo, PIT, PMD, SpotBugs) cannot detect this because they do not distinguish semantically between `verify(mock).call()` and `assertEquals(expected, actual)`. The AI can because it reads the test body and understands what each assertion checks. See [Interaction Score](ai/interaction-score.md) for a full explanation and CI usage examples.
 
-In CSV output the column is named `ai_interaction_score` and appears immediately after `ai_reason` (before `ai_confidence` when that flag is enabled). In plain-text output it appears as `AI_INTERACTION_SCORE=`. In SARIF it is stored as `properties.aiInteractionScore`.
+In CSV output the column is named `ai_interaction_score` and appears immediately after `ai_reason` (before `ai_confidence` when that flag is enabled). In plain-text output it appears as `AI_INTERACTION_SCORE=`. In SARIF the value is stored in `properties.aiInteractionScore` and is also embedded in the result message text (e.g. `Interaction score: 0.90.`) so that operators using tooling such as GitHub Code Scanning — which does not render the `properties` bag — can see the value in the inline annotation. See [`-sarif-omit-scores`](#-sarif-omit-scores) for details and for how to suppress the inline embedding when it is not needed.
+
+### `-sarif-omit-scores`
+
+Controls whether the interaction score and confidence percentage are embedded in SARIF result message text. Understanding this flag requires a brief explanation of how SARIF viewers work.
+
+#### SARIF data channels
+
+Every SARIF result has two ways of carrying data to the operator:
+
+- **`message.text`** — a free-text annotation rendered by every SARIF-aware tool: GitHub Code Scanning, Azure DevOps, SonarQube, IDE plugins, and custom viewers alike.
+- **`properties` bag** — structured key/value metadata (interaction score, confidence, AI tags, etc.) attached to each result. This is always present in the JSON, but **whether a tool surfaces it in the UI is entirely tool-dependent**.
+
+**GitHub Code Scanning does not show the `properties` bag.** An operator who opens the Security tab sees only `message.text`. All structured properties are stored in GitHub's backend and accessible via API, but they are invisible during manual triage in the browser. A finding that says "interaction score ≥ 0.8" in the rule description but does not state the actual value in the message leaves the operator with no way to verify the score without downloading and inspecting the raw SARIF JSON.
+
+#### Default behaviour (scores embedded in message)
+
+By default, MethodAtlas embeds the interaction score and confidence percentage directly in `message.text` so the operator always has the concrete values at hand, regardless of which SARIF viewer they use.
+
+Example message (default, with `-ai-confidence`):
+```
+AI suggests: @DisplayName("SECURITY: auth - verify token expiry") @Tag("security") @Tag("auth").
+Reason: The test verifies that expired tokens are rejected before access is granted.
+Interaction score: 0.82. Confidence: 91%.
+Assertions primarily verify method calls, not actual outcomes.
+See the security-test/placebo finding for remediation guidance.
+```
+
+The same result in the `properties` bag:
+```json
+"properties": {
+  "aiInteractionScore": 0.82,
+  "aiConfidence": 0.91,
+  "aiSecurityRelevant": true,
+  "aiTags": "security;auth",
+  "aiReason": "The test verifies that expired tokens are rejected before access is granted."
+}
+```
+
+Both the message and the properties carry the score. On GitHub, the operator reads it from the message. On a tool that renders the properties, both are visible.
+
+#### Opt out: scores only in properties bag
+
+If the SARIF viewer used in your organisation already surfaces the `properties` bag natively, the scores in the message text are redundant. Pass `-sarif-omit-scores` to suppress the inline embedding and keep the message focused on the suggested annotations and reasoning.
+
+Example message with `-sarif-omit-scores`:
+```
+AI suggests: @DisplayName("SECURITY: auth - verify token expiry") @Tag("security") @Tag("auth").
+Reason: The test verifies that expired tokens are rejected before access is granted.
+```
+
+The `properties` bag is unchanged — the score and confidence are still stored there. Only the message text is shorter.
+
+```bash
+# Default: scores in both message text and properties bag (for GitHub and similar)
+./methodatlas -ai -ai-confidence -sarif src/test/java > findings.sarif
+
+# Opt out: scores only in properties bag (for tools that surface properties natively)
+./methodatlas -ai -ai-confidence -sarif -sarif-omit-scores src/test/java > findings.sarif
+```
+
+Equivalent YAML:
+```yaml
+sarifOmitScores: true
+```
+
+#### Exception: `security-test/placebo` finding
+
+The interaction score and threshold are always present in the `security-test/placebo` message regardless of this flag. The score and threshold *are* the finding — a placebo finding without them would not tell the operator what to investigate. Only the supplementary confidence line is gated by `-sarif-omit-scores`.
 
 ### `-ai-cache <file>`
 

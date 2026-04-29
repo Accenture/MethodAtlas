@@ -1,5 +1,6 @@
 package org.egothor.methodatlas.api;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -22,9 +23,9 @@ import java.util.stream.Stream;
  * </p>
  * <ul>
  * <li>{@code discovery.jvm} — Java source files with JUnit, TestNG, …</li>
- * <li>{@code discovery.dotnet} — (future) C# source files with xUnit, NUnit, …</li>
- * <li>{@code discovery.typescript} — (future) TypeScript/JavaScript source
- *     files with Jest, Vitest, Mocha, …</li>
+ * <li>{@code discovery.dotnet} — C# source files with xUnit, NUnit, MSTest</li>
+ * <li>{@code discovery.typescript} — TypeScript/JavaScript source files with
+ *     Jest, Vitest, Mocha, …</li>
  * </ul>
  *
  * <p>
@@ -60,10 +61,20 @@ import java.util.stream.Stream;
  * {@link IOException}.
  * </p>
  *
+ * <h2>Resource management</h2>
+ *
+ * <p>
+ * Implementations that hold long-lived resources (for example a pool of
+ * sub-processes) should override {@link #close} to release those resources.
+ * The orchestration layer closes every loaded provider when the scan run
+ * finishes.  Implementations that hold no external resources may leave the
+ * default no-op {@code close} implementation in place.
+ * </p>
+ *
  * @see DiscoveredMethod
  * @see TestDiscoveryConfig
  */
-public interface TestDiscovery {
+public interface TestDiscovery extends Closeable {
 
     /**
      * Returns the unique identifier of this discovery provider.
@@ -136,4 +147,28 @@ public interface TestDiscovery {
      * @return {@code true} when any file could not be processed
      */
     boolean hadErrors();
+
+    /**
+     * Releases any resources held by this provider.
+     *
+     * <p>
+     * The default implementation is a no-op and is suitable for stateless
+     * providers that hold no external resources. Implementations that manage
+     * long-lived resources (e.g. a pool of sub-processes) must override this
+     * method to shut down those resources cleanly.
+     * </p>
+     *
+     * <p>
+     * The orchestration layer calls this method once after the last
+     * {@link #discover} call has completed.  Providers that register JVM
+     * shutdown hooks as a backstop should remove those hooks here to avoid
+     * spurious execution after an explicit {@code close()}.
+     * </p>
+     *
+     * @throws IOException if releasing a resource fails
+     */
+    @Override
+    default void close() throws IOException {
+        // default: no-op — providers that hold no long-lived resources omit this
+    }
 }

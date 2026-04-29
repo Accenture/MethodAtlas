@@ -1,0 +1,208 @@
+plugins {
+    id 'java-library'
+    id 'pmd'
+    id 'net.ltgt.errorprone' version '4.1.0'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+pmd {
+    consoleOutput = true
+    toolVersion = '7.20.0'
+    sourceSets = [sourceSets.main]
+    ruleSetFiles = files(rootProject.file(".ruleset"))
+}
+
+tasks.withType(Pmd) {
+    maxHeapSize = "512m"
+    reports {
+        html.required = true
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    mockitoAgent
+}
+
+dependencies {
+    api    project(':methodatlas-api')
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
+
+    testImplementation(platform("org.junit:junit-bom:5.14.2"))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core:5.22.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.22.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    mockitoAgent('org.mockito:mockito-core:5.22.0') { transitive = false }
+
+    errorprone 'com.google.errorprone:error_prone_core:2.36.0'
+}
+
+tasks.named('compileJava') {
+    options.errorprone.enabled = true
+}
+tasks.named('compileTestJava') {
+    options.errorprone.enabled = false
+    options.release = JavaVersion.current().majorVersion.toInteger()
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
+}
+
+// ---------------------------------------------------------------------------
+// Node.js bundle build
+// ---------------------------------------------------------------------------
+// The scanner bundle is built at compile time with esbuild, producing a single
+// self-contained JS file with zero runtime npm dependencies.  This file is
+// embedded in the JAR under the classpath root so that BundleIntegrity can
+// extract and verify it at runtime without any network access.
+//
+// Build prerequisites: Node.js 18+ and npm on the PATH.  When Node.js is
+// absent the bundleScanner task fails with an actionable message.
+//
+// Windows compatibility: npm and npx are invoked via their .cmd wrappers when
+// running on Windows.
+// ---------------------------------------------------------------------------
+
+def isWindows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+def npmCmd   = isWindows ? 'npm.cmd'  : 'npm'
+
+def bundleOutputDir = layout.buildDirectory.dir('node')
+def bundleFile      = layout.buildDirectory.file('node/ts-scanner.bundle.js')
+def hashFile        = layout.buildDirectory.file('node/ts-scanner.bundle.sha256')
+
+// Install npm dependencies declared in package.json.
+// Uses 'npm ci' when a lock file is present (reproducible), 'npm install' otherwise.
+tasks.register('npmInstall', Exec) {
+    def lockFile = file('package-lock.json')
+    if (lockFile.exists()) {
+        commandLine npmCmd, 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    } else {
+        commandLine npmCmd, 'install', '--ignore-scripts', '--no-audit', '--no-fund',
+                '--package-lock'
+    }
+    workingDir projectDir
+    inputs.file('package.json')
+    // Declare the lock file as an input only when it already exists; Gradle 8+ strict
+    // file-property validation rejects absent non-optional inputs even with .optional().
+    // On the very first build the lock file is absent, npm install creates it, and the
+    // next incremental build picks it up automatically.
+    if (file('package-lock.json').exists()) {
+        inputs.file('package-lock.json')
+    }
+    outputs.dir('node_modules')
+    // Avoid re-running when node_modules is already up-to-date.
+    outputs.upToDateWhen {
+        file('node_modules').exists() && file('node_modules/.package-lock.json').exists()
+    }
+    doFirst {
+        // Surface a clear error when Node.js is not on the PATH.
+        try {
+            new ProcessBuilder('node', '--version').start().waitFor()
+        } catch (IOException e) {
+            throw new GradleException(
+                "Node.js is required to build methodatlas-discovery-typescript but was not " +
+                "found on the PATH. Install Node.js 18 or later: https://nodejs.org/", e)
+        }
+    }
+}
+
+// Bundle ts-scanner.js and its @typescript-eslint/typescript-estree dependency
+// into a single self-contained file using esbuild.
+tasks.register('bundleScanner', Exec) {
+    dependsOn npmInstall
+    def esbuildBin = isWindows
+        ? file("node_modules/.bin/esbuild.cmd")
+        : file("node_modules/.bin/esbuild")
+    commandLine esbuildBin.absolutePath,
+        'src/main/node/ts-scanner.js',
+        '--bundle',
+        '--platform=node',
+        '--target=node18',
+        "--outfile=${bundleFile.get().asFile.absolutePath}",
+        '--minify'
+    workingDir projectDir
+    inputs.file('src/main/node/ts-scanner.js')
+    inputs.dir('node_modules').withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.file(bundleFile)
+    doFirst {
+        bundleOutputDir.get().asFile.mkdirs()
+    }
+}
+
+// Compute the SHA-256 of the bundle and write it to a sidecar file.
+// The value is read back by the jar task to populate the manifest attribute.
+tasks.register('computeBundleHash') {
+    dependsOn bundleScanner
+    inputs.file(bundleFile)
+    outputs.file(hashFile)
+    doLast {
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        def bytes  = bundleFile.get().asFile.bytes
+        def hash   = digest.digest(bytes).collect { String.format('%02x', it & 0xff) }.join('')
+        hashFile.get().asFile.text = hash
+        logger.lifecycle("TypeScript scanner bundle SHA-256: {}", hash)
+    }
+}
+
+// Copy the bundle into src/main/resources so processResources picks it up.
+tasks.register('copyBundleToResources', Copy) {
+    dependsOn bundleScanner
+    from bundleFile
+    into layout.buildDirectory.dir('generated-resources/main')
+    rename { 'ts-scanner.bundle.js' }
+}
+
+// Wire the generated resource into the Java source set.
+sourceSets.main.resources.srcDir(layout.buildDirectory.dir('generated-resources/main'))
+
+// Ensure the bundle is available before processResources runs.
+processResources.dependsOn copyBundleToResources
+
+// Inject the bundle version and SHA-256 into the JAR manifest.
+jar {
+    dependsOn computeBundleHash
+    manifest {
+        attributes(
+            'TS-Scanner-Bundle-Version': rootProject.version.toString(),
+            'TS-Scanner-Bundle-SHA256' : providers.fileContents(hashFile).asText
+                    .map { it.trim() }
+                    .orElse('').get()
+        )
+    }
+}
+
+// Make compileJava wait for the bundle so the IDE gets a consistent classpath.
+compileJava.dependsOn copyBundleToResources
+
+// ---------------------------------------------------------------------------
+// Javadoc
+// ---------------------------------------------------------------------------
+javadoc {
+    failOnError = true
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    options.addBooleanOption('html5', true)
+    options.tags('apiNote:a:API Note:')
+    options.tags('implSpec:a:Implementation Requirements:')
+    options.tags('implNote:a:Implementation Note:')
+    options.tags('param')
+    options.tags('return')
+    options.tags('throws')
+    options.tags('since')
+    options.tags('version')
+    options.tags('see')
+}
+
+// Publish Javadoc as part of the standard build so plugin documentation is
+// generated and archived alongside the plugin JAR.
+build.dependsOn javadoc

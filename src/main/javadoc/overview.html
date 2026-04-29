@@ -4,19 +4,20 @@
 <body>
 
 <p>
-  <b>MethodAtlas</b> is a command-line tool and library for scanning Java test
-  source trees, extracting structured metadata about JUnit&nbsp;5 test methods,
-  and optionally enriching that metadata with AI-generated security
-  classification suggestions.
+  <b>MethodAtlas</b> is a command-line tool and library for scanning test source
+  trees, extracting structured metadata about test methods, and optionally
+  enriching that metadata with AI-generated security classification suggestions.
+  Supported languages include Java (JUnit&nbsp;4/5, TestNG) and C#
+  (xUnit, NUnit, MSTest) via a plugin architecture.
 </p>
 
 <p>
   The tool parses source files without compiling them, which allows it to run
-  against any Java project regardless of build setup.  For each discovered test
+  against any project regardless of build setup.  For each discovered test
   method it reports the fully qualified class name, method name, inclusive line
-  count, and any JUnit {@code @Tag} values already present in the source.  When
+  count, and any tag or annotation values already present in the source.  When
   AI enrichment is enabled, it also produces suggested security tags, a
-  human-readable {@code @DisplayName}, an explanatory rationale, and an optional
+  human-readable display name, an explanatory rationale, and an optional
   confidence score.
 </p>
 
@@ -24,10 +25,9 @@
 
 <ul>
   <li>
-    <b>Source-level test inventory</b> &mdash; discovers
-    {@code @Test}, {@code @ParameterizedTest}, {@code @RepeatedTest},
-    {@code @TestFactory}, and {@code @TestTemplate} methods without symbol
-    resolution or compilation.
+    <b>Source-level test inventory</b> &mdash; discovers test methods in Java
+    (JUnit&nbsp;4/5, TestNG) and C# (xUnit, NUnit, MSTest) without symbol
+    resolution or compilation, using a plugin-based discovery architecture.
   </li>
   <li>
     <b>Multiple output formats</b> &mdash; CSV (default), plain text, and
@@ -68,8 +68,7 @@
     Core application layer.  Contains the main entry point
     ({@link org.egothor.methodatlas.MethodAtlasApp}), command-line argument
     parsing ({@link org.egothor.methodatlas.CliArgs},
-    {@link org.egothor.methodatlas.CliConfig}), source write-back
-    ({@link org.egothor.methodatlas.TagApplier}), and cross-cutting value
+    {@link org.egothor.methodatlas.CliConfig}), and cross-cutting value
     types ({@link org.egothor.methodatlas.OutputMode},
     {@link org.egothor.methodatlas.TagAiDrift},
     {@link org.egothor.methodatlas.DeltaEntry},
@@ -78,21 +77,32 @@
 
   <dt>{@link org.egothor.methodatlas.api}</dt>
   <dd>
-    Platform-neutral API contracts.  Defines the input side
+    Platform-neutral API contracts.  Defines the discovery SPI
     ({@link org.egothor.methodatlas.api.TestDiscovery},
+    {@link org.egothor.methodatlas.api.TestDiscoveryConfig},
     {@link org.egothor.methodatlas.api.DiscoveredMethod},
-    {@link org.egothor.methodatlas.api.SourceContent}) and the output side
-    ({@link org.egothor.methodatlas.api.TestMethodSink},
-    {@link org.egothor.methodatlas.api.ScanRecord}).
+    {@link org.egothor.methodatlas.api.SourceContent},
+    {@link org.egothor.methodatlas.api.SourcePatcher}) and the scan record
+    ({@link org.egothor.methodatlas.api.ScanRecord}).
   </dd>
 
-  <dt>{@link org.egothor.methodatlas.discovery.jvm}</dt>
+  <dt>{@code org.egothor.methodatlas.discovery.jvm}</dt>
   <dd>
-    Java/JVM test discovery implementation.  Walks source trees with
-    JavaParser and emits {@link org.egothor.methodatlas.api.DiscoveredMethod}
-    records ({@link org.egothor.methodatlas.discovery.jvm.JavaTestDiscovery});
-    annotation inspection utilities are in
-    {@link org.egothor.methodatlas.discovery.jvm.AnnotationInspector}.
+    Java/JVM test discovery implementation (module
+    {@code methodatlas-discovery-jvm}).  Walks source trees with JavaParser and
+    emits {@link org.egothor.methodatlas.api.DiscoveredMethod} records
+    ({@code JavaTestDiscovery}); annotation inspection utilities are in
+    {@code AnnotationInspector}.  Supports JUnit&nbsp;4/5 and TestNG via
+    automatic framework detection.
+  </dd>
+
+  <dt>{@code org.egothor.methodatlas.discovery.dotnet}</dt>
+  <dd>
+    C#/.NET test discovery implementation (module
+    {@code methodatlas-discovery-dotnet}).  Parses {@code .cs} source files
+    with an ANTLR-based grammar and detects test attributes for xUnit, NUnit,
+    and MSTest ({@code DotNetTestDiscovery}).  Also provides source write-back
+    via {@code DotNetSourcePatcher}.
   </dd>
 
   <dt>{@link org.egothor.methodatlas.emit}</dt>

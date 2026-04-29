@@ -144,7 +144,21 @@ class SarifEmitterTest {
     }
 
     @Test
-    @DisplayName("security method with high interaction score warns about placebo in message")
+    @DisplayName("security method message always contains the interaction score value")
+    @Tag("positive")
+    void flush_securityMethodMessage_alwaysIncludesInteractionScore() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("auth"), "Verifies login.", 0.9, 0.35);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertTrue(messageText.contains("Interaction score: 0.35"),
+                "message should always include the interaction score, got: " + messageText);
+    }
+
+    @Test
+    @DisplayName("security method with high interaction score includes placebo warning in message")
     @Tag("positive")
     void flush_securityMethodMessage_highInteractionScore_includesPlaceboWarning() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
@@ -153,10 +167,114 @@ class SarifEmitterTest {
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
-        assertTrue(messageText.contains("Interaction score 0.9"),
-                "message should warn about high interaction score");
-        assertTrue(messageText.contains("only method calls"),
-                "message should explain what the score means");
+        assertTrue(messageText.contains("Interaction score: 0.90"),
+                "message should include the interaction score value, got: " + messageText);
+        assertTrue(messageText.contains("method calls"),
+                "message should explain what a high score means, got: " + messageText);
+    }
+
+    @Test
+    @DisplayName("security method message includes confidence when confidenceEnabled is true")
+    @Tag("positive")
+    void flush_securityMethodMessage_includesConfidence_whenEnabled() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("auth"), "Verifies login.", 0.85, 0.2);
+        SarifEmitter emitter = new SarifEmitter(true, true, ""); // confidenceEnabled=true
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertTrue(messageText.contains("Confidence: 85%"),
+                "message should include the confidence percentage, got: " + messageText);
+    }
+
+    @Test
+    @DisplayName("security method message omits confidence when confidenceEnabled is false")
+    @Tag("positive")
+    void flush_securityMethodMessage_omitsConfidence_whenDisabled() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("auth"), "Verifies login.", 0.85, 0.2);
+        SarifEmitter emitter = new SarifEmitter(true, false, ""); // confidenceEnabled=false
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertFalse(messageText.contains("Confidence:"),
+                "message should not include confidence when disabled, got: " + messageText);
+    }
+
+    @Test
+    @DisplayName("scoresInMessage=false suppresses interaction score from security finding message")
+    @Tag("positive")
+    void flush_securityMethodMessage_scoresOmitted_whenScoresInMessageFalse() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("auth"), "Verifies login.", 0.9, 0.55);
+        SarifEmitter emitter = new SarifEmitter(true, false, "", false); // scoresInMessage=false
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertFalse(messageText.contains("Interaction score:"),
+                "interaction score should be absent when scoresInMessage=false, got: " + messageText);
+        assertFalse(messageText.contains("method calls"),
+                "placebo warning should also be absent when scoresInMessage=false, got: " + messageText);
+        assertTrue(messageText.contains("SECURITY: auth"),
+                "display name should still be present, got: " + messageText);
+    }
+
+    @Test
+    @DisplayName("scoresInMessage=false suppresses confidence from security finding message")
+    @Tag("positive")
+    void flush_securityMethodMessage_confidenceOmitted_whenScoresInMessageFalse() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "SECURITY: auth", List.of("auth"), "Verifies login.", 0.9, 0.2);
+        SarifEmitter emitter = new SarifEmitter(true, true, "", false); // confidenceEnabled=true, scoresInMessage=false
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
+
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        assertFalse(messageText.contains("Confidence:"),
+                "confidence should be absent when scoresInMessage=false, got: " + messageText);
+    }
+
+    @Test
+    @DisplayName("scoresInMessage=false: placebo message still contains interaction score (core finding content)")
+    @Tag("positive")
+    void flush_placeboMessage_scoreAlwaysPresent_evenWhenScoresInMessageFalse() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("auth"), "Tests auth", 0.85, 0.9);
+        SarifEmitter emitter = new SarifEmitter(true, false, "", false); // scoresInMessage=false
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode placeboResult = null;
+        for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
+            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+                placeboResult = r;
+            }
+        }
+        assertNotNull(placeboResult, "placebo result should still be present");
+        String messageText = placeboResult.path("message").path("text").asText();
+        assertTrue(messageText.contains("Interaction score: 0.90"),
+                "placebo message must always contain the score (it is the core content), got: " + messageText);
+        assertTrue(messageText.contains("threshold: 0.8"),
+                "placebo message must always contain the threshold, got: " + messageText);
+    }
+
+    @Test
+    @DisplayName("scoresInMessage=false: placebo message omits confidence even when confidenceEnabled")
+    @Tag("positive")
+    void flush_placeboMessage_confidenceOmitted_whenScoresInMessageFalse() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("auth"), "Tests auth", 0.85, 0.9);
+        SarifEmitter emitter = new SarifEmitter(true, true, "", false); // confidenceEnabled=true, scoresInMessage=false
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode placeboResult = null;
+        for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
+            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+                placeboResult = r;
+            }
+        }
+        assertNotNull(placeboResult, "placebo result should be present");
+        String messageText = placeboResult.path("message").path("text").asText();
+        assertFalse(messageText.contains("Confidence:"),
+                "confidence should be absent from placebo message when scoresInMessage=false, got: " + messageText);
     }
 
     @Test
@@ -856,9 +974,9 @@ class SarifEmitterTest {
     }
 
     @Test
-    @DisplayName("security-test/placebo result message contains interaction score value")
+    @DisplayName("security-test/placebo result message contains interaction score and threshold")
     @Tag("positive")
-    void flush_placeboResult_messageContainsInteractionScore() throws Exception {
+    void flush_placeboResult_messageContainsInteractionScoreAndThreshold() throws Exception {
         AiMethodSuggestion suggestion = new AiMethodSuggestion(
                 "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.85, 0.9);
         SarifEmitter emitter = new SarifEmitter(true, false, "");
@@ -872,7 +990,31 @@ class SarifEmitterTest {
         }
         assertNotNull(placeboResult, "placebo result should be present");
         String messageText = placeboResult.path("message").path("text").asText();
-        assertTrue(messageText.contains("0.9"), "message should contain the interaction score");
+        assertTrue(messageText.contains("Interaction score: 0.90"),
+                "message should contain the exact interaction score, got: " + messageText);
+        assertTrue(messageText.contains("threshold: 0.8"),
+                "message should state the threshold used, got: " + messageText);
+    }
+
+    @Test
+    @DisplayName("security-test/placebo result message includes confidence when confidenceEnabled is true")
+    @Tag("positive")
+    void flush_placeboResult_messageIncludesConfidence_whenEnabled() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testAuth", true, "SECURITY: auth", List.of("security", "auth"), "Tests auth", 0.85, 0.9);
+        SarifEmitter emitter = new SarifEmitter(true, true, ""); // confidenceEnabled=true
+        emitter.record("com.acme.AuthTest", "testAuth", 10, 6, null, List.of(), null, suggestion);
+
+        JsonNode placeboResult = null;
+        for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
+            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+                placeboResult = r;
+            }
+        }
+        assertNotNull(placeboResult, "placebo result should be present");
+        String messageText = placeboResult.path("message").path("text").asText();
+        assertTrue(messageText.contains("Confidence: 85%"),
+                "placebo message should include confidence when enabled, got: " + messageText);
     }
 
     @Test

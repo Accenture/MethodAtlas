@@ -119,9 +119,11 @@
  *     {@link org.egothor.methodatlas.api.DiscoveredMethod},
  *     {@link org.egothor.methodatlas.api.ScanRecord}</li>
  * <li>{@code org.egothor.methodatlas.discovery.jvm} — Java/JVM test discovery
- *     implementation:
- *     {@link org.egothor.methodatlas.discovery.jvm.JavaTestDiscovery},
- *     {@link org.egothor.methodatlas.discovery.jvm.JavaSourcePatcher}</li>
+ *     implementation (shipped in the {@code methodatlas-discovery-jvm} module):
+ *     {@code JavaTestDiscovery}, {@code JavaSourcePatcher}</li>
+ * <li>{@code org.egothor.methodatlas.discovery.dotnet} — C#/.NET test discovery
+ *     implementation (shipped in the {@code methodatlas-discovery-dotnet} module):
+ *     {@code DotNetTestDiscovery}, {@code DotNetSourcePatcher}</li>
  * <li>{@code org.egothor.methodatlas.emit} — output emitters:
  *     {@link org.egothor.methodatlas.emit.OutputEmitter},
  *     {@link org.egothor.methodatlas.emit.SarifEmitter},
