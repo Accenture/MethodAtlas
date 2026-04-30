@@ -653,11 +653,14 @@ BOM : '﻿' -> skip ;
 // ── Identifier ────────────────────────────────────────────────────────
 
 /**
- * C# identifier, including verbatim identifiers (@keyword) and Unicode.
+ * C# identifier (ECMA-334 §6.4.3).
+ * Start : letter (L, Nl) or underscore.
+ * Continue: letter, decimal digit (Nd), connecting (Pc), combining (Mn, Mc),
+ *           or formatting (Cf) character.
+ * Verbatim form @keyword is also accepted.
  */
 IDENTIFIER
-    : [a-zA-Z_À-ÖØ-öø-˿Ͱ-ͽͿ-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-￿]
-      [a-zA-Z0-9_·̀-ͯ‿-⁀À-ÖØ-öø-˿Ͱ-ͽͿ-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-￿]*
+    : ( [\p{L}\p{Nl}] | '_' ) [\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]*
     | '@' [a-zA-Z_] [a-zA-Z0-9_]*
     ;
 
