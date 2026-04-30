@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // MethodAtlas core (AI engine, CLI plumbing, patchers)
+    implementation project(':')
+    implementation project(':methodatlas-api')
+
+    // Discovery providers needed at runtime via ServiceLoader
+    runtimeOnly project(':methodatlas-discovery-jvm')
+    runtimeOnly project(':methodatlas-discovery-dotnet')
+    runtimeOnly project(':methodatlas-discovery-typescript')
+
+    // FlatLaf — professional flat Look and Feel, Apache 2.0
+    implementation 'com.formdev:flatlaf:3.4'
+
+    // RSyntaxTextArea — syntax-highlighted editor widget, BSD 3-Clause
+    implementation 'com.fifesoft:rsyntaxtextarea:3.4.0'
+
+    // Jackson — settings serialisation (transitive via root, explicit for clarity)
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
+}
+
+application {
+    mainClass = 'org.egothor.methodatlas.gui.MethodAtlasGuiApp'
+    applicationName = 'MethodAtlasGUI'
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes(
+            'Main-Class': application.mainClass.get(),
+            'Implementation-Title': 'MethodAtlas GUI',
+            'Implementation-Version': rootProject.version
+        )
+    }
+}
+
+javadoc {
+    failOnError = true
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    options.addBooleanOption('html5', true)
+}

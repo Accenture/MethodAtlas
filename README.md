@@ -79,6 +79,41 @@ cd methodatlas-<version>/bin
 
 See [docs/cli-reference.md](docs/cli-reference.md) for the complete option reference.
 
+## Desktop GUI
+
+The `methodatlas-gui` module provides a professional Swing desktop application
+for interactive analysis and tag review. It is aimed at security engineers and
+auditors who need to review, override, and apply AI-suggested `@Tag` annotations
+without touching the command line.
+
+### Features
+
+- **Directory picker** — browse to any test source root; the last-used path is remembered
+- **Background analysis** — test discovery and AI enrichment run on a background thread; the UI remains responsive throughout
+- **Results tree** — methods are grouped by class; colour-coded status indicators show at a glance which methods need attention (orange `⚠`), are already tagged correctly (green `✓`), or have no AI data (grey `○`)
+- **Syntax-highlighted editor** — the source file for the selected method opens in an embedded RSyntaxTextArea editor with line numbers and code folding; supported languages: Java, C#, TypeScript, JavaScript
+- **Tag editor** — shows the method's current `@Tag` values alongside AI-suggested tags as interactive toggle chips; individual tags can be accepted or rejected before writing back to the source file
+- **Custom override** — enter comma-separated tags manually to complement or replace AI suggestions
+- **Apply to source** — calls the same `SourcePatcher` implementation used by the CLI; the editor reloads the file immediately to confirm the patch
+- **Settings dialog** — configure any of the ten supported AI providers (Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter, or AUTO) with API key, model name, base URL, timeout, and retry settings; theme selector (IntelliJ Light, Flat Dark, Flat Light, Darcula)
+
+### Build and run
+
+```bash
+# Build the GUI distribution
+./gradlew :methodatlas-gui:build
+
+# Run directly from Gradle
+./gradlew :methodatlas-gui:run
+
+# Or run the generated start script
+methodatlas-gui/build/install/MethodAtlasGUI/bin/MethodAtlasGUI
+```
+
+Settings are persisted to `%APPDATA%\MethodAtlasGUI\settings.json` on Windows and
+`$XDG_CONFIG_HOME/methodatlas-gui/settings.json` (or `~/.methodatlas-gui/settings.json`)
+on Linux and macOS.
+
 ## Supported languages and frameworks
 
 | Language | Plugin module | Test frameworks | Tag attribute | Display-name support | Requires |

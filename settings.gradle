@@ -8,3 +8,8 @@ include 'methodatlas-discovery-typescript'
 // Documentation PDF module — not part of the binary distribution.
 // Build on request: ./gradlew :methodatlas-docs:generatePdf
 include 'methodatlas-docs'
+
+// Desktop GUI application (Swing + FlatLaf + RSyntaxTextArea)
+// Build: ./gradlew :methodatlas-gui:build
+// Run:   ./gradlew :methodatlas-gui:run
+include 'methodatlas-gui'
