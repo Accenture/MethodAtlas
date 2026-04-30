@@ -35,6 +35,11 @@ jobs:
           build-scan-terms-of-service-url: "https://gradle.com/help/legal-terms-of-use"
           build-scan-terms-of-service-agree: "yes"
 
+      - name: Set up Node.js (required by TypeScript discovery plugin)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
       # -----------------------------------------------------------------------
       # Quality gate – explicit named steps so each check is visible in the log.
       # -----------------------------------------------------------------------

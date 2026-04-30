@@ -51,6 +51,11 @@ jobs:
           build-scan-terms-of-service-url: "https://gradle.com/help/legal-terms-of-use"
           build-scan-terms-of-service-agree: "yes"
 
+      - name: Set up Node.js (required by TypeScript discovery plugin)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
       # jacocoTestReport is a finalizer of the test task and runs automatically.
       - name: Run tests and generate JaCoCo report
         run: ./gradlew test
