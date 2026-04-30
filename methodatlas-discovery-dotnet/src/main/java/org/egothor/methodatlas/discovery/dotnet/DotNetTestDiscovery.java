@@ -54,6 +54,17 @@ import org.egothor.methodatlas.discovery.dotnet.parser.CSharpTestParser;
  * {@code [Theory(DisplayName = "text")]}. NUnit and MSTest do not have a
  * standard display-name attribute and return {@code null}.</p>
  *
+ * <h2>Parser scope</h2>
+ * <p>The {@code CSharpTest} grammar is structural: it covers namespaces, type
+ * declarations, method declarations, and attribute sections, treating method
+ * bodies as opaque balanced-brace content. It is not a full implementation of
+ * the C# language specification and may not handle every exotic syntax
+ * construct. When a parse error occurs, a {@code WARNING} is logged with the
+ * file path, line number, character position, and problem description; ANTLR4
+ * error recovery then continues so remaining test methods are still discovered.
+ * If you encounter a parse warning on valid source, please report it with the
+ * relevant code fragment — grammar fixes are localised and typically quick.</p>
+ *
  * <h2>ServiceLoader registration</h2>
  * <p>Registered via
  * {@code META-INF/services/org.egothor.methodatlas.api.TestDiscovery}.</p>

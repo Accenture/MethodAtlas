@@ -26,6 +26,17 @@
  * Framework detection is automatic from {@code using} directives.
  * </p>
  *
+ * <p>
+ * <strong>Parser scope:</strong> the grammar is structural and not a full
+ * implementation of the C# language specification. Exotic syntax constructs may
+ * not be recognised. When a parse error occurs a {@code WARNING} is logged with
+ * the file path, line number, character position, and problem description;
+ * ANTLR4 error recovery then continues so as many test methods as possible are
+ * still discovered. If you encounter a parse warning on valid source, please
+ * report it with the relevant code fragment — grammar fixes are localised and
+ * typically quick to deliver.
+ * </p>
+ *
  * <h2>ServiceLoader registration</h2>
  * <p>
  * Both {@link org.egothor.methodatlas.discovery.dotnet.DotNetTestDiscovery}

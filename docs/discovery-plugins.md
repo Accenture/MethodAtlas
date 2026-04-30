@@ -172,6 +172,24 @@ The `.NET` plugin also ships a `SourcePatcher`
 The .NET plugin does not currently use the `properties` map. Any keys present
 are silently ignored.
 
+### Parser scope
+
+The C# parser is built on a **structural ANTLR4 grammar** (`CSharpTest.g4`) that
+focuses on namespaces, type declarations, method declarations, and attribute
+sections. Method bodies are treated as opaque balanced-brace content. This covers
+the overwhelming majority of real-world test files, but the grammar is not a
+full implementation of the C# language specification and may not handle every
+exotic syntax construct.
+
+When the grammar cannot parse a construct it logs a `WARNING` that includes the
+**file path, line number, character position, and a description of the problem**.
+ANTLR4 error recovery then continues, so as many test methods as possible are
+still discovered from the remainder of the file.
+
+If you encounter a parse warning on a valid `.cs` file, please report it and
+include the relevant code fragment. Grammar improvements are localised and
+typically quick to deliver.
+
 ## TypeScript and JavaScript
 
 **Plugin class:** `org.egothor.methodatlas.discovery.typescript.TypeScriptTestDiscovery`
