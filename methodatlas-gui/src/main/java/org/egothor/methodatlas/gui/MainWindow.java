@@ -3,6 +3,7 @@ package org.egothor.methodatlas.gui;
 import org.egothor.methodatlas.gui.dialog.SettingsDialog;
 import org.egothor.methodatlas.gui.model.AnalysisModel;
 import org.egothor.methodatlas.gui.model.AppSettings;
+import org.egothor.methodatlas.gui.panel.ActivityPanel;
 import org.egothor.methodatlas.gui.panel.EditorPanel;
 import org.egothor.methodatlas.gui.panel.ScanPanel;
 import org.egothor.methodatlas.gui.panel.StatusBar;
@@ -29,6 +30,8 @@ import java.nio.file.Path;
  * │  Results     ├───────────────────────────────────────────┤
  * │  tree        │  Tag editor (AI chips + override + apply)  │
  * ├──────────────┴───────────────────────────────────────────┤
+ * │  Activity panel (hidden when idle, collapsible log)      │
+ * ├──────────────────────────────────────────────────────────┤
  * │  Status bar                                              │
  * └──────────────────────────────────────────────────────────┘
  * </pre>
@@ -57,9 +60,17 @@ public final class MainWindow extends JFrame {
     private final ScanPanel scanPanel;
     private final EditorPanel editorPanel;
     private final TagEditorPanel tagEditorPanel;
+    private final ActivityPanel activityPanel;
     private final StatusBar statusBar;
 
-    /** Creates and wires all components. */
+    /**
+     * Constructs the main window, loads persisted settings, builds all
+     * panels and the toolbar, and wires event listeners.
+     *
+     * <p>Must be called on the Swing Event Dispatch Thread.  The window is
+     * not yet visible after construction; call {@link #setVisible(boolean)
+     * setVisible(true)} to display it.</p>
+     */
     public MainWindow() {
         super("MethodAtlas");
 
@@ -76,6 +87,7 @@ public final class MainWindow extends JFrame {
         scanPanel = new ScanPanel(model);
         editorPanel = new EditorPanel(model);
         tagEditorPanel = new TagEditorPanel(model, settings, editorPanel);
+        activityPanel = new ActivityPanel(model);
         statusBar = new StatusBar(model);
 
         buildLayout();
@@ -88,9 +100,9 @@ public final class MainWindow extends JFrame {
     // ── Layout ────────────────────────────────────────────────────────────
 
     private void buildLayout() {
-        // Right pane: editor on top, tag editor on bottom
+        // Right pane: editor on top (80%), tag editor on bottom (20%)
         JSplitPane rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorPanel, tagEditorPanel);
-        rightSplit.setResizeWeight(0.65);
+        rightSplit.setResizeWeight(0.8);
         rightSplit.setBorder(null);
         int rsp = settings.getRightSplitPosition();
         if (rsp > 0) rightSplit.setDividerLocation(rsp);
@@ -107,9 +119,14 @@ public final class MainWindow extends JFrame {
         rightSplit.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY,
                 e -> settings.setRightSplitPosition((int) e.getNewValue()));
 
+        // South area: activity panel (collapsible, hides when idle) + status bar
+        JPanel southPanel = new JPanel(new BorderLayout());
+        southPanel.add(activityPanel, BorderLayout.NORTH);
+        southPanel.add(statusBar, BorderLayout.SOUTH);
+
         getContentPane().add(buildToolbar(), BorderLayout.NORTH);
         getContentPane().add(mainSplit, BorderLayout.CENTER);
-        getContentPane().add(statusBar, BorderLayout.SOUTH);
+        getContentPane().add(southPanel, BorderLayout.SOUTH);
     }
 
     private JPanel buildToolbar() {

@@ -243,8 +243,11 @@ public final class TagEditorPanel extends JPanel {
     }
 
     private void patch(MethodEntry entry, List<String> tags) {
+        List<String> flatSuffixes = new ArrayList<>();
+        settings.getPluginSuffixes().forEach((pluginId, masks) ->
+                masks.forEach(m -> flatSuffixes.add(pluginId + ":" + m)));
         TestDiscoveryConfig discoveryConfig = new TestDiscoveryConfig(
-                settings.getFileSuffixes(),
+                flatSuffixes,
                 Set.copyOf(settings.getTestAnnotations()),
                 Map.of());
 

@@ -46,6 +46,10 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
     /**
      * Creates a new AI suggestion engine using the supplied runtime options.
      *
+     * <p>Rate-limit events are silently discarded by this constructor.  Use
+     * {@link #AiSuggestionEngineImpl(AiOptions, RateLimitListener)} when the
+     * caller needs to be informed of HTTP&nbsp;429 pauses.</p>
+     *
      * <p>
      * During construction, the implementation resolves the effective provider
      * client and loads the taxonomy text that will be supplied to the AI provider
@@ -59,9 +63,36 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      *
      * @throws AiSuggestionException if provider initialization fails or if the
      *                               configured taxonomy cannot be loaded
+     * @see #AiSuggestionEngineImpl(AiOptions, RateLimitListener)
      */
     public AiSuggestionEngineImpl(AiOptions options) throws AiSuggestionException {
-        this.client = AiProviderFactory.create(options);
+        this(options, (w, a, m) -> {});
+    }
+
+    /**
+     * Creates a new AI suggestion engine that notifies
+     * {@code rateLimitListener} before each rate-limit sleep.
+     *
+     * <p>
+     * During construction, the implementation resolves the effective provider
+     * client and loads the taxonomy text that will be supplied to the AI provider
+     * for subsequent classification requests. The taxonomy is taken from an
+     * external file when configured; otherwise, the built-in taxonomy selected by
+     * {@link AiOptions#taxonomyMode()} is used.
+     * </p>
+     *
+     * @param options             AI runtime configuration controlling provider
+     *                            selection, taxonomy loading, and request behavior
+     * @param rateLimitListener   callback invoked before each HTTP&nbsp;429
+     *                            pause; must not be {@code null}
+     *
+     * @throws AiSuggestionException if provider initialization fails or if the
+     *                               configured taxonomy cannot be loaded
+     * @see RateLimitListener
+     */
+    public AiSuggestionEngineImpl(AiOptions options, RateLimitListener rateLimitListener)
+            throws AiSuggestionException {
+        this.client = AiProviderFactory.create(options, rateLimitListener);
         this.taxonomyText = loadTaxonomy(options);
     }
 

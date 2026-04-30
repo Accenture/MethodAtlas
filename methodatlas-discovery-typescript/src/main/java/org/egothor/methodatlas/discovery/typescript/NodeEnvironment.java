@@ -48,6 +48,13 @@ final class NodeEnvironment {
      */
     /* default */ static final int PERMISSION_MODEL_VERSION = 20;
 
+    /**
+     * Major version at which the permission model was promoted to stable and
+     * the flag was renamed from {@code --experimental-permission} to
+     * {@code --permission}.
+     */
+    /* default */ static final int PERMISSION_STABLE_VERSION = 22;
+
     private final boolean available;
     private final String versionString;
     private final int majorVersion;
@@ -114,19 +121,39 @@ final class NodeEnvironment {
     }
 
     /**
-     * Returns {@code true} when Node.js supports the
-     * {@code --experimental-permission} flag (Node.js 20 or later).
+     * Returns {@code true} when Node.js supports the permission model
+     * (Node.js 20 or later).
      *
      * <p>
-     * When this returns {@code true}, workers are started with
-     * {@code --experimental-permission --allow-fs-read=<root>} to restrict
-     * the worker process to reading only the directories being scanned.
+     * When this returns {@code true}, workers are started with a permission
+     * flag and {@code --allow-fs-read} arguments to restrict the worker
+     * process to reading only the directories being scanned.  The exact flag
+     * name is determined by {@link #permissionFlagName()}.
      * </p>
      *
      * @return {@code true} when file-system sandboxing is available
      */
     /* default */ boolean isPermissionModelSupported() {
         return permissionModelSupported;
+    }
+
+    /**
+     * Returns the correct Node.js permission flag for the detected version.
+     *
+     * <p>
+     * The flag was renamed from {@code --experimental-permission} (Node.js
+     * 20–21) to {@code --permission} (Node.js 22 and later) when the
+     * permission model was promoted to stable.  Using the wrong flag name
+     * causes Node.js to exit with an unrecognised-option error.
+     * </p>
+     *
+     * @return {@code "--permission"} for Node.js 22 or later;
+     *         {@code "--experimental-permission"} for Node.js 20–21
+     */
+    /* default */ String permissionFlagName() {
+        return majorVersion >= PERMISSION_STABLE_VERSION
+                ? "--permission"
+                : "--experimental-permission";
     }
 
     // -------------------------------------------------------------------------

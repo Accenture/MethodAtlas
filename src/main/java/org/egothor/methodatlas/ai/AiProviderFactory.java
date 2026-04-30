@@ -63,11 +63,15 @@ public final class AiProviderFactory {
      * Creates a provider-specific {@link AiProviderClient} based on the supplied
      * configuration.
      *
+     * <p>Rate-limit events are silently discarded.  Use
+     * {@link #create(AiOptions, RateLimitListener)} when the caller needs to
+     * be informed of HTTP&nbsp;429 pauses.</p>
+     *
      * <p>
      * The selected provider determines which concrete implementation is
      * instantiated and how availability checks are performed. When
      * {@link AiProvider#AUTO} is configured, the method delegates provider
-     * selection to {@link #auto(AiOptions)}.
+     * selection to {@link #auto(AiOptions, RateLimitListener)}.
      * </p>
      *
      * @param options AI configuration describing provider, model, endpoint,
@@ -77,19 +81,48 @@ public final class AiProviderFactory {
      * @throws AiSuggestionException if the provider cannot be initialized, required
      *                               authentication is missing, or no suitable
      *                               provider can be resolved
+     * @see #create(AiOptions, RateLimitListener)
      */
     public static AiProviderClient create(AiOptions options) throws AiSuggestionException {
+        return create(options, (w, a, m) -> {});
+    }
+
+    /**
+     * Creates a provider-specific {@link AiProviderClient} based on the supplied
+     * configuration, notifying {@code rateLimitListener} before each
+     * HTTP&nbsp;429 pause.
+     *
+     * <p>
+     * The selected provider determines which concrete implementation is
+     * instantiated and how availability checks are performed. When
+     * {@link AiProvider#AUTO} is configured, the method delegates provider
+     * selection to {@link #auto(AiOptions, RateLimitListener)}.
+     * </p>
+     *
+     * @param options             AI configuration describing provider, model,
+     *                            endpoint, authentication, and runtime limits
+     * @param rateLimitListener   callback invoked before each rate-limit sleep;
+     *                            must not be {@code null}
+     * @return initialized provider client ready to perform inference requests
+     *
+     * @throws AiSuggestionException if the provider cannot be initialized, required
+     *                               authentication is missing, or no suitable
+     *                               provider can be resolved
+     * @see RateLimitListener
+     */
+    public static AiProviderClient create(AiOptions options, RateLimitListener rateLimitListener)
+            throws AiSuggestionException {
         return switch (options.provider()) {
-            case OLLAMA -> new OllamaClient(options);
-            case OPENAI -> requireAvailable(new OpenAiCompatibleClient(options), "OpenAI API key missing");
-            case OPENROUTER -> requireAvailable(new OpenAiCompatibleClient(options), "OpenRouter API key missing");
-            case ANTHROPIC -> requireAvailable(new AnthropicClient(options), "Anthropic API key missing");
-            case AZURE_OPENAI -> requireAvailable(new AzureOpenAiClient(options), "Azure OpenAI API key missing");
-            case GROQ -> requireAvailable(new OpenAiCompatibleClient(options), "Groq API key missing");
-            case XAI -> requireAvailable(new OpenAiCompatibleClient(options), "xAI API key missing");
-            case GITHUB_MODELS -> requireAvailable(new OpenAiCompatibleClient(options), "GitHub token missing");
-            case MISTRAL -> requireAvailable(new OpenAiCompatibleClient(options), "Mistral API key missing");
-            case AUTO -> auto(options);
+            case OLLAMA -> new OllamaClient(options, rateLimitListener);
+            case OPENAI -> requireAvailable(new OpenAiCompatibleClient(options, rateLimitListener), "OpenAI API key missing");
+            case OPENROUTER -> requireAvailable(new OpenAiCompatibleClient(options, rateLimitListener), "OpenRouter API key missing");
+            case ANTHROPIC -> requireAvailable(new AnthropicClient(options, rateLimitListener), "Anthropic API key missing");
+            case AZURE_OPENAI -> requireAvailable(new AzureOpenAiClient(options, rateLimitListener), "Azure OpenAI API key missing");
+            case GROQ -> requireAvailable(new OpenAiCompatibleClient(options, rateLimitListener), "Groq API key missing");
+            case XAI -> requireAvailable(new OpenAiCompatibleClient(options, rateLimitListener), "xAI API key missing");
+            case GITHUB_MODELS -> requireAvailable(new OpenAiCompatibleClient(options, rateLimitListener), "GitHub token missing");
+            case MISTRAL -> requireAvailable(new OpenAiCompatibleClient(options, rateLimitListener), "Mistral API key missing");
+            case AUTO -> auto(options, rateLimitListener);
         };
     }
 
@@ -112,12 +145,16 @@ public final class AiProviderFactory {
      * <li>If neither provider can be used, throw an exception.</li>
      * </ol>
      *
-     * @param options AI configuration used to construct candidate providers
+     * @param options             AI configuration used to construct candidate
+     *                            providers
+     * @param rateLimitListener   callback threaded through to the resolved
+     *                            provider client; must not be {@code null}
      * @return resolved provider client
      *
      * @throws AiSuggestionException if no suitable provider can be discovered
      */
-    private static AiProviderClient auto(AiOptions options) throws AiSuggestionException {
+    private static AiProviderClient auto(AiOptions options, RateLimitListener rateLimitListener)
+            throws AiSuggestionException {
         AiOptions ollamaOptions = AiOptions.builder()
                 .enabled(options.enabled())
                 .provider(AiProvider.OLLAMA)
@@ -132,14 +169,14 @@ public final class AiProviderFactory {
                 .maxRetries(options.maxRetries())
                 .build();
 
-        OllamaClient ollamaClient = new OllamaClient(ollamaOptions);
+        OllamaClient ollamaClient = new OllamaClient(ollamaOptions, rateLimitListener);
         if (ollamaClient.isAvailable()) {
             return ollamaClient;
         }
 
         String apiKey = options.resolvedApiKey();
         if (apiKey != null && !apiKey.isBlank()) {
-            return new OpenAiCompatibleClient(options);
+            return new OpenAiCompatibleClient(options, rateLimitListener);
         }
 
         throw new AiSuggestionException(

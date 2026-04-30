@@ -64,18 +64,30 @@ public final class OllamaClient implements AiProviderClient {
     private final HttpSupport httpSupport;
 
     /**
-     * Creates a new Ollama client using the supplied runtime configuration.
+     * Creates a new Ollama client with no rate-limit notification.
      *
-     * <p>
-     * The configuration determines the base URL of the Ollama service, the model
-     * identifier, and request timeout values used by this client.
-     * </p>
+     * <p>Rate-limit pauses are handled transparently.  Use
+     * {@link #OllamaClient(AiOptions, RateLimitListener)} when callers need
+     * to be notified of such pauses.</p>
      *
      * @param options AI runtime configuration
      */
     public OllamaClient(AiOptions options) {
+        this(options, (w, a, m) -> {});
+    }
+
+    /**
+     * Creates a new Ollama client that notifies {@code rateLimitListener}
+     * before each rate-limit sleep.
+     *
+     * @param options             AI runtime configuration
+     * @param rateLimitListener   callback invoked before each HTTP&nbsp;429
+     *                            pause; must not be {@code null}
+     * @see RateLimitListener
+     */
+    public OllamaClient(AiOptions options, RateLimitListener rateLimitListener) {
         this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries());
+        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener);
     }
 
     /**

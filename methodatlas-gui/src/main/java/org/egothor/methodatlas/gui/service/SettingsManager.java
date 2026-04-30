@@ -11,13 +11,29 @@ import java.util.logging.Logger;
 
 /**
  * Loads and saves {@link AppSettings} to a JSON file in the user's
- * configuration directory.
+ * platform-specific configuration directory.
  *
- * <p>The file is written to
- * {@code $XDG_CONFIG_HOME/methodatlas-gui/settings.json} on Linux/macOS
- * and {@code %APPDATA%\MethodAtlasGUI\settings.json} on Windows.
- * When neither variable is set the file falls back to
- * {@code ~/.methodatlas-gui/settings.json}.</p>
+ * <h2>File location</h2>
+ * <p>The settings file path is resolved once at class-load time using the
+ * following priority order:</p>
+ * <ol>
+ *   <li>{@code %APPDATA%\MethodAtlasGUI\settings.json} — Windows, when
+ *       the {@code APPDATA} environment variable is set</li>
+ *   <li>{@code $XDG_CONFIG_HOME/methodatlas-gui/settings.json} — Linux /
+ *       macOS, when the {@code XDG_CONFIG_HOME} variable is set</li>
+ *   <li>{@code ~/.methodatlas-gui/settings.json} — fallback on all
+ *       platforms when neither variable is set</li>
+ * </ol>
+ * <p>The resolved path is exposed via {@link #getSettingsFile()} and is
+ * constant for the lifetime of the JVM.</p>
+ *
+ * <h2>Error handling</h2>
+ * <p>Both {@link #load()} and {@link #save(AppSettings)} log warnings and
+ * continue rather than propagating {@link IOException}.  A failed load
+ * returns factory-default settings; a failed save is silently dropped
+ * after logging.</p>
+ *
+ * @see AppSettings
  */
 public final class SettingsManager {
 
@@ -27,6 +43,19 @@ public final class SettingsManager {
     private static final Path SETTINGS_FILE = resolveSettingsPath();
 
     private SettingsManager() {}
+
+    /**
+     * Returns the path of the JSON file used by {@link #load()} and
+     * {@link #save(AppSettings)}.
+     *
+     * <p>The path is resolved once at class-load time according to the
+     * platform-specific rules described in the class-level documentation,
+     * and does not change for the lifetime of the JVM.  The file may or may
+     * not exist when this method is called.</p>
+     *
+     * @return absolute path to the settings file; never {@code null}
+     */
+    public static Path getSettingsFile() { return SETTINGS_FILE; }
 
     private static Path resolveSettingsPath() {
         String appData = System.getenv("APPDATA");
@@ -41,12 +70,14 @@ public final class SettingsManager {
     }
 
     /**
-     * Loads settings from disk.
+     * Loads application settings from the settings file.
      *
-     * <p>Returns default settings when the file does not exist or cannot
-     * be read.</p>
+     * <p>If the file does not exist, or if it cannot be parsed, this method
+     * logs a warning and returns a fresh {@link AppSettings} object
+     * initialised to all default values.</p>
      *
-     * @return loaded or default settings; never {@code null}
+     * @return application settings loaded from disk, or factory defaults on
+     *         any read or parse error; never {@code null}
      */
     public static AppSettings load() {
         if (Files.exists(SETTINGS_FILE)) {
@@ -60,9 +91,13 @@ public final class SettingsManager {
     }
 
     /**
-     * Persists settings to disk.
+     * Persists the given settings to the settings file.
      *
-     * @param settings settings to save
+     * <p>The parent directory is created if it does not yet exist.  If the
+     * write fails for any reason, a warning is logged and the method returns
+     * normally without propagating the exception.</p>
+     *
+     * @param settings settings object to serialise; must not be {@code null}
      */
     public static void save(AppSettings settings) {
         try {

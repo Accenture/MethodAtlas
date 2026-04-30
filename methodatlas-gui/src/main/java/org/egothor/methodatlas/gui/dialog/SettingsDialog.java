@@ -2,15 +2,21 @@ package org.egothor.methodatlas.gui.dialog;
 
 import org.egothor.methodatlas.ai.AiProvider;
 import org.egothor.methodatlas.gui.model.AppSettings;
+import org.egothor.methodatlas.gui.service.AnalysisService;
 import org.egothor.methodatlas.gui.service.SettingsManager;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Modal settings dialog covering AI provider configuration and UI preferences.
+ * Modal settings dialog covering AI provider configuration, plugin selection,
+ * and UI preferences.
  *
  * <p>Changes are written to the model and persisted via {@link SettingsManager}
  * only when the user confirms with the <em>Save</em> button.  Closing or
@@ -66,7 +72,7 @@ public final class SettingsDialog extends JDialog {
     @java.io.Serial
     private static final long serialVersionUID = 1L;
 
-    // ── Components ────────────────────────────────────────────────────────
+    // ── AI components ─────────────────────────────────────────────────────
 
     private final JCheckBox aiEnabledBox = new JCheckBox("Enable AI enrichment");
     private final JComboBox<String> providerCombo = new JComboBox<>(PROVIDER_NAMES);
@@ -77,14 +83,40 @@ public final class SettingsDialog extends JDialog {
     private final JSpinner timeoutSpinner = new JSpinner(new SpinnerNumberModel(90, 5, 600, 5));
     private final JSpinner retriesSpinner = new JSpinner(new SpinnerNumberModel(1, 0, 10, 1));
     private final JCheckBox confidenceBox = new JCheckBox("Request confidence scores");
+
+    // ── Plugin components ─────────────────────────────────────────────────
+
+    /** Maps plugin ID → enable/disable checkbox; populated at construction time. */
+    private final Map<String, JCheckBox> pluginBoxes = new LinkedHashMap<>();
+
+    /** Maps plugin ID → file-mask text field; populated at construction time. */
+    private final Map<String, JTextField> pluginSuffixFields = new LinkedHashMap<>();
+
+    // ── Appearance ────────────────────────────────────────────────────────
+
     private final JComboBox<String> themeCombo = new JComboBox<>(THEME_NAMES);
+
+    // ── State ─────────────────────────────────────────────────────────────
 
     private final AppSettings settings;
     private boolean confirmed = false;
 
     /**
-     * @param owner    parent frame
-     * @param settings settings to edit (modified in-place on Save)
+     * Constructs the settings dialog, populates all fields from the
+     * current settings, and centres the dialog over {@code owner}.
+     *
+     * <p>The dialog is modal.  Changes are applied to {@code settings} and
+     * persisted to disk only when the user clicks <em>Save</em>.  Clicking
+     * <em>Cancel</em> or closing the window leaves {@code settings}
+     * unchanged.  After {@code setVisible(true)} returns, check
+     * {@link #isConfirmed()} to determine which action the user took.</p>
+     *
+     * <p>Must be called on the Swing Event Dispatch Thread.</p>
+     *
+     * @param owner    parent frame used for modal blocking and positioning;
+     *                 must not be {@code null}
+     * @param settings settings object whose fields are pre-populated into
+     *                 the form and updated on save; must not be {@code null}
      */
     public SettingsDialog(Frame owner, AppSettings settings) {
         super(owner, "Settings — MethodAtlas", true);
@@ -94,33 +126,32 @@ public final class SettingsDialog extends JDialog {
         buildUi();
         populate();
         pack();
-        setMinimumSize(new Dimension(520, 0));
+        setMinimumSize(new Dimension(540, 0));
         setLocationRelativeTo(owner);
     }
 
     // ── Construction ──────────────────────────────────────────────────────
 
     private void buildUi() {
-        JPanel root = new JPanel(new BorderLayout(0, 8));
-        root.setBorder(new EmptyBorder(12, 12, 8, 12));
+        JPanel centre = new JPanel();
+        centre.setLayout(new BoxLayout(centre, BoxLayout.Y_AXIS));
+        centre.setBorder(new EmptyBorder(12, 12, 8, 12));
+        centre.add(buildAiSection());
+        centre.add(Box.createVerticalStrut(6));
+        centre.add(buildPluginsSection());
+        centre.add(Box.createVerticalStrut(6));
+        centre.add(buildThemeSection());
+        centre.add(Box.createVerticalStrut(6));
+        centre.add(buildConfigPathSection());
 
-        root.add(buildAiSection(), BorderLayout.CENTER);
-        root.add(buildThemeSection(), BorderLayout.SOUTH);
-
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
-        JButton saveBtn = new JButton("Save");
-        JButton cancelBtn = new JButton("Cancel");
-        saveBtn.addActionListener(e -> onSave());
-        cancelBtn.addActionListener(e -> dispose());
-        getRootPane().setDefaultButton(saveBtn);
-        buttons.add(cancelBtn);
-        buttons.add(saveBtn);
+        JPanel buttons = buildButtonRow();
 
         JPanel outer = new JPanel(new BorderLayout(0, 8));
-        outer.setBorder(new EmptyBorder(0, 0, 0, 0));
-        outer.add(root, BorderLayout.CENTER);
+        outer.setBorder(new EmptyBorder(0, 0, 12, 0));
+        outer.add(new JScrollPane(centre,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER), BorderLayout.CENTER);
         outer.add(buttons, BorderLayout.SOUTH);
-        outer.setBorder(new EmptyBorder(12, 12, 12, 12));
 
         setContentPane(outer);
 
@@ -129,7 +160,6 @@ public final class SettingsDialog extends JDialog {
             int idx = providerCombo.getSelectedIndex();
             if (idx >= 0 && idx < DEFAULT_MODELS.length) {
                 String current = modelField.getText().trim();
-                // Only auto-fill if field is blank or matches a known default
                 boolean isDefault = false;
                 for (String dm : DEFAULT_MODELS) {
                     if (dm.equals(current)) { isDefault = true; break; }
@@ -140,13 +170,13 @@ public final class SettingsDialog extends JDialog {
             }
         });
 
-        // Toggle AI controls based on checkbox
         aiEnabledBox.addActionListener(e -> updateAiControlsEnabled());
     }
 
     private JPanel buildAiSection() {
         JPanel panel = new JPanel(new BorderLayout(0, 4));
         panel.setBorder(titledBorder("AI Provider"));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         panel.add(aiEnabledBox, BorderLayout.NORTH);
 
@@ -171,16 +201,124 @@ public final class SettingsDialog extends JDialog {
         return panel;
     }
 
+    private JPanel buildPluginsSection() {
+        JPanel panel = new JPanel(new BorderLayout(0, 4));
+        panel.setBorder(titledBorder("Discovery Plugins"));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        List<String> available = AnalysisService.availablePluginIds();
+        if (available.isEmpty()) {
+            panel.add(new JLabel("  No discovery plugins detected on classpath."), BorderLayout.CENTER);
+            return panel;
+        }
+
+        JPanel grid = new JPanel(new GridBagLayout());
+
+        // Header
+        GridBagConstraints hc = new GridBagConstraints();
+        hc.gridy = 0; hc.anchor = GridBagConstraints.WEST;
+        hc.insets = new Insets(0, 2, 4, 8);
+        hc.gridx = 0; grid.add(new JLabel("Enable"), hc);
+        hc.gridx = 1; grid.add(new JLabel("Plugin"), hc);
+        hc.gridx = 2;
+        hc.insets = new Insets(0, 2, 4, 0);
+        hc.weightx = 1.0; hc.fill = GridBagConstraints.HORIZONTAL;
+        grid.add(new JLabel("File masks  (comma-separated; blank = plugin built-in default)"), hc);
+
+        GridBagConstraints checkC = new GridBagConstraints();
+        checkC.anchor = GridBagConstraints.CENTER;
+        checkC.insets = new Insets(1, 2, 1, 8);
+
+        GridBagConstraints idC = new GridBagConstraints();
+        idC.anchor = GridBagConstraints.WEST;
+        idC.insets = new Insets(1, 0, 1, 8);
+
+        GridBagConstraints fieldC = new GridBagConstraints();
+        fieldC.anchor = GridBagConstraints.WEST;
+        fieldC.fill = GridBagConstraints.HORIZONTAL;
+        fieldC.weightx = 1.0;
+        fieldC.insets = new Insets(1, 0, 1, 0);
+
+        int row = 1;
+        for (String id : available) {
+            JCheckBox box = new JCheckBox();
+            box.setToolTipText("Include plugin '" + id + "' in scans");
+            pluginBoxes.put(id, box);
+
+            JTextField suffixField = new JTextField(20);
+            suffixField.putClientProperty("JTextField.placeholderText", "plugin default");
+            suffixField.setToolTipText(
+                    "File masks for plugin '" + id + "' (comma-separated, e.g. Test.java, IT.java)");
+            pluginSuffixFields.put(id, suffixField);
+
+            checkC.gridx = 0; checkC.gridy = row;
+            grid.add(box, checkC);
+            idC.gridx = 1; idC.gridy = row;
+            grid.add(new JLabel(id), idC);
+            fieldC.gridx = 2; fieldC.gridy = row;
+            grid.add(suffixField, fieldC);
+            row++;
+        }
+
+        panel.add(grid, BorderLayout.CENTER);
+        return panel;
+    }
+
     private JPanel buildThemeSection() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         panel.setBorder(titledBorder("Appearance"));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(new JLabel("Theme:"));
         panel.add(themeCombo);
         panel.add(new JLabel(" (takes effect on next launch)"));
         return panel;
     }
 
-    // ── Populate / Save ───────────────────────────────────────────────────
+    private JPanel buildConfigPathSection() {
+        JPanel panel = new JPanel(new BorderLayout(4, 0));
+        panel.setBorder(titledBorder("Configuration File"));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        String path = SettingsManager.getSettingsFile().toString();
+        JTextField pathField = new JTextField(path);
+        pathField.setEditable(false);
+        pathField.setFont(pathField.getFont().deriveFont(Font.PLAIN, 11f));
+        pathField.setForeground(UIManager.getColor("Label.disabledForeground"));
+
+        JButton openDirButton = new JButton("Open folder");
+        openDirButton.addActionListener(e -> openContainingFolder(path));
+
+        panel.add(pathField, BorderLayout.CENTER);
+        panel.add(openDirButton, BorderLayout.EAST);
+        return panel;
+    }
+
+    private JPanel buildButtonRow() {
+        JButton resetBtn = new JButton("Reset to Defaults");
+        JButton saveBtn = new JButton("Save");
+        JButton cancelBtn = new JButton("Cancel");
+
+        resetBtn.setToolTipText("Restore all settings to their built-in defaults");
+        resetBtn.addActionListener(e -> onReset());
+        saveBtn.addActionListener(e -> onSave());
+        cancelBtn.addActionListener(e -> dispose());
+        getRootPane().setDefaultButton(saveBtn);
+
+        JPanel buttons = new JPanel(new BorderLayout());
+        buttons.setBorder(new EmptyBorder(0, 12, 0, 12));
+
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        left.add(resetBtn);
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        right.add(cancelBtn);
+        right.add(saveBtn);
+
+        buttons.add(left, BorderLayout.WEST);
+        buttons.add(right, BorderLayout.EAST);
+        return buttons;
+    }
+
+    // ── Populate / Save / Reset ───────────────────────────────────────────
 
     private void populate() {
         aiEnabledBox.setSelected(settings.isAiEnabled());
@@ -209,6 +347,18 @@ public final class SettingsDialog extends JDialog {
             }
         }
 
+        List<String> enabled = settings.getEnabledPlugins();
+        for (Map.Entry<String, JCheckBox> entry : pluginBoxes.entrySet()) {
+            entry.getValue().setSelected(enabled.isEmpty() || enabled.contains(entry.getKey()));
+        }
+
+        Map<String, List<String>> pluginSuffixes = settings.getPluginSuffixes();
+        for (Map.Entry<String, JTextField> entry : pluginSuffixFields.entrySet()) {
+            List<String> masks = pluginSuffixes.get(entry.getKey());
+            entry.getValue().setText(masks != null && !masks.isEmpty()
+                    ? String.join(", ", masks) : "");
+        }
+
         updateAiControlsEnabled();
     }
 
@@ -223,15 +373,82 @@ public final class SettingsDialog extends JDialog {
         settings.setAiTimeoutSeconds((int) timeoutSpinner.getValue());
         settings.setAiMaxRetries((int) retriesSpinner.getValue());
         settings.setAiConfidence(confidenceBox.isSelected());
+
         int themeIdx = themeCombo.getSelectedIndex();
         if (themeIdx >= 0) settings.setThemeClass(THEME_CLASSES[themeIdx]);
+
+        // Enabled plugins: empty list = all enabled; explicit list = filtered
+        List<String> enabledPlugins = new ArrayList<>();
+        boolean allChecked = pluginBoxes.values().stream().allMatch(JCheckBox::isSelected);
+        if (!allChecked) {
+            pluginBoxes.forEach((id, box) -> { if (box.isSelected()) enabledPlugins.add(id); });
+        }
+        settings.setEnabledPlugins(enabledPlugins);
+
+        // Per-plugin file masks: absent = plugin uses its own built-in default
+        Map<String, List<String>> pluginSuffixes = new LinkedHashMap<>();
+        pluginSuffixFields.forEach((id, field) -> {
+            String text = field.getText().trim();
+            if (!text.isEmpty()) {
+                List<String> masks = new ArrayList<>();
+                for (String token : text.split(",")) {
+                    String m = token.trim();
+                    if (!m.isEmpty()) masks.add(m);
+                }
+                if (!masks.isEmpty()) pluginSuffixes.put(id, masks);
+            }
+        });
+        settings.setPluginSuffixes(pluginSuffixes);
 
         SettingsManager.save(settings);
         confirmed = true;
         dispose();
     }
 
-    /** @return {@code true} if the user clicked Save */
+    private void onReset() {
+        int choice = JOptionPane.showConfirmDialog(this,
+                "Reset all settings to built-in defaults?\nThe settings file will be overwritten on Save.",
+                "Reset to Defaults", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (choice != JOptionPane.OK_OPTION) return;
+
+        AppSettings defaults = new AppSettings();
+        // Copy defaults into fields without touching the live settings object yet
+        aiEnabledBox.setSelected(defaults.isAiEnabled());
+        for (int i = 0; i < PROVIDERS.length; i++) {
+            if (PROVIDERS[i].name().equals(defaults.getAiProvider())) {
+                providerCombo.setSelectedIndex(i);
+                break;
+            }
+        }
+        modelField.setText(defaults.getAiModel());
+        apiKeyField.setText(defaults.getAiApiKey());
+        baseUrlField.setText(defaults.getAiBaseUrl());
+        apiVersionField.setText(defaults.getAiApiVersion());
+        timeoutSpinner.setValue(defaults.getAiTimeoutSeconds());
+        retriesSpinner.setValue(defaults.getAiMaxRetries());
+        confidenceBox.setSelected(defaults.isAiConfidence());
+        for (int i = 0; i < THEME_CLASSES.length; i++) {
+            if (THEME_CLASSES[i].equals(defaults.getThemeClass())) {
+                themeCombo.setSelectedIndex(i);
+                break;
+            }
+        }
+        // Re-enable all plugin checkboxes and clear suffix overrides
+        pluginBoxes.values().forEach(b -> b.setSelected(true));
+        pluginSuffixFields.values().forEach(f -> f.setText(""));
+        updateAiControlsEnabled();
+    }
+
+    /**
+     * Returns whether the user confirmed the dialog by clicking
+     * <em>Save</em>.
+     *
+     * <p>This method returns {@code false} both before the dialog is shown
+     * and when it was dismissed via <em>Cancel</em> or the window close
+     * button.</p>
+     *
+     * @return {@code true} if and only if the user clicked <em>Save</em>
+     */
     public boolean isConfirmed() { return confirmed; }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -246,6 +463,17 @@ public final class SettingsDialog extends JDialog {
         timeoutSpinner.setEnabled(on);
         retriesSpinner.setEnabled(on);
         confidenceBox.setEnabled(on);
+    }
+
+    private static void openContainingFolder(String filePath) {
+        try {
+            java.nio.file.Path dir = java.nio.file.Path.of(filePath).getParent();
+            if (dir != null && java.nio.file.Files.isDirectory(dir)) {
+                Desktop.getDesktop().open(dir.toFile());
+            }
+        } catch (Exception ex) {
+            // Desktop.open not supported on all platforms — silently ignore
+        }
     }
 
     private static void addRow(JPanel grid, String labelText, JComponent field,

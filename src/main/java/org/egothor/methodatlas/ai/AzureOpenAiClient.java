@@ -78,17 +78,18 @@ public final class AzureOpenAiClient implements AiProviderClient {
     private final HttpSupport httpSupport;
 
     /**
-     * Creates a new client for an Azure OpenAI Service deployment.
+     * Creates a new Azure OpenAI client with no rate-limit notification.
      *
-     * <p>
-     * The supplied configuration must provide:
-     * </p>
+     * <p>Rate-limit pauses are handled transparently.  Use
+     * {@link #AzureOpenAiClient(AiOptions, RateLimitListener)} when callers
+     * need to be notified of such pauses.</p>
      *
+     * <p>The supplied configuration must provide:</p>
      * <ul>
      * <li>{@link AiOptions#baseUrl()} — resource endpoint, e.g.
      *     {@code https://contoso.openai.azure.com}</li>
-     * <li>{@link AiOptions#modelName()} — deployment name as configured in the
-     *     Azure portal</li>
+     * <li>{@link AiOptions#modelName()} — deployment name as configured in
+     *     the Azure portal</li>
      * <li>{@link AiOptions#apiVersion()} — REST API version, e.g.
      *     {@code 2024-02-01}</li>
      * <li>{@link AiOptions#resolvedApiKey()} — resource-scoped API key</li>
@@ -97,8 +98,21 @@ public final class AzureOpenAiClient implements AiProviderClient {
      * @param options AI runtime configuration
      */
     public AzureOpenAiClient(AiOptions options) {
+        this(options, (w, a, m) -> {});
+    }
+
+    /**
+     * Creates a new Azure OpenAI client that notifies
+     * {@code rateLimitListener} before each rate-limit sleep.
+     *
+     * @param options             AI runtime configuration
+     * @param rateLimitListener   callback invoked before each HTTP&nbsp;429
+     *                            pause; must not be {@code null}
+     * @see RateLimitListener
+     */
+    public AzureOpenAiClient(AiOptions options, RateLimitListener rateLimitListener) {
         this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries());
+        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener);
     }
 
     /**

@@ -59,28 +59,59 @@ public final class HttpSupport {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final int maxRetries;
+    private final RateLimitListener rateLimitListener;
 
     /**
      * Creates a new HTTP support helper with the specified connection timeout.
      *
      * <p>
-     * The supplied timeout is used as the connection timeout of the underlying
-     * {@link HttpClient}. Request-specific timeouts may still be configured
-     * independently on individual {@link HttpRequest} instances.
+     * Rate-limit events are silently discarded by this constructor.  Use
+     * {@link #HttpSupport(Duration, int, RateLimitListener)} when callers need
+     * to be informed of HTTP&nbsp;429 pauses.
      * </p>
      *
      * <p>
-     * The constructor also initializes a Jackson {@link ObjectMapper} configured
-     * with {@link DeserializationFeature#FAIL_ON_UNKNOWN_PROPERTIES} disabled.
+     * The constructor initializes a Jackson {@link ObjectMapper} configured with
+     * {@link DeserializationFeature#FAIL_ON_UNKNOWN_PROPERTIES} disabled.
      * </p>
      *
      * @param timeout    connection timeout used for the underlying HTTP client
      * @param maxRetries maximum number of retry attempts on HTTP 429 responses
+     * @see #HttpSupport(Duration, int, RateLimitListener)
      */
     public HttpSupport(Duration timeout, int maxRetries) {
+        this(timeout, maxRetries, (w, a, m) -> {});
+    }
+
+    /**
+     * Creates a new HTTP support helper with the specified connection timeout and
+     * a rate-limit callback.
+     *
+     * <p>
+     * The supplied {@code rateLimitListener} is invoked on the calling thread
+     * immediately before each rate-limit sleep caused by an HTTP&nbsp;429
+     * response, allowing higher-level components to update progress indicators
+     * or log messages without polling.
+     * </p>
+     *
+     * <p>
+     * The constructor initializes a Jackson {@link ObjectMapper} configured with
+     * {@link DeserializationFeature#FAIL_ON_UNKNOWN_PROPERTIES} disabled.
+     * </p>
+     *
+     * @param timeout             connection timeout used for the underlying HTTP
+     *                            client
+     * @param maxRetries          maximum number of retry attempts on HTTP 429
+     *                            responses
+     * @param rateLimitListener   callback invoked before each rate-limit pause;
+     *                            must not be {@code null}
+     * @see RateLimitListener
+     */
+    public HttpSupport(Duration timeout, int maxRetries, RateLimitListener rateLimitListener) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(timeout).build();
         this.objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.maxRetries = maxRetries;
+        this.rateLimitListener = rateLimitListener;
     }
 
     /**
@@ -144,6 +175,7 @@ public final class HttpSupport {
                             + "s before retry " + (attempt + 1) + "/" + maxRetries
                             + ". No AI classification will occur during this pause.");
                 }
+                rateLimitListener.onRateLimitPause(waitSeconds, attempt + 1, maxRetries);
                 Thread.sleep(Duration.ofSeconds(waitSeconds));
             }
             attempt++;

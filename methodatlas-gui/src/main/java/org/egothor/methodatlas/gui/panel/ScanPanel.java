@@ -18,14 +18,13 @@ import java.util.Map;
  * Left panel containing the results tree.
  *
  * <p>The tree groups discovered methods under their class nodes. Each method
- * node shows a colour-coded status indicator:
+ * node shows a colour-coded status indicator:</p>
  * <ul>
  *   <li>orange {@code !} — AI suggests tags not yet in the source</li>
  *   <li>green {@code ✓} — source tags satisfy the AI suggestion</li>
  *   <li>blue {@code -} — AI says not security-relevant</li>
  *   <li>grey {@code ?} — no AI data</li>
  * </ul>
- * </p>
  */
 public final class ScanPanel extends JPanel {
 

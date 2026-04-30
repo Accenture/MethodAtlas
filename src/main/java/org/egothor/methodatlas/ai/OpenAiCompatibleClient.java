@@ -73,18 +73,31 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
     private final HttpSupport httpSupport;
 
     /**
-     * Creates a new client for an OpenAI-compatible provider.
+     * Creates a new client for an OpenAI-compatible provider with no
+     * rate-limit notification.
      *
-     * <p>
-     * The supplied configuration determines the provider endpoint, model name,
-     * authentication method, request timeout, and other runtime parameters.
-     * </p>
+     * <p>Rate-limit pauses are handled transparently.  Use
+     * {@link #OpenAiCompatibleClient(AiOptions, RateLimitListener)} when
+     * callers need to be notified of such pauses.</p>
      *
      * @param options AI runtime configuration
      */
     public OpenAiCompatibleClient(AiOptions options) {
+        this(options, (w, a, m) -> {});
+    }
+
+    /**
+     * Creates a new client for an OpenAI-compatible provider that notifies
+     * {@code rateLimitListener} before each rate-limit sleep.
+     *
+     * @param options             AI runtime configuration
+     * @param rateLimitListener   callback invoked before each HTTP&nbsp;429
+     *                            pause; must not be {@code null}
+     * @see RateLimitListener
+     */
+    public OpenAiCompatibleClient(AiOptions options, RateLimitListener rateLimitListener) {
         this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries());
+        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener);
     }
 
     /**

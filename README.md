@@ -95,7 +95,9 @@ without touching the command line.
 - **Tag editor** — shows the method's current `@Tag` values alongside AI-suggested tags as interactive toggle chips; individual tags can be accepted or rejected before writing back to the source file
 - **Custom override** — enter comma-separated tags manually to complement or replace AI suggestions
 - **Apply to source** — calls the same `SourcePatcher` implementation used by the CLI; the editor reloads the file immediately to confirm the patch
-- **Settings dialog** — configure any of the ten supported AI providers (Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter, or AUTO) with API key, model name, base URL, timeout, and retry settings; theme selector (IntelliJ Light, Flat Dark, Flat Light, Darcula)
+- **Activity panel** — collapsible panel above the status bar that appears whenever analysis is running; shows the class currently being sent to AI, deterministic progress counter (`X / Y classes`), elapsed time, and a scrollable log of completed classes with per-class timing and method counts; makes it immediately visible if a long AI request has stalled
+- **Plugin selection** — the Settings dialog lists all discovery plugins detected on the classpath; unchecking a plugin excludes it from the next scan, useful when only one language needs to be processed
+- **Settings dialog** — configure any of the ten supported AI providers (Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter, or AUTO) with API key, model name, base URL, timeout, and retry settings; theme selector (IntelliJ Light, Flat Dark, Flat Light, Darcula); **Reset to Defaults** button restores all fields to built-in values; **Open folder** button opens the directory containing the settings file in the system file manager
 
 ### Build and run
 

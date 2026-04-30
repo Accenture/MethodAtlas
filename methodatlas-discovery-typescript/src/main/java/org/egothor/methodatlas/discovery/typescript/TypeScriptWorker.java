@@ -248,6 +248,24 @@ final class TypeScriptWorker {
      * and {@code allowedRoot} is not {@code null}, filesystem permission flags
      * are prepended.
      *
+     * <h4>Permission model compatibility</h4>
+     * <p>Node.js&nbsp;20–21 used {@code --experimental-permission}; Node.js&nbsp;22
+     * and later uses the stable {@code --permission} flag.  The correct name is
+     * returned by {@link NodeEnvironment#permissionFlagName()}.</p>
+     *
+     * <p>Each allowed path is passed as a separate {@code --allow-fs-read}
+     * argument rather than comma-separated values, because the comma-separated
+     * form was not reliably supported across all Node.js versions.</p>
+     *
+     * <p>The scan root is suffixed with {@code /**} so that Node.js grants
+     * recursive read access to all files beneath it.  Without this glob,
+     * Node.js&nbsp;22+ treats a bare directory path as permission to stat the
+     * directory itself only — not its contents.</p>
+     *
+     * <p>All paths in {@code --allow-fs-read} use forward slashes regardless
+     * of the host OS, because the Node.js permission model on Windows requires
+     * consistent path separators for reliable prefix matching.</p>
+     *
      * @param allowedRoot  scan root; {@code null} means no sandboxing
      * @return command-line token list
      */
@@ -255,10 +273,16 @@ final class TypeScriptWorker {
         List<String> cmd = new ArrayList<>();
         cmd.add("node");
         if (nodeEnv.isPermissionModelSupported() && allowedRoot != null) {
-            cmd.add("--experimental-permission");
-            // Allow reading the bundle itself and all files under the scan root.
-            cmd.add("--allow-fs-read=" + bundlePath.toAbsolutePath()
-                    + "," + allowedRoot.toAbsolutePath());
+            cmd.add(nodeEnv.permissionFlagName());
+            // Use separate --allow-fs-read flags (comma-separated form is unreliable
+            // across Node.js versions). Convert backslashes to forward slashes so
+            // the permission model's path matching works correctly on Windows.
+            // Append /** to the scan root so recursive access is granted (Node.js v22+
+            // requires explicit glob or trailing slash for directory recursion).
+            String bundleStr = bundlePath.toAbsolutePath().toString().replace('\\', '/');
+            String rootStr   = allowedRoot.toAbsolutePath().toString().replace('\\', '/');
+            cmd.add("--allow-fs-read=" + bundleStr);
+            cmd.add("--allow-fs-read=" + rootStr + "/**");
         }
         cmd.add(bundlePath.toAbsolutePath().toString());
         return cmd;

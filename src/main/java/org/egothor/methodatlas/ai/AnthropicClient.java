@@ -69,19 +69,31 @@ public final class AnthropicClient implements AiProviderClient {
     private final HttpSupport httpSupport;
 
     /**
-     * Creates a new Anthropic client using the supplied runtime configuration.
+     * Creates a new Anthropic client with no rate-limit notification.
      *
-     * <p>
-     * The configuration defines the model identifier, API endpoint, request
-     * timeout, and authentication settings used when communicating with the
-     * Anthropic service.
-     * </p>
+     * <p>Rate-limit pauses caused by HTTP&nbsp;429 responses are handled
+     * transparently.  Use
+     * {@link #AnthropicClient(AiOptions, RateLimitListener)} when callers
+     * need to be notified of such pauses.</p>
      *
      * @param options AI runtime configuration
      */
     public AnthropicClient(AiOptions options) {
+        this(options, (w, a, m) -> {});
+    }
+
+    /**
+     * Creates a new Anthropic client that notifies {@code rateLimitListener}
+     * before each rate-limit sleep.
+     *
+     * @param options             AI runtime configuration
+     * @param rateLimitListener   callback invoked before each HTTP&nbsp;429
+     *                            pause; must not be {@code null}
+     * @see RateLimitListener
+     */
+    public AnthropicClient(AiOptions options, RateLimitListener rateLimitListener) {
         this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries());
+        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener);
     }
 
     /**
