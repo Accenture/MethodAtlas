@@ -234,6 +234,17 @@ cyclonedxBom {
     schemaVersion = org.cyclonedx.Version.VERSION_15
 }
 
+// Mark CycloneDX-owned configurations as non-consumable so that subprojects
+// which depend on project(':') (e.g. methodatlas-gui) do not resolve them
+// as variants.  Without this, Gradle marks the configuration as "consumed"
+// before the CycloneDX plugin can add artifacts to it, which causes a
+// "Cannot mutate after consumed" error at task-graph construction time.
+configurations.all {
+    if (name.startsWith('cyclonedx')) {
+        canBeConsumed = false
+    }
+}
+
 subprojects {
     tasks.matching { it.name.startsWith('cyclonedx') }.configureEach {
         enabled = false

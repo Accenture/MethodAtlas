@@ -11,9 +11,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,6 +29,9 @@ import java.util.Map;
  */
 public final class ScanPanel extends JPanel {
 
+    @java.io.Serial
+    private static final long serialVersionUID = 1L;
+
     // ── Tree node user-objects ────────────────────────────────────────────
 
     /** Wrapper stored in class-level tree nodes. */
@@ -44,7 +45,6 @@ public final class ScanPanel extends JPanel {
 
     // ── Fields ────────────────────────────────────────────────────────────
 
-    private final AnalysisModel model;
     private final DefaultMutableTreeNode treeRoot = new DefaultMutableTreeNode("Results");
     private final DefaultTreeModel treeModel = new DefaultTreeModel(treeRoot);
     private final JTree tree = new JTree(treeModel);
@@ -57,7 +57,6 @@ public final class ScanPanel extends JPanel {
      */
     public ScanPanel(AnalysisModel model) {
         super(new BorderLayout());
-        this.model = model;
 
         tree.setRootVisible(false);
         tree.setShowsRootHandles(true);
@@ -158,8 +157,8 @@ public final class ScanPanel extends JPanel {
 
     private static final class MethodTreeCellRenderer extends DefaultTreeCellRenderer {
 
-        // Status indicator dimensions
-        private static final int DOT_SIZE = 10;
+        @java.io.Serial
+        private static final long serialVersionUID = 1L;
 
         @Override
         public Component getTreeCellRendererComponent(JTree tree, Object value,

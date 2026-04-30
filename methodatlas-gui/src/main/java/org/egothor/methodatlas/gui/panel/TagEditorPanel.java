@@ -34,6 +34,9 @@ import java.util.logging.Logger;
  */
 public final class TagEditorPanel extends JPanel {
 
+    @java.io.Serial
+    private static final long serialVersionUID = 1L;
+
     private static final Logger LOG = Logger.getLogger(TagEditorPanel.class.getName());
 
     // ── UI components ─────────────────────────────────────────────────────
@@ -335,6 +338,9 @@ public final class TagEditorPanel extends JPanel {
      * so that tag chips reflow when the panel is resized.
      */
     private static final class WrapLayout extends FlowLayout {
+
+        @java.io.Serial
+        private static final long serialVersionUID = 1L;
         WrapLayout(int align, int hgap, int vgap) {
             super(align, hgap, vgap);
         }

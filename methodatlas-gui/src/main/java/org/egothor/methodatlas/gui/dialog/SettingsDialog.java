@@ -63,6 +63,9 @@ public final class SettingsDialog extends JDialog {
             "IntelliJ Light", "Flat Dark", "Flat Light", "Darcula"
     };
 
+    @java.io.Serial
+    private static final long serialVersionUID = 1L;
+
     // ── Components ────────────────────────────────────────────────────────
 
     private final JCheckBox aiEnabledBox = new JCheckBox("Enable AI enrichment");

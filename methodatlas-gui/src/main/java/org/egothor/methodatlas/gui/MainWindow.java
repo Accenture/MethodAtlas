@@ -11,7 +11,6 @@ import org.egothor.methodatlas.gui.service.AnalysisService;
 import org.egothor.methodatlas.gui.service.SettingsManager;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -35,6 +34,9 @@ import java.nio.file.Path;
  * </pre>
  */
 public final class MainWindow extends JFrame {
+
+    @java.io.Serial
+    private static final long serialVersionUID = 1L;
 
     // ── State ─────────────────────────────────────────────────────────────
 

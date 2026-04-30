@@ -28,6 +28,9 @@ import java.util.logging.Logger;
  */
 public final class EditorPanel extends JPanel {
 
+    @java.io.Serial
+    private static final long serialVersionUID = 1L;
+
     private static final Logger LOG = Logger.getLogger(EditorPanel.class.getName());
 
     private final RSyntaxTextArea textArea;

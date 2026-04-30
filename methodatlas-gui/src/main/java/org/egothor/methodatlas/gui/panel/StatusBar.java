@@ -18,6 +18,9 @@ import java.beans.PropertyChangeEvent;
  */
 public final class StatusBar extends JPanel {
 
+    @java.io.Serial
+    private static final long serialVersionUID = 1L;
+
     private final JLabel messageLabel = new JLabel("Ready");
     private final JProgressBar progressBar = new JProgressBar();
     private final JLabel countLabel = new JLabel();
