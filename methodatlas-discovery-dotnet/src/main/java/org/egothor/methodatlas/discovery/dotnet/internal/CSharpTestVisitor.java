@@ -73,7 +73,7 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
     @Override
     public Void visitTypeDeclaration(
             CSharpTestParser.TypeDeclarationContext ctx) {
-        String name = ctx.IDENTIFIER().getText();
+        String name = ctx.identifier().getText();
         classStack.push(name);
         visitChildren(ctx);
         classStack.pop();
@@ -172,11 +172,11 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
 
         if (ctx.attributeArgs() != null) {
             for (CSharpTestParser.AttributeArgContext arg : ctx.attributeArgs().attributeArg()) {
-                if (arg.IDENTIFIER() != null && arg.EQ() != null) {
+                if (arg.identifier() != null && arg.EQ() != null) {
                     // named argument
                     String val = extractString(arg.attributeValue());
                     if (val != null) {
-                        named.put(arg.IDENTIFIER().getText(), val);
+                        named.put(arg.identifier().getText(), val);
                     }
                 } else {
                     // positional argument

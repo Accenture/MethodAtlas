@@ -29,11 +29,11 @@ compilationUnit
     ;
 
 externalAliasDirective
-    : EXTERN ALIAS IDENTIFIER SEMI
+    : EXTERN ALIAS identifier SEMI
     ;
 
 usingDirective
-    : USING STATIC? ( IDENTIFIER EQ )? usingTypeName SEMI
+    : USING STATIC? ( identifier EQ )? usingTypeName SEMI
     ;
 
 usingTypeName
@@ -62,7 +62,7 @@ namespaceDeclaration
 // ── Type declarations ─────────────────────────────────────────────────
 
 typeDeclaration
-    : attributeSection* modifier* typeKwd IDENTIFIER typeParameterList?
+    : attributeSection* modifier* typeKwd identifier typeParameterList?
       ( LPAREN parameterList? RPAREN )?
       ( COLON typeBaseList )?
       typeConstraintClause*
@@ -99,7 +99,7 @@ methodDeclaration
 
 constructorDeclaration
     : attributeSection* modifier*
-      IDENTIFIER
+      identifier
       LPAREN parameterList? RPAREN
       constructorInitializer?
       ( block | FATARROW bodyContent* SEMI )
@@ -112,7 +112,7 @@ constructorInitializer
 // ── Destructor ────────────────────────────────────────────────────────
 
 destructorDeclaration
-    : attributeSection* modifier* TILDE IDENTIFIER LPAREN RPAREN block
+    : attributeSection* modifier* TILDE identifier LPAREN RPAREN block
     ;
 
 // ── Property or field ─────────────────────────────────────────────────
@@ -159,7 +159,7 @@ eventDeclaration
 // ── Delegate declaration ──────────────────────────────────────────────
 
 delegateDeclaration
-    : attributeSection* modifier* DELEGATE returnType IDENTIFIER typeParameterList?
+    : attributeSection* modifier* DELEGATE returnType identifier typeParameterList?
       LPAREN parameterList? RPAREN typeConstraintClause* SEMI
     ;
 
@@ -208,14 +208,14 @@ typeArgument : type | QUESTION ;
 typeParameterList
     : LT typeParameter ( COMMA typeParameter )* GT
     ;
-typeParameter : attributeSection* ( IN | OUT )? IDENTIFIER ;
+typeParameter : attributeSection* ( IN | OUT )? identifier ;
 
 typeList     : type ( COMMA type )* ;
 typeBaseList : typeBase ( COMMA typeBase )* ;
 typeBase     : type ( LPAREN balancedContent* RPAREN )? ;
 
 typeConstraintClause
-    : WHERE IDENTIFIER COLON typeConstraintList
+    : WHERE identifier COLON typeConstraintList
     ;
 typeConstraintList : typeConstraint ( COMMA typeConstraint )* ;
 typeConstraint
@@ -233,9 +233,23 @@ typeConstraint
 // ═══════════════════════════════════════════════════════════════════════
 
 /** Supports explicit interface implementation: IInterface.Method */
-memberName    : IDENTIFIER ( DOT IDENTIFIER )* ;
+memberName    : identifier ( DOT identifier )* ;
 /** Supports global:: alias qualifier: global::System.Console */
-qualifiedName : IDENTIFIER ( ( DOT | DOUBLE_COLON ) IDENTIFIER )* ;
+qualifiedName : identifier ( ( DOT | DOUBLE_COLON ) identifier )* ;
+
+/**
+ * C# contextual keywords that are valid identifiers in most name positions.
+ * Hard keywords (class, namespace, if, …) are excluded; contextual ones
+ * that commonly appear as parameter names, method names, or LINQ operators
+ * are all listed here so the structural parser does not reject valid code.
+ */
+identifier
+    : IDENTIFIER
+    | ALIAS | ASYNC | BY | DEFAULT | DYNAMIC | FROM | GET | GROUP
+    | INIT | INTO | JOIN | LET | NAMEOF | NOTNULL | ON | ORDERBY
+    | PARTIAL | RECORD | REMOVE | SCOPED | SELECT | SET | UNMANAGED
+    | VALUE | VAR | WHERE | WITH | YIELD
+    ;
 
 // ═══════════════════════════════════════════════════════════════════════
 // MEMBER BODY (opaque block)
@@ -294,7 +308,7 @@ attribute : qualifiedName ( LPAREN attributeArgs? RPAREN )? ;
 attributeArgs : attributeArg ( COMMA attributeArg )* ;
 
 attributeArg
-    : IDENTIFIER EQ attributeValue   // named argument: Key = Value
+    : identifier EQ attributeValue   // named argument: Key = Value
     | attributeValue                 // positional argument
     ;
 
@@ -324,7 +338,7 @@ stringLiteral
 parameterList : parameter ( COMMA parameter )* ;
 
 parameter
-    : attributeSection* parameterModifier* type IDENTIFIER?
+    : attributeSection* parameterModifier* type identifier?
       ( EQ paramDefault )?
     ;
 
@@ -343,7 +357,7 @@ paramDefault
     ;
 
 argumentList : argument ( COMMA argument )* ;
-argument     : ( IDENTIFIER COLON )? ( REF | OUT | IN )? qualifiedName ;
+argument     : ( identifier COLON )? ( REF | OUT | IN )? qualifiedName ;
 
 // ═══════════════════════════════════════════════════════════════════════
 // MODIFIERS
