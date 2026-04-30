@@ -186,9 +186,9 @@
   <section class="hero">
     <h1>MethodAtlas</h1>
     <p>
-      Scan Java test sources (JUnit&nbsp;5, JUnit&nbsp;4, TestNG), build a structured
-      security test inventory, and enrich results with AI-generated classification &mdash;
-      without compiling a single class.
+      Scan test sources across Java (JUnit&nbsp;5, JUnit&nbsp;4, TestNG), C# (xUnit, NUnit, MSTest),
+      and TypeScript/JavaScript (Jest, Vitest, Mocha); build a structured security test inventory
+      and enrich results with AI-generated classification &mdash; without compiling a single class.
     </p>
     <div class="hero-buttons">
       <a class="btn-primary" href="installation/">Get started</a>
@@ -207,8 +207,8 @@
           <div>
             <strong>Source-level test inventory</strong>
             <p>Discovers test methods via lexical parsing &mdash; no compilation required.
-               Supports JUnit&nbsp;5, JUnit&nbsp;4, and TestNG; framework is detected automatically
-               from import declarations.</p>
+               Supports Java (JUnit&nbsp;5, JUnit&nbsp;4, TestNG), C# (xUnit, NUnit, MSTest),
+               and TypeScript/JavaScript (Jest, Vitest, Mocha); framework detected automatically.</p>
           </div>
         </li>
         <li>
@@ -233,9 +233,8 @@
           <span class="feature-check">✓</span>
           <div>
             <strong>Source write-back</strong>
-            <p>The <code>-apply-tags</code> mode inserts AI-suggested <code>@DisplayName</code>
-               and <code>@Tag</code> annotations directly into source files using a
-               lexical-preserving printer.</p>
+            <p>The <code>-apply-tags</code> mode inserts AI-suggested display names and tags
+               directly into Java and C# source files using a lexical-preserving printer.</p>
           </div>
         </li>
         <li>

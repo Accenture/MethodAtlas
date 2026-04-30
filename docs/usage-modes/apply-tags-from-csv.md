@@ -1,6 +1,6 @@
 # Apply Tags from CSV
 
-The `-apply-tags-from-csv <file>` mode applies reviewed annotation decisions back to Java source files. It reads a MethodAtlas CSV that a human has already reviewed and edited, then writes exactly the `@Tag` and `@DisplayName` annotations recorded in that CSV.
+The `-apply-tags-from-csv <file>` mode applies reviewed annotation decisions back to source files (Java and C#). It reads a MethodAtlas CSV that a human has already reviewed and edited, then writes the tag and display-name annotations recorded in that CSV.
 
 ## When to use this mode
 

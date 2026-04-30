@@ -1,6 +1,6 @@
 # Source Write-back
 
-The `-apply-tags` modifier instructs MethodAtlas to insert AI-generated `@DisplayName` and `@Tag` annotations directly into the scanned `.java` source files, instead of writing a CSV report.
+The `-apply-tags` modifier instructs MethodAtlas to insert AI-generated display names and tags directly into the scanned Java (`.java`) and C# (`.cs`) source files, instead of writing a CSV report.
 
 ## When to use this mode
 

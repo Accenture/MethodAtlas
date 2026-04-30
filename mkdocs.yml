@@ -1,7 +1,8 @@
 site_name: MethodAtlas
 site_description: >-
-  Scan Java test sources (JUnit 5, JUnit 4, TestNG), build a structured
-  security test inventory, and enrich results with AI-generated classification.
+  Scan test sources across Java (JUnit 5, JUnit 4, TestNG), C# (xUnit, NUnit, MSTest),
+  and TypeScript/JavaScript (Jest, Vitest, Mocha); build a structured security test
+  inventory and enrich results with AI-generated classification.
   Built for regulated environments.
 site_url: https://accenture.github.io/MethodAtlas/
 repo_url: https://github.com/Accenture/MethodAtlas

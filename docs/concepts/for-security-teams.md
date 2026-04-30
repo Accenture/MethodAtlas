@@ -1,6 +1,6 @@
 # Guide for Security Teams
 
-MethodAtlas scans a project's Java test source code and produces a structured inventory of test methods that are relevant to security. This guide is written for security managers, compliance officers, and CISOs who receive MethodAtlas output and need to interpret it, act on findings, and incorporate results into audit evidence packages. It does not assume familiarity with Java development or CI/CD tooling.
+MethodAtlas scans a project's test source code (Java, C#, or TypeScript/JavaScript) and produces a structured inventory of test methods that are relevant to security. This guide is written for security managers, compliance officers, and CISOs who receive MethodAtlas output and need to interpret it, act on findings, and incorporate results into audit evidence packages. It does not assume familiarity with any specific development technology or CI/CD tooling.
 
 ## When you receive a CSV
 
@@ -14,7 +14,7 @@ For a complete column reference, see [Output Formats](../output-formats.md).
 
 ## What MethodAtlas produces
 
-MethodAtlas reads a project's Java test source code and produces a structured
+MethodAtlas reads a project's test source code (Java, C#, or TypeScript/JavaScript) and produces a structured
 inventory of test methods that are security-relevant — methods written to
 verify that the application correctly implements authentication, cryptography,
 input validation, access control, and similar security properties.
@@ -30,11 +30,11 @@ the source changes.
 
 | Column | Present when | Meaning |
 |---|---|---|
-| `fqcn` | Always | Fully qualified class name — the Java package and class that contains this test |
+| `fqcn` | Always | Fully qualified class name — the package/namespace and class that contains this test |
 | `method` | Always | The name of the test method |
 | `loc` | Always | Inclusive line count of the method declaration |
-| `tags` | Always | JUnit `@Tag` values declared in source (e.g. `security`, `auth`) |
-| `display_name` | Always | Text of the `@DisplayName` annotation declared on the method; empty when the annotation is absent or declares an empty string (`@DisplayName("")`) |
+| `tags` | Always | Source-level tag values declared on the test (e.g. `security`, `auth`) — `@Tag` in Java, `[Category]`/`[Trait]` in C# |
+| `display_name` | Always | Display name declared on the method (e.g. `@DisplayName` in Java, `[Fact(DisplayName=…)]` in C#); empty when absent |
 | `content_hash` | `-content-hash` flag | SHA-256 fingerprint of the enclosing class source — enables revision traceability |
 
 ### AI enrichment (present when AI classification is enabled)
@@ -104,7 +104,7 @@ measured by the interaction score.
 
 MethodAtlas produces two independent kinds of security labels for each test method:
 
-**Source-level tags** (`tags` column) are labels (`@Tag("security")`, `@Tag("auth")`, etc.) that a developer typed directly into the Java source file. They are factual — they represent what the developer intended when writing the test. They do not change unless a developer edits the source.
+**Source-level tags** (`tags` column) are labels that a developer typed directly into the source file — `@Tag("security")` in Java, `[Category("security")]`/`[Trait("Tag", "security")]` in C#. They are factual — they represent what the developer intended when writing the test. They do not change unless a developer edits the source.
 
 **AI classifications** (`ai_security_relevant`, `ai_tags`, `ai_display_name`, `ai_reason` columns) are produced by an AI model that reads the test method body and reasons about what the test actually does. The AI does not rely on the developer's intent; it reads the code.
 

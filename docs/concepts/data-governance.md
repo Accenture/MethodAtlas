@@ -12,7 +12,7 @@ external communication under any configuration:
 | Operation | Data involved |
 |---|---|
 | Source file traversal | File paths and names within the scan root |
-| Java parsing (JavaParser) | Test source file content — in memory only |
+| Source file parsing (Java, C#, TypeScript) | Test source file content — in memory only |
 | Method discovery | Parsed AST nodes — in memory only |
 | Content hash computation | SHA-256 of the AST string — no content transmitted |
 | CSV / SARIF / plain-text output | Result data written to stdout or a local file |
@@ -37,9 +37,10 @@ provider's inference API. Each request contains exactly:
    This list is included to prevent the AI from inventing or omitting
    methods; only methods the parser found are classified.
 
-3. **The test class source file** — the full text of one Java source file
-   from the scan root, used as semantic context for classification. The file
-   is truncated to the character limit set by [`-ai-max-class-chars`](../cli-reference.md#-ai-max-class-chars)
+3. **The test class source file** — the full text of one test source file
+   (Java, C#, or TypeScript) from the scan root, used as semantic context for
+   classification. The file is truncated to the character limit set by
+   [`-ai-max-class-chars`](../cli-reference.md#-ai-max-class-chars)
    (default: 40 000 characters) before transmission. The class name and all
    method names are always included; if the class body exceeds the limit, the
    trailing lines of the file are omitted.
@@ -65,7 +66,7 @@ Nothing else from the project is included.
 | Other test files submitted as context | No — each class is submitted independently |
 | File paths or directory structure | No — only the class source text and method names are included; the absolute path on disk is not transmitted |
 
-The AI provider receives the text of one Java test class at a time. No
+The AI provider receives the text of one test class (Java, C#, or TypeScript) at a time. No
 information about the surrounding project structure, the production
 implementation, or any other file is included.
 
