@@ -39,8 +39,9 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
 
     @Override
     public Void visitUsingDirective(CSharpTestParser.UsingDirectiveContext ctx) {
-        if (ctx.qualifiedName() != null) {
-            usingDirectives.add(ctx.qualifiedName().getText());
+        CSharpTestParser.UsingTypeNameContext utn = ctx.usingTypeName();
+        if (utn != null && utn.qualifiedName() != null) {
+            usingDirectives.add(utn.qualifiedName().getText());
         }
         return visitChildren(ctx);
     }
