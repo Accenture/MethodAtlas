@@ -120,7 +120,7 @@ constructorDeclaration
     ;
 
 constructorInitializer
-    : COLON ( BASE | THIS ) LPAREN argumentList? RPAREN
+    : COLON ( BASE | THIS ) LPAREN balancedContent* RPAREN
     ;
 
 // ── Destructor ────────────────────────────────────────────────────────
@@ -351,6 +351,7 @@ stringLiteral
     : STRING_LITERAL
     | VERBATIM_STRING
     | RAW_STRING
+    | INTERPOLATED_STRING
     ;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -592,15 +593,16 @@ RAW_STRING
     ;
 
 /**
- * Interpolated strings: simplified treatment. The content between $" and "
- * may contain {} escape pairs {{/}} and {expr} holes. We consume the string
- * as a single token; for our purposes (attribute value extraction) interpolated
- * strings do not appear in attribute arguments.
+ * Interpolated strings. The INTERP_CHAR fragment handles {} holes recursively.
+ * Interpolated raw strings ($"""...""", $$"""...""") are consumed as a unit
+ * via the non-greedy .*? — valid because raw-string delimiters are unique.
  */
 INTERPOLATED_STRING
-    : '$"'  INTERP_CHAR* '"'
-    | '$@"' ( ~'"' | '""' )* '"'
-    | '@$"' ( ~'"' | '""' )* '"'
+    : '$"'   INTERP_CHAR* '"'
+    | '$@"'  ( ~'"' | '""' )* '"'
+    | '@$"'  ( ~'"' | '""' )* '"'
+    | '$$'   '"""' .*? '"""'
+    | '$'    '"""' .*? '"""'
     ;
 
 fragment INTERP_CHAR
@@ -648,7 +650,7 @@ fragment REAL_SUFFIX : [fFdDmM] ;
 
 // ── UTF-8 BOM (U+FEFF) — skip before identifier so BOM files parse cleanly ──
 
-BOM : '﻿' -> skip ;
+BOM : '\uFEFF' -> skip ;
 
 // ── Identifier ────────────────────────────────────────────────────────
 
