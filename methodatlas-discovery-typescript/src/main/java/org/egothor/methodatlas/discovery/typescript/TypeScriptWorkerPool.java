@@ -17,16 +17,19 @@ import java.util.logging.Logger;
  * file scanning.
  *
  * <p>
- * Workers are pre-started when the pool is created and returned to a shared
- * idle queue after each scan request completes.  Using a pool avoids the
- * Node.js startup overhead (typically 100–300 ms) on every file, which would
- * otherwise dominate scan time for large TypeScript projects.
+ * Workers are started on demand when the first scan request arrives and
+ * returned to a shared idle queue after each request completes.  Using a pool
+ * avoids the Node.js startup overhead (typically 100–300 ms) on every file,
+ * which would otherwise dominate scan time for large TypeScript projects.
+ * Because workers are started lazily, projects that contain no TypeScript or
+ * JavaScript test files never spawn a Node.js process at all.
  * </p>
  *
  * <h2>Worker lifecycle</h2>
  *
  * <ol>
- * <li>All workers are started in {@link #TypeScriptWorkerPool}.</li>
+ * <li>Workers are started one by one on the first {@link #scan} calls, up to
+ *     {@code poolSize} total.</li>
  * <li>On each scan request, a worker is borrowed from the idle queue.</li>
  * <li>After a successful response the worker is returned to the queue.</li>
  * <li>On failure ({@link TypeScriptWorker.WorkerException} or I/O error),
@@ -59,7 +62,7 @@ import java.util.logging.Logger;
  * The pool itself is thread-safe: the {@link BlockingQueue} provides the
  * necessary synchronisation for worker borrowing and returning.  The
  * {@link WorkerCircuitBreaker} is also thread-safe.  Worker instances
- * returned by {@link #borrow()} must be used by at most one thread at a time.
+ * returned by {@link #borrow(Path)} must be used by at most one thread at a time.
  * </p>
  */
 final class TypeScriptWorkerPool implements Closeable {
@@ -85,17 +88,18 @@ final class TypeScriptWorkerPool implements Closeable {
     private int nextWorkerIndex;
 
     /**
-     * Creates and starts a worker pool.
+     * Creates a worker pool.
      *
      * <p>
-     * All {@code poolSize} workers are started immediately.  If any worker
-     * fails to start, the pool starts with fewer workers and logs a warning;
-     * it does not throw.
+     * No workers are started at construction time.  The first worker is
+     * started on demand when {@link #scan} is called for the first time.
+     * This means that projects containing no TypeScript or JavaScript test
+     * files never spawn a Node.js process.
      * </p>
      *
      * @param bundlePath           path to the verified bundle JS file
      * @param nodeEnv              Node.js environment information
-     * @param poolSize             number of workers to maintain; must be positive
+     * @param poolSize             maximum number of concurrent workers; must be positive
      * @param workerTimeoutMillis  per-request timeout in milliseconds
      * @param circuitBreaker       restart-limit tracker shared with this pool
      */
@@ -109,8 +113,6 @@ final class TypeScriptWorkerPool implements Closeable {
         this.workerTimeoutMillis = workerTimeoutMillis;
         this.circuitBreaker = circuitBreaker;
         this.idleWorkers = new ArrayBlockingQueue<>(poolSize);
-
-        startInitialWorkers();
 
         // Register a JVM shutdown hook as a safety net in case close() is never called.
         this.shutdownHook = new Thread(this::shutdownAllWorkers, "ts-worker-pool-shutdown");
@@ -147,7 +149,7 @@ final class TypeScriptWorkerPool implements Closeable {
             return List.of();
         }
 
-        TypeScriptWorker worker = borrow();
+        TypeScriptWorker worker = borrow(allowedRoot);
         if (worker == null) {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.warning("No TypeScript worker available within " + BORROW_TIMEOUT_MILLIS
@@ -197,50 +199,60 @@ final class TypeScriptWorkerPool implements Closeable {
     // Private helpers
     // -------------------------------------------------------------------------
 
-    /** Starts all initial workers; partial success is tolerated. */
-    private void startInitialWorkers() {
-        for (int i = 0; i < poolSize; i++) {
-            try {
-                TypeScriptWorker worker = createAndStartWorker(null);
-                idleWorkers.offer(worker);
-            } catch (IOException e) {
-                if (LOG.isLoggable(Level.WARNING)) {
-                    LOG.log(Level.WARNING, "Failed to start TypeScript worker[" + nextWorkerIndex + "]", e);
-                }
-            }
-        }
-        if (idleWorkers.isEmpty()) {
-            LOG.warning("No TypeScript workers could be started — "
-                    + "TypeScript scanning will be unavailable.");
-        }
-    }
-
-    /** Creates, starts, and returns a new worker. */
-    private TypeScriptWorker createAndStartWorker(Path allowedRoot) throws IOException {
-        workerCreationLock.lock();
-        try {
-            int index = nextWorkerIndex++;
-            TypeScriptWorker worker = new TypeScriptWorker(bundlePath, nodeEnv,
-                    workerTimeoutMillis, index);
-            worker.start(allowedRoot);
-            return worker;
-        } finally {
-            workerCreationLock.unlock();
-        }
+    /**
+     * Creates and starts a worker.
+     * <p><b>Caller must hold {@link #workerCreationLock}.</b></p>
+     */
+    private TypeScriptWorker createWorkerUnderLock(Path allowedRoot) throws IOException {
+        int index = nextWorkerIndex++;
+        TypeScriptWorker worker = new TypeScriptWorker(bundlePath, nodeEnv,
+                workerTimeoutMillis, index);
+        worker.start(allowedRoot);
+        return worker;
     }
 
     /**
-     * Borrows an idle worker, waiting up to {@link #BORROW_TIMEOUT_MILLIS} ms.
+     * Borrows an idle worker, starting one on demand if the pool has not yet
+     * reached {@link #poolSize}, then waiting up to {@link #BORROW_TIMEOUT_MILLIS} ms.
      *
+     * @param allowedRoot scan root forwarded to a newly started worker's permission flag
      * @return an idle worker, or {@code null} on timeout
      */
     @SuppressWarnings("PMD.DoNotUseThreads")
-    private TypeScriptWorker borrow() {
+    private TypeScriptWorker borrow(Path allowedRoot) {
+        startWorkerOnDemand(allowedRoot);
         try {
             return idleWorkers.poll(BORROW_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
+        }
+    }
+
+    /**
+     * Starts one new worker and places it in the idle queue if the queue is
+     * currently empty and the pool has not yet reached its maximum size.
+     * Concurrent callers are serialised by {@link #workerCreationLock}; the
+     * condition is rechecked inside the lock to avoid starting duplicate workers.
+     */
+    private void startWorkerOnDemand(Path allowedRoot) {
+        if (!idleWorkers.isEmpty() || nextWorkerIndex >= poolSize) {
+            return; // fast path: worker already available or pool is full
+        }
+        workerCreationLock.lock();
+        try {
+            if (!idleWorkers.isEmpty() || nextWorkerIndex >= poolSize) {
+                return; // another thread already started one
+            }
+            TypeScriptWorker worker = createWorkerUnderLock(allowedRoot);
+            idleWorkers.offer(worker);
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Failed to start TypeScript worker on demand (index " + nextWorkerIndex + ")", e);
+            }
+        } finally {
+            workerCreationLock.unlock();
         }
     }
 
@@ -263,8 +275,9 @@ final class TypeScriptWorkerPool implements Closeable {
         if (circuitBreaker.isOpen()) {
             return; // circuit just tripped; don't create more workers
         }
+        workerCreationLock.lock();
         try {
-            TypeScriptWorker replacement = createAndStartWorker(allowedRoot);
+            TypeScriptWorker replacement = createWorkerUnderLock(allowedRoot);
             if (!idleWorkers.offer(replacement)) {
                 replacement.kill("pool queue full after replacement");
             }
@@ -272,6 +285,8 @@ final class TypeScriptWorkerPool implements Closeable {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING, "Failed to start replacement TypeScript worker", e);
             }
+        } finally {
+            workerCreationLock.unlock();
         }
     }
 

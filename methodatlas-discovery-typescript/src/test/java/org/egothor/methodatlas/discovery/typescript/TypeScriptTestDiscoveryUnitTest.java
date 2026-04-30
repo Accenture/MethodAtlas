@@ -143,4 +143,30 @@ class TypeScriptTestDiscoveryUnitTest {
                 List.of(), java.util.Set.of(), Map.of()));
         discovery.close(); // must not throw
     }
+
+    // -------------------------------------------------------------------------
+    // discover() on a directory with no TS/JS files yields an empty stream
+    // -------------------------------------------------------------------------
+
+    @Test
+    void discover_directoryWithNoTsFiles_returnsEmptyStream() throws IOException {
+        java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("ma-ts-unit-");
+        // Place a plain Java file — must not be matched by the TypeScript plugin.
+        java.nio.file.Files.writeString(dir.resolve("Foo.java"), "class Foo {}");
+        try (TypeScriptTestDiscovery discovery = new TypeScriptTestDiscovery()) {
+            discovery.configure(new TestDiscoveryConfig(
+                    List.of(), java.util.Set.of(), Map.of()));
+            try (java.util.stream.Stream<org.egothor.methodatlas.api.DiscoveredMethod> stream =
+                    discovery.discover(dir)) {
+                assertEquals(0, stream.count(),
+                        "Directory with no TS/JS test files must yield no methods");
+            }
+            // Lazy worker start: scan() was never called => close() shuts down 0 workers.
+        } finally {
+            java.nio.file.Files.walk(dir)
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .forEach(p -> { try { java.nio.file.Files.deleteIfExists(p); }
+                                    catch (IOException ignored) {} });
+        }
+    }
 }
