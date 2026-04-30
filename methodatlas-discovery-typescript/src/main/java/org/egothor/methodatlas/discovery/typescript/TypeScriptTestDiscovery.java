@@ -44,11 +44,13 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  * <h2>Node.js availability</h2>
  *
  * <p>
- * If Node.js is not found on the {@code PATH} (or is below version 18), the
- * plugin logs a {@code WARNING} at configuration time and disables itself:
- * {@link #discover(Path)} returns an empty stream and {@link #hadErrors()}
- * returns {@code false}.  This allows MethodAtlas to be run in Java-only
- * environments without failing the scan.
+ * Node.js is detected lazily: {@code node --version} is never executed for
+ * projects that contain no TypeScript or JavaScript test files.  When
+ * matching files are found and Node.js is absent (or below version 18), the
+ * plugin logs a {@code WARNING} naming the affected files and returns an
+ * empty stream; {@link #hadErrors()} returns {@code true} in that case.
+ * This allows MethodAtlas to be run in Java-only environments without
+ * failing the scan and without spawning any unnecessary processes.
  * </p>
  *
  * <h2>Resource management</h2>
@@ -175,10 +177,10 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
      * </ul>
      *
      * <p>
-     * This method does <em>not</em> start the worker pool.  The pool is started
-     * lazily on the first call to {@link #discover(Path)} so that Node.js
-     * detection and bundle extraction only happen when TypeScript scanning is
-     * actually needed.
+     * This method does <em>not</em> start the worker pool or detect Node.js.
+     * Node.js detection and worker-pool creation are deferred until the first
+     * call to {@link #discover(Path)} that actually finds a matching file, so
+     * projects with no TypeScript sources never run {@code node --version}.
      * </p>
      *
      * @param config runtime configuration; never {@code null}
@@ -207,11 +209,13 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
      * methods.
      *
      * <p>
-     * On the first call, initialises Node.js detection, bundle extraction, and
-     * the worker pool.  If Node.js is not available the method returns an empty
-     * stream immediately.  Files that cannot be parsed are logged as warnings
-     * and skipped; {@link #hadErrors()} will return {@code true} after such a
-     * run.
+     * The file tree is traversed first.  Node.js detection, bundle extraction,
+     * and worker-pool creation are deferred until at least one matching file is
+     * found; projects that contain no TypeScript or JavaScript test files never
+     * start a Node.js process at all.  If matching files are found but Node.js
+     * is unavailable, a warning is logged, {@link #hadErrors()} returns
+     * {@code true}, and an empty stream is returned.  Files that cannot be
+     * parsed are logged as warnings and skipped.
      * </p>
      *
      * @param root directory to scan
@@ -229,31 +233,44 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
                     + "Call configure(TestDiscoveryConfig) before discover(Path).");
         }
 
-        ensurePoolReady();
-
-        if (nodeEnv == null || !nodeEnv.isAvailable() || workerPool == null) {
-            return Stream.empty(); // Node.js unavailable — plugin is disabled
+        // Walk the file tree first — no Node.js involvement yet.
+        // Projects with no TypeScript/JavaScript test files return here without
+        // ever running 'node --version' or spawning a worker process.
+        List<Path> files;
+        try (Stream<Path> walk = Files.walk(root)) {
+            files = walk
+                    .filter(p -> fileSuffixes.stream()
+                            .anyMatch(s -> p.getFileName() != null
+                                    && p.getFileName().toString().endsWith(s)))
+                    .toList();
         }
 
+        if (files.isEmpty()) {
+            return Stream.empty();
+        }
+
+        // At least one matching file found — Node.js is now required.
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "Scanning {0} for files matching {1}",
                     new Object[] { root, fileSuffixes });
         }
 
-        List<DiscoveredMethod> result = new ArrayList<>();
+        ensurePoolReady();
 
-        try (Stream<Path> walk = Files.walk(root)) {
-            List<Path> files = walk
-                    .filter(p -> fileSuffixes.stream()
-                            .anyMatch(s -> p.getFileName() != null
-                                    && p.getFileName().toString().endsWith(s)))
-                    .toList();
-
-            for (Path file : files) {
-                processFile(root, file, result);
+        if (nodeEnv == null || !nodeEnv.isAvailable() || workerPool == null) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Node.js is unavailable — {0} TypeScript/JavaScript file(s) under {1} will not be scanned.",
+                        new Object[] { files.size(), root });
             }
+            errors = true;
+            return Stream.empty();
         }
 
+        List<DiscoveredMethod> result = new ArrayList<>();
+        for (Path file : files) {
+            processFile(root, file, result);
+        }
         return result.stream();
     }
 

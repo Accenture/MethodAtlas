@@ -146,10 +146,11 @@ class TypeScriptTestDiscoveryUnitTest {
 
     // -------------------------------------------------------------------------
     // discover() on a directory with no TS/JS files yields an empty stream
+    // and never touches Node.js
     // -------------------------------------------------------------------------
 
     @Test
-    void discover_directoryWithNoTsFiles_returnsEmptyStream() throws IOException {
+    void discover_directoryWithNoTsFiles_returnsEmptyStreamAndNoErrors() throws IOException {
         java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("ma-ts-unit-");
         // Place a plain Java file — must not be matched by the TypeScript plugin.
         java.nio.file.Files.writeString(dir.resolve("Foo.java"), "class Foo {}");
@@ -161,7 +162,9 @@ class TypeScriptTestDiscoveryUnitTest {
                 assertEquals(0, stream.count(),
                         "Directory with no TS/JS test files must yield no methods");
             }
-            // Lazy worker start: scan() was never called => close() shuts down 0 workers.
+            // No TS files found => Node.js was never consulted => hadErrors() is false.
+            assertFalse(discovery.hadErrors(),
+                    "hadErrors() must be false when no TypeScript files were present");
         } finally {
             java.nio.file.Files.walk(dir)
                     .sorted(java.util.Comparator.reverseOrder())
