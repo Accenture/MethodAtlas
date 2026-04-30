@@ -33,7 +33,7 @@ externalAliasDirective
     ;
 
 usingDirective
-    : USING STATIC? ( identifier EQ )? usingTypeName SEMI
+    : GLOBAL? USING STATIC? ( identifier EQ )? usingTypeName SEMI
     ;
 
 usingTypeName
@@ -52,6 +52,7 @@ fileScopedNamespaceDeclaration
 member
     : namespaceDeclaration
     | typeDeclaration
+    | enumDeclaration
     | delegateDeclaration
     ;
 
@@ -69,10 +70,23 @@ typeDeclaration
       ( LBRACE typeMember* RBRACE | SEMI )
     ;
 
-typeKwd : CLASS | INTERFACE | STRUCT | RECORD ( CLASS | STRUCT )? | ENUM ;
+typeKwd : CLASS | INTERFACE | STRUCT | RECORD ( CLASS | STRUCT )? ;
+
+// ── Enum declaration (opaque body to avoid ambiguity with initializers) ──
+
+enumDeclaration
+    : attributeSection* modifier* ENUM identifier ( COLON type )?
+      LBRACE enumBodyContent* RBRACE
+    ;
+
+enumBodyContent
+    : ~( LBRACE | RBRACE )
+    | LBRACE enumBodyContent* RBRACE
+    ;
 
 typeMember
     : typeDeclaration
+    | enumDeclaration
     | delegateDeclaration
     | methodDeclaration
     | constructorDeclaration
@@ -131,13 +145,14 @@ propertyOrFieldBody
 
 operatorDeclaration
     : attributeSection* modifier* type OPERATOR overloadableOperator
-      LPAREN parameterList? RPAREN block
+      LPAREN parameterList? RPAREN ( block | FATARROW bodyContent* SEMI )
     ;
 
 overloadableOperator
     : PLUS | MINUS | STAR | DIV | MOD | AMP | PIPE | CARET
     | BANG | TILDE | PLUSPLUS | MINUSMINUS
     | LT | GT | LTE | GTE | EQEQ | NEQ
+    | LT LT | GT GT
     | TRUE | FALSE
     | LBRACKET RBRACKET
     ;
@@ -146,7 +161,7 @@ overloadableOperator
 
 conversionDeclaration
     : attributeSection* modifier* ( EXPLICIT | IMPLICIT ) OPERATOR type
-      LPAREN parameterList? RPAREN block
+      LPAREN parameterList? RPAREN ( block | FATARROW bodyContent* SEMI )
     ;
 
 // ── Event declaration ─────────────────────────────────────────────────
@@ -245,8 +260,8 @@ qualifiedName : identifier ( ( DOT | DOUBLE_COLON ) identifier )* ;
  */
 identifier
     : IDENTIFIER
-    | ALIAS | ASYNC | BY | DEFAULT | DYNAMIC | FROM | GET | GROUP
-    | INIT | INTO | JOIN | LET | NAMEOF | NOTNULL | ON | ORDERBY
+    | ALIAS | ASYNC | BY | DEFAULT | DYNAMIC | FILE | FROM | GET | GROUP
+    | GLOBAL | INIT | INTO | JOIN | LET | NAMEOF | NOTNULL | ON | ORDERBY
     | PARTIAL | RECORD | REMOVE | SCOPED | SELECT | SET | UNMANAGED
     | VALUE | VAR | WHERE | WITH | YIELD
     ;
@@ -312,8 +327,15 @@ attributeArg
     | attributeValue                 // positional argument
     ;
 
+/**
+ * Attribute argument values, including bitwise-OR chains
+ * (e.g. AttributeTargets.Class | AttributeTargets.Interface)
+ * and string concatenation (e.g. "prefix" + "suffix").
+ */
 attributeValue
-    : stringLiteral
+    : attributeValue PIPE attributeValue
+    | attributeValue PLUS attributeValue
+    | stringLiteral
     | CHAR_LITERAL
     | TRUE | FALSE | NULL
     | MINUS? INTEGER_LITERAL
@@ -406,6 +428,7 @@ FOR        : 'for'       ;
 FOREACH    : 'foreach'   ;
 FROM       : 'from'      ;
 GET        : 'get'       ;
+GLOBAL     : 'global'    ;
 GOTO       : 'goto'      ;
 GROUP      : 'group'     ;
 IF         : 'if'        ;
@@ -438,6 +461,7 @@ PUBLIC     : 'public'    ;
 READONLY   : 'readonly'  ;
 RECORD     : 'record'    ;
 REF        : 'ref'       ;
+REMOVE     : 'remove'    ;
 REQUIRED   : 'required'  ;
 RETURN     : 'return'    ;
 SCOPED     : 'scoped'    ;
@@ -532,8 +556,6 @@ MODEQ        : '%='  ;
 AMPEQ        : '&='  ;
 PIPEEQ       : '|='  ;
 CARETEQ      : '^='  ;
-SHIFT_LEFT   : '<<'  ;
-SHIFT_RIGHT  : '>>'  ;
 AT_SIGN      : '@'   ;
 HASH         : '#'   ;
 
@@ -624,14 +646,18 @@ REAL_LITERAL
 fragment EXPONENT    : [eE] [+-]? [0-9]+ ;
 fragment REAL_SUFFIX : [fFdDmM] ;
 
+// ── UTF-8 BOM (U+FEFF) — skip before identifier so BOM files parse cleanly ──
+
+BOM : '﻿' -> skip ;
+
 // ── Identifier ────────────────────────────────────────────────────────
 
 /**
  * C# identifier, including verbatim identifiers (@keyword) and Unicode.
  */
 IDENTIFIER
-    : [a-zA-Z_À-ÖØ-öø-˿Ͱ-ͽͿ-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-�]
-      [a-zA-Z0-9_·̀-ͯ‿-⁀À-ÖØ-öø-˿Ͱ-ͽͿ-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-�]*
+    : [a-zA-Z_À-ÖØ-öø-˿Ͱ-ͽͿ-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-￿]
+      [a-zA-Z0-9_·̀-ͯ‿-⁀À-ÖØ-öø-˿Ͱ-ͽͿ-῿‌-‍⁰-↏Ⰰ-⿯、-퟿豈-﷏ﷰ-￿]*
     | '@' [a-zA-Z_] [a-zA-Z0-9_]*
     ;
 
