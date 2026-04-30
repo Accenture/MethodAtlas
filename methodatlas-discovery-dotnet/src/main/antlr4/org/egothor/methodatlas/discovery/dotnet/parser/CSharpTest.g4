@@ -102,7 +102,7 @@ constructorDeclaration
       IDENTIFIER
       LPAREN parameterList? RPAREN
       constructorInitializer?
-      block
+      ( block | FATARROW bodyContent* SEMI )
     ;
 
 constructorInitializer
