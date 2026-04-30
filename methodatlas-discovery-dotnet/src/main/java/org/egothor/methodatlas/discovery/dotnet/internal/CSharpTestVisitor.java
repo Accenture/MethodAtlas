@@ -2,6 +2,7 @@ package org.egothor.methodatlas.discovery.dotnet.internal;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -184,7 +185,8 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
                 }
             }
         }
-        return new AttributeInfo(simpleName, List.copyOf(positional),
+        // List.copyOf rejects null; positional args that aren't string literals are stored as null
+        return new AttributeInfo(simpleName, Collections.unmodifiableList(new ArrayList<>(positional)),
                 Map.copyOf(named), secStart, secStop);
     }
 

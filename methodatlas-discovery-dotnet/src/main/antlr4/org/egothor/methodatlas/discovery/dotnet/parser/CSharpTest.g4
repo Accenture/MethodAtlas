@@ -585,7 +585,18 @@ fragment INTERP_CHAR
     : ~["\\\r\n{]
     | '\\' .
     | '{{' | '}}'
-    | '{' ~[}]* '}'
+    | '{' INTERP_HOLE* '}'
+    ;
+
+/**
+ * Content of an interpolation hole {expr}. Recursive to handle nested
+ * braces such as new[] { … } or object initializers inside the hole.
+ * Matches any character other than { and } (including newlines, which
+ * C# 11 permits inside interpolation expressions), plus nested { … }.
+ */
+fragment INTERP_HOLE
+    : '{' INTERP_HOLE* '}'
+    | ~[{}]
     ;
 
 CHAR_LITERAL
