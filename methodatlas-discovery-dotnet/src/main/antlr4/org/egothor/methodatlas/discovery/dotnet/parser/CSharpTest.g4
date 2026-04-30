@@ -33,7 +33,12 @@ externalAliasDirective
     ;
 
 usingDirective
-    : USING STATIC? ( IDENTIFIER EQ )? qualifiedName SEMI
+    : USING STATIC? ( IDENTIFIER EQ )? usingTypeName SEMI
+    ;
+
+usingTypeName
+    : qualifiedName typeArguments?
+    | LPAREN tupleElement ( COMMA tupleElement )+ RPAREN
     ;
 
 globalAttributeSection
@@ -47,6 +52,7 @@ fileScopedNamespaceDeclaration
 member
     : namespaceDeclaration
     | typeDeclaration
+    | delegateDeclaration
     ;
 
 namespaceDeclaration
@@ -57,18 +63,21 @@ namespaceDeclaration
 
 typeDeclaration
     : attributeSection* modifier* typeKwd IDENTIFIER typeParameterList?
-      ( COLON typeList )?
+      ( LPAREN parameterList? RPAREN )?
+      ( COLON typeBaseList )?
       typeConstraintClause*
-      LBRACE typeMember* RBRACE
+      ( LBRACE typeMember* RBRACE | SEMI )
     ;
 
-typeKwd : CLASS | INTERFACE | STRUCT | RECORD | ENUM ;
+typeKwd : CLASS | INTERFACE | STRUCT | RECORD ( CLASS | STRUCT )? | ENUM ;
 
 typeMember
     : typeDeclaration
+    | delegateDeclaration
     | methodDeclaration
     | constructorDeclaration
     | destructorDeclaration
+    | indexerDeclaration
     | propertyOrFieldDeclaration
     | operatorDeclaration
     | conversionDeclaration
@@ -147,6 +156,20 @@ eventDeclaration
       ( LBRACE bodyContent* RBRACE | SEMI )
     ;
 
+// ── Delegate declaration ──────────────────────────────────────────────
+
+delegateDeclaration
+    : attributeSection* modifier* DELEGATE returnType IDENTIFIER typeParameterList?
+      LPAREN parameterList? RPAREN typeConstraintClause* SEMI
+    ;
+
+// ── Indexer declaration ───────────────────────────────────────────────
+
+indexerDeclaration
+    : attributeSection* modifier* type THIS LBRACKET parameterList? RBRACKET
+      propertyOrFieldBody
+    ;
+
 // ═══════════════════════════════════════════════════════════════════════
 // RETURN TYPE AND TYPE EXPRESSIONS
 // ═══════════════════════════════════════════════════════════════════════
@@ -187,7 +210,9 @@ typeParameterList
     ;
 typeParameter : attributeSection* ( IN | OUT )? IDENTIFIER ;
 
-typeList : type ( COMMA type )* ;
+typeList     : type ( COMMA type )* ;
+typeBaseList : typeBase ( COMMA typeBase )* ;
+typeBase     : type ( LPAREN balancedContent* RPAREN )? ;
 
 typeConstraintClause
     : WHERE IDENTIFIER COLON typeConstraintList
@@ -209,7 +234,8 @@ typeConstraint
 
 /** Supports explicit interface implementation: IInterface.Method */
 memberName    : IDENTIFIER ( DOT IDENTIFIER )* ;
-qualifiedName : IDENTIFIER ( DOT IDENTIFIER )* ;
+/** Supports global:: alias qualifier: global::System.Console */
+qualifiedName : IDENTIFIER ( ( DOT | DOUBLE_COLON ) IDENTIFIER )* ;
 
 // ═══════════════════════════════════════════════════════════════════════
 // MEMBER BODY (opaque block)
@@ -327,7 +353,7 @@ modifier
     : PUBLIC | PRIVATE | PROTECTED | INTERNAL
     | STATIC | ABSTRACT | VIRTUAL | OVERRIDE | SEALED
     | PARTIAL | ASYNC | READONLY | EXTERN | UNSAFE
-    | VOLATILE | NEW | FIXED | REQUIRED
+    | VOLATILE | NEW | FIXED | REQUIRED | FILE
     ;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -359,6 +385,7 @@ EVENT      : 'event'     ;
 EXPLICIT   : 'explicit'  ;
 EXTERN     : 'extern'    ;
 FALSE      : 'false'     ;
+FILE       : 'file'      ;
 FINALLY    : 'finally'   ;
 FIXED      : 'fixed'     ;
 FOR        : 'for'       ;

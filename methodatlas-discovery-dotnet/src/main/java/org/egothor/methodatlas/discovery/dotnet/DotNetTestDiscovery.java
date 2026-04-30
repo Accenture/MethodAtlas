@@ -11,8 +11,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
+import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
@@ -96,11 +99,9 @@ public final class DotNetTestDiscovery implements TestDiscovery {
                 .forEach(file -> {
                     try {
                         discoverInFile(file, root, results);
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         errors = true;
-                        if (LOG.isLoggable(Level.WARNING)) {
-                            LOG.warning("Failed to process: " + file + " — " + e.getMessage());
-                        }
+                        LOG.log(Level.WARNING, "Failed to process: " + file, e);
                     }
                 });
         }
@@ -204,18 +205,24 @@ public final class DotNetTestDiscovery implements TestDiscovery {
     }
 
     private CSharpTestParser.CompilationUnitContext parse(Path file) throws IOException {
-        CSharpTestLexer lexer = new CSharpTestLexer(
-                CharStreams.fromPath(file));
+        CSharpTestLexer lexer = new CSharpTestLexer(CharStreams.fromPath(file));
         lexer.removeErrorListeners();
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         CSharpTestParser parser = new CSharpTestParser(tokens);
         parser.removeErrorListeners();
-        CSharpTestParser.CompilationUnitContext tree = parser.compilationUnit();
-        if (parser.getNumberOfSyntaxErrors() > 0) {
-            errors = true;
-            if (LOG.isLoggable(Level.FINE)) {
-                LOG.fine("Syntax errors in: " + file);
+        List<String> syntaxErrors = new ArrayList<>();
+        parser.addErrorListener(new BaseErrorListener() {
+            @Override
+            public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                    int line, int charPositionInLine,
+                                    String msg, RecognitionException e) {
+                syntaxErrors.add(file + ":" + line + ":" + charPositionInLine + ": " + msg);
             }
+        });
+        CSharpTestParser.CompilationUnitContext tree = parser.compilationUnit();
+        if (!syntaxErrors.isEmpty()) {
+            errors = true;
+            syntaxErrors.forEach(err -> LOG.warning("C# parse error: " + err));
         }
         return tree;
     }

@@ -14,8 +14,11 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
 import org.egothor.methodatlas.api.SourcePatcher;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.discovery.dotnet.internal.AttributeInfo;
@@ -366,11 +369,19 @@ public final class DotNetSourcePatcher implements SourcePatcher {
     // ── ANTLR4 parsing ────────────────────────────────────────────────
 
     private CSharpTestParser.CompilationUnitContext parse(Path file) throws IOException {
-        CSharpTestLexer  lexer  = new CSharpTestLexer(CharStreams.fromPath(file));
+        CSharpTestLexer lexer = new CSharpTestLexer(CharStreams.fromPath(file));
         lexer.removeErrorListeners();
         CommonTokenStream tokens = new CommonTokenStream(lexer);
-        CSharpTestParser  parser = new CSharpTestParser(tokens);
+        CSharpTestParser parser = new CSharpTestParser(tokens);
         parser.removeErrorListeners();
+        parser.addErrorListener(new BaseErrorListener() {
+            @Override
+            public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                    int line, int charPositionInLine,
+                                    String msg, RecognitionException e) {
+                LOG.warning("C# parse error: " + file + ":" + line + ":" + charPositionInLine + ": " + msg);
+            }
+        });
         return parser.compilationUnit();
     }
 
