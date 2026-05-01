@@ -377,7 +377,8 @@ distributions {
         contents {
             from(tasks.named('guiStartScripts')) {
                 into 'bin'
-                fileMode 0755
+                // fileMode was removed in Gradle 9; use filePermissions instead.
+                filePermissions { unix('rwxr-xr-x') }
             }
             from(configurations.guiRuntime) {
                 into 'lib'
