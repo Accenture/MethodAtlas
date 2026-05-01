@@ -276,6 +276,33 @@ subprojects {
 }
 
 // ---------------------------------------------------------------------------
+// PMD – uniform static-analysis settings for every Java subproject.
+//
+// The callback fires only when the java (or java-library) plugin has been
+// applied to a subproject, so purely non-Java modules (methodatlas-docs,
+// which uses only the 'base' plugin) are not affected.
+// The rootProject.file(".ruleset") reference ensures all modules use the
+// single shared ruleset regardless of their location in the project tree.
+// ---------------------------------------------------------------------------
+subprojects {
+    plugins.withId('java') {
+        apply plugin: 'pmd'
+        pmd {
+            consoleOutput = true
+            toolVersion = '7.20.0'
+            sourceSets = [sourceSets.main]
+            ruleSetFiles = files(rootProject.file(".ruleset"))
+        }
+        tasks.withType(Pmd) {
+            maxHeapSize = "512m"
+            reports {
+                html.required = true
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // License compliance – ./gradlew generateLicenseReport
 // ./gradlew checkLicense  – enforces that all runtime deps use an allowed license
 // ---------------------------------------------------------------------------
