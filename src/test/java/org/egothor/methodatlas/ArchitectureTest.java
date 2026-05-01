@@ -4,6 +4,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import org.egothor.methodatlas.ai.AiProviderClient;
+import org.egothor.methodatlas.command.Command;
 
 import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.junit.AnalyzeClasses;
@@ -19,10 +20,12 @@ import com.tngtech.archunit.lang.ArchRule;
  * at test time:
  * </p>
  * <ul>
- * <li>{@code org.egothor.methodatlas} – scanner core and CLI</li>
+ * <li>{@code org.egothor.methodatlas} – scanner core and CLI routing</li>
  * <li>{@code org.egothor.methodatlas.api} – SPI contracts:
  * {@code TestDiscovery}, {@code SourcePatcher}, {@code DiscoveredMethod},
  * {@code ScanRecord}</li>
+ * <li>{@code org.egothor.methodatlas.command} – CLI command handlers
+ * ({@code Command} interface, {@code CommandSupport}, and one class per mode)</li>
  * <li>{@code org.egothor.methodatlas.discovery.jvm} – Java/JVM test discovery
  * and source patching implementation (runtime-only dependency)</li>
  * <li>{@code org.egothor.methodatlas.emit} – output emitter implementations</li>
@@ -138,6 +141,23 @@ class ArchitectureTest {
                     .because("core classes must access discovery providers via SPI only; "
                             + "compile-time coupling to a concrete discovery implementation "
                             + "prevents provider substitution and breaks the plugin model");
+
+    /**
+     * All {@link Command} implementations must reside in the
+     * {@code org.egothor.methodatlas.command} package.
+     *
+     * <p>
+     * Placing a command handler in the root package or any other package
+     * defeats the purpose of the command-handler refactoring and would
+     * re-introduce orchestration logic into the routing layer.
+     * </p>
+     */
+    @ArchTest
+    static final ArchRule COMMAND_IMPLEMENTATIONS_IN_COMMAND_PACKAGE =
+            classes().that().implement(Command.class)
+                    .should().resideInAPackage("org.egothor.methodatlas.command")
+                    .because("all CLI command handlers must reside in the command package; "
+                            + "routing logic belongs in MethodAtlasApp.run(), not in a command class");
 
     /**
      * Output-emitter classes must not orchestrate AI suggestion calls.

@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
+import org.egothor.methodatlas.command.CommandSupport;
 import org.egothor.methodatlas.emit.GitHubAnnotationsEmitter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -439,23 +440,23 @@ class GitHubAnnotationsEmitterTest {
     }
 
     // -------------------------------------------------------------------------
-    // MethodAtlasApp.computeFilePrefix
+    // CommandSupport.computeFilePrefix
     // -------------------------------------------------------------------------
 
     @Test
     void computeFilePrefix_emptyList_returnsEmptyString() {
-        assertEquals("", MethodAtlasApp.computeFilePrefix(List.of()));
+        assertEquals("", CommandSupport.computeFilePrefix(List.of()));
     }
 
     @Test
     void computeFilePrefix_relativeRoot_endsWithSlash(@TempDir Path tempDir) {
-        String prefix = MethodAtlasApp.computeFilePrefix(List.of(tempDir));
+        String prefix = CommandSupport.computeFilePrefix(List.of(tempDir));
         assertTrue(prefix.endsWith("/"), "Prefix should end with /");
     }
 
     @Test
     void computeFilePrefix_usesForwardSlashes(@TempDir Path tempDir) {
-        String prefix = MethodAtlasApp.computeFilePrefix(List.of(tempDir));
+        String prefix = CommandSupport.computeFilePrefix(List.of(tempDir));
         assertFalse(prefix.contains("\\"), "Prefix should use forward slashes only");
     }
 

@@ -13,16 +13,17 @@ import java.util.stream.Stream;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourcePatcher;
 import org.egothor.methodatlas.api.TestDiscovery;
+import org.egothor.methodatlas.command.CommandSupport;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies that the plugin-ID uniqueness checks in {@link MethodAtlasApp}
+ * Verifies that the plugin-ID uniqueness checks in {@link CommandSupport}
  * throw {@link IllegalStateException} when two providers share the same ID
  * and pass silently when all IDs are distinct.
  *
  * <p>
- * Both {@link MethodAtlasApp#requireUniqueDiscoveryIds} and
- * {@link MethodAtlasApp#requireUniquePatcherIds} are tested with:
+ * Both {@link CommandSupport#requireUniqueDiscoveryIds} and
+ * {@link CommandSupport#requireUniquePatcherIds} are tested with:
  * <ul>
  *   <li>an empty list — should never throw</li>
  *   <li>a list of providers with distinct IDs — should not throw</li>
@@ -56,19 +57,19 @@ class PluginIdUniquenessTest {
 
     @Test
     void requireUniqueDiscoveryIds_emptyList_doesNotThrow() {
-        assertDoesNotThrow(() -> MethodAtlasApp.requireUniqueDiscoveryIds(List.of()));
+        assertDoesNotThrow(() -> CommandSupport.requireUniqueDiscoveryIds(List.of()));
     }
 
     @Test
     void requireUniqueDiscoveryIds_distinctIds_doesNotThrow() {
-        assertDoesNotThrow(() -> MethodAtlasApp.requireUniqueDiscoveryIds(
+        assertDoesNotThrow(() -> CommandSupport.requireUniqueDiscoveryIds(
                 List.of(discoveryWithId("java"), discoveryWithId("dotnet"))));
     }
 
     @Test
     void requireUniqueDiscoveryIds_duplicateId_throwsWithIdInMessage() {
         var ex = assertThrows(IllegalStateException.class,
-                () -> MethodAtlasApp.requireUniqueDiscoveryIds(
+                () -> CommandSupport.requireUniqueDiscoveryIds(
                         List.of(discoveryWithId("java"),
                                 discoveryWithId("dotnet"),
                                 discoveryWithId("java"))));
@@ -80,19 +81,19 @@ class PluginIdUniquenessTest {
 
     @Test
     void requireUniquePatcherIds_emptyList_doesNotThrow() {
-        assertDoesNotThrow(() -> MethodAtlasApp.requireUniquePatcherIds(List.of()));
+        assertDoesNotThrow(() -> CommandSupport.requireUniquePatcherIds(List.of()));
     }
 
     @Test
     void requireUniquePatcherIds_distinctIds_doesNotThrow() {
-        assertDoesNotThrow(() -> MethodAtlasApp.requireUniquePatcherIds(
+        assertDoesNotThrow(() -> CommandSupport.requireUniquePatcherIds(
                 List.of(patcherWithId("java"), patcherWithId("dotnet"))));
     }
 
     @Test
     void requireUniquePatcherIds_duplicateId_throwsWithIdInMessage() {
         var ex = assertThrows(IllegalStateException.class,
-                () -> MethodAtlasApp.requireUniquePatcherIds(
+                () -> CommandSupport.requireUniquePatcherIds(
                         List.of(patcherWithId("dotnet"),
                                 patcherWithId("dotnet"))));
         assertEquals(true, ex.getMessage().contains("dotnet"),

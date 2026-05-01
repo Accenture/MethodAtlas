@@ -131,6 +131,11 @@
  *     {@link org.egothor.methodatlas.emit.DeltaEmitter}</li>
  * <li>{@code org.egothor.methodatlas.ai} — AI suggestion engine and provider
  *     integrations</li>
+ * <li>{@code org.egothor.methodatlas.command} — CLI command handler implementations:
+ *     one class per CLI mode ({@code ScanCommand}, {@code SarifCommand},
+ *     {@code DiffCommand}, {@code ApplyTagsCommand}, {@code ApplyTagsFromCsvCommand},
+ *     {@code GitHubAnnotationsCommand}, {@code ManualPrepareCommand}), plus
+ *     shared infrastructure in {@code CommandSupport}</li>
  * </ul>
  *
  * @see org.egothor.methodatlas.MethodAtlasApp
