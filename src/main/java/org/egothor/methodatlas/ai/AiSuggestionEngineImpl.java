@@ -66,7 +66,8 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      * @see #AiSuggestionEngineImpl(AiOptions, RateLimitListener)
      */
     public AiSuggestionEngineImpl(AiOptions options) throws AiSuggestionException {
-        this(options, (w, a, m) -> {});
+        this.client = AiProviderFactory.create(options);
+        this.taxonomyText = loadTaxonomy(options);
     }
 
     /**
