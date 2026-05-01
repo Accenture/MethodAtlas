@@ -1,6 +1,5 @@
 package org.egothor.methodatlas.gui.panel;
 
-import org.egothor.methodatlas.api.SourcePatcher;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.gui.model.AnalysisModel;
 import org.egothor.methodatlas.gui.model.AppSettings;
@@ -11,33 +10,28 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
- * Bottom-right panel for reviewing and applying tag suggestions to a method.
+ * Bottom-right panel for reviewing and staging tag suggestions for a method.
  *
  * <p>Shows the currently selected method's existing {@code @Tag} values
  * alongside the AI-suggested tags as interactive toggle chips.  The user
  * can accept or reject individual AI suggestions, enter manual overrides,
- * and apply the result directly to the source file via the registered
- * {@link SourcePatcher} implementations.</p>
+ * and <em>stage</em> the result via <strong>Apply to Source</strong>.
+ * Staged changes are held in memory and written to disk together when the
+ * <strong>Save All Changes</strong> toolbar button is pressed, ensuring that
+ * all modifications to a file are applied in a single pass (preventing line
+ * number drift when multiple methods in the same class are patched).</p>
  */
 public final class TagEditorPanel extends JPanel {
 
     @java.io.Serial
     private static final long serialVersionUID = 1L;
-
-    private static final Logger LOG = Logger.getLogger(TagEditorPanel.class.getName());
 
     // ── UI components ─────────────────────────────────────────────────────
 
@@ -45,27 +39,26 @@ public final class TagEditorPanel extends JPanel {
     private final JPanel currentTagsRow = new JPanel(new WrapLayout(FlowLayout.LEFT, 4, 2));
     private final JPanel aiTagsRow = new JPanel(new WrapLayout(FlowLayout.LEFT, 4, 2));
     private final JLabel reasonLabel = new JLabel();
+    private final JLabel stagedLabel = new JLabel();
     private final JTextField overrideField = new JTextField();
-    private final JButton applyButton = new JButton("Apply to Source");
+    private final JButton applyButton = new JButton("Stage Selection");
     private final JButton applyAiButton = new JButton("Accept All AI Tags");
+    private final JButton unstageButton = new JButton("Unstage");
 
     // ── State ─────────────────────────────────────────────────────────────
 
     private final AnalysisModel model;
     private final AppSettings settings;
-    private final EditorPanel editorPanel;
     private MethodEntry currentEntry;
 
     /**
-     * @param model       model to observe
-     * @param settings    settings (file suffixes and test annotations)
-     * @param editorPanel editor to refresh after applying a patch
+     * @param model    model to observe
+     * @param settings settings (file suffixes and test annotations)
      */
-    public TagEditorPanel(AnalysisModel model, AppSettings settings, EditorPanel editorPanel) {
+    public TagEditorPanel(AnalysisModel model, AppSettings settings) {
         super(new BorderLayout(0, 6));
         this.model = model;
         this.settings = settings;
-        this.editorPanel = editorPanel;
 
         setBorder(new EmptyBorder(8, 8, 8, 8));
         buildUi();
@@ -99,21 +92,32 @@ public final class TagEditorPanel extends JPanel {
         reasonLabel.setBorder(new EmptyBorder(2, 0, 0, 0));
         aiPanel.add(reasonLabel, BorderLayout.SOUTH);
 
+        // ── Staged indicator ──────────────────────────────────────────────
+        stagedLabel.setFont(stagedLabel.getFont().deriveFont(Font.BOLD, 11f));
+        stagedLabel.setForeground(new Color(0xE65100));
+        stagedLabel.setBorder(new EmptyBorder(2, 0, 2, 0));
+        stagedLabel.setVisible(false);
+
         // ── Override ──────────────────────────────────────────────────────
         JPanel overridePanel = new JPanel(new BorderLayout(4, 0));
         overridePanel.add(new JLabel("Custom override (comma-separated): "), BorderLayout.WEST);
         overridePanel.add(overrideField, BorderLayout.CENTER);
 
         // ── Actions ───────────────────────────────────────────────────────
-        applyButton.setToolTipText("Apply the toggled AI tags (plus any override) to the source file");
-        applyAiButton.setToolTipText("Accept all AI-suggested tags for this method");
+        applyButton.setToolTipText(
+                "Stage the currently toggled AI chips plus any custom override — use Accept All AI Tags to skip toggling");
+        applyAiButton.setToolTipText("Stage all AI-suggested tags for this method");
+        unstageButton.setToolTipText("Discard staged changes for this method without writing to disk");
         applyButton.setEnabled(false);
         applyAiButton.setEnabled(false);
+        unstageButton.setEnabled(false);
 
-        applyButton.addActionListener(e -> applySelectedTags());
-        applyAiButton.addActionListener(e -> acceptAllAiTags());
+        applyButton.addActionListener(e -> stageSelectedTags());
+        applyAiButton.addActionListener(e -> stageAllAiTags());
+        unstageButton.addActionListener(e -> unstageCurrentEntry());
 
         JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        buttonRow.add(unstageButton);
         buttonRow.add(applyAiButton);
         buttonRow.add(applyButton);
 
@@ -128,7 +132,11 @@ public final class TagEditorPanel extends JPanel {
 
         add(methodLabel, BorderLayout.NORTH);
         add(center, BorderLayout.CENTER);
-        add(buttonRow, BorderLayout.SOUTH);
+
+        JPanel south = new JPanel(new BorderLayout());
+        south.add(stagedLabel, BorderLayout.NORTH);
+        south.add(buttonRow, BorderLayout.SOUTH);
+        add(south, BorderLayout.SOUTH);
     }
 
     // ── Event handling ────────────────────────────────────────────────────
@@ -139,7 +147,6 @@ public final class TagEditorPanel extends JPanel {
     }
 
     private void onEntriesChanged(PropertyChangeEvent evt) {
-        // Refresh if the currently displayed entry was updated by AI
         if (currentEntry != null && evt.getNewValue() instanceof MethodEntry updated
                 && updated.toString().equals(currentEntry.toString())) {
             currentEntry = updated;
@@ -158,19 +165,34 @@ public final class TagEditorPanel extends JPanel {
         methodLabel.setText(currentEntry.discovered().fqcn()
                 + " # " + currentEntry.discovered().method());
 
-        // Current tags chips (display only)
+        // Current tags area: show pending tags (orange) if staged, else source tags (blue)
         currentTagsRow.removeAll();
-        List<String> sourceTags = currentEntry.discovered().tags();
-        if (sourceTags.isEmpty()) {
-            currentTagsRow.add(new JLabel("<html><i color='gray'>none</i></html>"));
-        } else {
-            for (String tag : sourceTags) {
-                currentTagsRow.add(buildStaticChip(tag, new Color(0x1565C0)));
+        if (currentEntry.hasPendingChanges()) {
+            List<String> pending = currentEntry.getPendingTags();
+            if (pending.isEmpty()) {
+                currentTagsRow.add(new JLabel("<html><i color='gray'>none (staged)</i></html>"));
+            } else {
+                for (String tag : pending) {
+                    currentTagsRow.add(buildStaticChip(tag, new Color(0xE65100)));
+                }
             }
+            stagedLabel.setText("⏳ Staged — press Save All Changes in the toolbar to write to disk");
+            stagedLabel.setVisible(true);
+        } else {
+            List<String> sourceTags = currentEntry.discovered().tags();
+            if (sourceTags.isEmpty()) {
+                currentTagsRow.add(new JLabel("<html><i color='gray'>none</i></html>"));
+            } else {
+                for (String tag : sourceTags) {
+                    currentTagsRow.add(buildStaticChip(tag, new Color(0x1565C0)));
+                }
+            }
+            stagedLabel.setVisible(false);
         }
 
         // AI suggestion chips (toggleable)
         aiTagsRow.removeAll();
+        List<String> sourceTags = currentEntry.discovered().tags();
         boolean hasAi = currentEntry.suggestion() != null && currentEntry.suggestion().securityRelevant();
         if (!hasAi) {
             String msg = currentEntry.suggestion() == null ? "No AI data yet"
@@ -190,8 +212,10 @@ public final class TagEditorPanel extends JPanel {
                     ? "<html><i>" + escHtml(truncate(reason, 120)) + "</i></html>" : "");
         }
 
-        applyButton.setEnabled(currentEntry.discovered().filePath() != null);
-        applyAiButton.setEnabled(hasAi && currentEntry.discovered().filePath() != null);
+        boolean canApply = currentEntry.discovered().filePath() != null;
+        applyButton.setEnabled(canApply);
+        applyAiButton.setEnabled(hasAi && canApply);
+        unstageButton.setEnabled(currentEntry.hasPendingChanges());
 
         revalidate();
         repaint();
@@ -203,26 +227,26 @@ public final class TagEditorPanel extends JPanel {
         currentTagsRow.removeAll();
         aiTagsRow.removeAll();
         reasonLabel.setText("");
+        stagedLabel.setVisible(false);
         overrideField.setText("");
         applyButton.setEnabled(false);
         applyAiButton.setEnabled(false);
+        unstageButton.setEnabled(false);
         revalidate();
         repaint();
     }
 
-    // ── Tag application ───────────────────────────────────────────────────
+    // ── Staging ───────────────────────────────────────────────────────────
 
-    private void applySelectedTags() {
+    private void stageSelectedTags() {
         if (currentEntry == null) return;
 
         Set<String> tags = new LinkedHashSet<>(currentEntry.discovered().tags());
-        // Add selected AI tags
         for (Component c : aiTagsRow.getComponents()) {
             if (c instanceof JToggleButton btn && btn.isSelected()) {
                 tags.add(btn.getText());
             }
         }
-        // Add overrides
         String override = overrideField.getText().trim();
         if (!override.isEmpty()) {
             for (String t : override.split(",")) {
@@ -231,65 +255,59 @@ public final class TagEditorPanel extends JPanel {
             }
         }
 
-        patch(currentEntry, new ArrayList<>(tags));
+        String displayName = resolveDisplayName(currentEntry);
+        stageEntry(currentEntry, new ArrayList<>(tags), displayName);
     }
 
-    private void acceptAllAiTags() {
+    private void stageAllAiTags() {
         if (currentEntry == null || currentEntry.suggestion() == null) return;
         Set<String> tags = new LinkedHashSet<>(currentEntry.discovered().tags());
         List<String> aiTags = currentEntry.suggestion().tags();
         if (aiTags != null) tags.addAll(aiTags);
-        patch(currentEntry, new ArrayList<>(tags));
+        String displayName = resolveDisplayName(currentEntry);
+        stageEntry(currentEntry, new ArrayList<>(tags), displayName);
     }
 
-    private void patch(MethodEntry entry, List<String> tags) {
-        List<String> flatSuffixes = new ArrayList<>();
+    private void unstageCurrentEntry() {
+        if (currentEntry == null || !currentEntry.hasPendingChanges()) return;
+        currentEntry.clearStagedPatch();
+        model.notifyEntryChanged(currentEntry);
+        model.setStatusMessage("Staged changes cleared for " + currentEntry.discovered().method());
+        refreshUi();
+    }
+
+    private void stageEntry(MethodEntry entry, List<String> tags, String displayName) {
+        entry.setStagedPatch(tags, displayName);
+        model.notifyEntryChanged(entry);
+        overrideField.setText("");
+        model.setStatusMessage(
+                "Staged " + entry.discovered().method() + " — press Save All Changes to write to disk");
+        refreshUi();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    /**
+     * Returns the AI-suggested display name to stage alongside the tags, or
+     * {@code null} when one is not available or already set in source.
+     */
+    private static String resolveDisplayName(MethodEntry entry) {
+        String dn = entry.suggestedDisplayName();
+        if (dn != null && !dn.isBlank() && entry.discovered().displayName() == null) {
+            return dn;
+        }
+        return null;
+    }
+
+    /**
+     * Returns the flat suffix list required by {@link TestDiscoveryConfig}
+     * from the per-plugin suffix map in {@code settings}.
+     */
+    public static List<String> buildFlatSuffixes(AppSettings settings) {
+        List<String> result = new ArrayList<>();
         settings.getPluginSuffixes().forEach((pluginId, masks) ->
-                masks.forEach(m -> flatSuffixes.add(pluginId + ":" + m)));
-        TestDiscoveryConfig discoveryConfig = new TestDiscoveryConfig(
-                flatSuffixes,
-                Set.copyOf(settings.getTestAnnotations()),
-                Map.of());
-
-        List<SourcePatcher> patchers = new ArrayList<>();
-        ServiceLoader.load(SourcePatcher.class).forEach(p -> {
-            p.configure(discoveryConfig);
-            patchers.add(p);
-        });
-
-        SourcePatcher patcher = patchers.stream()
-                .filter(p -> p.supports(entry.discovered().filePath()))
-                .findFirst().orElse(null);
-
-        if (patcher == null) {
-            JOptionPane.showMessageDialog(this,
-                    "No SourcePatcher supports this file type.",
-                    "Patch Error", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        StringWriter logBuffer = new StringWriter();
-        try (PrintWriter log = new PrintWriter(logBuffer)) {
-            Map<String, List<String>> tagsToApply = Map.of(entry.discovered().method(), tags);
-            Map<String, String> displayNames = Map.of();
-            String displayName = entry.suggestedDisplayName();
-            if (displayName != null && !displayName.isBlank()
-                    && entry.discovered().displayName() == null) {
-                displayNames = Map.of(entry.discovered().method(), displayName);
-            }
-            int changes = patcher.patch(entry.discovered().filePath(), tagsToApply, displayNames, log);
-            entry.setAppliedTags(tags);
-            model.setStatusMessage("Patched " + changes + " annotation(s) in "
-                    + entry.discovered().filePath().getFileName());
-            overrideField.setText("");
-            editorPanel.reloadCurrentFile(entry.discovered().beginLine());
-            refreshUi();
-        } catch (IOException e) {
-            LOG.log(Level.WARNING, "Patch failed", e);
-            JOptionPane.showMessageDialog(this,
-                    "Patch failed:\n" + e.getMessage(),
-                    "Patch Error", JOptionPane.ERROR_MESSAGE);
-        }
+                masks.forEach(m -> result.add(pluginId + ":" + m)));
+        return result;
     }
 
     // ── Chip factories ────────────────────────────────────────────────────
@@ -322,7 +340,7 @@ public final class TagEditorPanel extends JPanel {
             btn.setForeground(fg);
         };
         btn.addActionListener(updateColor);
-        updateColor.actionPerformed(null); // set initial colour
+        updateColor.actionPerformed(null);
         return btn;
     }
 

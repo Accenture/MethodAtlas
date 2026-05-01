@@ -3,6 +3,7 @@ package org.egothor.methodatlas.gui.model;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -387,6 +388,43 @@ public final class AnalysisModel {
      * @return selected entry, or {@code null} when no entry is selected
      */
     public MethodEntry getSelectedEntry() { return selectedEntry; }
+
+    /**
+     * Returns {@code true} when at least one method entry has a staged patch
+     * that has not yet been written to disk.
+     *
+     * @return {@code true} if any entry is in {@link MethodEntry.TagStatus#PENDING_SAVE} state
+     */
+    public boolean hasStagedChanges() {
+        return methodsByClass.values().stream()
+                .flatMap(Collection::stream)
+                .anyMatch(MethodEntry::hasPendingChanges);
+    }
+
+    /**
+     * Returns all method entries that have a staged patch pending a save.
+     *
+     * @return unmodifiable list of entries with pending changes, in discovery order
+     */
+    public List<MethodEntry> getStagedEntries() {
+        return methodsByClass.values().stream()
+                .flatMap(Collection::stream)
+                .filter(MethodEntry::hasPendingChanges)
+                .toList();
+    }
+
+    /**
+     * Notifies all listeners that the given entry has changed without
+     * altering any other model state.
+     *
+     * <p>Used by the GUI to propagate staging and unstaging events so that
+     * the results tree and tag editor panel refresh immediately.</p>
+     *
+     * @param entry the entry that changed; must not be {@code null}
+     */
+    public void notifyEntryChanged(MethodEntry entry) {
+        pcs.firePropertyChange("entries", null, entry);
+    }
 
     /**
      * Returns an unmodifiable snapshot of the class-to-methods map in

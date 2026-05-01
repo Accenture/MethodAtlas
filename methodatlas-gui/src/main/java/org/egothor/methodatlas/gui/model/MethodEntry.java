@@ -25,12 +25,23 @@ public final class MethodEntry {
         /** AI suggests tags not yet present in the source. */
         NEEDS_REVIEW,
         /** Source tags are consistent with the AI suggestion. */
-        OK
+        OK,
+        /**
+         * Changes have been staged via the GUI but not yet written to disk.
+         * The pending state takes priority over all other statuses until the
+         * staged patch is either saved (→ {@link #OK}/{@link #NEEDS_REVIEW})
+         * or cleared (→ previous status).
+         */
+        PENDING_SAVE
     }
 
     private final DiscoveredMethod discovered;
     private AiMethodSuggestion suggestion;
     private List<String> appliedTags;
+
+    // ── Staged (pending) patch ────────────────────────────────────────────
+    private List<String> pendingTags;
+    private String pendingDisplayName;
 
     /**
      * Creates a new entry from a just-discovered method.
@@ -68,6 +79,56 @@ public final class MethodEntry {
     }
 
     /**
+     * Returns {@code true} when this entry has a staged (pending) patch that
+     * has not yet been written to disk.
+     *
+     * @return {@code true} if a staged patch exists
+     */
+    public boolean hasPendingChanges() { return pendingTags != null; }
+
+    /**
+     * Returns the tags queued to be written by a future "Save All" operation,
+     * or {@code null} if no patch is staged.
+     *
+     * @return pending tag list, or {@code null}
+     */
+    public List<String> getPendingTags() { return pendingTags; }
+
+    /**
+     * Returns the display name queued to be written by a future "Save All"
+     * operation, or {@code null} if none is staged.
+     *
+     * @return pending display name, or {@code null}
+     */
+    public String getPendingDisplayName() { return pendingDisplayName; }
+
+    /**
+     * Stages a patch for this entry without writing to disk.
+     *
+     * <p>Calling this method causes {@link #tagStatus()} to return
+     * {@link TagStatus#PENDING_SAVE} until the patch is either saved
+     * ({@link #clearStagedPatch()} + {@link #setAppliedTags(List)}) or
+     * discarded ({@link #clearStagedPatch()}).</p>
+     *
+     * @param tags        tag list to stage; must not be {@code null}
+     * @param displayName display name to stage, or {@code null} to leave unchanged
+     */
+    public void setStagedPatch(List<String> tags, String displayName) {
+        this.pendingTags = List.copyOf(tags);
+        this.pendingDisplayName = displayName;
+    }
+
+    /**
+     * Removes any staged patch without writing to disk.
+     *
+     * <p>After this call {@link #hasPendingChanges()} returns {@code false}.</p>
+     */
+    public void clearStagedPatch() {
+        this.pendingTags = null;
+        this.pendingDisplayName = null;
+    }
+
+    /**
      * Computes the visual status for the results tree.
      *
      * <p>Priority: if tags were applied in this session, compare against
@@ -77,6 +138,9 @@ public final class MethodEntry {
      * @return current tag status
      */
     public TagStatus tagStatus() {
+        if (pendingTags != null) {
+            return TagStatus.PENDING_SAVE;
+        }
         if (suggestion == null) {
             return TagStatus.NO_AI;
         }

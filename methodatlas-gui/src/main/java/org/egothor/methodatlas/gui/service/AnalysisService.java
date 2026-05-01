@@ -12,6 +12,7 @@ import org.egothor.methodatlas.ai.RateLimitListener;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.gui.model.AiProfile;
 import org.egothor.methodatlas.gui.model.AnalysisModel;
 import org.egothor.methodatlas.gui.model.AppSettings;
 import org.egothor.methodatlas.gui.model.MethodEntry;
@@ -42,7 +43,7 @@ import java.util.logging.Logger;
  *       that the results tree starts populating before any AI call is
  *       made.</li>
  *   <li><strong>Phase 2 — AI enrichment</strong> (optional, controlled by
- *       {@link AppSettings#isAiEnabled()}).  The AI engine is queried once
+ *       {@link AiProfile#isEnabled()} on the active profile).  The AI engine is queried once
  *       per class rather than once per method, which reduces round-trips and
  *       lets the model reason about the class as a whole.  Progress is
  *       reported as each class completes.</li>
@@ -222,7 +223,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
         publish(new StatusChange(AnalysisModel.Status.SCANNING,
                 "Found " + totalMethods + " method(s) in " + byClass.size() + " class(es)"));
 
-        if (!settings.isAiEnabled()) {
+        if (!settings.getActiveProfile().isEnabled()) {
             publish(new StatusChange(AnalysisModel.Status.DONE,
                     "Done — " + totalMethods + " method(s), AI disabled"));
             return null;
@@ -251,6 +252,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
 
         int idx = 0;
         int total = byClass.size();
+        int securityRelevantCount = 0;
 
         for (Map.Entry<String, List<DiscoveredMethod>> classEntry : byClass.entrySet()) {
             if (isCancelled()) break;
@@ -283,6 +285,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
                 if (classSugg != null && classSugg.methods() != null) {
                     for (AiMethodSuggestion methodSugg : classSugg.methods()) {
                         publish(new AiUpdate(fqcn, methodSugg.methodName(), methodSugg));
+                        if (methodSugg.securityRelevant()) securityRelevantCount++;
                     }
                 }
             } catch (AiSuggestionException e) {
@@ -294,8 +297,11 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
         }
 
         int done = byClass.values().stream().mapToInt(List::size).sum();
-        publish(new StatusChange(AnalysisModel.Status.DONE,
-                "Done — " + done + " method(s) analysed"));
+        String doneMsg = "Done — " + done + " method(s) analysed";
+        if (securityRelevantCount > 0) {
+            doneMsg += ", " + securityRelevantCount + " security-relevant";
+        }
+        publish(new StatusChange(AnalysisModel.Status.DONE, doneMsg));
     }
 
     /**
@@ -350,21 +356,22 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private AiOptions buildAiOptions() {
-        AiProvider provider = AiProvider.valueOf(settings.getAiProvider());
+        AiProfile profile = settings.getActiveProfile();
+        AiProvider provider = AiProvider.valueOf(profile.getProvider());
         AiOptions.Builder builder = AiOptions.builder()
                 .enabled(true)
                 .provider(provider)
-                .modelName(settings.getAiModel())
-                .timeout(Duration.ofSeconds(settings.getAiTimeoutSeconds()))
-                .maxRetries(settings.getAiMaxRetries())
-                .confidence(settings.isAiConfidence())
-                .apiVersion(settings.getAiApiVersion());
+                .modelName(profile.getModel())
+                .timeout(Duration.ofSeconds(profile.getTimeoutSeconds()))
+                .maxRetries(profile.getMaxRetries())
+                .confidence(profile.isConfidence())
+                .apiVersion(profile.getApiVersion());
 
-        String key = settings.getAiApiKey();
+        String key = profile.getApiKey();
         if (key != null && !key.isBlank()) {
             builder.apiKey(key);
         }
-        String url = settings.getAiBaseUrl();
+        String url = profile.getBaseUrl();
         if (url != null && !url.isBlank()) {
             builder.baseUrl(url);
         }

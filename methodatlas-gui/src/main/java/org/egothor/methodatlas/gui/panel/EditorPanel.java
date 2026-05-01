@@ -10,6 +10,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.beans.PropertyChangeEvent;
+import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +25,8 @@ import java.util.logging.Logger;
  * is read-only; patching is performed by the {@link TagEditorPanel}.</p>
  *
  * <p>When the user selects a method in the results tree the panel loads the
- * corresponding source file and scrolls to the method's first line.</p>
+ * corresponding source file and centers the viewport on the method's first
+ * line so that context lines above and below remain visible.</p>
  */
 public final class EditorPanel extends JPanel {
 
@@ -118,9 +120,24 @@ public final class EditorPanel extends JPanel {
         try {
             int offset = textArea.getLineStartOffset(line - 1);
             textArea.setCaretPosition(offset);
-            // JScrollPane tracks caret movement and scrolls automatically
+            // Defer centering until after the viewport has settled its layout
+            SwingUtilities.invokeLater(() -> centerViewOnOffset(offset));
         } catch (Exception e) {
             // Silently ignore out-of-range lines
+        }
+    }
+
+    private void centerViewOnOffset(int offset) {
+        try {
+            Rectangle2D r = textArea.modelToView2D(offset);
+            if (r == null) return;
+            Container parent = textArea.getParent();
+            if (!(parent instanceof JViewport vp)) return;
+            Dimension extent = vp.getExtentSize();
+            int newY = Math.max(0, (int) r.getY() - extent.height / 2 + (int) r.getHeight() / 2);
+            vp.setViewPosition(new Point(vp.getViewPosition().x, newY));
+        } catch (Exception ex) {
+            // Ignore — viewport not yet realized or offset out of range
         }
     }
 
@@ -154,15 +171,39 @@ public final class EditorPanel extends JPanel {
     }
 
     /**
-     * Reloads the currently displayed file from disk.
+     * Reloads the currently displayed file from disk, preserving the current
+     * viewport scroll position.
      *
-     * <p>Called by the {@link TagEditorPanel} after applying a patch
-     * so that new annotations are immediately visible.</p>
-     *
-     * @param scrollToLine target line to scroll to after reload (1-based)
+     * <p>Called after "Save All Changes" so the user sees the freshly written
+     * annotations without losing their place in the file.</p>
      */
-    public void reloadCurrentFile(int scrollToLine) {
+    public void reloadCurrentFilePreservingScroll() {
         if (currentFile == null) return;
-        loadFile(currentFile, scrollToLine);
+        Container parent = textArea.getParent();
+        Point savedPos = parent instanceof JViewport vp ? vp.getViewPosition() : new Point(0, 0);
+        try {
+            String content = Files.readString(currentFile);
+            textArea.setSyntaxEditingStyle(inferSyntaxStyle(currentFile));
+            textArea.setText(content);
+            SwingUtilities.invokeLater(() -> {
+                Container p = textArea.getParent();
+                if (p instanceof JViewport v) {
+                    v.setViewPosition(savedPos);
+                }
+            });
+        } catch (IOException e) {
+            LOG.log(Level.WARNING, "Cannot reload source file: " + currentFile, e);
+        }
+    }
+
+    /**
+     * Reloads the currently displayed file if it is one of the given paths.
+     *
+     * @param savedPaths set of file paths that were just written to disk
+     */
+    public void reloadIfAmong(java.util.Collection<Path> savedPaths) {
+        if (currentFile != null && savedPaths.contains(currentFile)) {
+            reloadCurrentFilePreservingScroll();
+        }
     }
 }

@@ -28,17 +28,10 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class AppSettings {
 
-    // ── AI ────────────────────────────────────────────────────────────────
+    // ── AI profiles ───────────────────────────────────────────────────────
 
-    private boolean aiEnabled = false;
-    private String aiProvider = "AUTO";
-    private String aiModel = "qwen2.5-coder:7b";
-    private String aiApiKey = "";
-    private String aiBaseUrl = "";
-    private String aiApiVersion = "2024-02-01";
-    private int aiTimeoutSeconds = 90;
-    private int aiMaxRetries = 1;
-    private boolean aiConfidence = false;
+    private List<AiProfile> profiles = new ArrayList<>(List.of(new AiProfile()));
+    private String activeProfile = "Default";
 
     // ── Discovery ─────────────────────────────────────────────────────────
 
@@ -58,6 +51,16 @@ public final class AppSettings {
      */
     private List<String> enabledPlugins = new ArrayList<>();
 
+    // ── Audit ─────────────────────────────────────────────────────────────
+
+    /**
+     * Name of the operator who reviews and approves tag decisions.
+     * Written into the {@code note} field of each override YAML entry and
+     * the evidence CSV produced on Save All Changes.
+     * An empty string means the field is omitted from those records.
+     */
+    private String operatorName = "";
+
     // ── UI ────────────────────────────────────────────────────────────────
 
     private String themeClass = "com.formdev.flatlaf.FlatIntelliJLaf";
@@ -67,191 +70,85 @@ public final class AppSettings {
     private int leftSplitPosition = 400;
     private int rightSplitPosition = -1;
 
-    // ── AI getters / setters ──────────────────────────────────────────────
+    // ── AI profile getters / setters ─────────────────────────────────────
 
     /**
-     * Returns whether AI enrichment is enabled.
+     * Returns the list of all named AI provider profiles.
      *
-     * <p>When {@code false}, the analysis service skips Phase 2 entirely
-     * and completes as soon as discovery finishes.  Default: {@code false}.</p>
+     * <p>Each profile bundles a complete set of AI inference parameters under a
+     * human-readable name.  The list always contains at least one entry; a
+     * {@code "Default"} profile is inserted automatically when the list would
+     * otherwise be empty.  Default: a single profile with name
+     * {@code "Default"} and AI enrichment disabled.</p>
      *
-     * @return {@code true} if the AI engine will be queried during analysis
-     * @see #setAiEnabled(boolean)
+     * @return mutable live list of profiles; never {@code null} or empty
+     * @see #setProfiles(List)
+     * @see #getActiveProfile()
      */
-    public boolean isAiEnabled() { return aiEnabled; }
+    public List<AiProfile> getProfiles() { return profiles; }
 
     /**
-     * Sets whether AI enrichment is enabled.
+     * Replaces the list of named AI provider profiles.
      *
-     * @param aiEnabled {@code true} to enable AI enrichment; {@code false}
-     *                  to perform discovery only
-     * @see #isAiEnabled()
+     * <p>The supplied list is copied defensively.  If the list is empty a
+     * single default profile is added so that the application always has at
+     * least one profile to work with.</p>
+     *
+     * @param profiles replacement profile list; must not be {@code null}
+     * @see #getProfiles()
      */
-    public void setAiEnabled(boolean aiEnabled) { this.aiEnabled = aiEnabled; }
+    public void setProfiles(List<AiProfile> profiles) {
+        this.profiles = new ArrayList<>(profiles);
+        if (this.profiles.isEmpty()) {
+            this.profiles.add(new AiProfile());
+        }
+    }
 
     /**
-     * Returns the name of the AI provider constant to use for inference.
+     * Returns the name of the currently active AI profile.
      *
-     * <p>The value must match one of the constants defined in
-     * {@link org.egothor.methodatlas.ai.AiProvider}.  Default:
-     * {@code "AUTO"}, which tries a local Ollama instance first and falls
-     * back to the configured API key.</p>
+     * <p>The active profile is used by the analysis service during a scan.
+     * Default: {@code "Default"}.</p>
      *
-     * @return AI provider name; never {@code null}
-     * @see #setAiProvider(String)
+     * @return active profile name; never {@code null}
+     * @see #setActiveProfileName(String)
+     * @see #getActiveProfile()
      */
-    public String getAiProvider() { return aiProvider; }
+    public String getActiveProfileName() { return activeProfile; }
 
     /**
-     * Sets the name of the AI provider constant to use for inference.
+     * Sets the name of the currently active AI profile.
      *
-     * @param aiProvider AI provider name matching an
-     *                   {@link org.egothor.methodatlas.ai.AiProvider} constant;
-     *                   must not be {@code null}
-     * @see #getAiProvider()
+     * <p>If no profile with this name exists in {@link #getProfiles()}, the
+     * first profile in the list is used as a fallback.</p>
+     *
+     * @param activeProfile profile name; must not be {@code null}
+     * @see #getActiveProfileName()
      */
-    public void setAiProvider(String aiProvider) { this.aiProvider = aiProvider; }
+    public void setActiveProfileName(String activeProfile) { this.activeProfile = activeProfile; }
 
     /**
-     * Returns the AI model identifier used for inference.
+     * Returns the {@link AiProfile} whose name matches
+     * {@link #getActiveProfileName()}.
      *
-     * <p>The format is provider-specific, for example {@code "gpt-4o"} for
-     * OpenAI or {@code "qwen2.5-coder:7b"} for Ollama.  Default:
-     * {@code "qwen2.5-coder:7b"}.</p>
+     * <p>Falls back to the first profile in the list when no name match is
+     * found.  A default profile is created and added automatically when the
+     * list is empty.</p>
      *
-     * @return model identifier; never {@code null}
-     * @see #setAiModel(String)
+     * @return active profile; never {@code null}
+     * @see #getActiveProfileName()
      */
-    public String getAiModel() { return aiModel; }
-
-    /**
-     * Sets the AI model identifier used for inference.
-     *
-     * @param aiModel model identifier; must not be {@code null}
-     * @see #getAiModel()
-     */
-    public void setAiModel(String aiModel) { this.aiModel = aiModel; }
-
-    /**
-     * Returns the API key used to authenticate with cloud-based AI providers.
-     *
-     * <p>An empty string means no key has been configured, which is correct
-     * for local providers such as Ollama.  Default: empty string.</p>
-     *
-     * @return API key, or an empty string if none is configured; never
-     *         {@code null}
-     * @see #setAiApiKey(String)
-     */
-    public String getAiApiKey() { return aiApiKey; }
-
-    /**
-     * Sets the API key used to authenticate with cloud-based AI providers.
-     *
-     * @param aiApiKey API key, or an empty string for providers that do not
-     *                 require authentication; must not be {@code null}
-     * @see #getAiApiKey()
-     */
-    public void setAiApiKey(String aiApiKey) { this.aiApiKey = aiApiKey; }
-
-    /**
-     * Returns the custom base URL for the AI provider endpoint.
-     *
-     * <p>An empty string means the provider's built-in default URL is used.
-     * This setting is useful for self-hosted instances or API-compatible
-     * proxies.  Default: empty string.</p>
-     *
-     * @return base URL, or an empty string to use the provider default;
-     *         never {@code null}
-     * @see #setAiBaseUrl(String)
-     */
-    public String getAiBaseUrl() { return aiBaseUrl; }
-
-    /**
-     * Sets the custom base URL for the AI provider endpoint.
-     *
-     * @param aiBaseUrl base URL, or an empty string to use the provider
-     *                  default; must not be {@code null}
-     * @see #getAiBaseUrl()
-     */
-    public void setAiBaseUrl(String aiBaseUrl) { this.aiBaseUrl = aiBaseUrl; }
-
-    /**
-     * Returns the REST API version string sent with Azure OpenAI requests.
-     *
-     * <p>This setting is ignored for all providers other than
-     * {@code AZURE_OPENAI}.  Default: {@code "2024-02-01"}.</p>
-     *
-     * @return Azure OpenAI REST API version string; never {@code null}
-     * @see #setAiApiVersion(String)
-     */
-    public String getAiApiVersion() { return aiApiVersion; }
-
-    /**
-     * Sets the REST API version string sent with Azure OpenAI requests.
-     *
-     * @param aiApiVersion API version string; must not be {@code null}
-     * @see #getAiApiVersion()
-     */
-    public void setAiApiVersion(String aiApiVersion) { this.aiApiVersion = aiApiVersion; }
-
-    /**
-     * Returns the per-request timeout for AI calls, in seconds.
-     *
-     * <p>Requests that do not complete within this duration are aborted.
-     * The timer resets for each retry attempt.  Default: {@code 90}.</p>
-     *
-     * @return timeout in seconds; always positive
-     * @see #setAiTimeoutSeconds(int)
-     */
-    public int getAiTimeoutSeconds() { return aiTimeoutSeconds; }
-
-    /**
-     * Sets the per-request timeout for AI calls, in seconds.
-     *
-     * @param aiTimeoutSeconds timeout in seconds; must be positive
-     * @see #getAiTimeoutSeconds()
-     */
-    public void setAiTimeoutSeconds(int aiTimeoutSeconds) { this.aiTimeoutSeconds = aiTimeoutSeconds; }
-
-    /**
-     * Returns the maximum number of retry attempts for a failed AI call.
-     *
-     * <p>A value of {@code 0} means no retries; the call either succeeds
-     * on the first attempt or fails immediately.  Default: {@code 1}.</p>
-     *
-     * @return maximum retry count; non-negative
-     * @see #setAiMaxRetries(int)
-     */
-    public int getAiMaxRetries() { return aiMaxRetries; }
-
-    /**
-     * Sets the maximum number of retry attempts for a failed AI call.
-     *
-     * @param aiMaxRetries retry limit; must be non-negative
-     * @see #getAiMaxRetries()
-     */
-    public void setAiMaxRetries(int aiMaxRetries) { this.aiMaxRetries = aiMaxRetries; }
-
-    /**
-     * Returns whether the AI engine is asked to include confidence scores
-     * alongside its tag suggestions.
-     *
-     * <p>When {@code true}, each suggestion carries a numeric confidence
-     * value that can be used to filter or rank results.  Default:
-     * {@code false}.</p>
-     *
-     * @return {@code true} if confidence scores are requested
-     * @see #setAiConfidence(boolean)
-     */
-    public boolean isAiConfidence() { return aiConfidence; }
-
-    /**
-     * Sets whether the AI engine is asked to include confidence scores.
-     *
-     * @param aiConfidence {@code true} to request confidence scores
-     * @see #isAiConfidence()
-     */
-    public void setAiConfidence(boolean aiConfidence) { this.aiConfidence = aiConfidence; }
+    public AiProfile getActiveProfile() {
+        if (profiles.isEmpty()) {
+            AiProfile def = new AiProfile();
+            profiles.add(def);
+            return def;
+        }
+        return profiles.stream()
+                .filter(p -> p.getName().equals(activeProfile))
+                .findFirst()
+                .orElse(profiles.get(0));
+    }
 
     // ── Discovery getters / setters ───────────────────────────────────────
 
@@ -348,6 +245,31 @@ public final class AppSettings {
      */
     public void setEnabledPlugins(List<String> enabledPlugins) {
         this.enabledPlugins = new ArrayList<>(enabledPlugins);
+    }
+
+    // ── Audit getters / setters ───────────────────────────────────────────
+
+    /**
+     * Returns the operator name included in audit records.
+     *
+     * <p>An empty string (the default) means the operator identity is not
+     * recorded.  In regulated environments this should be set to the
+     * reviewer's name or identifier.</p>
+     *
+     * @return operator name, or an empty string; never {@code null}
+     * @see #setOperatorName(String)
+     */
+    public String getOperatorName() { return operatorName; }
+
+    /**
+     * Sets the operator name to be included in audit records.
+     *
+     * @param operatorName operator name, or an empty string to omit it;
+     *                     must not be {@code null}
+     * @see #getOperatorName()
+     */
+    public void setOperatorName(String operatorName) {
+        this.operatorName = operatorName == null ? "" : operatorName;
     }
 
     // ── UI getters / setters ──────────────────────────────────────────────

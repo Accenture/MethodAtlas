@@ -90,7 +90,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install MkDocs Material
-        run: pip install mkdocs-material
+        run: pip install mkdocs-material mkdocs-glightbox
 
       # -----------------------------------------------------------------------
       # Build MkDocs site first (creates a fresh site/ directory), then copy

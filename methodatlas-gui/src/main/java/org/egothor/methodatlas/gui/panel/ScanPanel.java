@@ -12,6 +12,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,11 +52,14 @@ public final class ScanPanel extends JPanel {
     /** fqcn → class tree node for fast lookup */
     private final Map<String, DefaultMutableTreeNode> classNodes = new HashMap<>();
 
+    private final AnalysisModel model;
+
     /**
      * @param model model to observe and interact with
      */
     public ScanPanel(AnalysisModel model) {
         super(new BorderLayout());
+        this.model = model;
 
         tree.setRootVisible(false);
         tree.setShowsRootHandles(true);
@@ -111,8 +115,43 @@ public final class ScanPanel extends JPanel {
                     insertOrUpdate(entry);
                 }
             }
+            case "status" -> {
+                if (evt.getNewValue() == AnalysisModel.Status.DONE
+                        && model.getSelectedEntry() == null) {
+                    selectFirstPendingOrFirst();
+                }
+            }
             default -> { /* ignore */ }
         }
+    }
+
+    /**
+     * Selects the first {@code NEEDS_REVIEW} method node in the tree, or the
+     * very first method node when none require review.  Called automatically
+     * when analysis completes and nothing is selected, so the user immediately
+     * sees AI results without having to click the tree.
+     */
+    private void selectFirstPendingOrFirst() {
+        DefaultMutableTreeNode firstMethod = null;
+        for (int i = 0; i < treeRoot.getChildCount(); i++) {
+            DefaultMutableTreeNode classNode = (DefaultMutableTreeNode) treeRoot.getChildAt(i);
+            for (int j = 0; j < classNode.getChildCount(); j++) {
+                DefaultMutableTreeNode child = (DefaultMutableTreeNode) classNode.getChildAt(j);
+                if (!(child.getUserObject() instanceof MethodEntry e)) continue;
+                if (firstMethod == null) firstMethod = child;
+                if (e.tagStatus() == TagStatus.NEEDS_REVIEW) {
+                    selectNode(child);
+                    return;
+                }
+            }
+        }
+        if (firstMethod != null) selectNode(firstMethod);
+    }
+
+    private void selectNode(DefaultMutableTreeNode node) {
+        TreePath path = new TreePath(node.getPath());
+        tree.setSelectionPath(path);
+        tree.scrollPathToVisible(path);
     }
 
     private void clearTree() {
@@ -183,13 +222,17 @@ public final class ScanPanel extends JPanel {
                 case MethodEntry entry -> {
                     TagStatus status = entry.tagStatus();
                     String indicator = switch (status) {
+                        case PENDING_SAVE -> "<font color='#E65100'>✎</font>";
                         case NEEDS_REVIEW -> "<font color='#E08000'>⚠</font>";
                         case OK -> "<font color='#4CAF50'>✓</font>";
                         case NOT_SECURITY -> "<font color='#2196F3'>–</font>";
                         case NO_AI -> "<font color='gray'>○</font>";
                     };
-                    String tags = entry.discovered().tags().isEmpty() ? ""
-                            : " <font color='gray'>[" + String.join(", ", entry.discovered().tags()) + "]</font>";
+                    List<String> displayTags = entry.hasPendingChanges()
+                            ? entry.getPendingTags()
+                            : entry.discovered().tags();
+                    String tags = displayTags.isEmpty() ? ""
+                            : " <font color='gray'>[" + String.join(", ", displayTags) + "]</font>";
                     setText("<html>" + indicator + " " + escHtml(entry.discovered().method())
                             + tags + "</html>");
                     setToolTipText(buildTooltip(entry));

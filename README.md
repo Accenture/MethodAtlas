@@ -94,10 +94,14 @@ without touching the command line.
 - **Syntax-highlighted editor** — the source file for the selected method opens in an embedded RSyntaxTextArea editor with line numbers and code folding; supported languages: Java, C#, TypeScript, JavaScript
 - **Tag editor** — shows the method's current `@Tag` values alongside AI-suggested tags as interactive toggle chips; individual tags can be accepted or rejected before writing back to the source file
 - **Custom override** — enter comma-separated tags manually to complement or replace AI suggestions
-- **Apply to source** — calls the same `SourcePatcher` implementation used by the CLI; the editor reloads the file immediately to confirm the patch
+- **Staged workflow** — "Apply to Source" stages changes in memory without writing to disk; a **Save All Changes** toolbar button batches all staged patches per file into a single write, eliminating line-number drift when multiple methods in the same class are modified; staged methods are shown with an orange pencil `✎` icon in the tree; the application asks to save on exit if staged changes are present
+- **Audit trail** — every **Save All Changes** operation writes two artefacts into a hidden `.methodatlas/` directory inside the scanned project root:
+  - a timestamped **evidence CSV** (`methodatlas-YYYYMMDD-HHmmss.csv`) using the same column schema as the CLI `DeltaReport` CSV, recording the AI suggestion and the user's final decision for each patched method — never overwritten, accumulates per save operation
+  - a cumulative **override YAML** (`overrides.yaml`) in the `ClassificationOverride` format consumed by the CLI `--override` flag, enabling future analysis runs to reproduce the same decisions without re-invoking AI; entries include an ISO-8601 timestamp and, when configured, the reviewer's identity in the `note` field
 - **Activity panel** — collapsible panel above the status bar that appears whenever analysis is running; shows the class currently being sent to AI, deterministic progress counter (`X / Y classes`), elapsed time, and a scrollable log of completed classes with per-class timing and method counts; makes it immediately visible if a long AI request has stalled
+- **AI profiles** — multiple named provider configurations (e.g. "Fast Ollama", "GPT-4o", "Java-only") coexist side by side; the active profile is selected from a toolbar combo box without opening Settings; switching profiles takes effect on the next run
 - **Plugin selection** — the Settings dialog lists all discovery plugins detected on the classpath; unchecking a plugin excludes it from the next scan, useful when only one language needs to be processed
-- **Settings dialog** — configure any of the ten supported AI providers (Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter, or AUTO) with API key, model name, base URL, timeout, and retry settings; theme selector (IntelliJ Light, Flat Dark, Flat Light, Darcula); **Reset to Defaults** button restores all fields to built-in values; **Open folder** button opens the directory containing the settings file in the system file manager
+- **Settings dialog** — profile manager (New / Delete / Rename + full form per profile) for any of the ten supported AI providers (Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter, or AUTO) with API key, model name, base URL, timeout, and retry settings; **Operator name** field (Audit section) whose value appears in every audit record; theme selector (IntelliJ Light, Flat Dark, Flat Light, Darcula); **Reset to Defaults** button restores all fields to built-in values; **Open folder** button opens the directory containing the settings file in the system file manager
 
 ### Build and run
 
@@ -198,6 +202,50 @@ Human-readable line-oriented output, useful for terminal inspection and shell sc
 Emits `::notice` / `::warning` workflow commands that GitHub Actions renders as inline annotations on the PR diff. Does not require a GitHub Advanced Security licence.
 
 See [docs/output-formats.md](docs/output-formats.md) for full format descriptions and examples.
+
+## Audit trail (GUI)
+
+Every **Save All Changes** operation in the desktop GUI writes two artefacts into a hidden `.methodatlas/` directory inside the scanned project root.
+
+### Evidence CSV
+
+A timestamped, immutable file named `methodatlas-YYYYMMDD-HHmmss.csv` is created on each save.  Each row records one patched method and uses the same column schema as the CLI `DeltaReport` CSV:
+
+| Column | Description |
+| --- | --- |
+| `fqcn` | Fully-qualified class name |
+| `method` | Simple method name |
+| `loc` | Lines of code |
+| `tags` | Semicolon-separated tags written to source |
+| `display_name` | `@DisplayName` text written to source (empty = unchanged) |
+| `ai_security_relevant` | AI classification (`true`/`false`) |
+| `ai_display_name` | AI-suggested display name |
+| `ai_tags` | Semicolon-separated AI-suggested tags |
+| `ai_reason` | AI rationale |
+| `ai_confidence` | AI confidence score (0.0–1.0) |
+| `ai_interaction_score` | AI interaction score |
+| `tag_ai_drift` | `none` / `tag-only` / `ai-only` — divergence between applied and AI tags |
+
+The file is never overwritten.  Files accumulate over time, giving an ordered history of each review session.
+
+### Override YAML
+
+`overrides.yaml` is updated (or created) on every save.  It uses the `ClassificationOverride` format accepted by the CLI `--override` flag:
+
+```yaml
+overrides:
+  - fqcn: com.acme.crypto.AesGcmTest
+    method: roundTrip_encryptDecrypt
+    securityRelevant: true
+    tags: [security, crypto]
+    displayName: "SECURITY: crypto — AES-GCM round-trip"
+    reason: "Verifies ciphertext integrity under AES-GCM — critical crypto test"
+    note: "Reviewed 2026-05-01T14:30:00 by Jane Smith"
+```
+
+The `note` field is populated automatically with the ISO-8601 review timestamp.  When the **Operator name** field is set in Settings → Audit, it is appended as `by <name>`, providing a clear reviewer identity for regulated environments.  Existing entries are updated in place; new entries are appended.
+
+Passing `--override .methodatlas/overrides.yaml` to a subsequent CLI run reproduces the same tag decisions without re-invoking the AI, which is essential for reproducible CI pipelines and regulated release processes.
 
 ## SARIF for regulated environments
 

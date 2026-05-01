@@ -1,6 +1,7 @@
 package org.egothor.methodatlas.gui.dialog;
 
 import org.egothor.methodatlas.ai.AiProvider;
+import org.egothor.methodatlas.gui.model.AiProfile;
 import org.egothor.methodatlas.gui.model.AppSettings;
 import org.egothor.methodatlas.gui.service.AnalysisService;
 import org.egothor.methodatlas.gui.service.SettingsManager;
@@ -15,8 +16,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Modal settings dialog covering AI provider configuration, plugin selection,
+ * Modal settings dialog covering AI profile management, plugin selection,
  * and UI preferences.
+ *
+ * <p>The AI section uses a master-detail layout: a profile list on the left
+ * lets the user switch between named provider configurations, while the form
+ * on the right edits the selected profile's parameters.  Multiple profiles
+ * can coexist, allowing quick switching between, for example, a fast local
+ * model and a precise cloud model.</p>
  *
  * <p>Changes are written to the model and persisted via {@link SettingsManager}
  * only when the user confirms with the <em>Save</em> button.  Closing or
@@ -46,16 +53,16 @@ public final class SettingsDialog extends JDialog {
     };
 
     private static final String[] DEFAULT_MODELS = {
-            "qwen2.5-coder:7b",    // AUTO
-            "qwen2.5-coder:7b",    // OLLAMA
-            "gpt-4o",              // OPENAI
-            "claude-sonnet-4-6",   // ANTHROPIC
-            "gpt-4o",              // AZURE_OPENAI
+            "qwen2.5-coder:7b",        // AUTO
+            "qwen2.5-coder:7b",        // OLLAMA
+            "gpt-4o",                  // OPENAI
+            "claude-sonnet-4-6",       // ANTHROPIC
+            "gpt-4o",                  // AZURE_OPENAI
             "llama-3.3-70b-versatile", // GROQ
-            "grok-2-latest",       // XAI
-            "gpt-4o",              // GITHUB_MODELS
-            "mistral-large-latest",// MISTRAL
-            "openai/gpt-4o"        // OPENROUTER
+            "grok-2-latest",           // XAI
+            "gpt-4o",                  // GITHUB_MODELS
+            "mistral-large-latest",    // MISTRAL
+            "openai/gpt-4o"            // OPENROUTER
     };
 
     private static final String[] THEME_CLASSES = {
@@ -72,7 +79,14 @@ public final class SettingsDialog extends JDialog {
     @java.io.Serial
     private static final long serialVersionUID = 1L;
 
-    // ── AI components ─────────────────────────────────────────────────────
+    // ── Profile management ────────────────────────────────────────────────
+
+    private List<AiProfile> workingProfiles;
+    private int currentProfileIndex = -1;
+    private final DefaultListModel<String> profileListModel = new DefaultListModel<>();
+    private final JList<String> profileList = new JList<>(profileListModel);
+
+    // ── AI form components ────────────────────────────────────────────────
 
     private final JCheckBox aiEnabledBox = new JCheckBox("Enable AI enrichment");
     private final JComboBox<String> providerCombo = new JComboBox<>(PROVIDER_NAMES);
@@ -95,6 +109,10 @@ public final class SettingsDialog extends JDialog {
     // ── Appearance ────────────────────────────────────────────────────────
 
     private final JComboBox<String> themeCombo = new JComboBox<>(THEME_NAMES);
+
+    // ── Audit ─────────────────────────────────────────────────────────────
+
+    private final JTextField operatorNameField = new JTextField(24);
 
     // ── State ─────────────────────────────────────────────────────────────
 
@@ -126,7 +144,7 @@ public final class SettingsDialog extends JDialog {
         buildUi();
         populate();
         pack();
-        setMinimumSize(new Dimension(540, 0));
+        setMinimumSize(new Dimension(640, 0));
         setLocationRelativeTo(owner);
     }
 
@@ -141,6 +159,8 @@ public final class SettingsDialog extends JDialog {
         centre.add(buildPluginsSection());
         centre.add(Box.createVerticalStrut(6));
         centre.add(buildThemeSection());
+        centre.add(Box.createVerticalStrut(6));
+        centre.add(buildAuditSection());
         centre.add(Box.createVerticalStrut(6));
         centre.add(buildConfigPathSection());
 
@@ -174,11 +194,43 @@ public final class SettingsDialog extends JDialog {
     }
 
     private JPanel buildAiSection() {
-        JPanel panel = new JPanel(new BorderLayout(0, 4));
-        panel.setBorder(titledBorder("AI Provider"));
+        JPanel panel = new JPanel(new BorderLayout(8, 4));
+        panel.setBorder(titledBorder("AI Profiles"));
         panel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        panel.add(aiEnabledBox, BorderLayout.NORTH);
+        // ── Profile list (left) ────────────────────────────────────────────
+        profileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        profileList.setVisibleRowCount(7);
+        profileList.addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            onProfileListSelectionChanged();
+        });
+
+        JButton newBtn    = new JButton("New");
+        JButton deleteBtn = new JButton("Delete");
+        JButton renameBtn = new JButton("Rename");
+        newBtn.setMargin(new Insets(2, 6, 2, 6));
+        deleteBtn.setMargin(new Insets(2, 6, 2, 6));
+        renameBtn.setMargin(new Insets(2, 6, 2, 6));
+        newBtn.addActionListener(e -> onNewProfile());
+        deleteBtn.addActionListener(e -> onDeleteProfile());
+        renameBtn.addActionListener(e -> onRenameProfile());
+
+        JPanel listButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        listButtons.add(newBtn);
+        listButtons.add(deleteBtn);
+        listButtons.add(renameBtn);
+
+        JScrollPane listScroll = new JScrollPane(profileList);
+        listScroll.setPreferredSize(new Dimension(150, 0));
+
+        JPanel listPanel = new JPanel(new BorderLayout(0, 2));
+        listPanel.add(listScroll, BorderLayout.CENTER);
+        listPanel.add(listButtons, BorderLayout.SOUTH);
+
+        // ── Profile form (right) ───────────────────────────────────────────
+        JPanel formPanel = new JPanel(new BorderLayout(0, 4));
+        formPanel.add(aiEnabledBox, BorderLayout.NORTH);
 
         JPanel grid = new JPanel(new GridBagLayout());
         GridBagConstraints lc = labelConstraints();
@@ -197,7 +249,10 @@ public final class SettingsDialog extends JDialog {
         cc.gridx = 1; cc.gridy = row; cc.anchor = GridBagConstraints.WEST;
         grid.add(confidenceBox, cc);
 
-        panel.add(grid, BorderLayout.CENTER);
+        formPanel.add(grid, BorderLayout.CENTER);
+
+        panel.add(listPanel, BorderLayout.WEST);
+        panel.add(formPanel, BorderLayout.CENTER);
         return panel;
     }
 
@@ -274,6 +329,21 @@ public final class SettingsDialog extends JDialog {
         return panel;
     }
 
+    private JPanel buildAuditSection() {
+        JPanel panel = new JPanel(new BorderLayout(4, 0));
+        panel.setBorder(titledBorder("Audit"));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        operatorNameField.setToolTipText(
+                "Written into the 'note' field of every override YAML entry and evidence CSV row");
+        operatorNameField.putClientProperty("JTextField.placeholderText",
+                "e.g. Jane Smith or jsmith@example.com");
+
+        panel.add(new JLabel("Operator name (reviewer identity): "), BorderLayout.WEST);
+        panel.add(operatorNameField, BorderLayout.CENTER);
+        return panel;
+    }
+
     private JPanel buildConfigPathSection() {
         JPanel panel = new JPanel(new BorderLayout(4, 0));
         panel.setBorder(titledBorder("Configuration File"));
@@ -294,8 +364,8 @@ public final class SettingsDialog extends JDialog {
     }
 
     private JPanel buildButtonRow() {
-        JButton resetBtn = new JButton("Reset to Defaults");
-        JButton saveBtn = new JButton("Save");
+        JButton resetBtn  = new JButton("Reset to Defaults");
+        JButton saveBtn   = new JButton("Save");
         JButton cancelBtn = new JButton("Cancel");
 
         resetBtn.setToolTipText("Restore all settings to their built-in defaults");
@@ -321,23 +391,33 @@ public final class SettingsDialog extends JDialog {
     // ── Populate / Save / Reset ───────────────────────────────────────────
 
     private void populate() {
-        aiEnabledBox.setSelected(settings.isAiEnabled());
+        // Deep-copy the profiles so edits don't affect the live settings object
+        workingProfiles = new ArrayList<>();
+        for (AiProfile p : settings.getProfiles()) {
+            workingProfiles.add(copyProfile(p));
+        }
+        if (workingProfiles.isEmpty()) {
+            workingProfiles.add(new AiProfile());
+        }
 
-        String provName = settings.getAiProvider();
-        for (int i = 0; i < PROVIDERS.length; i++) {
-            if (PROVIDERS[i].name().equals(provName)) {
-                providerCombo.setSelectedIndex(i);
+        profileListModel.clear();
+        currentProfileIndex = -1;
+        for (AiProfile p : workingProfiles) {
+            profileListModel.addElement(p.getName());
+        }
+
+        // Select the active profile, or fall back to first
+        String activeName = settings.getActiveProfileName();
+        int activeIdx = 0;
+        for (int i = 0; i < workingProfiles.size(); i++) {
+            if (workingProfiles.get(i).getName().equals(activeName)) {
+                activeIdx = i;
                 break;
             }
         }
+        profileList.setSelectedIndex(activeIdx); // triggers listener → populates form
 
-        modelField.setText(settings.getAiModel());
-        apiKeyField.setText(settings.getAiApiKey());
-        baseUrlField.setText(settings.getAiBaseUrl());
-        apiVersionField.setText(settings.getAiApiVersion());
-        timeoutSpinner.setValue(settings.getAiTimeoutSeconds());
-        retriesSpinner.setValue(settings.getAiMaxRetries());
-        confidenceBox.setSelected(settings.isAiConfidence());
+        operatorNameField.setText(settings.getOperatorName());
 
         String themeClass = settings.getThemeClass();
         for (int i = 0; i < THEME_CLASSES.length; i++) {
@@ -358,26 +438,22 @@ public final class SettingsDialog extends JDialog {
             entry.getValue().setText(masks != null && !masks.isEmpty()
                     ? String.join(", ", masks) : "");
         }
-
-        updateAiControlsEnabled();
     }
 
     private void onSave() {
-        settings.setAiEnabled(aiEnabledBox.isSelected());
-        int idx = providerCombo.getSelectedIndex();
-        settings.setAiProvider(idx >= 0 ? PROVIDERS[idx].name() : "AUTO");
-        settings.setAiModel(modelField.getText().trim());
-        settings.setAiApiKey(new String(apiKeyField.getPassword()));
-        settings.setAiBaseUrl(baseUrlField.getText().trim());
-        settings.setAiApiVersion(apiVersionField.getText().trim());
-        settings.setAiTimeoutSeconds((int) timeoutSpinner.getValue());
-        settings.setAiMaxRetries((int) retriesSpinner.getValue());
-        settings.setAiConfidence(confidenceBox.isSelected());
+        commitFormToCurrentProfile();
+
+        settings.setProfiles(workingProfiles);
+        int selIdx = profileList.getSelectedIndex();
+        if (selIdx >= 0 && selIdx < workingProfiles.size()) {
+            settings.setActiveProfileName(workingProfiles.get(selIdx).getName());
+        }
+
+        settings.setOperatorName(operatorNameField.getText().trim());
 
         int themeIdx = themeCombo.getSelectedIndex();
         if (themeIdx >= 0) settings.setThemeClass(THEME_CLASSES[themeIdx]);
 
-        // Enabled plugins: empty list = all enabled; explicit list = filtered
         List<String> enabledPlugins = new ArrayList<>();
         boolean allChecked = pluginBoxes.values().stream().allMatch(JCheckBox::isSelected);
         if (!allChecked) {
@@ -385,7 +461,6 @@ public final class SettingsDialog extends JDialog {
         }
         settings.setEnabledPlugins(enabledPlugins);
 
-        // Per-plugin file masks: absent = plugin uses its own built-in default
         Map<String, List<String>> pluginSuffixes = new LinkedHashMap<>();
         pluginSuffixFields.forEach((id, field) -> {
             String text = field.getText().trim();
@@ -412,31 +487,26 @@ public final class SettingsDialog extends JDialog {
         if (choice != JOptionPane.OK_OPTION) return;
 
         AppSettings defaults = new AppSettings();
-        // Copy defaults into fields without touching the live settings object yet
-        aiEnabledBox.setSelected(defaults.isAiEnabled());
-        for (int i = 0; i < PROVIDERS.length; i++) {
-            if (PROVIDERS[i].name().equals(defaults.getAiProvider())) {
-                providerCombo.setSelectedIndex(i);
-                break;
-            }
+        workingProfiles = new ArrayList<>();
+        for (AiProfile p : defaults.getProfiles()) {
+            workingProfiles.add(copyProfile(p));
         }
-        modelField.setText(defaults.getAiModel());
-        apiKeyField.setText(defaults.getAiApiKey());
-        baseUrlField.setText(defaults.getAiBaseUrl());
-        apiVersionField.setText(defaults.getAiApiVersion());
-        timeoutSpinner.setValue(defaults.getAiTimeoutSeconds());
-        retriesSpinner.setValue(defaults.getAiMaxRetries());
-        confidenceBox.setSelected(defaults.isAiConfidence());
+        profileListModel.clear();
+        currentProfileIndex = -1;
+        for (AiProfile p : workingProfiles) {
+            profileListModel.addElement(p.getName());
+        }
+        profileList.setSelectedIndex(0);
+
         for (int i = 0; i < THEME_CLASSES.length; i++) {
             if (THEME_CLASSES[i].equals(defaults.getThemeClass())) {
                 themeCombo.setSelectedIndex(i);
                 break;
             }
         }
-        // Re-enable all plugin checkboxes and clear suffix overrides
+        operatorNameField.setText("");
         pluginBoxes.values().forEach(b -> b.setSelected(true));
         pluginSuffixFields.values().forEach(f -> f.setText(""));
-        updateAiControlsEnabled();
     }
 
     /**
@@ -450,6 +520,142 @@ public final class SettingsDialog extends JDialog {
      * @return {@code true} if and only if the user clicked <em>Save</em>
      */
     public boolean isConfirmed() { return confirmed; }
+
+    // ── Profile management ────────────────────────────────────────────────
+
+    private void onProfileListSelectionChanged() {
+        int newIdx = profileList.getSelectedIndex();
+        if (newIdx == currentProfileIndex || newIdx < 0) return;
+
+        // Commit the form to the profile we are leaving
+        if (currentProfileIndex >= 0 && currentProfileIndex < workingProfiles.size()) {
+            commitFormToProfile(workingProfiles.get(currentProfileIndex));
+        }
+
+        currentProfileIndex = newIdx;
+        populateProfileForm(workingProfiles.get(newIdx));
+        updateAiControlsEnabled();
+    }
+
+    private void onNewProfile() {
+        commitFormToCurrentProfile();
+
+        String baseName = "Profile";
+        int n = 2;
+        String name = baseName;
+        while (profileNameExists(name)) {
+            name = baseName + " " + n++;
+        }
+
+        String input = JOptionPane.showInputDialog(this, "Profile name:", name);
+        if (input == null || input.isBlank()) return;
+        input = input.trim();
+        if (profileNameExists(input)) {
+            JOptionPane.showMessageDialog(this, "A profile with that name already exists.",
+                    "Duplicate Name", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        AiProfile newProfile = new AiProfile();
+        newProfile.setName(input);
+        workingProfiles.add(newProfile);
+        profileListModel.addElement(input);
+        profileList.setSelectedIndex(workingProfiles.size() - 1);
+    }
+
+    private void onDeleteProfile() {
+        int idx = profileList.getSelectedIndex();
+        if (idx < 0) return;
+        if (workingProfiles.size() <= 1) {
+            JOptionPane.showMessageDialog(this, "At least one profile must exist.",
+                    "Cannot Delete", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        workingProfiles.remove(idx);
+        profileListModel.remove(idx);
+        currentProfileIndex = -1;
+        profileList.setSelectedIndex(Math.min(idx, workingProfiles.size() - 1));
+    }
+
+    private void onRenameProfile() {
+        int idx = profileList.getSelectedIndex();
+        if (idx < 0) return;
+        AiProfile profile = workingProfiles.get(idx);
+
+        String input = JOptionPane.showInputDialog(this, "New name:", profile.getName());
+        if (input == null || input.isBlank()) return;
+        input = input.trim();
+        if (input.equals(profile.getName())) return;
+
+        if (profileNameExists(input)) {
+            JOptionPane.showMessageDialog(this, "A profile with that name already exists.",
+                    "Duplicate Name", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        profile.setName(input);
+        profileListModel.set(idx, input);
+    }
+
+    private boolean profileNameExists(String name) {
+        return workingProfiles.stream().anyMatch(p -> p.getName().equals(name));
+    }
+
+    // ── Profile form helpers ──────────────────────────────────────────────
+
+    private void populateProfileForm(AiProfile profile) {
+        aiEnabledBox.setSelected(profile.isEnabled());
+
+        String provName = profile.getProvider();
+        for (int i = 0; i < PROVIDERS.length; i++) {
+            if (PROVIDERS[i].name().equals(provName)) {
+                providerCombo.setSelectedIndex(i);
+                break;
+            }
+        }
+
+        modelField.setText(profile.getModel());
+        apiKeyField.setText(profile.getApiKey());
+        baseUrlField.setText(profile.getBaseUrl());
+        apiVersionField.setText(profile.getApiVersion());
+        timeoutSpinner.setValue(profile.getTimeoutSeconds());
+        retriesSpinner.setValue(profile.getMaxRetries());
+        confidenceBox.setSelected(profile.isConfidence());
+    }
+
+    private void commitFormToProfile(AiProfile profile) {
+        profile.setEnabled(aiEnabledBox.isSelected());
+        int idx = providerCombo.getSelectedIndex();
+        profile.setProvider(idx >= 0 ? PROVIDERS[idx].name() : "AUTO");
+        profile.setModel(modelField.getText().trim());
+        profile.setApiKey(new String(apiKeyField.getPassword()));
+        profile.setBaseUrl(baseUrlField.getText().trim());
+        profile.setApiVersion(apiVersionField.getText().trim());
+        profile.setTimeoutSeconds((int) timeoutSpinner.getValue());
+        profile.setMaxRetries((int) retriesSpinner.getValue());
+        profile.setConfidence(confidenceBox.isSelected());
+    }
+
+    private void commitFormToCurrentProfile() {
+        if (currentProfileIndex >= 0 && currentProfileIndex < workingProfiles.size()) {
+            commitFormToProfile(workingProfiles.get(currentProfileIndex));
+        }
+    }
+
+    private static AiProfile copyProfile(AiProfile src) {
+        AiProfile copy = new AiProfile();
+        copy.setName(src.getName());
+        copy.setEnabled(src.isEnabled());
+        copy.setProvider(src.getProvider());
+        copy.setModel(src.getModel());
+        copy.setApiKey(src.getApiKey());
+        copy.setBaseUrl(src.getBaseUrl());
+        copy.setApiVersion(src.getApiVersion());
+        copy.setTimeoutSeconds(src.getTimeoutSeconds());
+        copy.setMaxRetries(src.getMaxRetries());
+        copy.setConfidence(src.isConfidence());
+        return copy;
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
