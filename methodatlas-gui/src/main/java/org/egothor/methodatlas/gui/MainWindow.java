@@ -111,7 +111,7 @@ public final class MainWindow extends JFrame {
         // Build panels (order matters: editor before tagEditor)
         scanPanel = new ScanPanel(model);
         editorPanel = new EditorPanel(model);
-        tagEditorPanel = new TagEditorPanel(model, settings);
+        tagEditorPanel = new TagEditorPanel(model);
         activityPanel = new ActivityPanel(model);
         statusBar = new StatusBar(model);
 

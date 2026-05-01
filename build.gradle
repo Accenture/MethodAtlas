@@ -95,6 +95,27 @@ configurations.runtimeClasspath {
     exclude group: 'org.antlr', module: 'antlr4'
 }
 
+// ---------------------------------------------------------------------------
+// Unified distribution: the root distZip/installDist bundles both the CLI
+// and the GUI start scripts in a single lib/-cleaned archive.
+//
+// The GUI module's own distZip/distTar/installDist tasks are disabled (see
+// methodatlas-gui/build.gradle) so that there is only one distribution
+// artifact to ship and install.
+// ---------------------------------------------------------------------------
+configurations {
+    // Full GUI runtime: CLI deps (transitive via project(':methodatlas-gui')
+    // which depends on project(':')) + GUI-unique deps (FlatLaf, RSTA, …).
+    // The same ANTLR compiler exclusion applied to runtimeClasspath is
+    // repeated here so the grammar-tool JARs are also stripped from the
+    // GUI lib/ entries.
+    guiRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        exclude group: 'org.antlr', module: 'antlr4'
+    }
+}
+
 dependencies {
     implementation project(':methodatlas-api')
     runtimeOnly project(':methodatlas-discovery-jvm')
@@ -103,6 +124,9 @@ dependencies {
 
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.1'
+
+    // GUI module and its unique transitive runtime deps (FlatLaf, RSTA, …)
+    guiRuntime project(':methodatlas-gui')
 
     testImplementation(platform("org.junit:junit-bom:5.14.2"))
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -300,6 +324,39 @@ tasks.named('jar') {
                 'Implementation-Title': rootProject.name,
                 'Implementation-Version': "${version}"
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GUI start scripts — second entry point in the shared distribution.
+// The task generates both the Unix shell script and the Windows .bat file
+// for methodatlas-gui, using the full guiRuntime classpath so every
+// required JAR is listed (CLI deps + GUI-unique deps).
+// ---------------------------------------------------------------------------
+tasks.register('guiStartScripts', CreateStartScripts) {
+    dependsOn ':methodatlas-gui:jar'
+    mainClass = 'org.egothor.methodatlas.gui.MethodAtlasGuiApp'
+    applicationName = 'methodatlas-gui'
+    outputDir = layout.buildDirectory.dir('tmp/guiScripts').get().asFile
+    classpath = configurations.guiRuntime
+}
+
+// Extend the main CLI distribution with the GUI start scripts and any
+// GUI-unique JARs (FlatLaf, RSyntaxTextArea, methodatlas-gui.jar).
+// DuplicatesStrategy.EXCLUDE prevents CLI JARs already present in lib/
+// from being written a second time.
+distributions {
+    main {
+        contents {
+            from(tasks.named('guiStartScripts')) {
+                into 'bin'
+                fileMode 0755
+            }
+            from(configurations.guiRuntime) {
+                into 'lib'
+                duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+            }
+        }
     }
 }
 

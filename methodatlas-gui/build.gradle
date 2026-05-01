@@ -53,3 +53,15 @@ javadoc {
     options.addStringOption('Xdoclint:all,-missing', '-quiet')
     options.addBooleanOption('html5', true)
 }
+
+// ---------------------------------------------------------------------------
+// The GUI is distributed as part of the root project's installDist/distZip
+// (see root build.gradle — guiStartScripts + guiRuntime configuration).
+// Disable the standalone GUI distribution tasks so there is only one
+// combined distribution artifact to ship.  The 'run' task is kept intact
+// so developers can still launch the GUI directly via
+//   ./gradlew :methodatlas-gui:run
+// ---------------------------------------------------------------------------
+tasks.matching { it.name in ['distZip', 'distTar', 'installDist'] }.configureEach {
+    enabled = false
+}

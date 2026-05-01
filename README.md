@@ -105,18 +105,23 @@ without touching the command line.
 
 ### Build and run
 
+The GUI is bundled into the same distribution as the CLI — one `lib/` directory, two entry points, no duplicate or ANTLR grammar-compiler JARs.
+
 ```bash
-# Build the GUI distribution
-./gradlew :methodatlas-gui:build
+# Build the combined distribution (installs to build/install/methodatlas/)
+./gradlew installDist
 
-# Run directly from Gradle
+# Or produce a zip archive
+./gradlew distZip
+
+# Run the GUI start script (Unix)
+build/install/methodatlas/bin/methodatlas-gui
+
+# Run the GUI start script (Windows)
+build\install\methodatlas\bin\methodatlas-gui.bat
+
+# Run directly from Gradle during development
 ./gradlew :methodatlas-gui:run
-
-# Or run the generated start script (Unix)
-methodatlas-gui/build/install/methodatlas-gui/bin/methodatlas-gui
-
-# Windows
-methodatlas-gui\build\install\methodatlas-gui\bin\methodatlas-gui.bat
 ```
 
 Settings are persisted to `%APPDATA%\MethodAtlasGUI\settings.json` on Windows and

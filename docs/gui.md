@@ -62,18 +62,23 @@ Open **⚙ Settings** to configure:
 
 ## Build and run
 
+The GUI is bundled into the root distribution together with the CLI — there is a single `lib/` directory shared by both entry points, and the ANTLR grammar-compiler JARs are stripped from `lib/` just as they are for the CLI.
+
 ```bash
-# Build the GUI distribution
-./gradlew :methodatlas-gui:build
+# Build the combined CLI + GUI distribution
+./gradlew installDist          # install to build/install/methodatlas/
 
-# Run directly from Gradle
+# Or build the zip archive
+./gradlew distZip              # produces build/distributions/methodatlas-<version>.zip
+
+# Run the GUI start script (Unix)
+build/install/methodatlas/bin/methodatlas-gui
+
+# Run the GUI start script (Windows)
+build\install\methodatlas\bin\methodatlas-gui.bat
+
+# Run directly from Gradle during development
 ./gradlew :methodatlas-gui:run
-
-# Run the generated start script (Unix)
-methodatlas-gui/build/install/methodatlas-gui/bin/methodatlas-gui
-
-# Run the generated start script (Windows)
-methodatlas-gui\build\install\methodatlas-gui\bin\methodatlas-gui.bat
 ```
 
 Settings are persisted to `%APPDATA%\MethodAtlasGUI\settings.json` on Windows and

@@ -13,7 +13,6 @@ import java.beans.PropertyChangeEvent;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,17 +47,14 @@ public final class TagEditorPanel extends JPanel {
     // ── State ─────────────────────────────────────────────────────────────
 
     private final AnalysisModel model;
-    private final AppSettings settings;
     private MethodEntry currentEntry;
 
     /**
-     * @param model    model to observe
-     * @param settings settings (file suffixes and test annotations)
+     * @param model model to observe
      */
-    public TagEditorPanel(AnalysisModel model, AppSettings settings) {
+    public TagEditorPanel(AnalysisModel model) {
         super(new BorderLayout(0, 6));
         this.model = model;
-        this.settings = settings;
 
         setBorder(new EmptyBorder(8, 8, 8, 8));
         buildUi();
