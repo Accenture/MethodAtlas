@@ -18,6 +18,8 @@ import org.egothor.methodatlas.gui.service.SettingsManager;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
@@ -75,6 +77,7 @@ public final class MainWindow extends JFrame {
 
     // ── Split panes ───────────────────────────────────────────────────────
 
+    private JSplitPane mainSplit;
     private JSplitPane rightSplit;
 
     // ── Panels ────────────────────────────────────────────────────────────
@@ -128,17 +131,30 @@ public final class MainWindow extends JFrame {
 
     private void buildLayout() {
         // Right pane: editor on top, tag editor on bottom.
+        // resizeWeight=1.0: all extra vertical space on window resize goes to the
+        // editor; the tag editor keeps its natural content height.
         // Divider position is applied later in initSplitPositions() once the
         // window is realized, so setDividerLocation(double) works correctly.
         rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorPanel, tagEditorPanel);
-        rightSplit.setResizeWeight(0.8);
+        rightSplit.setResizeWeight(1.0);
         rightSplit.setBorder(null);
 
-        // Main split: results tree on left, right pane on right
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scanPanel, rightSplit);
+        // Main split: results tree on left, right pane on right.
+        // resizeWeight=0.0: all extra horizontal space goes to the right pane.
+        mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scanPanel, rightSplit);
         mainSplit.setResizeWeight(0.0);
         mainSplit.setBorder(null);
         mainSplit.setDividerLocation(settings.getLeftSplitPosition());
+
+        // Keep the scan pane minimum at 10% of the split width so the user
+        // cannot drag it to zero.  The ComponentListener fires on every resize
+        // so the minimum tracks the actual window width dynamically.
+        mainSplit.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                scanPanel.setMinimumSize(new Dimension((int) (mainSplit.getWidth() * 0.10), 1));
+            }
+        });
 
         // Persist split positions on resize
         mainSplit.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY,
@@ -410,15 +426,20 @@ public final class MainWindow extends JFrame {
     // ── Window state ──────────────────────────────────────────────────────
 
     private void initSplitPositions() {
+        // Seed the scan-pane minimum immediately with the realized window width.
+        scanPanel.setMinimumSize(new Dimension((int) (mainSplit.getWidth() * 0.10), 1));
+
         int rsp = settings.getRightSplitPosition();
         if (rsp > 0) {
             rightSplit.setDividerLocation(rsp);
         } else {
-            // Default: editor gets 75% of the vertical space; tag editor the rest.
-            // setDividerLocation(double) requires the pane to be realized, which
-            // is guaranteed because this runs inside an invokeLater that fires
-            // after setVisible(true).
-            rightSplit.setDividerLocation(0.75);
+            // Place the divider so the tag editor gets exactly its preferred height
+            // and the editor takes all remaining vertical space.  The window is
+            // realized at this point (invokeLater fires after setVisible(true)).
+            int tagPref = tagEditorPanel.getPreferredSize().height;
+            int available = rightSplit.getHeight();
+            int pos = available - rightSplit.getDividerSize() - tagPref;
+            rightSplit.setDividerLocation(Math.max(pos, 100));
         }
     }
 
