@@ -73,6 +73,10 @@ public final class MainWindow extends JFrame {
     private final JComboBox<String> profileCombo = new JComboBox<>();
     private final JButton settingsButton = new JButton("⚙  Settings");
 
+    // ── Split panes ───────────────────────────────────────────────────────
+
+    private JSplitPane rightSplit;
+
     // ── Panels ────────────────────────────────────────────────────────────
 
     private final ScanPanel scanPanel;
@@ -114,17 +118,21 @@ public final class MainWindow extends JFrame {
         restoreWindowState();
         applyLastDirectory();
         refreshProfileCombo();
+        // Apply split positions after the window is realized and laid out.
+        // invokeLater fires after setVisible(true) in MethodAtlasGuiApp's own
+        // invokeLater, so the split pane has its actual height by then.
+        SwingUtilities.invokeLater(this::initSplitPositions);
     }
 
     // ── Layout ────────────────────────────────────────────────────────────
 
     private void buildLayout() {
-        // Right pane: editor on top (80%), tag editor on bottom (20%)
-        JSplitPane rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorPanel, tagEditorPanel);
+        // Right pane: editor on top, tag editor on bottom.
+        // Divider position is applied later in initSplitPositions() once the
+        // window is realized, so setDividerLocation(double) works correctly.
+        rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorPanel, tagEditorPanel);
         rightSplit.setResizeWeight(0.8);
         rightSplit.setBorder(null);
-        int rsp = settings.getRightSplitPosition();
-        if (rsp > 0) rightSplit.setDividerLocation(rsp);
 
         // Main split: results tree on left, right pane on right
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scanPanel, rightSplit);
@@ -400,6 +408,19 @@ public final class MainWindow extends JFrame {
     }
 
     // ── Window state ──────────────────────────────────────────────────────
+
+    private void initSplitPositions() {
+        int rsp = settings.getRightSplitPosition();
+        if (rsp > 0) {
+            rightSplit.setDividerLocation(rsp);
+        } else {
+            // Default: editor gets 75% of the vertical space; tag editor the rest.
+            // setDividerLocation(double) requires the pane to be realized, which
+            // is guaranteed because this runs inside an invokeLater that fires
+            // after setVisible(true).
+            rightSplit.setDividerLocation(0.75);
+        }
+    }
 
     private void restoreWindowState() {
         setSize(settings.getWindowWidth(), settings.getWindowHeight());
