@@ -476,7 +476,9 @@ public final class SettingsDialog extends JDialog {
                     String m = token.trim();
                     if (!m.isEmpty()) { masks.add(m); }
                 }
-                if (!masks.isEmpty()) pluginSuffixes.put(id, masks);
+                if (!masks.isEmpty()) {
+                    pluginSuffixes.put(id, masks);
+                }
             }
         });
         settings.setPluginSuffixes(pluginSuffixes);

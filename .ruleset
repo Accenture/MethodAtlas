@@ -276,7 +276,15 @@
    <rule ref="category/java/errorprone.xml/DoNotThrowExceptionInFinally"/>
    <rule ref="category/java/errorprone.xml/DontImportSun"/>
    <rule ref="category/java/errorprone.xml/DontUseFloatTypeForLoopIndices"/>
-   <rule ref="category/java/errorprone.xml/EmptyCatchBlock"/>
+   <rule ref="category/java/errorprone.xml/EmptyCatchBlock">
+      <properties>
+         <!-- Allow catch blocks that contain only a comment explaining why
+              the exception is intentionally swallowed (best-effort ops,
+              platform-specific features, etc.). An uncommented empty block
+              is still flagged. -->
+         <property name="allowCommentedBlocks" value="true"/>
+      </properties>
+   </rule>
    <rule ref="category/java/errorprone.xml/EmptyFinalizer"/>
    <rule ref="category/java/errorprone.xml/EqualsNull"/>
    <rule ref="category/java/errorprone.xml/FinalizeDoesNotCallSuperFinalize"/>

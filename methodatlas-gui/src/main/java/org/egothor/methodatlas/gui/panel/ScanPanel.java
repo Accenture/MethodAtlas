@@ -263,7 +263,7 @@ public final class ScanPanel extends JPanel {
         private static String buildTooltip(MethodEntry entry) {
             StringBuilder sb = new StringBuilder(256);
             sb.append("<html><b>").append(escHtml(entry.discovered().fqcn()))
-              .append("#").append(escHtml(entry.discovered().method())).append("</b>");
+              .append('#').append(escHtml(entry.discovered().method())).append("</b>");
             if (entry.suggestion() != null) {
                 sb.append("<br>AI: ").append(entry.suggestion().securityRelevant()
                         ? "security-relevant" : "not security-relevant");

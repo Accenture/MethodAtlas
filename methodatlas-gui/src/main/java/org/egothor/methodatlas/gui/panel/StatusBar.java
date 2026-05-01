@@ -50,6 +50,7 @@ public final class StatusBar extends JPanel {
      *              {@code null}
      */
     public StatusBar(AnalysisModel model) {
+        super();
         setLayout(new BorderLayout(8, 0));
         setBorder(new CompoundBorder(
                 new MatteBorder(1, 0, 0, 0, UIManager.getColor("Separator.foreground")),

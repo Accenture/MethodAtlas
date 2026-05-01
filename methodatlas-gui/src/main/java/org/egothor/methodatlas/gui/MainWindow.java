@@ -293,6 +293,7 @@ public final class MainWindow extends JFrame {
         }
     }
 
+    @SuppressWarnings("PMD.UnusedAssignment") // flag read by profileCombo's ActionListener; PMD can't trace cross-listener reads
     private void refreshProfileCombo() {
         updatingProfileCombo = true;
         try {

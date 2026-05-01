@@ -316,6 +316,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
      * {@link AnalysisModel} mutator.  Runs on the EDT.</p>
      */
     @Override
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops") // AiClassResult record created per update chunk — unavoidable
     protected void process(List<Update> chunks) {
         for (Update update : chunks) {
             switch (update) {
