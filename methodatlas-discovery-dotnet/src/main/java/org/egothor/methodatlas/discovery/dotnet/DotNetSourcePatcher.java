@@ -82,7 +82,7 @@ public final class DotNetSourcePatcher implements SourcePatcher {
     @Override
     public boolean supports(Path sourceFile) {
         Path fn = sourceFile.getFileName();
-        if (fn == null) return false;
+        if (fn == null) { return false; }
         String name = fn.toString();
         return fileSuffixes.stream().anyMatch(name::endsWith);
     }
@@ -149,7 +149,7 @@ public final class DotNetSourcePatcher implements SourcePatcher {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < lines.size(); i++) {
                 sb.append(lines.get(i));
-                if (i < lines.size() - 1) sb.append(nl);
+                if (i < lines.size() - 1) { sb.append(nl); }
             }
             // Preserve trailing newline from original
             String original = Files.readString(sourceFile, StandardCharsets.UTF_8);
@@ -233,7 +233,7 @@ public final class DotNetSourcePatcher implements SourcePatcher {
                 continue;
             }
             int lineIdx = attr.sectionStartLine() - 1;   // 0-based
-            if (lineIdx < 0 || lineIdx >= lines.size()) return 0;
+            if (lineIdx < 0 || lineIdx >= lines.size()) { return 0; }
             String line = lines.get(lineIdx);
 
             if (desiredDisplayName.isEmpty()) {
@@ -247,7 +247,7 @@ public final class DotNetSourcePatcher implements SourcePatcher {
                 // Set / replace DisplayName parameter
                 String escaped = desiredDisplayName
                         .replace("\\", "\\\\").replace("\"", "\\\"");
-                String patched = setDisplayNameParam(line, attr.simpleName(), escaped,
+                String patched = buildDisplayNameParam(line, attr.simpleName(), escaped,
                                                      attr.namedArgs().containsKey("DisplayName"));
                 if (!patched.equals(line)) {
                     lines.set(lineIdx, patched);
@@ -270,12 +270,12 @@ public final class DotNetSourcePatcher implements SourcePatcher {
 
     /** Returns the leading whitespace of the line at {@code idx} (or empty). */
     private static String detectIndent(List<String> lines, int idx) {
-        if (idx < 0 || idx >= lines.size()) return "        ";
+        if (idx < 0 || idx >= lines.size()) { return "        "; }
         String line = lines.get(idx);
         StringBuilder sb = new StringBuilder();
         for (char c : line.toCharArray()) {
-            if (c == ' ' || c == '\t') sb.append(c);
-            else break;
+            if (c == ' ' || c == '\t') { sb.append(c); }
+            else { break; }
         }
         return sb.toString();
     }
@@ -290,7 +290,7 @@ public final class DotNetSourcePatcher implements SourcePatcher {
                 .replaceAll("DisplayName\\s*=\\s*\"[^\"]*\"\\s*,\\s*", "");
     }
 
-    private static String setDisplayNameParam(String line, String attrName,
+    private static String buildDisplayNameParam(String line, String attrName,
                                                String escaped, boolean exists) {
         if (exists) {
             // Replace existing value
@@ -313,15 +313,9 @@ public final class DotNetSourcePatcher implements SourcePatcher {
         Set<String> tagAttrNames = fw.tagAttributeNames();
         Set<String> result = new LinkedHashSet<>();
         for (AttributeInfo attr : method.attributes()) {
-            if (!tagAttrNames.contains(attr.simpleName())) continue;
+            if (!tagAttrNames.contains(attr.simpleName())) { continue; }
             if (fw == FrameworkKind.XUNIT) {
-                List<String> pos = attr.positionalArgs();
-                if (pos.size() >= 2 && pos.get(1) != null) {
-                    String key = pos.get(0);
-                    if ("Tag".equalsIgnoreCase(key) || "Category".equalsIgnoreCase(key)) {
-                        result.add(pos.get(1));
-                    }
-                }
+                addXunitTagValue(attr, result);
             } else {
                 List<String> pos = attr.positionalArgs();
                 if (!pos.isEmpty() && pos.get(0) != null) {
@@ -332,11 +326,24 @@ public final class DotNetSourcePatcher implements SourcePatcher {
         return result;
     }
 
+    /**
+     * Adds the xUnit tag value from a {@code [Trait("Tag", "value")]} attribute
+     * to {@code result} if the first positional arg is a recognised tag key.
+     */
+    private static void addXunitTagValue(AttributeInfo attr, Set<String> result) {
+        List<String> pos = attr.positionalArgs();
+        if (pos.size() < 2 || pos.get(1) == null) { return; }
+        String key = pos.get(0);
+        if ("Tag".equalsIgnoreCase(key) || "Category".equalsIgnoreCase(key)) {
+            result.add(pos.get(1));
+        }
+    }
+
     private static Set<String> buildDesiredTagSet(List<String> desiredTags) {
         Set<String> result = new LinkedHashSet<>();
         if (desiredTags != null) {
             for (String t : desiredTags) {
-                if (t != null && !t.isBlank()) result.add(t);
+                if (t != null && !t.isBlank()) { result.add(t); }
             }
         }
         return result;
@@ -351,10 +358,11 @@ public final class DotNetSourcePatcher implements SourcePatcher {
      * name to the list of simple test-method names declared in each class.</p>
      */
     @Override
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops") // ArrayList per class key is intentional
     public Map<String, List<String>> discoverMethodsByClass(
             Path sourceFile) throws IOException {
         CSharpTestParser.CompilationUnitContext tree = parse(sourceFile);
-        if (tree == null) return Map.of();
+        if (tree == null) { return Map.of(); }
 
         CSharpTestVisitor visitor = new CSharpTestVisitor(testMarkers);
         visitor.visit(tree);
@@ -379,7 +387,9 @@ public final class DotNetSourcePatcher implements SourcePatcher {
             public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
                                     int line, int charPositionInLine,
                                     String msg, RecognitionException e) {
-                LOG.warning("C# parse error: " + file + ":" + line + ":" + charPositionInLine + ": " + msg);
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.warning("C# parse error: " + file + ":" + line + ":" + charPositionInLine + ": " + msg);
+                }
             }
         });
         return parser.compilationUnit();
@@ -389,8 +399,8 @@ public final class DotNetSourcePatcher implements SourcePatcher {
 
     private static String detectLineSeparator(Path file) throws IOException {
         String content = Files.readString(file, StandardCharsets.UTF_8);
-        if (content.contains("\r\n")) return "\r\n";
-        if (content.contains("\r"))   return "\r";
+        if (content.contains("\r\n")) { return "\r\n"; }
+        if (content.contains("\r"))   { return "\r"; }
         return "\n";
     }
 }

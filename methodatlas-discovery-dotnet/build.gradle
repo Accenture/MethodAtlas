@@ -62,6 +62,11 @@ eclipse {
     }
 }
 
+// Note: ANTLR-generated sources in build/generated-src/antlr/main are
+// excluded from PMD via the shared .ruleset <exclude-pattern> for
+// .*/generated-src/.*, which works at the PMD engine level regardless of
+// how Gradle constructs the analysis source set.
+
 configurations {
     mockitoAgent
 }

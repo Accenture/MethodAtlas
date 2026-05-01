@@ -27,21 +27,14 @@ import java.util.Map;
  *   <li>grey {@code ?} — no AI data</li>
  * </ul>
  */
+@SuppressWarnings("PMD.NonSerializableClass")
 public final class ScanPanel extends JPanel {
 
     @java.io.Serial
     private static final long serialVersionUID = 1L;
 
-    // ── Tree node user-objects ────────────────────────────────────────────
-
-    /** Wrapper stored in class-level tree nodes. */
-    public record ClassNode(String fqcn) {
-        /** Short class name for display. */
-        public String simpleName() {
-            int dot = fqcn.lastIndexOf('.');
-            return dot >= 0 ? fqcn.substring(dot + 1) : fqcn;
-        }
-    }
+    /** Mouse click count that constitutes a double-click. */
+    private static final int DOUBLE_CLICK_COUNT = 2;
 
     // ── Fields ────────────────────────────────────────────────────────────
 
@@ -53,6 +46,17 @@ public final class ScanPanel extends JPanel {
     private final Map<String, DefaultMutableTreeNode> classNodes = new HashMap<>();
 
     private final AnalysisModel model;
+
+    // ── Tree node user-objects ────────────────────────────────────────────
+
+    /** Wrapper stored in class-level tree nodes. */
+    public record ClassNode(String fqcn) {
+        /** Short class name for display. */
+        public String simpleName() {
+            int dot = fqcn.lastIndexOf('.');
+            return dot >= 0 ? fqcn.substring(dot + 1) : fqcn;
+        }
+    }
 
     /**
      * @param model model to observe and interact with
@@ -81,19 +85,16 @@ public final class ScanPanel extends JPanel {
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    TreePath path = tree.getPathForLocation(e.getX(), e.getY());
-                    if (path != null) {
-                        DefaultMutableTreeNode node =
-                                (DefaultMutableTreeNode) path.getLastPathComponent();
-                        if (node.getUserObject() instanceof ClassNode) {
-                            if (tree.isExpanded(path)) {
-                                tree.collapsePath(path);
-                            } else {
-                                tree.expandPath(path);
-                            }
-                        }
-                    }
+                if (e.getClickCount() != DOUBLE_CLICK_COUNT) { return; }
+                TreePath path = tree.getPathForLocation(e.getX(), e.getY());
+                if (path == null) { return; }
+                DefaultMutableTreeNode node =
+                        (DefaultMutableTreeNode) path.getLastPathComponent();
+                if (!(node.getUserObject() instanceof ClassNode)) { return; }
+                if (tree.isExpanded(path)) {
+                    tree.collapsePath(path);
+                } else {
+                    tree.expandPath(path);
                 }
             }
         });
@@ -137,15 +138,15 @@ public final class ScanPanel extends JPanel {
             DefaultMutableTreeNode classNode = (DefaultMutableTreeNode) treeRoot.getChildAt(i);
             for (int j = 0; j < classNode.getChildCount(); j++) {
                 DefaultMutableTreeNode child = (DefaultMutableTreeNode) classNode.getChildAt(j);
-                if (!(child.getUserObject() instanceof MethodEntry e)) continue;
-                if (firstMethod == null) firstMethod = child;
+                if (!(child.getUserObject() instanceof MethodEntry e)) { continue; }
+                if (firstMethod == null) { firstMethod = child; }
                 if (e.tagStatus() == TagStatus.NEEDS_REVIEW) {
                     selectNode(child);
                     return;
                 }
             }
         }
-        if (firstMethod != null) selectNode(firstMethod);
+        if (firstMethod != null) { selectNode(firstMethod); }
     }
 
     private void selectNode(DefaultMutableTreeNode node) {
@@ -193,6 +194,11 @@ public final class ScanPanel extends JPanel {
 
     // ── Cell renderer ─────────────────────────────────────────────────────
 
+    /**
+     * Custom tree-cell renderer that colour-codes method nodes by their
+     * {@link MethodEntry.TagStatus} and shows a badge on class nodes when
+     * any child methods require review.
+     */
     private static final class MethodTreeCellRenderer extends DefaultTreeCellRenderer {
 
         @java.io.Serial
@@ -205,7 +211,7 @@ public final class ScanPanel extends JPanel {
             super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
             setIcon(null);
 
-            if (!(value instanceof DefaultMutableTreeNode node)) return this;
+            if (!(value instanceof DefaultMutableTreeNode node)) { return this; }
 
             switch (node.getUserObject()) {
                 case ClassNode cn -> {
@@ -255,8 +261,8 @@ public final class ScanPanel extends JPanel {
         }
 
         private static String buildTooltip(MethodEntry entry) {
-            StringBuilder sb = new StringBuilder("<html>");
-            sb.append("<b>").append(escHtml(entry.discovered().fqcn()))
+            StringBuilder sb = new StringBuilder(256);
+            sb.append("<html><b>").append(escHtml(entry.discovered().fqcn()))
               .append("#").append(escHtml(entry.discovered().method())).append("</b>");
             if (entry.suggestion() != null) {
                 sb.append("<br>AI: ").append(entry.suggestion().securityRelevant()

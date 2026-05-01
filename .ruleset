@@ -5,6 +5,12 @@
          xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
    <description>Egothor preferences rule set</description>
    <exclude-pattern>.*/package-info\.java</exclude-pattern>
+   <!-- Exclude ANTLR-generated parser sources: Gradle's PMD plugin lazily
+        re-derives its source from sourceSets.main, which includes the ANTLR
+        output directory build/generated-src/antlr/main.  A task-level
+        source override loses the race; an exclude-pattern here wins
+        regardless of how Gradle feeds files to the PMD engine. -->
+   <exclude-pattern>.*/generated-src/.*</exclude-pattern>
    <rule ref="category/java/bestpractices.xml/AbstractClassWithoutAbstractMethod"/>
    <rule ref="category/java/bestpractices.xml/AccessorClassGeneration"/>
    <rule ref="category/java/bestpractices.xml/AccessorMethodGeneration"/>

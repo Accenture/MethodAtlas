@@ -29,6 +29,7 @@ import java.util.Map;
  * only when the user confirms with the <em>Save</em> button.  Closing or
  * clicking <em>Cancel</em> discards all changes.</p>
  */
+@SuppressWarnings("PMD.NonSerializableClass")
 public final class SettingsDialog extends JDialog {
 
     // ── Provider info ─────────────────────────────────────────────────────
@@ -79,6 +80,9 @@ public final class SettingsDialog extends JDialog {
     @java.io.Serial
     private static final long serialVersionUID = 1L;
 
+    /** Minimum number of profiles that must exist (cannot delete below this). */
+    private static final int MIN_PROFILE_COUNT = 1;
+
     // ── Profile management ────────────────────────────────────────────────
 
     private List<AiProfile> workingProfiles;
@@ -117,7 +121,7 @@ public final class SettingsDialog extends JDialog {
     // ── State ─────────────────────────────────────────────────────────────
 
     private final AppSettings settings;
-    private boolean confirmed = false;
+    private boolean confirmed;
 
     /**
      * Constructs the settings dialog, populates all fields from the
@@ -196,13 +200,13 @@ public final class SettingsDialog extends JDialog {
     private JPanel buildAiSection() {
         JPanel panel = new JPanel(new BorderLayout(8, 4));
         panel.setBorder(titledBorder("AI Profiles"));
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setAlignmentX(LEFT_ALIGNMENT);
 
         // ── Profile list (left) ────────────────────────────────────────────
         profileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         profileList.setVisibleRowCount(7);
         profileList.addListSelectionListener(e -> {
-            if (e.getValueIsAdjusting()) return;
+            if (e.getValueIsAdjusting()) { return; }
             onProfileListSelectionChanged();
         });
 
@@ -256,10 +260,11 @@ public final class SettingsDialog extends JDialog {
         return panel;
     }
 
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private JPanel buildPluginsSection() {
         JPanel panel = new JPanel(new BorderLayout(0, 4));
         panel.setBorder(titledBorder("Discovery Plugins"));
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setAlignmentX(LEFT_ALIGNMENT);
 
         List<String> available = AnalysisService.availablePluginIds();
         if (available.isEmpty()) {
@@ -322,7 +327,7 @@ public final class SettingsDialog extends JDialog {
     private JPanel buildThemeSection() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         panel.setBorder(titledBorder("Appearance"));
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setAlignmentX(LEFT_ALIGNMENT);
         panel.add(new JLabel("Theme:"));
         panel.add(themeCombo);
         panel.add(new JLabel(" (takes effect on next launch)"));
@@ -332,7 +337,7 @@ public final class SettingsDialog extends JDialog {
     private JPanel buildAuditSection() {
         JPanel panel = new JPanel(new BorderLayout(4, 0));
         panel.setBorder(titledBorder("Audit"));
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setAlignmentX(LEFT_ALIGNMENT);
 
         operatorNameField.setToolTipText(
                 "Written into the 'note' field of every override YAML entry and evidence CSV row");
@@ -347,7 +352,7 @@ public final class SettingsDialog extends JDialog {
     private JPanel buildConfigPathSection() {
         JPanel panel = new JPanel(new BorderLayout(4, 0));
         panel.setBorder(titledBorder("Configuration File"));
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.setAlignmentX(LEFT_ALIGNMENT);
 
         String path = SettingsManager.getSettingsFile().toString();
         JTextField pathField = new JTextField(path);
@@ -390,6 +395,7 @@ public final class SettingsDialog extends JDialog {
 
     // ── Populate / Save / Reset ───────────────────────────────────────────
 
+    @SuppressWarnings("PMD.NPathComplexity")
     private void populate() {
         // Deep-copy the profiles so edits don't affect the live settings object
         workingProfiles = new ArrayList<>();
@@ -452,12 +458,12 @@ public final class SettingsDialog extends JDialog {
         settings.setOperatorName(operatorNameField.getText().trim());
 
         int themeIdx = themeCombo.getSelectedIndex();
-        if (themeIdx >= 0) settings.setThemeClass(THEME_CLASSES[themeIdx]);
+        if (themeIdx >= 0) { settings.setThemeClass(THEME_CLASSES[themeIdx]); }
 
         List<String> enabledPlugins = new ArrayList<>();
         boolean allChecked = pluginBoxes.values().stream().allMatch(JCheckBox::isSelected);
         if (!allChecked) {
-            pluginBoxes.forEach((id, box) -> { if (box.isSelected()) enabledPlugins.add(id); });
+            pluginBoxes.forEach((id, box) -> { if (box.isSelected()) { enabledPlugins.add(id); } });
         }
         settings.setEnabledPlugins(enabledPlugins);
 
@@ -468,7 +474,7 @@ public final class SettingsDialog extends JDialog {
                 List<String> masks = new ArrayList<>();
                 for (String token : text.split(",")) {
                     String m = token.trim();
-                    if (!m.isEmpty()) masks.add(m);
+                    if (!m.isEmpty()) { masks.add(m); }
                 }
                 if (!masks.isEmpty()) pluginSuffixes.put(id, masks);
             }
@@ -484,7 +490,7 @@ public final class SettingsDialog extends JDialog {
         int choice = JOptionPane.showConfirmDialog(this,
                 "Reset all settings to built-in defaults?\nThe settings file will be overwritten on Save.",
                 "Reset to Defaults", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (choice != JOptionPane.OK_OPTION) return;
+        if (choice != JOptionPane.OK_OPTION) { return; }
 
         AppSettings defaults = new AppSettings();
         workingProfiles = new ArrayList<>();
@@ -525,7 +531,7 @@ public final class SettingsDialog extends JDialog {
 
     private void onProfileListSelectionChanged() {
         int newIdx = profileList.getSelectedIndex();
-        if (newIdx == currentProfileIndex || newIdx < 0) return;
+        if (newIdx == currentProfileIndex || newIdx < 0) { return; }
 
         // Commit the form to the profile we are leaving
         if (currentProfileIndex >= 0 && currentProfileIndex < workingProfiles.size()) {
@@ -548,7 +554,7 @@ public final class SettingsDialog extends JDialog {
         }
 
         String input = JOptionPane.showInputDialog(this, "Profile name:", name);
-        if (input == null || input.isBlank()) return;
+        if (input == null || input.isBlank()) { return; }
         input = input.trim();
         if (profileNameExists(input)) {
             JOptionPane.showMessageDialog(this, "A profile with that name already exists.",
@@ -565,8 +571,8 @@ public final class SettingsDialog extends JDialog {
 
     private void onDeleteProfile() {
         int idx = profileList.getSelectedIndex();
-        if (idx < 0) return;
-        if (workingProfiles.size() <= 1) {
+        if (idx < 0) { return; }
+        if (workingProfiles.size() <= MIN_PROFILE_COUNT) {
             JOptionPane.showMessageDialog(this, "At least one profile must exist.",
                     "Cannot Delete", JOptionPane.WARNING_MESSAGE);
             return;
@@ -579,13 +585,13 @@ public final class SettingsDialog extends JDialog {
 
     private void onRenameProfile() {
         int idx = profileList.getSelectedIndex();
-        if (idx < 0) return;
+        if (idx < 0) { return; }
         AiProfile profile = workingProfiles.get(idx);
 
         String input = JOptionPane.showInputDialog(this, "New name:", profile.getName());
-        if (input == null || input.isBlank()) return;
+        if (input == null || input.isBlank()) { return; }
         input = input.trim();
-        if (input.equals(profile.getName())) return;
+        if (input.equals(profile.getName())) { return; }
 
         if (profileNameExists(input)) {
             JOptionPane.showMessageDialog(this, "A profile with that name already exists.",
@@ -678,7 +684,7 @@ public final class SettingsDialog extends JDialog {
                 Desktop.getDesktop().open(dir.toFile());
             }
         } catch (Exception ex) {
-            // Desktop.open not supported on all platforms — silently ignore
+            // best-effort open; Desktop.open not supported on all platforms — nothing to do
         }
     }
 

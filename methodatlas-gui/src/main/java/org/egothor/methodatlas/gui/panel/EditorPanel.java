@@ -14,6 +14,7 @@ import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -70,7 +71,7 @@ public final class EditorPanel extends JPanel {
 
     private void onSelectionChanged(PropertyChangeEvent evt) {
         MethodEntry entry = (MethodEntry) evt.getNewValue();
-        if (entry == null) return;
+        if (entry == null) { return; }
 
         Path filePath = entry.discovered().filePath();
         if (filePath == null) {
@@ -98,7 +99,9 @@ public final class EditorPanel extends JPanel {
             String content = Files.readString(file);
             setSource(content, inferSyntaxStyle(file), file, targetLine);
         } catch (IOException e) {
-            LOG.log(Level.WARNING, "Cannot read source file: " + file, e);
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Cannot read source file: " + file, e);
+            }
             fileLabel.setText("Cannot read: " + file.getFileName());
         }
     }
@@ -116,28 +119,28 @@ public final class EditorPanel extends JPanel {
     }
 
     private void scrollToLine(int line) {
-        if (line <= 0) return;
+        if (line <= 0) { return; }
         try {
             int offset = textArea.getLineStartOffset(line - 1);
             textArea.setCaretPosition(offset);
             // Defer centering until after the viewport has settled its layout
             SwingUtilities.invokeLater(() -> centerViewOnOffset(offset));
         } catch (Exception e) {
-            // Silently ignore out-of-range lines
+            // best-effort scroll; out-of-range lines silently ignored — nothing to do
         }
     }
 
     private void centerViewOnOffset(int offset) {
         try {
             Rectangle2D r = textArea.modelToView2D(offset);
-            if (r == null) return;
+            if (r == null) { return; }
             Container parent = textArea.getParent();
-            if (!(parent instanceof JViewport vp)) return;
+            if (!(parent instanceof JViewport vp)) { return; }
             Dimension extent = vp.getExtentSize();
             int newY = Math.max(0, (int) r.getY() - extent.height / 2 + (int) r.getHeight() / 2);
             vp.setViewPosition(new Point(vp.getViewPosition().x, newY));
         } catch (Exception ex) {
-            // Ignore — viewport not yet realized or offset out of range
+            // best-effort centering; viewport not yet realized or offset out of range — nothing to do
         }
     }
 
@@ -162,11 +165,11 @@ public final class EditorPanel extends JPanel {
     }
 
     private static String inferSyntaxStyle(Path file) {
-        if (file == null) return SyntaxConstants.SYNTAX_STYLE_JAVA;
-        String name = file.getFileName().toString().toLowerCase();
-        if (name.endsWith(".cs")) return SyntaxConstants.SYNTAX_STYLE_CSHARP;
-        if (name.endsWith(".ts") || name.endsWith(".tsx")) return SyntaxConstants.SYNTAX_STYLE_TYPESCRIPT;
-        if (name.endsWith(".js") || name.endsWith(".jsx")) return SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT;
+        if (file == null) { return SyntaxConstants.SYNTAX_STYLE_JAVA; }
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.endsWith(".cs")) { return SyntaxConstants.SYNTAX_STYLE_CSHARP; }
+        if (name.endsWith(".ts") || name.endsWith(".tsx")) { return SyntaxConstants.SYNTAX_STYLE_TYPESCRIPT; }
+        if (name.endsWith(".js") || name.endsWith(".jsx")) { return SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT; }
         return SyntaxConstants.SYNTAX_STYLE_JAVA;
     }
 
@@ -178,7 +181,7 @@ public final class EditorPanel extends JPanel {
      * annotations without losing their place in the file.</p>
      */
     public void reloadCurrentFilePreservingScroll() {
-        if (currentFile == null) return;
+        if (currentFile == null) { return; }
         Container parent = textArea.getParent();
         Point savedPos = parent instanceof JViewport vp ? vp.getViewPosition() : new Point(0, 0);
         try {
@@ -192,7 +195,9 @@ public final class EditorPanel extends JPanel {
                 }
             });
         } catch (IOException e) {
-            LOG.log(Level.WARNING, "Cannot reload source file: " + currentFile, e);
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Cannot reload source file: " + currentFile, e);
+            }
         }
     }
 

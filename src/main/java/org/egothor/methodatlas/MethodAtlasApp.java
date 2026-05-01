@@ -234,7 +234,7 @@ public final class MethodAtlasApp {
      * @throws IllegalStateException    if AI support is enabled but the AI engine
      *                                  cannot be created successfully
      */
-    @SuppressWarnings("PMD.NPathComplexity")
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops") // DiffCommand is created inside the loop but returned immediately
     /* default */ static int run(String[] args, PrintWriter out) throws IOException {
         // -diff is handled before full argument parsing; all other flags are ignored.
         for (int i = 0; i < args.length; i++) {

@@ -63,6 +63,12 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
 
     private static final Logger LOG = Logger.getLogger(AnalysisService.class.getName());
 
+    // ── Fields ────────────────────────────────────────────────────────────
+
+    private final AppSettings settings;
+    private final Path root;
+    private final AnalysisModel model;
+
     // ── Internal update messages ──────────────────────────────────────────
 
     /**
@@ -149,12 +155,6 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
      */
     public record ProgressUpdate(int current, int total, String currentClass) implements Update {}
 
-    // ── Fields ────────────────────────────────────────────────────────────
-
-    private final AppSettings settings;
-    private final Path root;
-    private final AnalysisModel model;
-
     /**
      * Constructs a new analysis service for the given root directory.
      *
@@ -172,6 +172,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
      *                 suggestions; must not be {@code null}
      */
     public AnalysisService(AppSettings settings, Path root, AnalysisModel model) {
+        super();
         this.settings = settings;
         this.root = root;
         this.model = model;
@@ -191,6 +192,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
      * @throws Exception if an unexpected error occurs during file traversal
      */
     @Override
+    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidInstantiatingObjectsInLoops"})
     protected Void doInBackground() throws Exception {
         publish(new StatusChange(AnalysisModel.Status.SCANNING, "Scanning " + root + " …"));
 
@@ -204,7 +206,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
 
         try {
             for (TestDiscovery provider : providers) {
-                if (isCancelled()) break;
+                if (isCancelled()) { break; }
                 provider.discover(root).forEach(m -> {
                     byClass.computeIfAbsent(m.fqcn(), k -> new ArrayList<>()).add(m);
                     publish(new MethodFound(new MethodEntry(m, null)));
@@ -233,6 +235,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
         return null;
     }
 
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private void runAiPhase(Map<String, List<DiscoveredMethod>> byClass) {
         RateLimitListener rateLimitListener = (waitSeconds, attempt, max) ->
                 publish(new StatusChange(AnalysisModel.Status.AI_RUNNING,
@@ -255,7 +258,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
         int securityRelevantCount = 0;
 
         for (Map.Entry<String, List<DiscoveredMethod>> classEntry : byClass.entrySet()) {
-            if (isCancelled()) break;
+            if (isCancelled()) { break; }
             idx++;
             String fqcn = classEntry.getKey();
             List<DiscoveredMethod> classMethods = classEntry.getValue();
@@ -285,11 +288,13 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
                 if (classSugg != null && classSugg.methods() != null) {
                     for (AiMethodSuggestion methodSugg : classSugg.methods()) {
                         publish(new AiUpdate(fqcn, methodSugg.methodName(), methodSugg));
-                        if (methodSugg.securityRelevant()) securityRelevantCount++;
+                        if (methodSugg.securityRelevant()) { securityRelevantCount++; }
                     }
                 }
             } catch (AiSuggestionException e) {
-                LOG.log(Level.WARNING, "AI failed for class " + fqcn, e);
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.log(Level.WARNING, "AI failed for class " + fqcn, e);
+                }
                 hadError = true;
             }
             publish(new AiClassDone(fqcn, classMethods.size(),
@@ -422,12 +427,15 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
         return providers;
     }
 
+    @SuppressWarnings("PMD.CloseResource")
     private static void closeAll(List<TestDiscovery> providers) {
         for (TestDiscovery p : providers) {
             try {
                 p.close();
             } catch (IOException e) {
-                LOG.log(Level.FINE, "Failed to close provider " + p.pluginId(), e);
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.log(Level.FINE, "Failed to close provider " + p.pluginId(), e);
+                }
             }
         }
     }

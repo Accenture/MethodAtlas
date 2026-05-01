@@ -21,9 +21,9 @@ public enum FrameworkKind {
      */
     public static FrameworkKind detect(List<String> usingDirectives) {
         for (String u : usingDirectives) {
-            if (u.equals("Xunit") || u.startsWith("Xunit.")) return XUNIT;
-            if (u.equals("NUnit.Framework") || u.startsWith("NUnit.")) return NUNIT;
-            if (u.contains("VisualStudio.TestTools")) return MSTEST;
+            if ("Xunit".equals(u) || u.startsWith("Xunit.")) { return XUNIT; }
+            if ("NUnit.Framework".equals(u) || u.startsWith("NUnit.")) { return NUNIT; }
+            if (u.contains("VisualStudio.TestTools")) { return MSTEST; }
         }
         return UNKNOWN;
     }

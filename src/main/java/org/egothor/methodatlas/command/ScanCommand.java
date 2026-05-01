@@ -71,6 +71,7 @@ public final class ScanCommand implements Command {
      * @throws IOException if traversing a file tree fails
      */
     @Override
+    @SuppressWarnings("PMD.NPathComplexity") // combinatorial expansion of optional CSV columns; inherent to the format
     public int execute(PrintWriter out) throws IOException {
         boolean aiEnabled = aiEngine != null;
         boolean confidenceEnabled = aiEnabled && cliConfig.aiOptions().confidence();

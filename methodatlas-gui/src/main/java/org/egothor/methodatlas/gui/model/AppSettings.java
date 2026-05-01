@@ -27,6 +27,7 @@ import java.util.Map;
  * @see org.egothor.methodatlas.gui.service.SettingsManager
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
+@SuppressWarnings("PMD.DataClass")
 public final class AppSettings {
 
     // ── AI profiles ───────────────────────────────────────────────────────

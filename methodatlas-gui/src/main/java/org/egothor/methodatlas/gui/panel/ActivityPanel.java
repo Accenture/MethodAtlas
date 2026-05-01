@@ -84,7 +84,7 @@ public final class ActivityPanel extends JPanel {
     // ── State ─────────────────────────────────────────────────────────────
 
     /** {@code true} when the log area scroll pane is visible. */
-    private boolean logExpanded = false;
+    private boolean logExpanded;
 
     /** Wall-clock instant at which the most recent analysis run started. */
     private Instant analysisStart;
@@ -106,6 +106,7 @@ public final class ActivityPanel extends JPanel {
      *              {@code null}
      */
     public ActivityPanel(AnalysisModel model) {
+        super();
         setLayout(new BorderLayout(0, 0));
         setBorder(new CompoundBorder(
                 new MatteBorder(1, 0, 0, 0, UIManager.getColor("Separator.foreground")),
@@ -154,7 +155,7 @@ public final class ActivityPanel extends JPanel {
 
     // ── Event handlers ────────────────────────────────────────────────────
 
-    private void onToggle(ActionEvent e) {
+    private void onToggle(ActionEvent ignored) {
         logExpanded = !logExpanded;
         toggleButton.setText(logExpanded ? "▼ Activity" : "▶ Activity");
         logScroll.setVisible(logExpanded);
@@ -213,10 +214,10 @@ public final class ActivityPanel extends JPanel {
 
     /** Refreshes the elapsed-time label; called by the one-second timer. */
     private void updateElapsed() {
-        if (analysisStart == null) return;
+        if (analysisStart == null) { return; }
         long secs = java.time.Duration.between(analysisStart, Instant.now()).getSeconds();
         long h = secs / 3600;
-        long m = (secs % 3600) / 60;
+        long m = secs % 3600 / 60;
         long s = secs % 60;
         elapsedLabel.setText(String.format("%02d:%02d:%02d", h, m, s));
     }
@@ -236,7 +237,7 @@ public final class ActivityPanel extends JPanel {
 
     /** Returns the simple class name from a fully-qualified name. */
     private static String simpleName(String fqcn) {
-        if (fqcn == null || fqcn.isBlank()) return "";
+        if (fqcn == null || fqcn.isBlank()) { return ""; }
         int dot = fqcn.lastIndexOf('.');
         return dot >= 0 ? fqcn.substring(dot + 1) : fqcn;
     }

@@ -48,6 +48,24 @@ import java.util.Map;
  */
 public final class AnalysisModel {
 
+    // ── Fields ────────────────────────────────────────────────────────────
+
+    /** Maximum number of AI class results retained in the recent-results log. */
+    private static final int MAX_AI_RESULTS = 50;
+
+    private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
+
+    /** Preserves insertion order so classes appear in discovery order. */
+    private final Map<String, List<MethodEntry>> methodsByClass = new LinkedHashMap<>();
+
+    private Status status = Status.IDLE;
+    private String statusMessage = "Ready";
+    private int progressCurrent;
+    private int progressTotal;
+    private String currentAiClass = "";
+    private final List<AiClassResult> recentAiResults = new ArrayList<>();
+    private MethodEntry selectedEntry;
+
     /**
      * High-level lifecycle state of the background analysis.
      *
@@ -114,19 +132,6 @@ public final class AnalysisModel {
      *                    {@link org.egothor.methodatlas.ai.AiSuggestionException}
      */
     public record AiClassResult(String fqcn, int methodCount, long durationMs, boolean hadError) {}
-
-    private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
-
-    /** Preserves insertion order so classes appear in discovery order. */
-    private final Map<String, List<MethodEntry>> methodsByClass = new LinkedHashMap<>();
-
-    private Status status = Status.IDLE;
-    private String statusMessage = "Ready";
-    private int progressCurrent;
-    private int progressTotal;
-    private String currentAiClass = "";
-    private final List<AiClassResult> recentAiResults = new ArrayList<>();
-    private MethodEntry selectedEntry;
 
     // ── Observer wiring ───────────────────────────────────────────────────
 
@@ -220,7 +225,7 @@ public final class AnalysisModel {
     public void updateSuggestion(String fqcn, String methodName,
             org.egothor.methodatlas.ai.AiMethodSuggestion suggestion) {
         List<MethodEntry> entries = methodsByClass.get(fqcn);
-        if (entries == null) return;
+        if (entries == null) { return; }
         for (MethodEntry e : entries) {
             if (e.discovered().method().equals(methodName)) {
                 e.setSuggestion(suggestion);
@@ -306,7 +311,7 @@ public final class AnalysisModel {
      */
     public void addAiClassResult(AiClassResult result) {
         recentAiResults.add(result);
-        if (recentAiResults.size() > 50) recentAiResults.remove(0);
+        if (recentAiResults.size() > MAX_AI_RESULTS) { recentAiResults.remove(0); }
         pcs.firePropertyChange("aiClassDone", null, result);
     }
 

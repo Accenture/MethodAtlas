@@ -84,7 +84,9 @@ public final class SettingsManager {
             try {
                 return MAPPER.readValue(SETTINGS_FILE.toFile(), AppSettings.class);
             } catch (IOException e) {
-                LOG.log(Level.WARNING, "Cannot read settings from " + SETTINGS_FILE + "; using defaults", e);
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.log(Level.WARNING, "Cannot read settings from " + SETTINGS_FILE + "; using defaults", e);
+                }
             }
         }
         return new AppSettings();
@@ -104,7 +106,9 @@ public final class SettingsManager {
             Files.createDirectories(SETTINGS_FILE.getParent());
             MAPPER.writerWithDefaultPrettyPrinter().writeValue(SETTINGS_FILE.toFile(), settings);
         } catch (IOException e) {
-            LOG.log(Level.WARNING, "Cannot save settings to " + SETTINGS_FILE, e);
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Cannot save settings to " + SETTINGS_FILE, e);
+            }
         }
     }
 }

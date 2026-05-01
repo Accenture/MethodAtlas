@@ -102,6 +102,7 @@ public final class AuditWriter {
 
     // ── Evidence CSV ──────────────────────────────────────────────────────
 
+    @SuppressWarnings("PMD.NPathComplexity")
     private static void writeEvidenceCsv(Path dir, List<SavedEntry> entries,
             LocalDateTime timestamp) throws IOException {
         Path csvFile = dir.resolve("methodatlas-" + timestamp.format(FILE_TS) + ".csv");
@@ -119,7 +120,7 @@ public final class AuditWriter {
                         + (e.loc() > 0 ? e.loc() : "") + ","
                         + csv(applied != null ? String.join(";", applied) : "") + ","
                         + csv(e.appliedDisplayName() != null ? e.appliedDisplayName() : "") + ","
-                        + /* content_hash */ "" + ","
+                        + /* content_hash */ ","
                         + (ai != null ? ai.securityRelevant() : "") + ","
                         + csv(ai != null && ai.displayName() != null ? ai.displayName() : "") + ","
                         + csv(ai != null && ai.tags() != null ? String.join(";", ai.tags()) : "") + ","
@@ -134,6 +135,21 @@ public final class AuditWriter {
     // ── Override YAML ─────────────────────────────────────────────────────
 
     @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> loadExistingOverrides(
+            Path yamlFile, ObjectMapper mapper) throws IOException {
+        List<Map<String, Object>> existing = new ArrayList<>();
+        if (!Files.exists(yamlFile)) { return existing; }
+        Map<String, Object> root = mapper.readValue(yamlFile.toFile(), Map.class);
+        if (root == null || !(root.get("overrides") instanceof List<?> list)) { return existing; }
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> m) {
+                existing.add(new LinkedHashMap<>((Map<String, Object>) m));
+            }
+        }
+        return existing;
+    }
+
+    @SuppressWarnings({"unchecked", "PMD.NPathComplexity", "PMD.AvoidInstantiatingObjectsInLoops"})
     private static void updateOverrideYaml(Path dir, List<SavedEntry> entries,
             String operatorName, LocalDateTime timestamp) throws IOException {
         Path yamlFile = dir.resolve("overrides.yaml");
@@ -143,17 +159,7 @@ public final class AuditWriter {
         ObjectMapper mapper = new ObjectMapper(yf);
 
         // Load existing overrides (if any) into a mutable list
-        List<Map<String, Object>> existing = new ArrayList<>();
-        if (Files.exists(yamlFile)) {
-            Map<String, Object> root = mapper.readValue(yamlFile.toFile(), Map.class);
-            if (root != null && root.get("overrides") instanceof List<?> list) {
-                for (Object item : list) {
-                    if (item instanceof Map<?, ?> m) {
-                        existing.add(new LinkedHashMap<>((Map<String, Object>) m));
-                    }
-                }
-            }
-        }
+        List<Map<String, Object>> existing = loadExistingOverrides(yamlFile, mapper);
 
         // Build an index keyed by "fqcn#method" for O(1) lookup
         Map<String, Integer> idx = new LinkedHashMap<>();
@@ -212,19 +218,19 @@ public final class AuditWriter {
     }
 
     private static String computeDrift(List<String> applied, List<String> aiTags) {
-        if (applied == null) return "";
+        if (applied == null) { return ""; }
         Set<String> appliedSet = new HashSet<>(applied);
         Set<String> aiSet = aiTags != null ? new HashSet<>(aiTags) : Set.of();
         boolean userAddedExtra = applied.stream().anyMatch(t -> !aiSet.contains(t));
         boolean aiHasUnapplied = aiSet.stream().anyMatch(t -> !appliedSet.contains(t));
-        if (!userAddedExtra && !aiHasUnapplied) return "none";
-        if (!userAddedExtra) return "ai-only";
+        if (!userAddedExtra && !aiHasUnapplied) { return "none"; }
+        if (!userAddedExtra) { return "ai-only"; }
         return "tag-only";
     }
 
     /** RFC 4180 CSV field quoting. */
     private static String csv(String value) {
-        if (value == null || value.isEmpty()) return "";
+        if (value == null || value.isEmpty()) { return ""; }
         if (value.contains(",") || value.contains("\"") || value.contains("\n")
                 || value.contains("\r")) {
             return "\"" + value.replace("\"", "\"\"") + "\"";

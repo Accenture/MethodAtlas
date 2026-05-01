@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
@@ -77,7 +78,7 @@ public final class DotNetTestDiscovery implements TestDiscovery {
 
     private List<String> fileSuffixes = List.of(".cs");
     private Set<String>  testMarkers  = Set.of();
-    private volatile boolean errors;
+    private final AtomicBoolean errors = new AtomicBoolean();
 
     /**
      * No-arg constructor required by {@link java.util.ServiceLoader}.
@@ -111,8 +112,10 @@ public final class DotNetTestDiscovery implements TestDiscovery {
                     try {
                         discoverInFile(file, root, results);
                     } catch (Exception e) {
-                        errors = true;
-                        LOG.log(Level.WARNING, "Failed to process: " + file, e);
+                        errors.set(true);
+                        if (LOG.isLoggable(Level.WARNING)) {
+                            LOG.log(Level.WARNING, "Failed to process: " + file, e);
+                        }
                     }
                 });
         }
@@ -121,14 +124,14 @@ public final class DotNetTestDiscovery implements TestDiscovery {
 
     @Override
     public boolean hadErrors() {
-        return errors;
+        return errors.get();
     }
 
     // ── Private helpers ───────────────────────────────────────────────
 
     private boolean isCSharpFile(Path path) {
         Path fn = path.getFileName();
-        if (fn == null) return false;
+        if (fn == null) { return false; }
         String name = fn.toString();
         return fileSuffixes.stream().anyMatch(name::endsWith);
     }
@@ -136,14 +139,15 @@ public final class DotNetTestDiscovery implements TestDiscovery {
     private void discoverInFile(Path file, Path root,
                                  List<DiscoveredMethod> results) throws IOException {
         CSharpTestParser.CompilationUnitContext tree = parse(file);
-        if (tree == null) return;
+        if (tree == null) { return; }
 
         CSharpTestVisitor visitor = new CSharpTestVisitor(testMarkers);
         visitor.visit(tree);
 
-        FrameworkKind framework = visitor.getFramework();
         List<MethodInfo> methods = visitor.getDiscoveredMethods();
-        if (methods.isEmpty()) return;
+        if (methods.isEmpty()) { return; }
+
+        FrameworkKind framework = visitor.getFramework();
 
         String stem = buildFileStem(file, root);
         // Shared SourceContent for all methods in this file
@@ -179,7 +183,7 @@ public final class DotNetTestDiscovery implements TestDiscovery {
         Set<String> tagAttrNames = fw.tagAttributeNames();
         List<String> tags = new ArrayList<>();
         for (AttributeInfo attr : m.attributes()) {
-            if (!tagAttrNames.contains(attr.simpleName())) continue;
+            if (!tagAttrNames.contains(attr.simpleName())) { continue; }
             switch (fw) {
                 case XUNIT -> {
                     // [Trait("Tag", "value")] or [Trait("Category", "value")]
@@ -198,14 +202,13 @@ public final class DotNetTestDiscovery implements TestDiscovery {
                         tags.add(pos.get(0));
                     }
                 }
-                default -> { /* no-op */ }
             }
         }
         return List.copyOf(tags);
     }
 
     private String extractDisplayName(MethodInfo m, FrameworkKind fw) {
-        if (!fw.supportsDisplayName()) return null;
+        if (!fw.supportsDisplayName()) { return null; }
         // xUnit: [Fact(DisplayName = "text")] or [Theory(DisplayName = "text")]
         for (AttributeInfo attr : m.attributes()) {
             if ("Fact".equals(attr.simpleName()) || "Theory".equals(attr.simpleName())) {
@@ -232,8 +235,10 @@ public final class DotNetTestDiscovery implements TestDiscovery {
         });
         CSharpTestParser.CompilationUnitContext tree = parser.compilationUnit();
         if (!syntaxErrors.isEmpty()) {
-            errors = true;
-            syntaxErrors.forEach(err -> LOG.warning("C# parse error: " + err));
+            errors.set(true);
+            if (LOG.isLoggable(Level.WARNING)) {
+                syntaxErrors.forEach(err -> LOG.warning("C# parse error: " + err));
+            }
         }
         return tree;
     }
@@ -242,7 +247,7 @@ public final class DotNetTestDiscovery implements TestDiscovery {
         Path rel = root.relativize(file);
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < rel.getNameCount(); i++) {
-            if (!sb.isEmpty()) sb.append('.');
+            if (!sb.isEmpty()) { sb.append('.'); }
             String part = rel.getName(i).toString();
             // drop .cs extension from last segment
             if (i == rel.getNameCount() - 1 && part.endsWith(".cs")) {

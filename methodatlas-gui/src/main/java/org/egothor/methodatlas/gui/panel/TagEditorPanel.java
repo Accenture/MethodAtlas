@@ -27,6 +27,7 @@ import java.util.Set;
  * all modifications to a file are applied in a single pass (preventing line
  * number drift when multiple methods in the same class are patched).</p>
  */
+@SuppressWarnings("PMD.NonSerializableClass")
 public final class TagEditorPanel extends JPanel {
 
     @java.io.Serial
@@ -152,6 +153,7 @@ public final class TagEditorPanel extends JPanel {
 
     // ── UI refresh ────────────────────────────────────────────────────────
 
+    @SuppressWarnings({"PMD.NPathComplexity", "PMD.AvoidInstantiatingObjectsInLoops"})
     private void refreshUi() {
         if (currentEntry == null) {
             clearUi();
@@ -190,12 +192,7 @@ public final class TagEditorPanel extends JPanel {
         aiTagsRow.removeAll();
         List<String> sourceTags = currentEntry.discovered().tags();
         boolean hasAi = currentEntry.suggestion() != null && currentEntry.suggestion().securityRelevant();
-        if (!hasAi) {
-            String msg = currentEntry.suggestion() == null ? "No AI data yet"
-                    : "Not classified as security-relevant by AI";
-            aiTagsRow.add(new JLabel("<html><i color='gray'>" + msg + "</i></html>"));
-            reasonLabel.setText("");
-        } else {
+        if (hasAi) {
             List<String> aiTags = currentEntry.suggestion().tags();
             if (aiTags != null) {
                 for (String tag : aiTags) {
@@ -206,6 +203,11 @@ public final class TagEditorPanel extends JPanel {
             String reason = currentEntry.suggestion().reason();
             reasonLabel.setText(reason != null && !reason.isBlank()
                     ? "<html><i>" + escHtml(truncate(reason, 120)) + "</i></html>" : "");
+        } else {
+            String msg = currentEntry.suggestion() == null ? "No AI data yet"
+                    : "Not classified as security-relevant by AI";
+            aiTagsRow.add(new JLabel("<html><i color='gray'>" + msg + "</i></html>"));
+            reasonLabel.setText("");
         }
 
         boolean canApply = currentEntry.discovered().filePath() != null;
@@ -235,7 +237,7 @@ public final class TagEditorPanel extends JPanel {
     // ── Staging ───────────────────────────────────────────────────────────
 
     private void stageSelectedTags() {
-        if (currentEntry == null) return;
+        if (currentEntry == null) { return; }
 
         Set<String> tags = new LinkedHashSet<>(currentEntry.discovered().tags());
         for (Component c : aiTagsRow.getComponents()) {
@@ -247,7 +249,7 @@ public final class TagEditorPanel extends JPanel {
         if (!override.isEmpty()) {
             for (String t : override.split(",")) {
                 String trimmed = t.trim();
-                if (!trimmed.isEmpty()) tags.add(trimmed);
+                if (!trimmed.isEmpty()) { tags.add(trimmed); }
             }
         }
 
@@ -256,16 +258,16 @@ public final class TagEditorPanel extends JPanel {
     }
 
     private void stageAllAiTags() {
-        if (currentEntry == null || currentEntry.suggestion() == null) return;
+        if (currentEntry == null || currentEntry.suggestion() == null) { return; }
         Set<String> tags = new LinkedHashSet<>(currentEntry.discovered().tags());
         List<String> aiTags = currentEntry.suggestion().tags();
-        if (aiTags != null) tags.addAll(aiTags);
+        if (aiTags != null) { tags.addAll(aiTags); }
         String displayName = resolveDisplayName(currentEntry);
         stageEntry(currentEntry, new ArrayList<>(tags), displayName);
     }
 
     private void unstageCurrentEntry() {
-        if (currentEntry == null || !currentEntry.hasPendingChanges()) return;
+        if (currentEntry == null || !currentEntry.hasPendingChanges()) { return; }
         currentEntry.clearStagedPatch();
         model.notifyEntryChanged(currentEntry);
         model.setStatusMessage("Staged changes cleared for " + currentEntry.discovered().method());
@@ -358,7 +360,8 @@ public final class TagEditorPanel extends JPanel {
 
         @java.io.Serial
         private static final long serialVersionUID = 1L;
-        WrapLayout(int align, int hgap, int vgap) {
+
+        /* default */ WrapLayout(int align, int hgap, int vgap) {
             super(align, hgap, vgap);
         }
 
@@ -372,10 +375,11 @@ public final class TagEditorPanel extends JPanel {
             return layoutSize(target, false);
         }
 
+        @SuppressWarnings("PMD.AvoidSynchronizedStatement")
         private Dimension layoutSize(Container target, boolean preferred) {
             synchronized (target.getTreeLock()) {
                 int targetWidth = target.getSize().width;
-                if (targetWidth == 0) targetWidth = Integer.MAX_VALUE;
+                if (targetWidth == 0) { targetWidth = Integer.MAX_VALUE; }
                 Insets insets = target.getInsets();
                 int maxWidth = targetWidth - insets.left - insets.right - getHgap() * 2;
 
@@ -387,7 +391,7 @@ public final class TagEditorPanel extends JPanel {
 
                 for (int i = 0; i < nmembers; i++) {
                     Component m = target.getComponent(i);
-                    if (!m.isVisible()) continue;
+                    if (!m.isVisible()) { continue; }
                     Dimension d = preferred ? m.getPreferredSize() : m.getMinimumSize();
                     if (rowWidth + d.width > maxWidth && rowWidth > 0) {
                         width = Math.max(width, rowWidth);

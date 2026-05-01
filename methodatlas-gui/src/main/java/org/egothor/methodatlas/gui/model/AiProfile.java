@@ -25,10 +25,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * @see AppSettings
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
+@SuppressWarnings("PMD.DataClass")
 public final class AiProfile {
 
     private String  name             = "Default";
-    private boolean enabled          = false;
+    private boolean enabled;
     private String  provider         = "AUTO";
     private String  model            = "qwen2.5-coder:7b";
     private String  apiKey           = "";
@@ -36,7 +37,7 @@ public final class AiProfile {
     private String  apiVersion       = "2024-02-01";
     private int     timeoutSeconds   = 90;
     private int     maxRetries       = 1;
-    private boolean confidence       = false;
+    private boolean confidence;
 
     // ── Getters / setters ─────────────────────────────────────────────────
 

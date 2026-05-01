@@ -55,6 +55,7 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  * for use within the {@code org.egothor.methodatlas.command} package only.
  * </p>
  */
+@SuppressWarnings("PMD.CyclomaticComplexity") // centralised utility class; total CC naturally high across many small methods
 public final class CommandSupport {
 
     private static final Logger LOG = Logger.getLogger(CommandSupport.class.getName());
@@ -74,7 +75,7 @@ public final class CommandSupport {
      * @param override human classification overrides
      * @param cache    AI result cache
      */
-    record AiRuntime(AiOptions options, AiSuggestionEngine engine,
+    /* default */ record AiRuntime(AiOptions options, AiSuggestionEngine engine,
             ClassificationOverride override, AiResultCache cache) {
     }
 
@@ -165,7 +166,7 @@ public final class CommandSupport {
      * @throws IllegalStateException if no providers are found on the classpath
      */
     @SuppressWarnings("PMD.CloseResource") // callers are responsible for closing providers via closeAll()
-    static List<TestDiscovery> loadProviders(TestDiscoveryConfig config) {
+    /* default */ static List<TestDiscovery> loadProviders(TestDiscoveryConfig config) {
         List<TestDiscovery> providers = new ArrayList<>();
         for (TestDiscovery provider : ServiceLoader.load(TestDiscovery.class)) {
             provider.configure(config);
@@ -188,7 +189,7 @@ public final class CommandSupport {
      * @param providers list of providers to close; never {@code null}
      */
     @SuppressWarnings("PMD.CloseResource") // this method IS the close mechanism; p.close() is called explicitly
-    static void closeAll(List<TestDiscovery> providers) {
+    /* default */ static void closeAll(List<TestDiscovery> providers) {
         for (TestDiscovery p : providers) {
             try {
                 p.close();
@@ -208,7 +209,7 @@ public final class CommandSupport {
      *               {@link SourcePatcher#configure}
      * @return possibly-empty list of configured patchers
      */
-    static List<SourcePatcher> loadPatchers(TestDiscoveryConfig config) {
+    /* default */ static List<SourcePatcher> loadPatchers(TestDiscoveryConfig config) {
         List<SourcePatcher> patchers = new ArrayList<>();
         for (SourcePatcher patcher : ServiceLoader.load(SourcePatcher.class)) {
             patcher.configure(config);
@@ -277,7 +278,7 @@ public final class CommandSupport {
      *         file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
      */
-    static int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
+    /* default */ static int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, TestMethodSink sink,
             ClassificationOverride override, AiResultCache aiCache) throws IOException {
         List<TestDiscovery> providers = loadProviders(discoveryConfig);
@@ -319,7 +320,7 @@ public final class CommandSupport {
      * @throws IOException if traversing the file tree fails
      */
     @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
-    static boolean runDiscovery(Path root, List<TestDiscovery> providers,
+    /* default */ static boolean runDiscovery(Path root, List<TestDiscovery> providers,
             AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
             boolean contentHashEnabled, ClassificationOverride override,
             AiResultCache aiCache) throws IOException {
@@ -381,7 +382,7 @@ public final class CommandSupport {
      */
     @SuppressWarnings({"PMD.AvoidInstantiatingObjectsInLoops",
             "PMD.CloseResource"}) // providers are owned by the caller; this method does not close them
-    static Map<Path, List<DiscoveredMethod>> collectMethodsByFile(
+    /* default */ static Map<Path, List<DiscoveredMethod>> collectMethodsByFile(
             List<Path> roots, List<TestDiscovery> providers) throws IOException {
         Map<Path, List<DiscoveredMethod>> byFile = new LinkedHashMap<>();
         for (Path root : roots) {
@@ -412,7 +413,7 @@ public final class CommandSupport {
      * @param tagsToApply  output accumulator: method name → tag values to write
      * @param displayNames output accumulator: method name → display name to write
      */
-    static void gatherAiSuggestionsForFile(Map<String, List<DiscoveredMethod>> byClass,
+    /* default */ static void gatherAiSuggestionsForFile(Map<String, List<DiscoveredMethod>> byClass,
             AiRuntime ai, AiResultCache aiCache,
             Map<String, List<String>> tagsToApply, Map<String, String> displayNames) {
         for (Map.Entry<String, List<DiscoveredMethod>> classEntry : byClass.entrySet()) {
@@ -469,7 +470,7 @@ public final class CommandSupport {
      *                      {@code null}
      * @return lookup of AI suggestions keyed by method name; never {@code null}
      */
-    static SuggestionLookup resolveSuggestionLookup(String fileStem, String fqcn,
+    /* default */ static SuggestionLookup resolveSuggestionLookup(String fileStem, String fqcn,
             String classSource, List<String> methodNames, List<PromptBuilder.TargetMethod> targetMethods,
             AiRuntime ai, String contentHash) {
         if (methodNames.isEmpty()) {
@@ -533,7 +534,7 @@ public final class CommandSupport {
      * @throws IllegalStateException if SHA-256 is unavailable (never in practice;
      *                               SHA-256 is mandated by the Java SE spec)
      */
-    static String computeContentHash(String classSource) {
+    /* default */ static String computeContentHash(String classSource) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(classSource.getBytes(StandardCharsets.UTF_8));
@@ -591,7 +592,7 @@ public final class CommandSupport {
      * @param securityOnly whether to enable the filter
      * @return filtered sink, or {@code delegate} unchanged when filtering is off
      */
-    static TestMethodSink filterSink(TestMethodSink delegate, boolean securityOnly) {
+    /* default */ static TestMethodSink filterSink(TestMethodSink delegate, boolean securityOnly) {
         if (!securityOnly) {
             return delegate;
         }
@@ -609,7 +610,7 @@ public final class CommandSupport {
      * @return corresponding prompt target descriptor; never {@code null}
      * @see PromptBuilder.TargetMethod
      */
-    static PromptBuilder.TargetMethod toTargetMethod(DiscoveredMethod m) {
+    /* default */ static PromptBuilder.TargetMethod toTargetMethod(DiscoveredMethod m) {
         return new PromptBuilder.TargetMethod(
                 m.method(),
                 m.beginLine() > 0 ? m.beginLine() : null,
@@ -624,7 +625,7 @@ public final class CommandSupport {
      * @param aiActive  whether an AI engine is active for this run
      * @return taxonomy descriptor string; never {@code null}
      */
-    static String resolveTaxonomyInfo(AiOptions aiOptions, boolean aiActive) {
+    /* default */ static String resolveTaxonomyInfo(AiOptions aiOptions, boolean aiActive) {
         if (!aiActive) {
             return "n/a (AI disabled)";
         }

@@ -53,6 +53,7 @@ import java.util.Set;
  * └──────────────────────────────────────────────────────────────┘
  * </pre>
  */
+@SuppressWarnings("PMD.NonSerializableClass")
 public final class MainWindow extends JFrame {
 
     @java.io.Serial
@@ -61,7 +62,7 @@ public final class MainWindow extends JFrame {
     // ── State ─────────────────────────────────────────────────────────────
 
     private final AppSettings settings;
-    private boolean updatingProfileCombo = false;
+    private boolean updatingProfileCombo;
     private final AnalysisModel model = new AnalysisModel();
     private AnalysisService currentService;
 
@@ -229,7 +230,7 @@ public final class MainWindow extends JFrame {
         settingsButton.addActionListener(e -> openSettings());
         dirField.addActionListener(e -> startAnalysis());
         profileCombo.addActionListener(e -> {
-            if (updatingProfileCombo) return;
+            if (updatingProfileCombo) { return; }
             String selected = (String) profileCombo.getSelectedItem();
             if (selected != null) {
                 settings.setActiveProfileName(selected);
@@ -307,15 +308,16 @@ public final class MainWindow extends JFrame {
 
     // ── Save All Changes ──────────────────────────────────────────────────
 
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private void saveAllChanges() {
         List<MethodEntry> staged = model.getStagedEntries();
-        if (staged.isEmpty()) return;
+        if (staged.isEmpty()) { return; }
 
         // Group staged entries by source file
         Map<Path, List<MethodEntry>> byFile = new LinkedHashMap<>();
         for (MethodEntry entry : staged) {
             Path fp = entry.discovered().filePath();
-            if (fp != null) byFile.computeIfAbsent(fp, k -> new ArrayList<>()).add(entry);
+            if (fp != null) { byFile.computeIfAbsent(fp, k -> new ArrayList<>()).add(entry); }
         }
 
         // Load and configure all SourcePatcher implementations
@@ -351,7 +353,7 @@ public final class MainWindow extends JFrame {
             for (MethodEntry e : entries) {
                 tagsToApply.put(e.discovered().method(), e.getPendingTags());
                 String dn = e.getPendingDisplayName();
-                if (dn != null) displayNames.put(e.discovered().method(), dn);
+                if (dn != null) { displayNames.put(e.discovered().method(), dn); }
             }
 
             StringWriter sw = new StringWriter();
@@ -394,13 +396,13 @@ public final class MainWindow extends JFrame {
             }
         }
 
-        if (!errors.isEmpty()) {
+        if (errors.isEmpty()) {
+            model.setStatusMessage("Saved " + staged.size() + " method(s) across "
+                    + savedFiles.size() + " file(s)");
+        } else {
             JOptionPane.showMessageDialog(this,
                     "Some files could not be saved:\n" + String.join("\n", errors),
                     "Save Error", JOptionPane.ERROR_MESSAGE);
-        } else {
-            model.setStatusMessage("Saved " + staged.size() + " method(s) across "
-                    + savedFiles.size() + " file(s)");
         }
     }
 
@@ -455,6 +457,7 @@ public final class MainWindow extends JFrame {
         }
     }
 
+    @SuppressWarnings("PMD.DoNotTerminateVM")
     private void onClose() {
         if (model.hasStagedChanges()) {
             int choice = JOptionPane.showConfirmDialog(this,

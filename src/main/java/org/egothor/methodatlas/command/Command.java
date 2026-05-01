@@ -24,6 +24,7 @@ import java.io.PrintWriter;
  * @see org.egothor.methodatlas.MethodAtlasApp
  * @see CommandSupport
  */
+@FunctionalInterface
 public interface Command {
 
     /**

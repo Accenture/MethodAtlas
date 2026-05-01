@@ -32,7 +32,15 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
     /** Lazily resolved once the first using directive is seen. */
     private FrameworkKind framework;
 
+    /**
+     * Constructs a new visitor that uses the supplied set of test-marker
+     * attribute names to identify test methods. Pass an empty set to fall back
+     * to the framework-specific defaults.
+     *
+     * @param testMarkers attribute simple-names that mark a method as a test
+     */
     public CSharpTestVisitor(Set<String> testMarkers) {
+        super();
         this.testMarkers = testMarkers;
     }
 
@@ -118,16 +126,16 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
         StringBuilder sb = new StringBuilder();
         // namespaceStack is LIFO; bottom = outermost namespace
         List<String> ns = new ArrayList<>(namespaceStack);
-        java.util.Collections.reverse(ns);
+        Collections.reverse(ns);
         for (String part : ns) {
-            if (!sb.isEmpty()) sb.append('.');
+            if (!sb.isEmpty()) { sb.append('.'); }
             sb.append(part);
         }
         // classStack is LIFO; bottom = outermost class
         List<String> cls = new ArrayList<>(classStack);
-        java.util.Collections.reverse(cls);
+        Collections.reverse(cls);
         for (String part : cls) {
-            if (!sb.isEmpty()) sb.append('.');
+            if (!sb.isEmpty()) { sb.append('.'); }
             sb.append(part);
         }
         return sb.toString();
@@ -160,7 +168,6 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
         return result;
     }
 
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private AttributeInfo parseAttribute(CSharpTestParser.AttributeContext ctx,
                                           int secStart, int secStop) {
         String qualName = ctx.qualifiedName().getText();
@@ -173,16 +180,7 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
 
         if (ctx.attributeArgs() != null) {
             for (CSharpTestParser.AttributeArgContext arg : ctx.attributeArgs().attributeArg()) {
-                if (arg.identifier() != null && arg.EQ() != null) {
-                    // named argument
-                    String val = extractString(arg.attributeValue());
-                    if (val != null) {
-                        named.put(arg.identifier().getText(), val);
-                    }
-                } else {
-                    // positional argument
-                    positional.add(extractString(arg.attributeValue()));
-                }
+                collectAttributeArg(arg, positional, named);
             }
         }
         // List.copyOf rejects null; positional args that aren't string literals are stored as null
@@ -190,15 +188,35 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
                 Map.copyOf(named), secStart, secStop);
     }
 
+    /**
+     * Adds a single attribute argument to the appropriate collection:
+     * named arguments go into {@code named}; positional arguments go into
+     * {@code positional}.
+     */
+    private static void collectAttributeArg(CSharpTestParser.AttributeArgContext arg,
+                                             List<String> positional,
+                                             Map<String, String> named) {
+        if (arg.identifier() != null && arg.EQ() != null) {
+            // named argument
+            String val = extractString(arg.attributeValue());
+            if (val != null) {
+                named.put(arg.identifier().getText(), val);
+            }
+        } else {
+            // positional argument
+            positional.add(extractString(arg.attributeValue()));
+        }
+    }
+
     private static String extractString(CSharpTestParser.AttributeValueContext ctx) {
-        if (ctx == null) return null;
+        if (ctx == null) { return null; }
         CSharpTestParser.StringLiteralContext sl = ctx.stringLiteral();
-        if (sl == null) return null;
+        if (sl == null) { return null; }
         return unquote(sl.getText());
     }
 
     /* default */ static String unquote(String raw) {
-        if (raw == null) return null;
+        if (raw == null) { return null; }
         if (raw.startsWith("\"\"\"")) {
             // raw string — strip delimiters
             int end = raw.lastIndexOf("\"\"\"");
