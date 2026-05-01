@@ -1,5 +1,6 @@
 package org.egothor.methodatlas.gui.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.ArrayList;
@@ -138,6 +139,7 @@ public final class AppSettings {
      * @return active profile; never {@code null}
      * @see #getActiveProfileName()
      */
+    @JsonIgnore
     public AiProfile getActiveProfile() {
         if (profiles.isEmpty()) {
             AiProfile def = new AiProfile();

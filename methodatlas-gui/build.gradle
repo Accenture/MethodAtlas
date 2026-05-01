@@ -35,7 +35,7 @@ dependencies {
 
 application {
     mainClass = 'org.egothor.methodatlas.gui.MethodAtlasGuiApp'
-    applicationName = 'MethodAtlasGUI'
+    applicationName = 'methodatlas-gui'
 }
 
 tasks.named('jar') {

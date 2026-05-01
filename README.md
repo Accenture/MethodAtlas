@@ -112,8 +112,11 @@ without touching the command line.
 # Run directly from Gradle
 ./gradlew :methodatlas-gui:run
 
-# Or run the generated start script
-methodatlas-gui/build/install/MethodAtlasGUI/bin/MethodAtlasGUI
+# Or run the generated start script (Unix)
+methodatlas-gui/build/install/methodatlas-gui/bin/methodatlas-gui
+
+# Windows
+methodatlas-gui\build\install\methodatlas-gui\bin\methodatlas-gui.bat
 ```
 
 Settings are persisted to `%APPDATA%\MethodAtlasGUI\settings.json` on Windows and

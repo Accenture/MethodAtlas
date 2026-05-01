@@ -69,8 +69,11 @@ Open **⚙ Settings** to configure:
 # Run directly from Gradle
 ./gradlew :methodatlas-gui:run
 
-# Run the generated start script
-methodatlas-gui/build/install/MethodAtlasGUI/bin/MethodAtlasGUI
+# Run the generated start script (Unix)
+methodatlas-gui/build/install/methodatlas-gui/bin/methodatlas-gui
+
+# Run the generated start script (Windows)
+methodatlas-gui\build\install\methodatlas-gui\bin\methodatlas-gui.bat
 ```
 
 Settings are persisted to `%APPDATA%\MethodAtlasGUI\settings.json` on Windows and
