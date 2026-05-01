@@ -46,10 +46,13 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  * </p>
  *
  * <p>
- * The two methods marked {@code public} ({@link #requireUniqueDiscoveryIds} and
- * {@link #requireUniquePatcherIds}) are also exercised directly by unit tests; all
- * other methods are package-private and intended for use within the
- * {@code org.egothor.methodatlas.command} package only.
+ * Methods marked {@code public} ({@link #requireUniqueDiscoveryIds},
+ * {@link #requireUniquePatcherIds}, {@link #computeFilePrefix},
+ * {@link #buildAiEngine}, {@link #buildAiCache}, and
+ * {@link #loadClassificationOverride}) are called either by
+ * {@link org.egothor.methodatlas.MethodAtlasApp} (a different package) or
+ * directly by unit tests; all other methods are package-private and intended
+ * for use within the {@code org.egothor.methodatlas.command} package only.
  * </p>
  */
 public final class CommandSupport {
@@ -91,7 +94,7 @@ public final class CommandSupport {
      * @return initialized AI suggestion engine, or {@code null} when AI is disabled
      * @throws IllegalStateException if engine initialization fails
      */
-    static AiSuggestionEngine buildAiEngine(AiOptions aiOptions) {
+    public static AiSuggestionEngine buildAiEngine(AiOptions aiOptions) {
         if (!aiOptions.enabled()) {
             return null;
         }
@@ -111,7 +114,7 @@ public final class CommandSupport {
      * @throws IllegalArgumentException if the file exists but cannot be read or
      *                                  parsed
      */
-    static AiResultCache buildAiCache(Path cacheFile) {
+    public static AiResultCache buildAiCache(Path cacheFile) {
         if (cacheFile == null) {
             return AiResultCache.empty();
         }
@@ -131,7 +134,7 @@ public final class CommandSupport {
      * @throws IllegalArgumentException if the file exists but cannot be read or
      *                                  contains invalid YAML
      */
-    static ClassificationOverride loadClassificationOverride(Path overrideFile) {
+    public static ClassificationOverride loadClassificationOverride(Path overrideFile) {
         if (overrideFile == null) {
             return ClassificationOverride.empty();
         }

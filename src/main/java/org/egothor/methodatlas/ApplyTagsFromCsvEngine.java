@@ -67,7 +67,7 @@ import org.egothor.methodatlas.api.SourcePatcher;
  * @see SourcePatcher
  * @see MethodAtlasApp
  */
-final class ApplyTagsFromCsvEngine {
+public final class ApplyTagsFromCsvEngine {
 
     private static final Logger LOG = Logger.getLogger(ApplyTagsFromCsvEngine.class.getName());
 
@@ -99,7 +99,7 @@ final class ApplyTagsFromCsvEngine {
      * @throws IOException if the CSV file or source files cannot be read or
      *                     written
      */
-    /* default */ static int apply(Path csvFile, List<Path> roots,
+    public static int apply(Path csvFile, List<Path> roots,
             int mismatchLimit, List<SourcePatcher> patchers, PrintWriter log)
             throws IOException {
 

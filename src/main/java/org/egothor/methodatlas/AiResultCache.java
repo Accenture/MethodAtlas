@@ -27,7 +27,7 @@ import org.egothor.methodatlas.api.ScanRecord;
  *
  * @see MethodAtlasApp
  */
-final class AiResultCache {
+public final class AiResultCache {
 
     private final Map<String, AiClassSuggestion> byHash;
     private int hits;
@@ -38,7 +38,7 @@ final class AiResultCache {
     }
 
     /** Returns an empty cache that always produces misses. */
-    /* default */ static AiResultCache empty() {
+    public static AiResultCache empty() {
         return new AiResultCache(Map.of());
     }
 
@@ -54,7 +54,7 @@ final class AiResultCache {
      * @throws IOException if the file cannot be read
      */
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
-    /* default */ static AiResultCache load(Path csvPath) throws IOException {
+    public static AiResultCache load(Path csvPath) throws IOException {
         List<ScanRecord> records = DeltaReport.loadRecords(csvPath);
 
         Map<String, List<ScanRecord>> grouped = new HashMap<>();
@@ -91,7 +91,7 @@ final class AiResultCache {
      * @param contentHash SHA-256 fingerprint of the class source, or {@code null}
      * @return cached suggestion, or empty on a miss or null hash
      */
-    /* default */ Optional<AiClassSuggestion> lookup(String contentHash) {
+    public Optional<AiClassSuggestion> lookup(String contentHash) {
         if (contentHash == null) {
             misses++;
             return Optional.empty();
@@ -111,17 +111,17 @@ final class AiResultCache {
      * <p>When {@code false}, content hashes do not need to be computed for lookups
      * because all results would be misses regardless.</p>
      */
-    /* default */ boolean isActive() {
+    public boolean isActive() {
         return !byHash.isEmpty();
     }
 
     /** Returns the number of successful cache lookups so far. */
-    /* default */ int hits() {
+    public int hits() {
         return hits;
     }
 
     /** Returns the number of unsuccessful cache lookups so far. */
-    /* default */ int misses() {
+    public int misses() {
         return misses;
     }
 }

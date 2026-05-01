@@ -12,7 +12,7 @@ import java.nio.file.Path;
  *
  * @see MethodAtlasApp
  */
-sealed interface ManualMode {
+public sealed interface ManualMode {
 
     /**
      * Prepare phase: scan source files and write AI prompt work files and empty

@@ -94,7 +94,7 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                             they are visible in GitHub Code Scanning and similar
  *                             tooling that does not render the properties bag)
  */
-record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
+public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testMarkers, Map<String, List<String>> properties, boolean emitMetadata,
         ManualMode manualMode, boolean applyTags, boolean contentHash, Path overrideFile,
         boolean securityOnly, Path aiCacheFile, boolean driftDetect, Path applyTagsFromCsvFile,
