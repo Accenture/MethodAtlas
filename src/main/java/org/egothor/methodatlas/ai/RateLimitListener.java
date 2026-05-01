@@ -10,8 +10,8 @@ package org.egothor.methodatlas.ai;
  * heavyweight work such as Swing EDT dispatch must be deferred by the listener
  * itself (e.g.&nbsp;via {@code SwingUtilities.invokeLater}).</p>
  *
- * <p>A no-op listener can be expressed concisely as a lambda:
- * <pre>    (wait, attempt, max) -&gt; {}</pre></p>
+ * <p>A no-op listener can be expressed concisely as a lambda:</p>
+ * <pre>    (wait, attempt, max) -&gt; {}</pre>
  *
  * @see HttpSupport
  */
