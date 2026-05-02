@@ -91,4 +91,4 @@ jobs:
             --notes-file /tmp/CHANGELOG_RELEASE.md \
             build/distributions/*.zip \
             build/distributions/*.tar \
-            build/reports/cyclonedx/bom.json
+            build/reports/cyclonedx-direct/bom.json
