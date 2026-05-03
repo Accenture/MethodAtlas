@@ -1,16 +1,23 @@
 % =============================================================================
 % MethodAtlas Documentation — LaTeX preamble extension
 % Included via pandoc -H; appended to the auto-generated preamble.
-% Compatible with: XeLaTeX + MikTeX (Windows) / TeX Live (Linux / macOS)
+% Target: Pandoc + XeLaTeX, professional PDF/book edition.
 % =============================================================================
 
-% ── XeLaTeX logo ─────────────────────────────────────────────────────────────
+% -----------------------------------------------------------------------------
+% Core compatibility helpers
+% -----------------------------------------------------------------------------
+
 % \XeLaTeX is normally provided by xltxtra, which pandoc does not load.
-% Define it here as a fallback so back-matter.tex can use \XeLaTeX safely.
+% Define it here as a fallback so back matter can use \XeLaTeX safely.
 \providecommand{\XeLaTeX}{Xe\LaTeX}
 
-% ── Colour palette ────────────────────────────────────────────────────────────
-% xcolor is already loaded by pandoc's template; we only define our colours.
+% -----------------------------------------------------------------------------
+% Colour palette and project metadata
+% -----------------------------------------------------------------------------
+
+\usepackage{xcolor}
+
 \definecolor{MA@navy}{HTML}{1B2A4A}
 \definecolor{MA@teal}{HTML}{00848E}
 \definecolor{MA@codebg}{HTML}{F7F7F9}
@@ -18,62 +25,113 @@
 \definecolor{MA@comment}{HTML}{5C7A29}
 \definecolor{MA@string}{HTML}{C0392B}
 
-% Override pandoc's hyperref colours with our palette.
-% Deferred to \AtBeginDocument so hyperref is guaranteed to be loaded first.
-% (pandoc inserts -H content before its own \usepackage{hyperref}.)
+% Metadata is intentionally centralized so Gradle/Pandoc can override it by
+% injecting \renewcommand declarations before \maketitle if needed.
+\providecommand{\MethodAtlasPlainTitle}{MethodAtlas}
+\providecommand{\MethodAtlasBookTitle}{MethodAtlas Handbook}
+\providecommand{\MethodAtlasBookSubtitle}{Security Test Inventory, AI Enrichment, and Regulated SDLC Integration}
+\providecommand{\MethodAtlasBookLabel}{User, Security Team, and CI/CD Integration Guide}
+\providecommand{\MethodAtlasTagline}{Security Test Inventory and AI Enrichment Platform}
+\providecommand{\MethodAtlasAuthor}{Leo Galambos}
+\providecommand{\MethodAtlasPublisher}{Egothor}
+\providecommand{\MethodAtlasEdition}{First edition}
+\providecommand{\MethodAtlasPrinting}{First printing}
+\providecommand{\MethodAtlasPrinterKey}{10 9 8 7 6 5 4 3 2 1}
+\providecommand{\MethodAtlasISBN}{not yet assigned}
+\providecommand{\MethodAtlasLicense}{Apache License, Version 2.0}
+\providecommand{\MethodAtlasRepositoryUrl}{https://github.com/Accenture/MethodAtlas/}
+\providecommand{\MethodAtlasOnlineDocsUrl}{https://accenture.github.io/MethodAtlas/}
+\providecommand{\MethodAtlasGitCommit}{not recorded}
+\providecommand{\MethodAtlasBuildId}{not recorded}
+
+\makeatletter
+\providecommand{\MethodAtlasBuildDate}{\@date}
+\makeatother
+
+% Visual wordmarks.  Use the dark version on navy pages and the light version on
+% white pages.  Plain metadata should continue to use \MethodAtlasPlainTitle.
+\newcommand{\MethodAtlasWordmarkDark}[2]{%
+  {\fontsize{#1}{#2}\selectfont\bfseries%
+    Method\textcolor{MA@teal}{Atlas}}%
+}
+
+\newcommand{\MethodAtlasWordmarkLight}[2]{%
+  {\fontsize{#1}{#2}\selectfont\bfseries\color{MA@navy}%
+    Method\textcolor{MA@teal}{Atlas}}%
+}
+
+% Override pandoc's hyperref colours and PDF metadata.  Deferred so hyperref is
+% guaranteed to be loaded first.
 \AtBeginDocument{%
   \hypersetup{%
     linkcolor=MA@navy,%
     urlcolor=MA@teal,%
     citecolor=MA@navy,%
     filecolor=MA@navy,%
-    pdftitle={MethodAtlas Documentation},%
-    pdfauthor={Egothor / Accenture},%
-    pdfsubject={Security test discovery, AI classification, SARIF 2.1.0},%
-    pdfkeywords={MethodAtlas, security testing, test inventory, SARIF, AI, OWASP},%
+    pdftitle={\MethodAtlasBookTitle},%
+    pdfauthor={\MethodAtlasAuthor},%
+    pdfsubject={\MethodAtlasBookSubtitle},%
+    pdfkeywords={MethodAtlas, security testing, test inventory, security evidence, SARIF, AI enrichment, CI/CD, regulated SDLC},%
   }%
 }
 
-% ── Unicode character fallbacks ───────────────────────────────────────────────
-% Map Unicode characters that Latin Modern lacks to equivalent LaTeX commands.
-% newunicodechar intercepts at the TeX level, before the font engine, so it
-% works correctly with XeLaTeX + fontspec.
+% -----------------------------------------------------------------------------
+% Unicode character fallbacks
+% -----------------------------------------------------------------------------
+
 \usepackage{newunicodechar}
-\newunicodechar{≥}{\ensuremath{\geq}}        % U+2265 GREATER-THAN OR EQUAL TO
-\newunicodechar{↪}{\ensuremath{\hookrightarrow}} % U+21AA RIGHTWARDS ARROW WITH HOOK
-\newunicodechar{⚠}{\textbf{[!]}}             % U+26A0 WARNING SIGN
-% U+FE0F VARIATION SELECTOR-16 is an invisible emoji modifier; set its
-% catcode to 9 (ignored) so XeLaTeX silently drops it everywhere.
+\newfontfamily\symbolfallback{Noto Sans Symbols}[Scale=MatchLowercase]
+\newunicodechar{≥}{\ensuremath{\geq}}             % U+2265 GREATER-THAN OR EQUAL TO
+\newunicodechar{↪}{\ensuremath{\hookrightarrow}}  % U+21AA RIGHTWARDS ARROW WITH HOOK
+\newunicodechar{⚠}{\textbf{[!]}}                  % U+26A0 WARNING SIGN
+\newunicodechar{⚙}{{\symbolfallback ⚙}}            % U+2699 GEAR
+
+% U+FE0F VARIATION SELECTOR-16 is an invisible emoji modifier; set its catcode
+% to 9 (ignored) so XeLaTeX silently drops it everywhere.
 \catcode`\^^^^fe0f=9
 
-% ── Subliminal refinements ────────────────────────────────────────────────────
-\usepackage{microtype}   % kerning, tracking, protrusion — perceptible improvement
+% -----------------------------------------------------------------------------
+% Typographic refinements
+% -----------------------------------------------------------------------------
 
-% ── Code-block line wrapping (key feature) ────────────────────────────────────
-% fvextra extends fancyvrb with breaklines and breakanywhere.
-% pandoc wraps every highlighted code block in the Highlighting environment
-% (a subclass of Verbatim).  Redefining it here with breaklines=true causes
-% long command lines, URLs, and deeply nested JSON/YAML to wrap gracefully
-% instead of running off the right margin.
+\usepackage{microtype}
+
+% -----------------------------------------------------------------------------
+% Code-block line wrapping
+% -----------------------------------------------------------------------------
+
 \usepackage{fvextra}
 \DefineVerbatimEnvironment{Highlighting}{Verbatim}{%
   breaklines=true,%
   breakanywhere=true,%
+  breakautoindent=true,%
+  breaknonspaceingroup=true,%
   breakanywheresymbolpre={},%
-  breaksymbol={\mbox{\tiny$\hookrightarrow$}},%
+  breakanywheresymbolpost={},%
+  breaksymbolleft={\mbox{\tiny$\hookrightarrow$}},%
   breaksymbolright={},%
+  breakindent=1em,%
   commandchars=\\\{\}%
 }
 
-% ── Better tables ─────────────────────────────────────────────────────────────
-\usepackage{booktabs}    % \toprule, \midrule, \bottomrule
-\usepackage{longtable}   % tables that span page breaks (pandoc emits these)
-\usepackage{array}       % extended column specifiers
+% -----------------------------------------------------------------------------
+% Tables
+% -----------------------------------------------------------------------------
 
-% ── Section heading typography ────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+
+\setlength{\tabcolsep}{3.5pt}
+\renewcommand{\arraystretch}{1.08}
+
+% -----------------------------------------------------------------------------
+% Section heading typography
+% -----------------------------------------------------------------------------
+
 \usepackage{titlesec}
 
-% Chapter: large, navy, ruled below
 \titleformat{\chapter}[display]
   {\normalfont\LARGE\bfseries\color{MA@navy}}
   {\chaptertitlename~\thechapter}
@@ -81,92 +139,241 @@
   {\huge}
   [\vspace{2pt}{\color{MA@teal}\titlerule[1.2pt]}]
 
-% Section: bold navy
 \titleformat{\section}
   {\normalfont\Large\bfseries\color{MA@navy}}
   {\thesection}{1em}{}
 
-% Subsection: medium weight, teal
 \titleformat{\subsection}
   {\normalfont\large\bfseries\color{MA@teal}}
   {\thesubsection}{1em}{}
 
-% Subsubsection: normal weight, navy
 \titleformat{\subsubsection}
   {\normalfont\normalsize\bfseries\color{MA@navy}}
   {\thesubsubsection}{1em}{}
 
-% ── Running headers and footers ───────────────────────────────────────────────
+% -----------------------------------------------------------------------------
+% Running headers and footers
+% -----------------------------------------------------------------------------
+
 \usepackage{fancyhdr}
-\usepackage{emptypage}   % suppress headers/footers on empty pages
+\usepackage{emptypage}
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[LE]{\small\color{MA@navy}\leftmark}        % left even: chapter title
-\fancyhead[RO]{\small\color{MA@navy}\rightmark}       % right odd: section title
+\fancyhead[LE]{\small\color{MA@navy}\leftmark}
+\fancyhead[RO]{\small\color{MA@navy}\rightmark}
 \fancyfoot[LE,RO]{\small\thepage}
-\fancyfoot[C]{\small\color{MA@teal}MethodAtlas Documentation}
+\fancyfoot[C]{\small\color{MA@teal}MethodAtlas Handbook}
 \renewcommand{\headrulewidth}{0.4pt}
 \renewcommand{\footrulewidth}{0pt}
 
-% Plain style for chapter opening pages
 \fancypagestyle{plain}{%
   \fancyhf{}%
   \fancyfoot[LE,RO]{\small\thepage}%
   \renewcommand{\headrulewidth}{0pt}%
 }
 
-% ── Custom title page ─────────────────────────────────────────────────────────
-% Redefine \maketitle to produce a full-bleed cover page in navy.
-% pandoc calls \maketitle at the start of the document body when a title is set.
-% \makeatletter is required so that \@date (an internal LaTeX macro, with @
-% as part of the control-sequence name) is accessible in user code loaded
-% via pandoc -H, where @ has catcode 12 (punctuation) by default.
+% -----------------------------------------------------------------------------
+% Admonition boxes generated from MkDocs/Pandoc admonition Divs
+% -----------------------------------------------------------------------------
+
+\usepackage[most]{tcolorbox}
+\usepackage{etoolbox}
+
+\definecolor{maNoteBack}{HTML}{F5F7FA}
+\definecolor{maNoteFrame}{HTML}{6B7280}
+\definecolor{maInfoBack}{HTML}{EEF6FF}
+\definecolor{maInfoFrame}{HTML}{2563EB}
+\definecolor{maTipBack}{HTML}{F0FDF4}
+\definecolor{maTipFrame}{HTML}{16A34A}
+\definecolor{maWarningBack}{HTML}{FFF7ED}
+\definecolor{maWarningFrame}{HTML}{EA580C}
+\definecolor{maDangerBack}{HTML}{FEF2F2}
+\definecolor{maDangerFrame}{HTML}{DC2626}
+\definecolor{maExampleBack}{HTML}{F5F3FF}
+\definecolor{maExampleFrame}{HTML}{7C3AED}
+
+\newtcolorbox{methodatlasadmonition}[3]{%
+  enhanced,%
+  breakable,%
+  sharp corners,%
+  boxrule=0.45pt,%
+  left=1.5mm,%
+  right=1.5mm,%
+  top=1mm,%
+  bottom=1mm,%
+  before skip=1em,%
+  after skip=1em,%
+  colback=#1,%
+  colframe=#2,%
+  title=\textbf{#3}%
+}
+
+% -----------------------------------------------------------------------------
+% Tabbed MkDocs sections rendered for static PDF output
+% -----------------------------------------------------------------------------
+
+\newenvironment{methodatlastabset}{%
+  \par\medskip
+}{%
+  \par\medskip
+}
+
+\newtcolorbox{methodatlastab}[1]{%
+  enhanced,%
+  breakable,%
+  sharp corners,%
+  boxrule=0.35pt,%
+  left=1.5mm,%
+  right=1.5mm,%
+  top=1mm,%
+  bottom=1mm,%
+  before skip=0.75em,%
+  after skip=0.75em,%
+  colback=black!1,%
+  colframe=black!25,%
+  title=\textbf{#1}%
+}
+
+% -----------------------------------------------------------------------------
+% Professional pagination controls
+% -----------------------------------------------------------------------------
+
+\usepackage{needspace}
+
+\pretocmd{\section}{\Needspace{8\baselineskip}}{}{}
+\pretocmd{\subsection}{\Needspace{6\baselineskip}}{}{}
+\pretocmd{\subsubsection}{\Needspace{5\baselineskip}}{}{}
+\pretocmd{\paragraph}{\Needspace{4\baselineskip}}{}{}
+
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+
+\AtBeginEnvironment{longtable}{\small}
+
+% -----------------------------------------------------------------------------
+% Custom title page and imprint/copyright page
+% -----------------------------------------------------------------------------
+
 \makeatletter
+
+\newcommand{\makeMethodAtlasImprintPage}{%
+  \clearpage%
+  \nopagecolor%
+  \color{black}%
+  \thispagestyle{empty}%
+
+  \vspace*{1.7cm}%
+
+  \noindent\footnotesize%
+  \setlength{\parindent}{0pt}%
+  \setlength{\parskip}{0.55em}%
+
+  {\MethodAtlasWordmarkLight{24}{30}}\\[0.25em]
+  {\bfseries \MethodAtlasBookTitle}\\[0.2em]
+  {\itshape \MethodAtlasBookSubtitle}\\[0.9em]
+
+  \begin{tabularx}{\textwidth}{@{}p{0.31\textwidth}X@{}}
+    \textbf{Principal author and editor} & \MethodAtlasAuthor \\
+    \textbf{Document type} & Product handbook, user guide, security-team guide, and CI/CD integration reference \\
+    \textbf{Audience} & Developers, security engineers, DevSecOps engineers, CI/CD integrators, compliance stakeholders, and technical reviewers \\
+    \textbf{Edition} & \MethodAtlasEdition \\
+    \textbf{Printing} & \MethodAtlasPrinting \\
+    \textbf{Printer's key} & \MethodAtlasPrinterKey \\
+    \textbf{Built} & \MethodAtlasBuildDate \\
+    \textbf{Source revision} & \texttt{\MethodAtlasGitCommit} \\
+    \textbf{Build identifier} & \texttt{\MethodAtlasBuildId} \\
+    \textbf{ISBN} & \MethodAtlasISBN \\
+  \end{tabularx}
+
+  \vspace{0.8em}%
+
+  Copyright \textcopyright\ 2024--\the\year\ Egothor and Accenture.\\
+  All rights reserved except as expressly granted under the license stated below.
+
+  Licensed under the \MethodAtlasLicense. You may obtain a copy of the license at:\\
+  \url{https://www.apache.org/licenses/LICENSE-2.0}
+
+  Unless required by applicable law or agreed to in writing, software distributed
+  under the License is distributed on an \textsc{``as is''} basis, without
+  warranties or conditions of any kind, either express or implied. See the
+  License for the specific language governing permissions and limitations under
+  the License.
+
+  \vspace{0.5em}%
+
+  \textbf{Source repository:}\\
+  \url{https://github.com/Accenture/MethodAtlas/}
+
+  \textbf{Current online documentation:}\\
+  \url{https://accenture.github.io/MethodAtlas/}
+
+  \textbf{Scope statement:}
+  This handbook describes MethodAtlas scanner operation, security-test inventory
+  generation, AI-assisted classification, output interpretation, CI/CD
+  integration, and evidence-oriented use in regulated software-delivery
+  environments.
+
+  \textbf{Framework references:}
+  OWASP SAMM, NIST SSDF, ISO/IEC\,27001, DORA, PCI DSS, and SOC\,2 are referenced
+  for educational, interoperability, and mapping purposes. Such references do not
+  imply endorsement, certification, conformance assessment, or formal approval by
+  the respective standards bodies, regulators, or rights holders.
+
+  \textbf{Trademarks:}
+  All trademarks, service marks, product names, company names, and framework
+  names mentioned in this work are the property of their respective owners. Their
+  use is for identification and explanatory purposes only.
+
+  \vfill%
+
+  \textit{This book edition was prepared from the MethodAtlas documentation source tree.}\\
+  \textit{For operational use, verify the applicable project version, source
+  revision, and locally approved documentation baseline.}%
+
+  \clearpage%
+}
+
 \renewcommand{\maketitle}{%
   \begin{titlepage}%
     \pagecolor{MA@navy}%
     \color{white}%
-    \vspace*{3cm}%
+    \thispagestyle{empty}%
+
+    \vspace*{2.85cm}%
+
     \begin{center}%
-      % Logotype: Method in white, Atlas in teal
-      {\fontsize{54}{64}\selectfont\bfseries%
-        Method\textcolor{MA@teal}{Atlas}}\\[0.6em]
-      {\large\itshape Security Test Intelligence Platform}\\[3.5em]
-      {\color{MA@teal}\rule{0.42\textwidth}{0.8pt}}\\[2.5em]
-      {\Large\bfseries Developer Reference}\\[0.7em]
-      {\normalsize Full Documentation Set}\\[4.5em]
-      {\small Security test discovery\enspace·\enspace AI classification\enspace·\enspace SARIF\,2.1.0}\\[0.35em]
-      {\small OWASP SAMM\enspace·\enspace NIST SSDF\enspace·\enspace
-              ISO\,27001\enspace·\enspace DORA\enspace·\enspace PCI\,DSS\enspace·\enspace SOC\,2}%
+      {\MethodAtlasWordmarkDark{56}{66}}\\[0.75em]
+
+      {\large\itshape \MethodAtlasTagline}\\[3.15em]
+
+      {\color{MA@teal}\rule{0.44\textwidth}{0.9pt}}\\[2.2em]
+
+      {\Large\bfseries Handbook}\\[0.9em]
+
+      {\large
+        Security Test Inventory, AI Enrichment,\\
+        and Regulated SDLC Integration}\\[1.55em]
+
+      {\normalsize \MethodAtlasBookLabel}\\[2.35em]
+
+      {\large \MethodAtlasAuthor}%
     \end{center}%
+
     \vfill%
+
     \begin{center}%
-      {\small\color{white!80}\@date}\\[0.5em]
-      {\footnotesize\textcopyright\enspace Egothor\,/\,Accenture
-        \quad\textbullet\quad
-        Apache\,License\,2.0}\\[0.4em]
-      {\footnotesize ISBN:\enspace(not yet assigned)}%
+      {\small\color{white!80}\MethodAtlasEdition}\\[0.35em]
+      {\small\color{white!80}\MethodAtlasBuildDate}\\[0.75em]
+      {\footnotesize \MethodAtlasPublisher}\\[0.35em]
+      {\footnotesize \MethodAtlasLicense}%
     \end{center}%
-    \vspace{1.5cm}%
+
+    \vspace{1.4cm}%
   \end{titlepage}%
-  % Verso of title page — copyright details on white
-  \nopagecolor%
-  \thispagestyle{empty}%
-  \vspace*{\fill}%
-  \noindent\small%
-  \textbf{MethodAtlas — Developer Reference}\\[0.4em]
-  Copyright \textcopyright\ 2024--\the\year\ Egothor s.r.o.\ and Accenture.\\[0.3em]
-  Licensed under the Apache License, Version 2.0.  You may obtain a copy of the
-  licence at \url{https://www.apache.org/licenses/LICENSE-2.0}.\\[0.3em]
-  Unless required by applicable law or agreed to in writing, software distributed
-  under the Licence is distributed on an \textsc{``as is''} basis, without
-  warranties or conditions of any kind, either express or implied.\\[0.6em]
-  Source code and current online documentation:\\
-  \url{https://accenture.github.io/MethodAtlas/}\\[0.6em]
-  \textit{ISBN: (not yet assigned)}\\[0.4em]
-  \textit{First edition.  Built: \@date.}%
-  \vspace*{1cm}%
-  \clearpage%
+
+  \makeMethodAtlasImprintPage%
 }
+
 \makeatother

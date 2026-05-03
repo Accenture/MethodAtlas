@@ -31,7 +31,7 @@ For `~` entries, a bracketed summary identifies which fields changed:
 
 A summary line closes the report:
 
-```
+```text
 2 added  ·  1 removed  ·  1 modified  ·  42 unchanged
 security-relevant: 5 → 7  (+2)
 ```

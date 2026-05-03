@@ -66,7 +66,7 @@ No CSV is produced during Phase 1.
 
 After running `-manual-prepare` on a project with two test classes, the directories look like this:
 
-```
+```text
 work/
   com.example.AuthServiceTest.prompt.txt
   com.example.PaymentTest.prompt.txt
@@ -78,7 +78,7 @@ responses/
 
 Each work file contains three sections:
 
-```
+```text
 === CLASS: com.example.AuthServiceTest ===
 
 === METHODS ===
@@ -109,7 +109,7 @@ object it finds and ignores any surrounding text.
 
 After pasting the prompt and saving the AI's reply, `com.example.AuthServiceTest.response.txt` might contain:
 
-```
+```text
 Sure! Here is the classification for the test class you provided:
 
 {"methods":[{"method":"loginWithValidCredentials","securityRelevant":false,"tags":[],"displayName":"","reason":"Tests the happy-path login flow with no security assertion.","interactionScore":0.2},{"method":"loginWithExpiredToken","securityRelevant":true,"tags":["security","auth"],"displayName":"SECURITY: auth — login is rejected when the token has expired","reason":"Asserts AuthenticationException is thrown; verifies the token expiry path.","interactionScore":0.0}]}
@@ -121,7 +121,7 @@ The surrounding prose is ignored. The JSON object is extracted automatically.
 
 ### Directory structure after the operator phase
 
-```
+```text
 work/
   com.example.AuthServiceTest.prompt.txt
   com.example.PaymentTest.prompt.txt
@@ -146,7 +146,7 @@ the scan does not fail.
 
 The output is identical in format to [API AI enrichment](api-ai.md) output — the same CSV columns are present. For example:
 
-```
+```text
 fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
 com.example.AuthServiceTest,loginWithValidCredentials,12,,,false,,,Tests the happy-path login flow with no security assertion.,0.2
 com.example.AuthServiceTest,loginWithExpiredToken,8,security,,true,SECURITY: auth — login is rejected when the token has expired,security;auth,Asserts AuthenticationException is thrown; verifies the token expiry path.,0.0

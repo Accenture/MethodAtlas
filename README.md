@@ -149,7 +149,7 @@ For each discovered test method, MethodAtlas emits one record.
 **Source-derived fields:**
 
 | Field | Present when | Description |
-| --- | --- | --- |
+| --- | --- | ------ |
 | `fqcn` | Always | Fully qualified class name (Java/C#); dot-separated relative file path without extension (TypeScript) |
 | `method` | Always | Test method name; for TypeScript includes describe-block hierarchy (e.g. `AuthService > should authenticate`) |
 | `loc` | Always | Inclusive line count of the method declaration |
@@ -160,7 +160,7 @@ For each discovered test method, MethodAtlas emits one record.
 **AI enrichment fields** (present when `-ai` is enabled):
 
 | Field | Present when | Description |
-| --- | --- | --- |
+| --- | --- | ------ |
 | `ai_security_relevant` | `-ai` | Whether the model classified the test as security-relevant |
 | `ai_display_name` | `-ai` | Suggested security-oriented `@DisplayName` value |
 | `ai_tags` | `-ai` | Suggested security taxonomy tags (e.g. `security;auth`, `security;crypto`) |
@@ -409,7 +409,9 @@ Command-line flags always override YAML values. See [docs/cli-reference.md](docs
 methodatlas-<version>/
 ├── bin/
 │   ├── methodatlas
-│   └── methodatlas.bat
+│   ├── methodatlas.bat
+│   ├── methodatlas-gui
+│   └── methodatlas-gui.bat
 └── lib/
     ├── methodatlas-<version>.jar
     └── *.jar  (runtime dependency libraries)

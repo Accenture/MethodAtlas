@@ -3,7 +3,7 @@
 ## Requirements
 
 | Requirement | Version | Required for |
-|-------------|---------|--------------|
+|--------|-----------------|----------------|
 | Java runtime | 21 or later (Temurin recommended) | All functionality |
 | Node.js | 18 or later | TypeScript/JavaScript test discovery only |
 | Operating system | Linux, macOS, Windows | — |
@@ -20,11 +20,13 @@ Pre-built distribution archives are published on the
 [GitHub Releases page](https://github.com/Accenture/MethodAtlas/releases).
 Each release ships as a ZIP and a TAR archive containing:
 
-```
+```text
 methodatlas-<version>/
 ├── bin/
 │   ├── methodatlas          # Unix launch script
-│   └── methodatlas.bat      # Windows launch script
+│   ├── methodatlas.bat      # Windows launch script
+│   ├── methodatlas-gui      # Unix launch script
+│   └── methodatlas-gui.bat  # Windows launch script
 └── lib/
     └── methodatlas-<version>.jar  (+ dependency JARs)
 ```
@@ -109,7 +111,7 @@ java -jar build/libs/methodatlas-<version>.jar src/test/java
 
 Outputs CSV to stdout:
 
-```
+```text
 fqcn,method,loc,tags,display_name
 com.example.AuthServiceTest,loginWithValidCredentials,12,,
 com.example.AuthServiceTest,loginWithExpiredToken,8,,
@@ -128,7 +130,7 @@ Start [Ollama](https://ollama.com) locally and pull a model, then:
 
 Example enriched output:
 
-```
+```text
 fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
 com.example.AuthServiceTest,loginWithValidCredentials,12,,,true,"SECURITY: Valid credentials grant access","authentication;access-control","Tests the happy-path login flow — directly relevant to authentication security.",0.0
 com.example.AuthServiceTest,loginWithExpiredToken,8,,,true,"SECURITY: Expired token is rejected","authentication;session-management","Verifies that stale tokens cannot be reused — a key session-fixation countermeasure.",0.0

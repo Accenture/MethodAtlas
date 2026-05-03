@@ -209,33 +209,33 @@ Because of this, MethodAtlas embeds the interaction score and, when `-ai-confide
 **Security-relevant method** (`security/<tag>` or `security-test`) — states the AI's suggested `@DisplayName` and `@Tag` values, the reasoning, and the interaction score. When `-ai-confidence` is active the confidence percentage follows. When the score is ≥ 0.8 an additional sentence points to the `security-test/placebo` finding.
 
 Default (no `-ai-confidence`):
-```
+```text
 AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score: 0.12.
 ```
 
 With `-ai-confidence` and a low interaction score:
-```
+```text
 AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score: 0.12. Confidence: 88%.
 ```
 
 With `-ai-confidence` and a high interaction score (≥ 0.8):
-```
+```text
 AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401. Interaction score: 0.90. Confidence: 88%. Assertions primarily verify method calls, not actual outcomes. See the security-test/placebo finding for remediation guidance.
 ```
 
 With `-sarif-omit-scores` (scores suppressed from message):
-```
+```text
 AI suggests: @DisplayName("SECURITY: auth - verify API key absence") @Tag("security") @Tag("auth"). Reason: The test verifies that requests without a valid API key are rejected with 401.
 ```
 
 **`security-test/placebo`** — a separate result emitted alongside the primary security finding when `ai_interaction_score >= 0.8`. The message always states the actual score and the threshold it was compared against, because those values are the core content of this finding, not supplementary context. The interaction score is never suppressed from this message even when `-sarif-omit-scores` is active.
 
-```
+```text
 Interaction score: 0.90 (threshold: 0.8). This security test only verifies that methods were called, not what values they returned or what state they produced. Tests that do not assert outcomes cannot catch regressions in security-critical logic. Add assertions on return values, thrown exceptions, or observable state changes.
 ```
 
 **`annotation/empty-display-name`** — names the class and method, explains the audit impact, and states the corrective action:
-```
+```text
 @DisplayName("") on com.acme.util.HelperTest.testHelper is explicitly empty — the test will appear unnamed in CI reports and audit evidence packages. Replace with a meaningful description, e.g. @DisplayName("Verifies that ...").
 ```
 
