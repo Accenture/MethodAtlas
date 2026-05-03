@@ -37,7 +37,7 @@ Prerequisites:
 
 ```bash
 # Clone and build everything
-git clone https://github.com/egothor/methodatlas.git
+git clone https://github.com/Accenture/MethodAtlas.git
 cd methodatlas
 ./gradlew build          # compile, test, PMD, SpotBugs, JaCoCo, PIT
 
