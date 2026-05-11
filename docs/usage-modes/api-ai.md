@@ -7,7 +7,7 @@ API AI enrichment scans test sources and automatically submits each class to a c
 - Your scan host has direct network access to an AI provider API (cloud-hosted or internal Ollama).
 - You want automatic, hands-free security classification as part of a nightly or PR CI pipeline.
 - You have an API key for a supported provider (OpenAI, Anthropic, Azure OpenAI, Mistral, Groq, xAI, GitHub Models, OpenRouter) or a local Ollama instance.
-- You need the full AI enrichment columns (`ai_security_relevant`, `ai_tags`, `ai_reason`, `ai_interaction_score`) in your CSV output.
+- You need the full AI enrichment columns (`ai_security_relevant`, `ai_tags`, `ai_reason`, `ai_interaction_score`) in your CSV or JSON output.
 
 If direct API access is not permitted from the scan host, use the [Manual AI workflow](manual.md) instead.
 

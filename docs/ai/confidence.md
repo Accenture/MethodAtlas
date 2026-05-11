@@ -52,7 +52,39 @@ The third row (`format_returnsIso8601`) has `ai_confidence=0.0` because the mode
 
 ## Filtering high-confidence findings
 
-Because the output is plain CSV, standard shell tools work:
+### Native threshold with `-min-confidence`
+
+The cleanest approach is to let MethodAtlas apply the threshold during the scan, so the output only ever contains qualifying records:
+
+```bash
+# Keep only methods with ai_confidence >= 0.7 — no post-processing needed
+./methodatlas -ai -ai-confidence -min-confidence 0.7 /path/to/tests
+
+# Combine with -security-only for a compact high-confidence security inventory
+./methodatlas -ai -ai-confidence -security-only -min-confidence 0.7 /path/to/tests > audit.csv
+
+# Same threshold applied to JSON output
+./methodatlas -ai -ai-confidence -json -min-confidence 0.7 /path/to/tests
+```
+
+The flag can also be set in the YAML configuration file so all team members and CI pipelines share the same threshold without needing to pass the flag explicitly:
+
+```yaml
+minConfidence: 0.7
+ai:
+  enabled: true
+  confidence: true
+  provider: ollama
+  model: qwen2.5-coder:7b
+```
+
+A command-line `-min-confidence` value always overrides the YAML setting.
+
+**Important:** `-min-confidence` only takes effect when `-ai-confidence` is also enabled. Without confidence scoring every method has an implicit score of `0.0`, so applying a threshold would silently drop all output. MethodAtlas therefore ignores `-min-confidence` unless `-ai-confidence` is active.
+
+### Post-processing with shell tools
+
+When you need to filter an existing CSV file (for example, a scan result cached from a previous run), standard shell tools work:
 
 ```bash
 # Keep only rows where ai_confidence >= 0.7
@@ -60,12 +92,4 @@ Because the output is plain CSV, standard shell tools work:
   awk -F',' 'NR==1 || ($11+0) >= 0.7'
 ```
 
-Or in a YAML configuration file:
-
-```yaml
-ai:
-  enabled: true
-  confidence: true
-  provider: ollama
-  model: qwen2.5-coder:7b
-```
+Note that the column index varies when other optional columns are active. The Python alternative using `csv.DictReader` (shown in [CLI Examples](../cli-examples.md#filtering-and-hashing)) is more robust because it selects the column by name rather than position.

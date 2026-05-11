@@ -81,6 +81,70 @@ class CliArgsTest {
         assertEquals(OutputMode.SARIF, cfg.outputMode());
     }
 
+    @Test
+    @DisplayName("-json flag sets JSON output mode")
+    @Tag("positive")
+    void parse_jsonFlag_setsJsonMode() {
+        CliConfig cfg = CliArgs.parse("-json");
+        assertEquals(OutputMode.JSON, cfg.outputMode());
+    }
+
+    // -------------------------------------------------------------------------
+    // -min-confidence
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("default minConfidence is 0.0")
+    @Tag("positive")
+    void parse_noArgs_minConfidenceDefaultsToZero() {
+        assertEquals(0.0, CliArgs.parse().minConfidence(), 0.001);
+    }
+
+    @Test
+    @DisplayName("-min-confidence 0.7 sets minConfidence to 0.7")
+    @Tag("positive")
+    void parse_minConfidenceFlag_setsValue() {
+        CliConfig cfg = CliArgs.parse("-min-confidence", "0.7");
+        assertEquals(0.7, cfg.minConfidence(), 0.001);
+    }
+
+    @Test
+    @DisplayName("-min-confidence 0.0 is accepted (disables filter)")
+    @Tag("positive")
+    void parse_minConfidenceZero_accepted() {
+        CliConfig cfg = CliArgs.parse("-min-confidence", "0.0");
+        assertEquals(0.0, cfg.minConfidence(), 0.001);
+    }
+
+    @Test
+    @DisplayName("-min-confidence 1.0 is accepted (maximum)")
+    @Tag("positive")
+    void parse_minConfidenceOne_accepted() {
+        CliConfig cfg = CliArgs.parse("-min-confidence", "1.0");
+        assertEquals(1.0, cfg.minConfidence(), 0.001);
+    }
+
+    @Test
+    @DisplayName("-min-confidence above 1.0 throws IllegalArgumentException")
+    @Tag("negative")
+    void parse_minConfidenceAboveOne_throws() {
+        assertThrows(IllegalArgumentException.class, () -> CliArgs.parse("-min-confidence", "1.1"));
+    }
+
+    @Test
+    @DisplayName("-min-confidence below 0.0 throws IllegalArgumentException")
+    @Tag("negative")
+    void parse_minConfidenceBelowZero_throws() {
+        assertThrows(IllegalArgumentException.class, () -> CliArgs.parse("-min-confidence", "-0.1"));
+    }
+
+    @Test
+    @DisplayName("-min-confidence without value throws IllegalArgumentException")
+    @Tag("negative")
+    void parse_minConfidenceNoValue_throws() {
+        assertThrows(IllegalArgumentException.class, () -> CliArgs.parse("-min-confidence"));
+    }
+
     // -------------------------------------------------------------------------
     // Boolean flags
     // -------------------------------------------------------------------------

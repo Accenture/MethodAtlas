@@ -73,7 +73,8 @@ public final class SarifCommand implements Command {
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix, scoresInMessage);
 
         int result = CommandSupport.scan(roots, cliConfig, discoveryConfig, aiEngine,
-                CommandSupport.filterSink(sarifEmitter, cliConfig.securityOnly()), override, aiCache);
+                CommandSupport.filterSink(sarifEmitter, cliConfig.securityOnly(),
+                        cliConfig.minConfidence(), confidenceEnabled), override, aiCache);
         sarifEmitter.flush(out);
         return result;
     }

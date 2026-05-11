@@ -16,6 +16,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-plain` | Emit plain text instead of CSV | CSV mode |
 | `-sarif` | Emit SARIF 2.1.0 JSON instead of CSV; security-only filtering is applied automatically (see below) | CSV mode |
 | `-github-annotations` | Emit GitHub Actions `::notice`/`::warning` workflow commands for security-relevant methods; does not require a GitHub Advanced Security licence | CSV mode |
+| `-json` | Emit a flat JSON array; each element carries the same fields as CSV with `tags` and `ai_tags` as JSON arrays, numeric values as JSON numbers, and optional columns omitted entirely when their flags are not set; MethodAtlas buffers all records and serializes the array after the scan completes | CSV mode |
 | `-emit-metadata` | Prepend `# key: value` comment lines before the CSV header | Off |
 | `-file-suffix <suffix>` | Include files whose name ends with `suffix`; may be repeated; first occurrence replaces the default; prefix with `pluginId:` to target one plugin (e.g. `java:Test.java`) | `java:Test.java` |
 | `-test-marker <name>` | Treat methods carrying marker `name` as test methods; language-neutral: annotation simple names for Java/Kotlin, attribute names for C#; may be repeated; first occurrence replaces the default set; `-test-annotation` is accepted as a backward-compatible alias | `Test`, `ParameterizedTest`, `RepeatedTest`, `TestFactory`, `TestTemplate` |
@@ -39,6 +40,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | --- | --- | --- |
 | `-ai` | Enable AI enrichment | Off |
 | `-ai-confidence` | Ask the model to include a confidence score (`0.0–1.0`) per classification | Off |
+| `-min-confidence <threshold>` | Silently drop methods whose `ai_confidence` score is below `threshold` (range `0.0–1.0`); only effective when `-ai-confidence` is also enabled; `0.0` (the default) disables filtering | `0.0` |
 | `-ai-provider <provider>` | Select provider: `auto`, `ollama`, `openai`, `openrouter`, `anthropic`, `azure_openai`, `groq`, `xai`, `github_models`, `mistral` | `auto` |
 | `-ai-model <model>` | Provider-specific model identifier | `qwen2.5-coder:7b` |
 | `-ai-base-url <url>` | Override provider base URL | Provider default |
@@ -68,7 +70,7 @@ The two directory arguments may be the same path.
 Loads default option values from a YAML configuration file before processing any other arguments. Command-line flags always take precedence over values from the file.
 
 ```yaml
-outputMode: sarif          # csv | plain | sarif  (default: csv)
+outputMode: sarif          # csv | plain | sarif | json  (default: csv)
 emitMetadata: false
 contentHash: false         # append SHA-256 fingerprint column  (default: false)
 overrideFile: .methodatlas-overrides.yaml   # optional
@@ -102,6 +104,7 @@ ai:
 driftDetect: false       # append tag_ai_drift column to CSV/plain output  (default: false)
 includeNonSecurity: false  # include non-security methods in SARIF output  (default: false)
 sarifOmitScores: false   # opt-out: omit scores from SARIF message text    (default: false)
+minConfidence: 0.0       # drop methods below this ai_confidence threshold (default: 0.0 = off)
 ```
 
 All fields are optional. Unknown fields are silently ignored. This makes it safe to add future fields to a shared configuration file without breaking older versions.
@@ -121,6 +124,64 @@ Security-relevant methods receive SARIF level `note` and a `security-severity` p
 **Security-only by default:** selecting SARIF mode automatically applies the security-only filter. Only methods classified as security-relevant are emitted; ordinary test methods are excluded. This default exists because SARIF is consumed by GitHub Code Scanning and equivalent security tooling that expects actionable findings, not an inventory of every test method. To include all methods, pass [`-include-non-security`](#-include-non-security).
 
 See [output-formats.md](output-formats.md#sarif-mode) for the full schema description and an example document.
+
+### `-json`
+
+Switches output to a flat JSON array. MethodAtlas buffers all discovered test methods and, after the scan completes, serializes the array to standard output with pretty-printing.
+
+```bash
+./methodatlas -json /path/to/tests
+./methodatlas -ai -json /path/to/tests
+```
+
+The JSON representation differs from CSV in the following ways:
+
+- `tags` and `ai_tags` are JSON arrays, not semicolon-separated strings.
+- Numeric fields (`loc`, `ai_interaction_score`, `ai_confidence`) are JSON numbers.
+- `ai_security_relevant` is a JSON boolean.
+- Optional columns are **omitted entirely** when their flag is not set, rather than being left blank.
+
+Example output without AI enrichment:
+
+```json
+[
+  {
+    "fqcn": "com.acme.tests.SampleOneTest",
+    "method": "alpha",
+    "loc": 8,
+    "tags": ["fast", "crypto"]
+  },
+  {
+    "fqcn": "com.acme.tests.SampleOneTest",
+    "method": "beta",
+    "loc": 6,
+    "tags": []
+  }
+]
+```
+
+Example output with `-ai -ai-confidence`:
+
+```json
+[
+  {
+    "fqcn": "com.acme.tests.SampleOneTest",
+    "method": "alpha",
+    "loc": 8,
+    "tags": ["fast", "crypto"],
+    "ai_security_relevant": true,
+    "ai_display_name": "SECURITY: crypto - validates encrypted happy path",
+    "ai_tags": ["security", "crypto"],
+    "ai_reason": "The test exercises a crypto-related security property.",
+    "ai_interaction_score": 0.0,
+    "ai_confidence": 0.9
+  }
+]
+```
+
+JSON mode is equivalent to CSV mode in terms of content — the same filtering flags (`-security-only`, `-min-confidence`), enrichment flags (`-ai`, `-ai-confidence`, `-content-hash`), and multi-root flags (`-emit-source-root`) all apply.
+
+See [output-formats.md](output-formats.md#json-mode) for the complete field reference.
 
 ### `-github-annotations`
 
@@ -487,6 +548,36 @@ Enables AI enrichment. Without this flag, MethodAtlas behaves as a pure static s
 Instructs the model to include a confidence score for each classification. The score appears as `ai_confidence` in CSV output (or `AI_CONFIDENCE=` in plain mode). Scores range from `0.0` (not security-relevant) to `1.0` (explicitly and unambiguously tests a named security property). See [Confidence scoring](ai/confidence.md) for the full interpretation table.
 
 In SARIF output the confidence percentage is also embedded in the result message text (e.g. `Confidence: 88%.`) so it is visible in tooling such as GitHub Code Scanning that does not render the `properties` bag. See [`-sarif-omit-scores`](#-sarif-omit-scores) for an explanation of why this is the default and how to disable it when the consuming tool already surfaces the properties bag.
+
+### `-min-confidence <threshold>`
+
+Silently drops methods whose `ai_confidence` score is strictly below `threshold`. The threshold must be a decimal in the range `0.0–1.0`. The default of `0.0` disables filtering — no methods are dropped.
+
+**This flag only takes effect when `-ai-confidence` is also enabled.** When `-ai-confidence` is absent, every method carries an implicit score of `0.0`, and applying a threshold would drop the entire output. MethodAtlas therefore ignores `-min-confidence` unless confidence scoring is active.
+
+```bash
+# Keep only methods with ai_confidence >= 0.8
+./methodatlas -ai -ai-confidence -min-confidence 0.8 /path/to/tests
+
+# Combine with -security-only for a high-confidence security inventory
+./methodatlas -ai -ai-confidence -security-only -min-confidence 0.7 /path/to/tests > audit.csv
+
+# Same effect via JSON output
+./methodatlas -ai -ai-confidence -json -min-confidence 0.7 /path/to/tests
+```
+
+The flag can also be set via YAML configuration:
+
+```yaml
+minConfidence: 0.7
+ai:
+  enabled: true
+  confidence: true
+```
+
+A command-line `-min-confidence` value always overrides the YAML setting. Unlike the post-processing `awk` filter shown in [CLI Examples](cli-examples.md#filtering-and-hashing), this flag applies the threshold during the scan so that the emitted output only ever contains qualifying records — there is no intermediate CSV to discard.
+
+See [Confidence scoring](ai/confidence.md) for a discussion of how to interpret the scores and choose an appropriate threshold.
 
 ### AI interaction score
 

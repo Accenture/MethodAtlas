@@ -63,9 +63,12 @@ public final class GitHubAnnotationsCommand implements Command {
      */
     @Override
     public int execute(PrintWriter out) throws IOException {
+        boolean confidenceEnabled = cliConfig.aiOptions().confidence();
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
         String filePrefix = CommandSupport.computeFilePrefix(roots);
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
-        return CommandSupport.scan(roots, cliConfig, discoveryConfig, aiEngine, emitter, override, aiCache);
+        return CommandSupport.scan(roots, cliConfig, discoveryConfig, aiEngine,
+                CommandSupport.filterSink(emitter, false, cliConfig.minConfidence(), confidenceEnabled),
+                override, aiCache);
     }
 }

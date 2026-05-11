@@ -72,5 +72,32 @@ public enum OutputMode {
      *
      * @see org.egothor.methodatlas.emit.GitHubAnnotationsEmitter
      */
-    GITHUB_ANNOTATIONS
+    GITHUB_ANNOTATIONS,
+
+    /**
+     * Emits output as a flat JSON array.
+     *
+     * <p>
+     * Each element of the array is a JSON object containing the same fields as
+     * the CSV output, with the following representation differences:
+     * </p>
+     * <ul>
+     * <li>{@code tags} and {@code ai_tags} are JSON arrays rather than
+     *     semicolon-separated strings</li>
+     * <li>Numeric fields ({@code loc}, {@code ai_interaction_score},
+     *     {@code ai_confidence}) are JSON numbers</li>
+     * <li>{@code ai_security_relevant} is a JSON boolean</li>
+     * <li>Optional columns ({@code source_root}, {@code content_hash},
+     *     {@code ai_*}, {@code tag_ai_drift}) are omitted from each object
+     *     when the corresponding flag is not enabled</li>
+     * </ul>
+     *
+     * <p>
+     * All records are buffered in memory and the complete array is written once
+     * the scan finishes, matching the SARIF emitter's behaviour.
+     * </p>
+     *
+     * @see org.egothor.methodatlas.emit.JsonEmitter
+     */
+    JSON
 }

@@ -1,6 +1,6 @@
 # Output formats
 
-MethodAtlas supports four report modes — **CSV** (default), **plain text**, **SARIF**, and **GitHub Actions annotations** — plus a write-back mode (**`-apply-tags`**) that modifies source files directly instead of emitting a report.  
+MethodAtlas supports five report modes — **CSV** (default), **plain text**, **SARIF**, **GitHub Actions annotations**, and **JSON** — plus a write-back mode (**`-apply-tags`**) that modifies source files directly instead of emitting a report.  
 All report modes produce one record per discovered test method.
 
 ## CSV mode
@@ -415,6 +415,116 @@ File paths in the annotations are derived from the scan root and the class FQCN,
 
 See [docs/cli/github-actions.md](ci/github-actions.md) for a complete workflow example, and [docs/cli-reference.md#-github-annotations](cli-reference.md#-github-annotations) for the full flag description.
 
+## JSON mode {#json-mode}
+
+Enable JSON mode with `-json`:
+
+```bash
+./methodatlas -json /path/to/project
+./methodatlas -ai -ai-confidence -json /path/to/tests
+```
+
+MethodAtlas buffers all discovered test methods and, after the scan completes, serializes a single flat JSON array to standard output with pretty-printing. The format is especially useful for downstream tooling (dashboards, scripts, APIs) that prefers structured JSON over CSV parsing.
+
+### Differences from CSV
+
+| Aspect | CSV | JSON |
+|---|---|---|
+| `tags` / `ai_tags` | Semicolon-separated string | JSON array of strings |
+| Numeric fields (`loc`, scores) | Plain text | JSON numbers |
+| `ai_security_relevant` | `true`/`false` string | JSON boolean |
+| Optional columns | Present with blank value when flag off | **Absent entirely** when flag off |
+| Output timing | Incremental (line-by-line) | Buffered (full array after scan) |
+
+### Without AI enrichment
+
+```json
+[
+  {
+    "fqcn": "com.acme.tests.SampleOneTest",
+    "method": "alpha",
+    "loc": 8,
+    "tags": ["fast", "crypto"]
+  },
+  {
+    "fqcn": "com.acme.tests.SampleOneTest",
+    "method": "beta",
+    "loc": 6,
+    "tags": []
+  }
+]
+```
+
+### With AI enrichment (`-ai`)
+
+When `-ai` is enabled, each record gains `ai_security_relevant`, `ai_display_name`, `ai_tags`, `ai_reason`, and `ai_interaction_score`. Fields absent for non-security-relevant methods (such as `ai_display_name` and `ai_reason`) are omitted from the JSON object rather than set to `null`.
+
+```json
+[
+  {
+    "fqcn": "com.acme.tests.SampleOneTest",
+    "method": "alpha",
+    "loc": 8,
+    "tags": ["fast", "crypto"],
+    "ai_security_relevant": true,
+    "ai_display_name": "SECURITY: crypto - validates encrypted happy path",
+    "ai_tags": ["security", "crypto"],
+    "ai_reason": "The test exercises a crypto-related security property.",
+    "ai_interaction_score": 0.0
+  },
+  {
+    "fqcn": "com.acme.tests.SampleOneTest",
+    "method": "beta",
+    "loc": 6,
+    "tags": [],
+    "ai_security_relevant": false,
+    "ai_interaction_score": 0.2
+  }
+]
+```
+
+### With confidence scoring (`-ai -ai-confidence`)
+
+Adding `-ai-confidence` appends an `ai_confidence` field to each record:
+
+```json
+[
+  {
+    "fqcn": "com.acme.tests.SampleOneTest",
+    "method": "alpha",
+    "loc": 8,
+    "tags": ["fast", "crypto"],
+    "ai_security_relevant": true,
+    "ai_display_name": "SECURITY: crypto - validates encrypted happy path",
+    "ai_tags": ["security", "crypto"],
+    "ai_reason": "The test exercises a crypto-related security property.",
+    "ai_interaction_score": 0.0,
+    "ai_confidence": 0.9
+  }
+]
+```
+
+### Field reference
+
+| Field | Type | When present |
+|---|---|---|
+| `fqcn` | string | Always |
+| `method` | string | Always |
+| `loc` | number | Always |
+| `tags` | array of strings | Always |
+| `display_name` | string | When `@DisplayName` is present on the method |
+| `source_root` | string | When `-emit-source-root` is passed |
+| `content_hash` | string | When `-content-hash` is passed |
+| `ai_security_relevant` | boolean | When `-ai` is enabled |
+| `ai_display_name` | string | When AI enabled and method is security-relevant |
+| `ai_tags` | array of strings | When AI enabled and method is security-relevant |
+| `ai_reason` | string | When AI enabled and method has a reason |
+| `ai_interaction_score` | number | When `-ai` is enabled |
+| `ai_confidence` | number | When `-ai-confidence` is passed |
+| `tag_ai_drift` | string | When `-drift-detect` is passed |
+
+All filtering flags apply in JSON mode: `-security-only` drops non-security records, `-min-confidence` drops records below the confidence threshold, and `-drift-detect` adds the `tag_ai_drift` field.
+
 ## Apply-tags mode
 
 `-apply-tags` is not a report mode — it modifies source files in place instead of emitting output. When combined with `-ai` (or `-manual-consume`), MethodAtlas writes AI-generated `@DisplayName` and `@Tag` annotations directly into the scanned test source files, then prints a summary to standard output.
@@ -451,7 +561,8 @@ See [Source Write-back](usage-modes/apply-tags.md) for the complete workflow, in
 | Feeding output into a spreadsheet or data pipeline | CSV (default) |
 | Quick visual inspection in a terminal | Plain (`-plain`) |
 | Archiving scan results with provenance metadata | CSV + `-emit-metadata` |
-| Filtering high-confidence security findings | CSV + `-ai-confidence` |
+| Filtering high-confidence security findings | CSV or JSON + `-ai-confidence -min-confidence` |
 | Incremental scanning or change detection | CSV or SARIF + `-content-hash` |
 | Integrating with a SAST platform or IDE | SARIF (`-sarif`) |
+| Feeding output into a dashboard, API, or custom script | JSON (`-json`) |
 | Annotating source files with AI-suggested tags | `-apply-tags` |

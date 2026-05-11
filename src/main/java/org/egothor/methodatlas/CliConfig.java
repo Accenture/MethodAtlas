@@ -93,10 +93,19 @@ import org.egothor.methodatlas.ai.AiOptions;
  *                             {@code false} (scores are embedded in messages so
  *                             they are visible in GitHub Code Scanning and similar
  *                             tooling that does not render the properties bag)
+ * @param minConfidence        minimum AI confidence score (inclusive) required
+ *                             for a method to be emitted; methods whose
+ *                             {@code ai_confidence} is below this threshold are
+ *                             silently dropped; only meaningful when
+ *                             {@code -ai-confidence} is also enabled — when
+ *                             confidence scoring is disabled the field is always
+ *                             {@code 0.0} and filtering on it would incorrectly
+ *                             drop all methods; the default {@code 0.0} disables
+ *                             the filter entirely
  */
 public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testMarkers, Map<String, List<String>> properties, boolean emitMetadata,
         ManualMode manualMode, boolean applyTags, boolean contentHash, Path overrideFile,
         boolean securityOnly, Path aiCacheFile, boolean driftDetect, Path applyTagsFromCsvFile,
-        int mismatchLimit, boolean emitSourceRoot, boolean sarifOmitScores) {
+        int mismatchLimit, boolean emitSourceRoot, boolean sarifOmitScores, double minConfidence) {
 }

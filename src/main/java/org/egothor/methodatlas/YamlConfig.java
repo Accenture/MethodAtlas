@@ -25,12 +25,13 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
  * <h2>Supported fields</h2>
  *
  * <pre>
- * outputMode: csv          # csv | plain | sarif  (default: csv)
+ * outputMode: csv          # csv | plain | sarif | json  (default: csv)
  * emitMetadata: false      # (default: false)
  * contentHash: false       # (default: false)
  * securityOnly: false      # (default: false)
  * includeNonSecurity: false  # opt-in: include non-security methods in SARIF output (default: false)
  * sarifOmitScores: false   # opt-out: omit interaction score / confidence from SARIF message text (default: false)
+ * minConfidence: 0.0       # drop AI results below this threshold (requires ai.confidence: true; default: 0.0 = off)
  * driftDetect: false       # (default: false)
  * overrideFile: .methodatlas-overrides.yaml  # optional
  * fileSuffixes:
@@ -169,6 +170,15 @@ final class YamlConfig {
          */
         @JsonProperty("sarifOmitScores")
         /* default */ boolean sarifOmitScores;
+
+        /**
+         * Minimum AI confidence score (inclusive) required for a method to be
+         * emitted. Methods whose {@code ai_confidence} is below this threshold
+         * are silently dropped. Only meaningful when {@code ai.confidence: true}
+         * is also set. Default: {@code 0.0} (no filtering).
+         */
+        @JsonProperty("minConfidence")
+        /* default */ Double minConfidence;
 
         /** AI enrichment settings. */
         @JsonProperty("ai")

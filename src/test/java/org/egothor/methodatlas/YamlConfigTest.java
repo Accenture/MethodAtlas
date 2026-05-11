@@ -167,6 +167,52 @@ class YamlConfigTest {
         assertTrue(cfg.contentHash);
     }
 
+    @Test
+    @DisplayName("load parses minConfidence field from YAML")
+    @Tag("positive")
+    void load_parsesMinConfidenceField(@TempDir Path tempDir) throws Exception {
+        Path config = write(tempDir, "minConfidence: 0.7\n");
+        YamlConfig.YamlConfigFile cfg = YamlConfig.load(config);
+        assertNotNull(cfg.minConfidence);
+        assertEquals(0.7, cfg.minConfidence, 0.001);
+    }
+
+    @Test
+    @DisplayName("minConfidence defaults to null (no filtering) when absent from YAML")
+    @Tag("positive")
+    void load_minConfidenceNullByDefault(@TempDir Path tempDir) throws Exception {
+        Path config = write(tempDir, "{}\n");
+        YamlConfig.YamlConfigFile cfg = YamlConfig.load(config);
+        assertNull(cfg.minConfidence);
+    }
+
+    @Test
+    @DisplayName("CliArgs seeds minConfidence 0.0 when YAML field is absent")
+    @Tag("positive")
+    void cliArgs_minConfidenceFromYaml_seedsDefault(@TempDir Path tempDir) throws Exception {
+        Path config = write(tempDir, "outputMode: csv\n");
+        CliConfig cfg = CliArgs.parse("-config", config.toString());
+        assertEquals(0.0, cfg.minConfidence(), 0.001);
+    }
+
+    @Test
+    @DisplayName("CliArgs seeds minConfidence from YAML when present")
+    @Tag("positive")
+    void cliArgs_minConfidenceFromYaml_seedsValue(@TempDir Path tempDir) throws Exception {
+        Path config = write(tempDir, "minConfidence: 0.8\n");
+        CliConfig cfg = CliArgs.parse("-config", config.toString());
+        assertEquals(0.8, cfg.minConfidence(), 0.001);
+    }
+
+    @Test
+    @DisplayName("CLI -min-confidence overrides YAML minConfidence")
+    @Tag("positive")
+    void cliArgs_minConfidenceFlagOverridesYaml(@TempDir Path tempDir) throws Exception {
+        Path config = write(tempDir, "minConfidence: 0.5\n");
+        CliConfig cfg = CliArgs.parse("-config", config.toString(), "-min-confidence", "0.9");
+        assertEquals(0.9, cfg.minConfidence(), 0.001);
+    }
+
     private static Path write(Path dir, String content) throws IOException {
         Path file = dir.resolve("config.yaml");
         Files.writeString(file, content, StandardCharsets.UTF_8);

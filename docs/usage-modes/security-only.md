@@ -40,9 +40,9 @@ outputMode: sarif
 includeNonSecurity: true
 ```
 
-## CSV and plain-text modes: opt-in filter
+## CSV, plain-text, and JSON modes: opt-in filter
 
-For CSV and plain-text output, the filter is **not applied by default** — every
+For CSV, plain-text, and JSON output, the filter is **not applied by default** — every
 discovered test method is emitted. Use `-security-only` to restrict the output
 when only security-relevant rows are needed:
 
@@ -50,8 +50,11 @@ when only security-relevant rows are needed:
 # All methods (default)
 ./methodatlas -ai src/test/java
 
-# Security methods only
+# Security methods only (CSV)
 ./methodatlas -ai -security-only src/test/java
+
+# Security methods only (JSON)
+./methodatlas -ai -security-only -json src/test/java
 ```
 
 The flag can also be enabled via YAML:

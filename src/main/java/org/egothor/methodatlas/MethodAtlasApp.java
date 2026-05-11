@@ -16,6 +16,7 @@ import org.egothor.methodatlas.command.ApplyTagsFromCsvCommand;
 import org.egothor.methodatlas.command.CommandSupport;
 import org.egothor.methodatlas.command.DiffCommand;
 import org.egothor.methodatlas.command.GitHubAnnotationsCommand;
+import org.egothor.methodatlas.command.JsonCommand;
 import org.egothor.methodatlas.command.ManualPrepareCommand;
 import org.egothor.methodatlas.command.SarifCommand;
 import org.egothor.methodatlas.command.ScanCommand;
@@ -77,6 +78,9 @@ import org.egothor.methodatlas.command.ScanCommand;
  * file; command-line flags override YAML values</li>
  * <li>{@code -plain} — emits plain text output instead of CSV</li>
  * <li>{@code -sarif} — emits SARIF 2.1.0 JSON output</li>
+ * <li>{@code -json} — emits a flat JSON array; each element carries the same
+ * fields as CSV with {@code tags} and {@code ai_tags} as arrays and numeric
+ * values as JSON numbers</li>
  * <li>{@code -ai} — enables AI-based enrichment</li>
  * <li>{@code -ai-provider <provider>} — selects the AI provider</li>
  * <li>{@code -ai-model <model>} — selects the provider-specific model</li>
@@ -96,6 +100,9 @@ import org.egothor.methodatlas.command.ScanCommand;
  * <li>{@code -ai-confidence} — requests a confidence score for each AI
  * security classification; adds an {@code ai_confidence} column to the
  * output</li>
+ * <li>{@code -min-confidence <threshold>} — silently drops methods whose AI
+ * confidence score is below {@code threshold} (range {@code 0.0–1.0}); only
+ * effective when {@code -ai-confidence} is also enabled</li>
  * <li>{@code -ai-cache <path>} — loads a previous scan CSV produced with
  * {@code -content-hash -ai} as an AI result cache; classes whose
  * {@code content_hash} matches a cache entry are classified without an API
@@ -280,6 +287,11 @@ public final class MethodAtlasApp {
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
             return new SarifCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache).execute(out);
+        }
+
+        // JSON mode: buffer all records; write flat JSON array after scan completes.
+        if (cliConfig.outputMode() == OutputMode.JSON) {
+            return new JsonCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache).execute(out);
         }
 
         // GitHub Annotations mode: emit ::notice/::warning workflow commands.

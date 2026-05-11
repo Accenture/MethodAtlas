@@ -51,6 +51,7 @@ final class CliArgs {
     private static final String FLAG_SARIF_OMIT_SCORES = "-sarif-omit-scores";
     private static final String FLAG_APPLY_TAGS_FROM_CSV = "-apply-tags-from-csv";
     private static final String FLAG_MISMATCH_LIMIT = "-mismatch-limit";
+    private static final String FLAG_MIN_CONFIDENCE = "-min-confidence";
 
     /**
      * Prevents instantiation of this utility class.
@@ -120,6 +121,8 @@ final class CliArgs {
         boolean securityOnly = yamlConfig != null && yamlConfig.securityOnly;
         boolean includeNonSecurity = yamlConfig != null && yamlConfig.includeNonSecurity;
         boolean sarifOmitScores = yamlConfig != null && yamlConfig.sarifOmitScores;
+        double minConfidence = yamlConfig != null && yamlConfig.minConfidence != null
+                ? yamlConfig.minConfidence : 0.0;
         boolean driftDetect = yamlConfig != null && yamlConfig.driftDetect;
         boolean emitSourceRoot = false;
         Path aiCacheFile = null;
@@ -143,6 +146,15 @@ final class CliArgs {
                 mismatchLimit = Integer.parseInt(nextArg(args, ++i, arg));
                 continue;
             }
+            if (FLAG_MIN_CONFIDENCE.equals(arg)) {
+                double parsed = Double.parseDouble(nextArg(args, ++i, arg));
+                if (parsed < 0.0 || parsed > 1.0) {
+                    throw new IllegalArgumentException(
+                            "-min-confidence value must be between 0.0 and 1.0, got: " + parsed);
+                }
+                minConfidence = parsed;
+                continue;
+            }
             if (arg.startsWith("-ai")) {
                 i = applyAiArg(arg, args, i, aiBuilder);
                 continue;
@@ -150,6 +162,7 @@ final class CliArgs {
             switch (arg) {
                 case "-plain" -> outputMode = OutputMode.PLAIN;
                 case "-sarif" -> outputMode = OutputMode.SARIF;
+                case "-json" -> outputMode = OutputMode.JSON;
                 case "-github-annotations" -> outputMode = OutputMode.GITHUB_ANNOTATIONS;
                 case "-apply-tags" -> applyTags = true;
                 case "-content-hash" -> contentHash = true;
@@ -220,7 +233,7 @@ final class CliArgs {
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedMarkers,
                 Map.copyOf(properties), emitMetadata, manualMode, applyTags, contentHash, overrideFilePath,
                 securityOnly, aiCacheFile, driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot,
-                sarifOmitScores);
+                sarifOmitScores, minConfidence);
     }
 
     // -------------------------------------------------------------------------
@@ -263,6 +276,7 @@ final class CliArgs {
         return switch (yamlConfig.outputMode.toLowerCase(Locale.ROOT)) {
             case "plain" -> OutputMode.PLAIN;
             case "sarif" -> OutputMode.SARIF;
+            case "json" -> OutputMode.JSON;
             default -> OutputMode.CSV;
         };
     }

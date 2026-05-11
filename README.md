@@ -29,7 +29,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **Multi-language plugin architecture** — Java, C#, and TypeScript/JavaScript plugins ship in separate JARs loaded via `ServiceLoader`; new languages require no changes to the core tool
 - **SARIF 2.1.0 output** — first-class integration with static analysis platforms and IDE tooling
 - **AI security classification** — classifies each test method against a closed security taxonomy; supports Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, and OpenRouter
-- **Confidence scoring** — per-method decimal score (`-ai-confidence`); filter by threshold for audit packages
+- **Confidence scoring** — per-method decimal score (`-ai-confidence`); apply a native threshold filter with `-min-confidence` or post-process the CSV
 - **Content hash fingerprints** — SHA-256 of the class AST text (`-content-hash`); all methods in the same class share the same hash; enables incremental scanning and change detection
 - **AI result cache** — reuse previous AI classifications by hash (`-ai-cache`); unchanged classes cost zero API calls
 - **Tag vs AI drift detection** — `-drift-detect` flags methods where `@Tag("security")` in source disagrees with the AI classification
@@ -46,7 +46,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **YAML configuration** — share scan settings across a team or CI pipeline without repeating CLI flags
 - **Custom taxonomy** — supply an external taxonomy file aligned to ISO 27001, NIST SP 800-53, PCI DSS, or your own controls framework
 - **Scan provenance** — `-emit-metadata` prepends tool version and timestamp to CSV; embed in evidence packages
-- **Multiple output modes** — CSV (default), plain text, SARIF, and GitHub Actions annotations
+- **Multiple output modes** — CSV (default), plain text, SARIF, GitHub Actions annotations, and JSON (`-json`) with native array/number/boolean types
 
 ## Quick start
 
@@ -75,6 +75,12 @@ cd methodatlas-<version>/bin
 
 # GitHub Actions inline PR annotations
 ./methodatlas -ai -github-annotations /path/to/tests
+
+# JSON array output — tags and scores as native JSON types
+./methodatlas -json /path/to/project
+
+# AI enrichment with confidence threshold — drop low-confidence methods during the scan
+./methodatlas -ai -ai-confidence -min-confidence 0.7 /path/to/tests
 ```
 
 See [docs/cli-reference.md](docs/cli-reference.md) for the complete option reference.
@@ -209,6 +215,15 @@ Human-readable line-oriented output, useful for terminal inspection and shell sc
 
 Emits `::notice` / `::warning` workflow commands that GitHub Actions renders as inline annotations on the PR diff. Does not require a GitHub Advanced Security licence.
 
+### JSON
+
+```bash
+./methodatlas -json /path/to/project
+./methodatlas -ai -ai-confidence -json /path/to/tests
+```
+
+Emits a flat JSON array — one object per discovered test method. Unlike CSV, `tags` and `ai_tags` are JSON arrays, numeric fields are JSON numbers, `ai_security_relevant` is a JSON boolean, and optional columns are omitted entirely when their flags are not set (rather than being left blank). Useful for dashboards, APIs, and custom scripting that prefers structured JSON over CSV parsing.
+
 See [docs/output-formats.md](docs/output-formats.md) for full format descriptions and examples.
 
 ## Audit trail (GUI)
@@ -290,13 +305,17 @@ See [docs/ai/providers.md](docs/ai/providers.md) for per-provider setup instruct
 
 ### Confidence scoring
 
-Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method. The score appears in the `ai_confidence` column, whose position shifts when optional columns such as `-content-hash` or `-emit-source-root` are enabled. Use the header row to locate it:
+Pass `-ai-confidence` to add a `0.0–1.0` confidence score per method. Use `-min-confidence` to drop methods below a threshold during the scan — no post-processing needed:
 
 ```bash
-./methodatlas -ai -ai-confidence /path/to/tests > scan.csv
+# Score every method; include the ai_confidence column in the output
+./methodatlas -ai -ai-confidence /path/to/tests
 
-# Keep header + rows where ai_confidence >= 0.7
-# Locate the column index from the header, then filter by name:
+# Drop methods below 0.7 during the scan — output only contains qualifying records
+./methodatlas -ai -ai-confidence -min-confidence 0.7 /path/to/tests > audit.csv
+
+# Post-process an existing CSV when you need the full output and want to filter it separately
+./methodatlas -ai -ai-confidence /path/to/tests > scan.csv
 python3 -c "
 import csv, sys
 r = csv.DictReader(open('scan.csv'))
@@ -425,7 +444,7 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 | --- | --- |
 | [docs/cli-reference.md](docs/cli-reference.md) | Complete option reference, YAML schema, exit codes, and example commands |
 | [docs/cli-examples.md](docs/cli-examples.md) | Practical command-line examples grouped by use case |
-| [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, and GitHub Annotations format descriptions |
+| [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, GitHub Annotations, and JSON format descriptions |
 | [docs/migration.md](docs/migration.md) | Breaking-change notes and upgrade steps for each major version boundary |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Diagnosis and remedies for common problems |
 | [docs/discovery-plugins.md](docs/discovery-plugins.md) | Per-language plugin configuration: Java, C#, TypeScript/JavaScript |

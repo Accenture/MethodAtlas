@@ -578,29 +578,59 @@ public final class CommandSupport {
     }
 
     /**
-     * Wraps a {@link TestMethodSink} so that only security-relevant records are
-     * forwarded to {@code delegate}.
+     * Wraps a {@link TestMethodSink} so that only records that pass all active
+     * filters are forwarded to {@code delegate}.
      *
      * <p>
-     * When {@code securityOnly} is {@code false} the original {@code delegate} is
-     * returned unchanged (zero overhead). When {@code true}, a wrapper is returned
-     * that drops any record whose {@link AiMethodSuggestion} is {@code null} or
-     * has {@code securityRelevant=false}.
+     * Two independent filters are supported and are composed in order:
+     * </p>
+     * <ol>
+     * <li><b>Security-only filter</b> — when {@code securityOnly} is {@code true},
+     *     records whose {@link AiMethodSuggestion} is {@code null} or has
+     *     {@code securityRelevant=false} are dropped.</li>
+     * <li><b>Confidence threshold filter</b> — when {@code confidenceEnabled} is
+     *     {@code true} <em>and</em> {@code minConfidence > 0.0}, records whose
+     *     {@link AiMethodSuggestion} is {@code null} or has a
+     *     {@link AiMethodSuggestion#confidence()} below {@code minConfidence} are
+     *     dropped. This filter is a no-op when {@code confidenceEnabled} is
+     *     {@code false} because the confidence field is always {@code 0.0} when
+     *     confidence scoring was not requested.</li>
+     * </ol>
+     *
+     * <p>
+     * When neither filter is active the original {@code delegate} is returned
+     * unchanged (zero overhead).
      * </p>
      *
-     * @param delegate     the underlying sink to forward matching records to
-     * @param securityOnly whether to enable the filter
-     * @return filtered sink, or {@code delegate} unchanged when filtering is off
+     * @param delegate          the underlying sink to forward matching records to
+     * @param securityOnly      whether to enable the security-relevance filter
+     * @param minConfidence     minimum confidence score (inclusive) required to
+     *                          pass the confidence filter; {@code 0.0} disables it
+     * @param confidenceEnabled whether confidence scoring was requested; must be
+     *                          {@code true} for the confidence filter to activate
+     * @return filtered sink, or {@code delegate} unchanged when all filters are off
      */
-    /* default */ static TestMethodSink filterSink(TestMethodSink delegate, boolean securityOnly) {
-        if (!securityOnly) {
-            return delegate;
+    /* default */ static TestMethodSink filterSink(TestMethodSink delegate, boolean securityOnly,
+            double minConfidence, boolean confidenceEnabled) {
+        TestMethodSink sink = delegate;
+        if (securityOnly) {
+            final TestMethodSink next = sink;
+            sink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) -> {
+                if (suggestion != null && suggestion.securityRelevant()) {
+                    next.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
+                }
+            };
         }
-        return (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) -> {
-            if (suggestion != null && suggestion.securityRelevant()) {
-                delegate.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
-            }
-        };
+        if (confidenceEnabled && minConfidence > 0.0) {
+            final double threshold = minConfidence;
+            final TestMethodSink next = sink;
+            sink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) -> {
+                if (suggestion != null && suggestion.confidence() >= threshold) {
+                    next.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
+                }
+            };
+        }
+        return sink;
     }
 
     /**

@@ -5,9 +5,9 @@ can be layered on top of any mode that produces AI output or a reviewed CSV.
 
 | Mode | AI required | Network | Output formats |
 |---|---|---|---|
-| [Static inventory](static-inventory.md) | No | No | CSV, plain text, SARIF |
-| [API AI enrichment](api-ai.md) | Yes — via API | Yes | CSV, plain text, SARIF |
-| [Manual AI workflow](manual.md) | Yes — via chat | No | CSV, plain text, SARIF |
+| [Static inventory](static-inventory.md) | No | No | CSV, plain text, SARIF, JSON |
+| [API AI enrichment](api-ai.md) | Yes — via API | Yes | CSV, plain text, SARIF, JSON |
+| [Manual AI workflow](manual.md) | Yes — via chat | No | CSV, plain text, SARIF, JSON |
 | [Source write-back (AI)](apply-tags.md) | Combined with above | Depends | — |
 | [Source write-back (CSV)](apply-tags-from-csv.md) | No | No | — |
 
@@ -26,7 +26,7 @@ Choose the mode that fits your infrastructure constraints:
 All modes support a shared configuration file that avoids repeating flags:
 
 ```yaml
-outputMode: csv          # csv | plain | sarif
+outputMode: csv          # csv | plain | sarif | json
 contentHash: false
 ai:
   provider: openrouter

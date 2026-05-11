@@ -15,6 +15,9 @@ reference see [CLI Reference](cli-reference.md).
 # SARIF output
 ./methodatlas -sarif /path/to/project > results.sarif
 
+# JSON array output
+./methodatlas -json /path/to/project
+
 # Scan with metadata header
 ./methodatlas -emit-metadata /path/to/project
 ```
@@ -79,6 +82,12 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 # SARIF with AI enrichment
 ./methodatlas -ai -sarif /path/to/tests > results.sarif
+
+# JSON with AI enrichment and confidence scoring
+./methodatlas -ai -ai-confidence -json /path/to/tests
+
+# JSON with AI enrichment, confidence scoring, and threshold filtering
+./methodatlas -ai -ai-confidence -json -min-confidence 0.7 /path/to/tests
 ```
 
 ## Filtering and hashing
@@ -90,8 +99,16 @@ export ANTHROPIC_API_KEY=sk-ant-...
 # Content hash with SARIF output
 ./methodatlas -content-hash -sarif /path/to/project > results.sarif
 
-# Filter high-confidence findings (requires -ai-confidence)
-# The ai_confidence column position varies with other flags — filter by name:
+# Native confidence threshold — drop methods below 0.7 during the scan
+./methodatlas -ai -ai-confidence -min-confidence 0.7 /path/to/tests
+
+# Same threshold with security-only filter — compact high-confidence audit CSV
+./methodatlas -ai -ai-confidence -security-only -min-confidence 0.7 /path/to/tests > audit.csv
+
+# Same threshold with JSON output
+./methodatlas -ai -ai-confidence -json -min-confidence 0.7 /path/to/tests
+
+# Post-process an existing CSV to filter by confidence (column name is stable across flag combinations)
 ./methodatlas -ai -ai-confidence /path/to/tests > scan.csv
 python3 -c "
 import csv, sys
