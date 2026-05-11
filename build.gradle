@@ -247,32 +247,24 @@ dependencyCheck {
 
 // ---------------------------------------------------------------------------
 // CycloneDX SBOM
-// The SBOM is generated only for the root project (the distribution artifact).
-// CycloneDX 3.x registers its tasks on every subproject in a multi-project
-// build, which conflicts with java-library's configuration consumption order.
-// Disabling the tasks in subprojects avoids that conflict while keeping the
-// root-level SBOM generation intact.
+// Represents the shipped MethodAtlas distribution, not the internal Gradle
+// module layout.
+//
+// The root distribution contains both CLI and GUI runtime material, therefore
+// both runtimeClasspath and guiRuntime are included.
 // ---------------------------------------------------------------------------
-cyclonedxBom {
-    // includeConfigs was removed in 3.x; the task scans runtime configurations automatically.
+tasks.named('cyclonedxDirectBom') {
     schemaVersion = org.cyclonedx.Version.VERSION_15
+
+    includeConfigs = [
+        "runtimeClasspath",
+        "guiRuntime"
+    ]
 }
 
-// Mark CycloneDX-owned configurations as non-consumable so that subprojects
-// which depend on project(':') (e.g. methodatlas-gui) do not resolve them
-// as variants.  Without this, Gradle marks the configuration as "consumed"
-// before the CycloneDX plugin can add artifacts to it, which causes a
-// "Cannot mutate after consumed" error at task-graph construction time.
-configurations.all {
-    if (name.startsWith('cyclonedx')) {
-        canBeConsumed = false
-    }
-}
-
-subprojects {
-    tasks.matching { it.name.startsWith('cyclonedx') }.configureEach {
-        enabled = false
-    }
+// Prevent accidental use of the aggregate multi-project SBOM task.
+tasks.named('cyclonedxBom') {
+    enabled = false
 }
 
 // ---------------------------------------------------------------------------

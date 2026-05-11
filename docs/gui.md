@@ -4,7 +4,7 @@ The `methodatlas-gui` module is a professional Swing desktop application for int
 
 ## Overview
 
-[![MethodAtlas GUI — tag editor panel showing AI-suggested security/crypto chips, green check-marks for already-reviewed methods, and the orange warning triangle for the currently selected method](img/gui-tag-editor.png)](img/gui-tag-editor.png)
+[![MethodAtlas GUI — tag editor panel showing AI-suggested security/crypto chips, green check-marks for already-reviewed methods, and the orange warning triangle for the currently selected method](images/gui-tag-editor.png)](images/gui-tag-editor.png)
 
 The window is divided into three areas:
 

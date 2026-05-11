@@ -43,6 +43,7 @@ def preprocessScript = new File(srcDocsDir, 'mermaid_preprocess.py')
 def latexHeaderFile  = new File(srcDocsDir, 'latex-header.tex')
 def prefaceFile      = new File(srcDocsDir, 'preface.md')
 def backMatterFile   = new File(srcDocsDir, 'back-matter.tex')
+def mkdocsPreprocessScript = new File(srcDocsDir, 'mkdocs_to_pandoc.py')
 
 // ---------------------------------------------------------------------------
 // Output directories
@@ -54,7 +55,61 @@ def imgDir         = new File(buildDocsDir, 'mermaid_imgs')
 def processedDir   = new File(buildDocsDir, 'processed')
 def processedList  = new File(buildDocsDir, 'processed-files.txt')
 def puppeteerCfg   = new File(buildDocsDir, 'puppeteer.json')
+def pandocSourceDir  = new File(buildDocsDir, 'pandoc-source')
+def pandocSourceList = new File(buildDocsDir, 'pandoc-source-files.txt')
+
 def outputPdf      = layout.buildDirectory.file('MethodAtlas.pdf').get().asFile
+
+// ---------------------------------------------------------------------------
+
+tasks.register('preprocessMkdocsForPandoc') {
+    group       = 'documentation'
+    description = 'Convert MkDocs-flavoured Markdown into Pandoc-friendly Markdown.'
+
+    inputs.file mkdocsPreprocessScript
+    inputs.file pubOrderFile
+    inputs.file prefaceFile
+
+    if (pubOrderFile.exists()) {
+        inputs.files(
+            pubOrderFile.readLines()
+                .findAll { !it.startsWith('#') && !it.isBlank() }
+                .collect { rootProject.file(it) }
+        )
+    }
+
+    outputs.dir  pandocSourceDir
+    outputs.file pandocSourceList
+
+    doLast {
+        [buildDocsDir, pandocSourceDir].each { it.mkdirs() }
+
+        def mdFiles = pubOrderFile.readLines()
+            .findAll { !it.startsWith('#') && !it.isBlank() }
+            .collect { rootProject.file(it).absolutePath }
+
+        if (mdFiles.isEmpty()) {
+            throw new GradleException(
+                'docs/publication-order.txt contains no Markdown file entries.')
+        }
+
+        logger.lifecycle(
+            'Converting {} Markdown files from MkDocs syntax to Pandoc syntax...',
+            mdFiles.size() + 1
+        )
+
+        services.get(org.gradle.process.ExecOperations).exec {
+            commandLine([pythonCmd, mkdocsPreprocessScript.absolutePath,
+                         prefaceFile.absolutePath] + mdFiles)
+
+            environment 'OUTPUT_DIR',  pandocSourceDir.absolutePath
+            environment 'LIST_FILE',   pandocSourceList.absolutePath
+            environment 'SOURCE_ROOT', rootProject.projectDir.absolutePath
+
+            workingDir rootProject.projectDir
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Task: preprocessMermaid
@@ -70,18 +125,11 @@ tasks.register('preprocessMermaid') {
     group       = 'documentation'
     description = 'Render Mermaid code blocks to PNG images and emit clean Markdown copies.'
 
+    dependsOn 'preprocessMkdocsForPandoc'
+
     inputs.file preprocessScript
-    inputs.file pubOrderFile
-    inputs.file prefaceFile
-    // Declare each Markdown source file as an input for incremental build.
-    // The guard handles a fresh clone where publication-order.txt may not exist yet.
-    if (pubOrderFile.exists()) {
-        inputs.files(
-            pubOrderFile.readLines()
-                .findAll { !it.startsWith('#') && !it.isBlank() }
-                .collect { rootProject.file(it) }
-        )
-    }
+    inputs.file pandocSourceList
+    inputs.dir  pandocSourceDir
 
     outputs.dir  processedDir
     outputs.file processedList
@@ -89,39 +137,36 @@ tasks.register('preprocessMermaid') {
     doLast {
         [buildDocsDir, imgDir, processedDir].each { it.mkdirs() }
 
-        // Write a puppeteer config appropriate for this OS.
         puppeteerCfg.text = buildPuppeteerConfig(isWindows)
 
-        def mdFiles = pubOrderFile.readLines()
-            .findAll { !it.startsWith('#') && !it.isBlank() }
-            .collect { rootProject.file(it).absolutePath }
+        def mdFiles = pandocSourceList.readLines()
+            .findAll { !it.isBlank() }
 
         if (mdFiles.isEmpty()) {
             throw new GradleException(
-                'docs/publication-order.txt contains no Markdown file entries.')
+                'No Pandoc-staged Markdown files found in build/docs/pandoc-source-files.txt.')
         }
 
-        logger.lifecycle('Preprocessing {} Markdown files for Mermaid rendering...',
-            mdFiles.size() + 1)  // +1 for preface
+        logger.lifecycle(
+            'Preprocessing {} Pandoc-staged Markdown files for Mermaid rendering...',
+            mdFiles.size()
+        )
 
-        def pyCmd = ([pythonCmd, preprocessScript.absolutePath,
-                      prefaceFile.absolutePath] + mdFiles).join(' ')
-        logger.lifecycle('Running: {}', pyCmd)
-        logger.lifecycle('  OUTPUT_DIR={}', processedDir.absolutePath)
-        logger.lifecycle('  IMG_DIR={}',    imgDir.absolutePath)
-        logger.lifecycle('  PUPPETEER_CFG={}', puppeteerCfg.absolutePath)
-        logger.lifecycle('  LIST_FILE={}',  processedList.absolutePath)
-
-        // Project.exec() was removed in Gradle 9; use ExecOperations instead.
         services.get(org.gradle.process.ExecOperations).exec {
-            // Preface is the first file so it appears first in processedList.
-            commandLine([pythonCmd, preprocessScript.absolutePath,
-                         prefaceFile.absolutePath] + mdFiles)
+            commandLine([pythonCmd, preprocessScript.absolutePath] + mdFiles)
+
             environment 'OUTPUT_DIR',    processedDir.absolutePath
             environment 'IMG_DIR',       imgDir.absolutePath
             environment 'PUPPETEER_CFG', puppeteerCfg.absolutePath
             environment 'LIST_FILE',     processedList.absolutePath
-            workingDir rootProject.projectDir
+
+            /*
+             * Important:
+             * Run from pandocSourceDir so mermaid_preprocess.py preserves
+             * relative paths from the staged Pandoc source tree, not from
+             * the repository root.
+             */
+            workingDir pandocSourceDir
         }
     }
 }
@@ -180,19 +225,22 @@ tasks.register('generatePdf') {
                     '-V', 'classoption=openany',
                     '-V', "geometry:a4paper,top=2.5cm,bottom=2.5cm,left=3cm,right=2.5cm",
                     '-V', 'fontsize=11pt',
-                    '-V', 'mainfont=Latin Modern Roman',
-                    '-V', 'sansfont=Latin Modern Sans',
-                    '-V', 'monofont=Latin Modern Mono',
+                    '-V', 'mainfont=Libertinus Serif',
+                    '-V', 'sansfont=Libertinus Sans',
+                    '-V', 'monofont=DejaVu Sans Mono',
                     '-V', 'monofontoptions=Scale=0.85',
                     '-V', 'colorlinks=true',
-                    '--toc', '--toc-depth=3', '--number-sections',
-                    '--syntax-highlighting=tango',
+                    '--toc', '--toc-depth=2', '--number-sections',
+                    '--highlight-style=tango',
                     '--from=markdown+smart',
+                    '--lua-filter', new File(srcDocsDir, 'pandoc_admonitions.lua').absolutePath,
+                    '--lua-filter', new File(srcDocsDir, 'pandoc_table_widths.lua').absolutePath,
                     '-H', latexHeaderFile.absolutePath,
                     '-A', backMatterFile.absolutePath,
                     '--extract-media', new File(buildDocsDir, 'media').absolutePath,
                     '-M', "title=MethodAtlas Documentation",
                     '-M', "date=${new Date().format('yyyy-MM-dd')}",
+                    '--resource-path', rootProject.file('docs/').absolutePath,
                     '-o', outputPdf.absolutePath
                 ]
         logger.lifecycle('Running: {}', pandocArgs.join(' '))
@@ -232,9 +280,9 @@ tasks.register('generatePdf') {
                     // characters (U+2500 range) that Latin Modern Mono lacks; it is
                     // a standard Windows system font and is also available on macOS
                     // and Linux via Microsoft fonts packages.
-                    '-V', 'mainfont=Latin Modern Roman',
-                    '-V', 'sansfont=Latin Modern Sans',
-                    '-V', 'monofont=Consolas',
+                    '-V', 'mainfont=Libertinus Serif',
+                    '-V', 'sansfont=Libertinus Sans',
+                    '-V', 'monofont=DejaVu Sans Mono',
                     '-V', 'monofontoptions=Scale=0.85',
 
                     // ── Colour links ─────────────────────────────────────────
@@ -244,13 +292,13 @@ tasks.register('generatePdf') {
 
                     // ── Table of contents ────────────────────────────────────
                     '--toc',
-                    '--toc-depth=3',
+                    '--toc-depth=2',
                     '--number-sections',
 
                     // ── Syntax highlighting ──────────────────────────────────
                     // fvextra (in latex-header.tex) handles line wrapping;
                     // pandoc's built-in highlighter provides token colouring.
-                    '--syntax-highlighting=tango',
+                    '--highlight-style=tango',
 
                     // ── Input format ─────────────────────────────────────────
                     '--from=markdown+smart',
@@ -258,6 +306,8 @@ tasks.register('generatePdf') {
                     // ── Custom LaTeX preamble ────────────────────────────────
                     // Contains: fvextra line-wrap, section styling, running
                     // headers/footers, custom title page, back-cover definition.
+                    '--lua-filter', new File(srcDocsDir, 'pandoc_admonitions.lua').absolutePath,
+                    '--lua-filter', new File(srcDocsDir, 'pandoc_table_widths.lua').absolutePath,
                     '-H', latexHeaderFile.absolutePath,
 
                     // ── Back matter ──────────────────────────────────────────
@@ -272,6 +322,7 @@ tasks.register('generatePdf') {
                     // ── Document metadata ─────────────────────────────────────
                     '-M', "title=MethodAtlas Documentation",
                     '-M', "date=${new Date().format('yyyy-MM-dd')}",
+                    '--resource-path', rootProject.file('docs/').absolutePath,
                     '-o', outputPdf.absolutePath
                 ]
             )

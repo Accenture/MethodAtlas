@@ -62,7 +62,7 @@ modified or removed.
 
 After the run, a summary line is printed to standard output:
 
-```
+```text
 Apply-tags complete: 12 annotation(s) added to 3 file(s)
 ```
 
@@ -100,7 +100,7 @@ A team has a large legacy test suite with no `@Tag` or `@DisplayName` annotation
 
 Output:
 
-```
+```text
 Apply-tags complete: 23 annotation(s) added to 7 file(s)
 ```
 

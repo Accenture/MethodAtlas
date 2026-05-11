@@ -24,7 +24,7 @@ Note: without AI enrichment, the output contains no `ai_security_relevant`, `ai_
 
 Sample output:
 
-```
+```text
 fqcn,method,loc,tags,display_name
 com.example.AuthServiceTest,loginWithValidCredentials,12,,
 com.example.AuthServiceTest,loginWithExpiredToken,8,security,
@@ -63,7 +63,7 @@ CSV header — useful for archiving results with traceability information:
 ./methodatlas -emit-metadata src/test/java
 ```
 
-```
+```text
 # tool_version: 1.2.0
 # scan_timestamp: 2025-04-09T10:15:30Z
 # taxonomy: built-in/default
@@ -119,7 +119,7 @@ awk -F',' 'NR > 1 && $4 ~ /security/' baseline.csv | wc -l
 
 Sample output from step 1:
 
-```
+```text
 # tool_version: 1.2.0
 # scan_timestamp: 2026-04-29T09:00:00Z
 # taxonomy: built-in/default

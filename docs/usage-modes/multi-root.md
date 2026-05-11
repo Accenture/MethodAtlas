@@ -19,7 +19,7 @@ Two common patterns produce duplicate FQCNs across modules:
 
 Large organisations often adopt a single Java package namespace (e.g. `com.acme`) across all teams. When each team independently names their authentication test class `AuthTest` and places it in `com.acme.auth`, the result is:
 
-```
+```text
 my-monorepo/
   payments-service/
     src/test/java/
@@ -35,7 +35,7 @@ Both files compile correctly because each module's classpath is independent. But
 
 Some Gradle builds extract common test infrastructure into a separate `:test-utils` module that other modules depend on. If the test utility module shares the same base package as the modules that use it, and both are passed to MethodAtlas as scan roots, the same FQCN can appear from multiple paths:
 
-```
+```text
 my-monorepo/
   test-utils/
     src/test/java/
@@ -51,7 +51,7 @@ In both patterns, MethodAtlas cannot distinguish between the two classes without
 
 Consider a project with two modules that each define their own authentication tests:
 
-```
+```text
 my-monorepo/
   module-a/src/test/java/com/acme/auth/AuthTest.java   (12 test methods)
   module-b/src/test/java/com/acme/auth/AuthTest.java   (8 test methods)

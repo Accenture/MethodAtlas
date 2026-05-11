@@ -98,7 +98,6 @@ nav:
     - Compliance & Standards: compliance.md
     - Installation: installation.md
   - User Guide:
-    - Desktop GUI: gui.md
     - Usage Modes:
       - Overview: usage-modes/index.md
       - Static Inventory: usage-modes/static-inventory.md
@@ -121,6 +120,7 @@ nav:
       - Remote Overrides: ai/remote-overrides.md
       - Tag vs AI Drift: ai/drift-detection.md
     - Remediating Findings: concepts/remediation.md
+    - Desktop GUI: gui.md
   - CI/CD Integration:
     - Platform Prerequisites: ci-setup.md
     - GitHub Actions: ci/github-actions.md

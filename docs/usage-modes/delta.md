@@ -39,7 +39,7 @@ ignored when `-diff` is present.
 
 ## Example output
 
-```
+```text
 MethodAtlas delta report
   before: scan-2026-04-10.csv  (scanned: 2026-04-10T09:00:00Z · 45 methods · 5 security-relevant)
   after:  scan-2026-04-24.csv  (scanned: 2026-04-24T14:30:00Z · 47 methods · 7 security-relevant)
@@ -84,7 +84,7 @@ A `~` (modified) line means the method is present in both the before and after s
 
 Reading the example from above:
 
-```
+```text
 ~ com.acme.crypto.AesGcmTest    roundTrip_encryptDecrypt  [source; security: false → true]
 ```
 

@@ -35,6 +35,7 @@ docs/cli-reference.md
 docs/cli-examples.md
 docs/output-formats.md
 docs/discovery-plugins.md
+docs/gui.md
 
 # ── Usage modes ───────────────────────────────────────────────────────────────
 docs/usage-modes/index.md

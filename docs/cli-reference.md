@@ -10,8 +10,8 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 
 ## General options
 
-| Argument | Meaning | Default |
-| --- | --- | --- |
+| Argument | Meaning                               | Default |
+| -------- | ------------------------------------- | --- |
 | `-config <file>` | Load default option values from a YAML configuration file; command-line flags override YAML values | — |
 | `-plain` | Emit plain text instead of CSV | CSV mode |
 | `-sarif` | Emit SARIF 2.1.0 JSON instead of CSV; security-only filtering is applied automatically (see below) | CSV mode |
@@ -37,7 +37,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 ## AI options
 
 | Argument | Meaning | Default |
-| --- | --- | --- |
+| --- | --------- | --- |
 | `-ai` | Enable AI enrichment | Off |
 | `-ai-confidence` | Ask the model to include a confidence score (`0.0–1.0`) per classification | Off |
 | `-min-confidence <threshold>` | Silently drop methods whose `ai_confidence` score is below `threshold` (range `0.0–1.0`); only effective when `-ai-confidence` is also enabled; `0.0` (the default) disables filtering | `0.0` |
@@ -611,7 +611,7 @@ Every SARIF result has two ways of carrying data to the operator:
 By default, MethodAtlas embeds the interaction score and confidence percentage directly in `message.text` so the operator always has the concrete values at hand, regardless of which SARIF viewer they use.
 
 Example message (default, with `-ai-confidence`):
-```
+```text
 AI suggests: @DisplayName("SECURITY: auth - verify token expiry") @Tag("security") @Tag("auth").
 Reason: The test verifies that expired tokens are rejected before access is granted.
 Interaction score: 0.82. Confidence: 91%.
@@ -637,7 +637,7 @@ Both the message and the properties carry the score. On GitHub, the operator rea
 If the SARIF viewer used in your organisation already surfaces the `properties` bag natively, the scores in the message text are redundant. Pass `-sarif-omit-scores` to suppress the inline embedding and keep the message focused on the suggested annotations and reasoning.
 
 Example message with `-sarif-omit-scores`:
-```
+```text
 AI suggests: @DisplayName("SECURITY: auth - verify token expiry") @Tag("security") @Tag("auth").
 Reason: The test verifies that expired tokens are rejected before access is granted.
 ```

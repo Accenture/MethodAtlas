@@ -13,3 +13,22 @@ include 'methodatlas-docs'
 // Build: ./gradlew :methodatlas-gui:build
 // Run:   ./gradlew :methodatlas-gui:run
 include 'methodatlas-gui'
+
+// ---------------------------------------------------------------------------
+// Compatibility rewrite:
+// Treat historical `./gradlew cyclonedxBom` as the MethodAtlas root
+// distribution SBOM task.
+// ---------------------------------------------------------------------------
+def requestedTaskNames = gradle.startParameter.taskNames
+
+def rewrittenTaskNames = requestedTaskNames.collect { taskName ->
+    if (taskName == 'cyclonedxBom' || taskName == ':cyclonedxBom') {
+        return ':cyclonedxDirectBom'
+    }
+    return taskName
+}
+
+if (rewrittenTaskNames != requestedTaskNames) {
+    println "Redirecting cyclonedxBom to :cyclonedxDirectBom for the MethodAtlas unified distribution SBOM."
+    gradle.startParameter.setTaskNames(rewrittenTaskNames)
+}

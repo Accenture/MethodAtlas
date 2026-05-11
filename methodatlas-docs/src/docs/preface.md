@@ -4,7 +4,7 @@ MethodAtlas is an open-source command-line tool that turns a test suite into a s
 
 The tool is deliberately split into two independent phases. The first phase is deterministic: it parses source files using language-specific abstract syntax trees and emits one record per discovered test method. No inference is involved; the structural inventory is exact and reproducible. The second phase is optional: when AI enrichment is enabled, each test class is submitted to a configured language model, which classifies methods against a closed security taxonomy and, optionally, scores the depth of each test's assertions. Because the structural discovery is separate from the semantic classification, teams in air-gapped or policy-restricted environments can use the first phase alone, or supply AI responses through a manual file-based workflow without any direct model API access.
 
-## What this reference covers
+## What this reference covers {.unnumbered .unlisted}
 
 This volume compiles the complete MethodAtlas documentation in reading order. The chapters are grouped as follows.
 
@@ -24,7 +24,7 @@ This volume compiles the complete MethodAtlas documentation in reading order. Th
 
 **Migration and support** (Chapters 46–48) documents breaking changes across major version boundaries, troubleshooting guidance for common failure modes, and the published reports inventory.
 
-## Intended audiences
+## Intended audiences {.unnumbered .unlisted}
 
 This reference is written for four overlapping audiences.
 
@@ -36,7 +36,7 @@ This reference is written for four overlapping audiences.
 
 *Compliance officers and auditors* who need to map tool outputs to specific framework controls will find framework-aligned mapping tables in every chapter of the Compliance section.
 
-## Conventions used in this reference
+## Conventions used in this reference {.unnumbered .unlisted}
 
 Code listings, command-line examples, file paths, and configuration keys are set in `monospace type`. Output produced by MethodAtlas is shown in full, with line wrapping indicated by a small hook symbol (↪) at the right margin.
 

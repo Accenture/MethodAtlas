@@ -76,14 +76,14 @@ None of these tools can tell you that a test asserting `verify(service).process(
 When AI enrichment is enabled, every row in CSV and plain-text output carries the score:
 
 **CSV:**
-```
+```csv
 fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
 com.acme.AuthTest,shouldValidatePassword,8,security,,true,SECURITY: ...,security;auth,Validates...,0.0
 com.acme.AuthTest,shouldInvokeEncoder,5,security,,true,SECURITY: ...,security;auth,Calls encoder.,1.0
 ```
 
 **Plain text:**
-```
+```text
 com.acme.AuthTest, shouldInvokeEncoder, LOC=5, TAGS=security, AI_SECURITY=true, ..., AI_INTERACTION_SCORE=1.0
 ```
 

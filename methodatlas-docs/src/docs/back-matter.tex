@@ -1,64 +1,97 @@
 % =============================================================================
-% MethodAtlas Documentation — Back matter (colophon / back page)
+% MethodAtlas Documentation — Back matter
 % Included via pandoc -A; appended after the last chapter.
 % =============================================================================
 
 \cleardoublepage
 \thispagestyle{empty}
+\nopagecolor
+\color{black}
 
-% ── Colophon ─────────────────────────────────────────────────────────────────
-\vspace*{\fill}
-\begin{center}
-  {\color{MA@navy}\rule{0.5\textwidth}{0.8pt}}\\[1.4em]
-  {\large\bfseries\color{MA@navy} Colophon}\\[1em]
-  {\small
-    This document was typeset with \XeLaTeX\ using the
-    \textit{Latin~Modern~Roman} (serif), \textit{Latin~Modern~Sans} (sans-serif),
-    and \textit{Consolas} (monospace).
-    Diagrams were rendered from Mermaid source by
-    \texttt{@mermaid-js/mermaid-cli}.
-    The build pipeline is defined in the \texttt{methodatlas-docs} Gradle
-    module; the document is assembled with
-    \href{https://pandoc.org}{Pandoc}.\\[1em]
-    Source repository and online edition:\\
-    \url{https://accenture.github.io/MethodAtlas/}
-  }\\[1.4em]
-  {\color{MA@navy}\rule{0.5\textwidth}{0.8pt}}
-\end{center}
+% -----------------------------------------------------------------------------
+% Colophon
+% -----------------------------------------------------------------------------
+
 \vspace*{\fill}
 
-\newpage
+\noindent\footnotesize
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
 
-% ── Back cover ────────────────────────────────────────────────────────────────
+{\color{MA@navy}\rule{0.46\textwidth}{0.8pt}}
+
+{\large\bfseries\color{MA@navy} Colophon}
+
+This PDF book edition was prepared from the MethodAtlas documentation source
+using the controlled documentation build pipeline in the
+\texttt{methodatlas-docs} Gradle module.
+
+The document was assembled with Pandoc and typeset with \XeLaTeX.
+Diagrams were generated from Mermaid source using
+\texttt{@mermaid-js/mermaid-cli}. Generated diagrams, transformed Markdown,
+and intermediate \LaTeX{} output are build artefacts derived from versioned
+documentation sources.
+
+\begin{tabularx}{\textwidth}{@{}p{0.26\textwidth}X@{}}
+  \textbf{Document form} & Generated PDF book edition \\
+  \textbf{Edition} & \MethodAtlasEdition \\
+  \textbf{Build date} & \MethodAtlasBuildDate \\
+  \textbf{Source revision} & \texttt{\MethodAtlasGitCommit} \\
+  \textbf{Build identifier} & \texttt{\MethodAtlasBuildId} \\
+  \textbf{Online documentation} & \url{https://accenture.github.io/MethodAtlas/} \\
+\end{tabularx}
+
+{\color{MA@navy}\rule{0.46\textwidth}{0.8pt}}
+
+\vspace*{\fill}
+\clearpage
+
+% -----------------------------------------------------------------------------
+% Back cover
+% -----------------------------------------------------------------------------
+
 \thispagestyle{empty}
 \pagecolor{MA@navy}
 \color{white}
-\vspace*{3cm}
+
+\vspace*{2.7cm}
+
 \begin{center}
-  {\fontsize{38}{46}\selectfont\bfseries
-    Method\textcolor{MA@teal}{Atlas}}\\[0.5em]
-  {\large\itshape Security Test Intelligence Platform}\\[3em]
-  {\color{MA@teal}\rule{0.4\textwidth}{0.8pt}}\\[2em]
-  \parbox{0.72\textwidth}{\small\centering
-    MethodAtlas scans Java, C\#, and TypeScript test suites for test methods,
-    enriches the inventory with AI-assisted security classification, and emits
-    structured output in CSV, SARIF\,2.1.0, or GitHub\,Actions annotation
-    format.  It is designed for teams that must demonstrate security test
-    coverage to auditors, regulators, or security review boards.
-  }\\[3em]
-  {\footnotesize
-    \begin{tabular}{ll}
-      \textbf{Licence}    & Apache License, Version 2.0 \\[0.3em]
-      \textbf{Copyright}  & \textcopyright~Egothor\,/\,Accenture \\[0.3em]
-      \textbf{Frameworks} & OWASP SAMM \textbullet\ NIST SSDF \textbullet\
-                            ISO\,27001 \textbullet\ DORA \textbullet\
-                            PCI\,DSS \textbullet\ SOC\,2 \\[0.3em]
-      \textbf{ISBN}       & (not yet assigned) \\
-    \end{tabular}
-  }
+  {\MethodAtlasWordmarkDark{40}{48}}\\[0.65em]
+
+  {\large\itshape \MethodAtlasTagline}\\[2.8em]
+
+  {\color{MA@teal}\rule{0.42\textwidth}{0.9pt}}\\[2.0em]
+
+  \parbox{0.73\textwidth}{\small\centering
+    MethodAtlas turns software test suites into structured security evidence.
+    It discovers test methods across Java, C\#, and TypeScript/JavaScript
+    codebases, enriches the resulting inventory with AI-assisted security
+    classification where configured, and produces outputs suitable for
+    developer workflows, security review, CI/CD quality gates, and
+    compliance-oriented reporting.
+  }\\[1.7em]
+
+  \parbox{0.73\textwidth}{\small\centering
+    This handbook explains scanner operation, configuration, output formats,
+    AI-enrichment workflows, pipeline integration, and evidence-oriented use in
+    regulated software-delivery environments.
+  }\\[2.0em]
+
+  \parbox{0.68\textwidth}{\footnotesize\centering
+    For developers, security engineers, DevSecOps teams, CI/CD integrators,
+    compliance stakeholders, and technical reviewers.
+  }\\[2.1em]
+
+  {\small\bfseries \MethodAtlasAuthor}
 \end{center}
+
 \vfill
+
 \begin{center}
-  {\small\url{https://accenture.github.io/MethodAtlas/}}
+  {\small\url{https://accenture.github.io/MethodAtlas/}}\\[0.85em]
+  {\footnotesize \MethodAtlasPublisher}\\[0.45em]
+  {\footnotesize ISBN:\enspace \MethodAtlasISBN}
 \end{center}
-\vspace{1.5cm}
+
+\vspace{1.35cm}
