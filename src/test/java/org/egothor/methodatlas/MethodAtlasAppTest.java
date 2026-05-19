@@ -61,7 +61,7 @@ public class MethodAtlasAppTest {
         String output = runAppCapturingStdout(new String[] { tempDir.toString() });
 
         List<String> lines = nonEmptyLines(output);
-        assertEquals(18, lines.size(), "Expected header + 17 records");
+        assertEquals(20, lines.size(), "Expected header + 19 records");
 
         assertEquals("fqcn,method,loc,tags,display_name", lines.get(0));
 
@@ -86,7 +86,7 @@ public class MethodAtlasAppTest {
         String output = runAppCapturingStdout(new String[] { "-plain", tempDir.toString() });
 
         List<String> lines = nonEmptyLines(output);
-        assertEquals(17, lines.size(), "Expected 17 method lines");
+        assertEquals(19, lines.size(), "Expected 19 method lines");
 
         Map<String, PlainRow> rows = new HashMap<>();
         for (String line : lines) {

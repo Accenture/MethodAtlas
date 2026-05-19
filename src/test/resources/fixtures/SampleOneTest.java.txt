@@ -28,4 +28,12 @@ public class SampleOneTest {
     @Tags({ @Tag("nested1"), @Tag("nested2") })
     void gamma() {
     }
+
+    @Test
+    void delta() {
+    }
+
+    @Test
+    void epsilon() {
+    }
 }

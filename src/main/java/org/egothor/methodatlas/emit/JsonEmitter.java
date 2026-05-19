@@ -121,48 +121,51 @@ public final class JsonEmitter implements TestMethodSink {
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourceRoot) {
-        MethodRecord rec = new MethodRecord();
-        rec.fqcn = fqcn;
-        rec.method = method;
-        rec.loc = loc;
-        rec.tags = tags == null ? List.of() : List.copyOf(tags);
-        rec.displayName = displayName != null ? displayName : "";
 
-        if (emitSourceRoot) {
-            rec.sourceRoot = sourceRoot;
-        }
+        String resolvedSourceRoot = emitSourceRoot ? sourceRoot : null;
+        String resolvedContentHash = contentHashEnabled ? contentHash : null;
 
-        if (contentHashEnabled) {
-            rec.contentHash = contentHash;
-        }
+        Boolean aiSecurityRelevant = null;
+        String aiDisplayName = null;
+        List<String> aiTags = null;
+        String aiReason = null;
+        Double aiInteractionScore = null;
+        Double aiConfidence = null;
+        String tagAiDrift = null;
 
-        if (aiEnabled && suggestion != null) {
-            rec.aiSecurityRelevant = suggestion.securityRelevant();
-            rec.aiDisplayName = suggestion.displayName();
-            rec.aiTags = suggestion.tags() != null ? List.copyOf(suggestion.tags()) : List.of();
-            rec.aiReason = suggestion.reason();
-            rec.aiInteractionScore = suggestion.interactionScore();
-            if (confidenceEnabled) {
-                rec.aiConfidence = suggestion.confidence();
-            }
-            if (driftDetect) {
-                rec.tagAiDrift = TagAiDrift.compute(tags != null ? tags : List.of(), suggestion).toValue();
-            }
-        } else if (aiEnabled) {
-            rec.aiSecurityRelevant = null;
-            rec.aiDisplayName = null;
-            rec.aiTags = List.of();
-            rec.aiReason = null;
-            rec.aiInteractionScore = null;
-            if (confidenceEnabled) {
-                rec.aiConfidence = null;
-            }
-            if (driftDetect) {
-                rec.tagAiDrift = null;
+        if (aiEnabled) {
+            if (suggestion != null) {
+                aiSecurityRelevant = suggestion.securityRelevant();
+                aiDisplayName = suggestion.displayName();
+                aiTags = suggestion.tags() != null ? List.copyOf(suggestion.tags()) : List.of();
+                aiReason = suggestion.reason();
+                aiInteractionScore = suggestion.interactionScore();
+                if (confidenceEnabled) {
+                    aiConfidence = suggestion.confidence();
+                }
+                if (driftDetect) {
+                    tagAiDrift = TagAiDrift.compute(tags != null ? tags : List.of(), suggestion).toValue();
+                }
+            } else {
+                aiTags = List.of();
             }
         }
 
-        records.add(rec);
+        records.add(new MethodRecord(
+                fqcn,
+                method,
+                loc,
+                tags == null ? List.of() : List.copyOf(tags),
+                displayName != null ? displayName : "",
+                resolvedSourceRoot,
+                resolvedContentHash,
+                aiSecurityRelevant,
+                aiDisplayName,
+                aiTags,
+                aiReason,
+                aiInteractionScore,
+                aiConfidence,
+                tagAiDrift));
     }
 
     /**
@@ -187,52 +190,25 @@ public final class JsonEmitter implements TestMethodSink {
     // -------------------------------------------------------------------------
 
     /**
-     * Internal mutable value object that accumulates all fields for one
-     * test method before serialization.
+     * Immutable value object representing one serialized test method.
+     * Fields annotated with {@link JsonInclude}{@code (NON_NULL)} are omitted
+     * from the JSON output when their value is {@code null}.
      */
     @JsonInclude(Include.NON_NULL)
-    /* default */ static final class MethodRecord {
-
-        @JsonProperty("fqcn")
-        /* default */ String fqcn;
-
-        @JsonProperty("method")
-        /* default */ String method;
-
-        @JsonProperty("loc")
-        /* default */ int loc;
-
-        @JsonProperty("tags")
-        /* default */ List<String> tags;
-
-        @JsonProperty("display_name")
-        /* default */ String displayName;
-
-        @JsonProperty("source_root")
-        /* default */ String sourceRoot;
-
-        @JsonProperty("content_hash")
-        /* default */ String contentHash;
-
-        @JsonProperty("ai_security_relevant")
-        /* default */ Boolean aiSecurityRelevant;
-
-        @JsonProperty("ai_display_name")
-        /* default */ String aiDisplayName;
-
-        @JsonProperty("ai_tags")
-        /* default */ List<String> aiTags;
-
-        @JsonProperty("ai_reason")
-        /* default */ String aiReason;
-
-        @JsonProperty("ai_interaction_score")
-        /* default */ Double aiInteractionScore;
-
-        @JsonProperty("ai_confidence")
-        /* default */ Double aiConfidence;
-
-        @JsonProperty("tag_ai_drift")
-        /* default */ String tagAiDrift;
+    private record MethodRecord(
+            @JsonProperty("fqcn") String fqcn,
+            @JsonProperty("method") String method,
+            @JsonProperty("loc") int loc,
+            @JsonProperty("tags") List<String> tags,
+            @JsonProperty("display_name") String displayName,
+            @JsonProperty("source_root") String sourceRoot,
+            @JsonProperty("content_hash") String contentHash,
+            @JsonProperty("ai_security_relevant") Boolean aiSecurityRelevant,
+            @JsonProperty("ai_display_name") String aiDisplayName,
+            @JsonProperty("ai_tags") List<String> aiTags,
+            @JsonProperty("ai_reason") String aiReason,
+            @JsonProperty("ai_interaction_score") Double aiInteractionScore,
+            @JsonProperty("ai_confidence") Double aiConfidence,
+            @JsonProperty("tag_ai_drift") String tagAiDrift) {
     }
 }

@@ -56,7 +56,7 @@ class MethodAtlasAppAiTest {
             String output = runAppCapturingStdout(new String[] { "-ai", tempDir.toString() });
             List<String> lines = nonEmptyLines(output);
 
-            assertEquals(18, lines.size(), "Expected header + 17 method rows across 5 fixtures");
+            assertEquals(20, lines.size(), "Expected header + 19 method rows across 5 fixtures");
             assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score", lines.get(0));
 
             Map<String, List<String>> rows = parseCsvAiRows(lines);
@@ -116,7 +116,7 @@ class MethodAtlasAppAiTest {
             String output = runAppCapturingStdout(new String[] { "-plain", "-ai", tempDir.toString() });
             List<String> lines = nonEmptyLines(output);
 
-            assertEquals(17, lines.size(), "Expected one plain output line per discovered test method");
+            assertEquals(19, lines.size(), "Expected one plain output line per discovered test method");
 
             String failedClassLine = findLineContaining(lines,
                     "com.acme.security.AccessControlServiceTest, shouldRejectUnauthenticatedRequest,");
