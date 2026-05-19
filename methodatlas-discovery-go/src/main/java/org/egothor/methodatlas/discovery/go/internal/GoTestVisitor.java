@@ -28,6 +28,8 @@ import org.egothor.methodatlas.discovery.go.parser.GoTestParser;
  */
 public final class GoTestVisitor extends GoTestBaseVisitor<Void> {
 
+    private static final int TEST_PREFIX_LENGTH = "Test".length();
+
     private String packageName = "unknown";
     private final List<MethodInfo> discoveredMethods = new ArrayList<>();
 
@@ -98,10 +100,10 @@ public final class GoTestVisitor extends GoTestBaseVisitor<Void> {
         if (!name.startsWith("Test")) {
             return false;
         }
-        if (name.length() == 4) {
+        if (name.length() == TEST_PREFIX_LENGTH) {
             return true; // bare "Test" is valid per go test spec
         }
-        char next = name.charAt(4);
+        char next = name.charAt(TEST_PREFIX_LENGTH);
         return Character.isUpperCase(next) || next == '_';
     }
 

@@ -47,6 +47,7 @@ The following are in scope:
 
 - All Java source code in this repository (core engine, discovery plugins, GUI)
 - The TypeScript scanner bundle embedded in `methodatlas-discovery-typescript`
+- The Python scanner script embedded in `methodatlas-discovery-python`
 - Build-time and runtime dependencies that we can influence (upgrade or patch)
 - The generated SARIF and YAML outputs (injection, information disclosure)
 
@@ -60,6 +61,31 @@ The following are **out of scope**:
 
 We will acknowledge researchers who report valid vulnerabilities in the release
 notes and security advisory, unless you request anonymity.
+
+## Scanner script integrity
+
+MethodAtlas embeds two helper scripts inside its JARs that are executed as
+external subprocesses during a scan:
+
+| Script | JAR | Manifest attribute |
+|--------|-----|--------------------|
+| `ts-scanner.bundle.js` | `methodatlas-discovery-typescript` | `TS-Scanner-Bundle-SHA256` |
+| `py-scanner.py` | `methodatlas-discovery-python` | `Py-Scanner-SHA256` |
+
+At startup each plugin reads the script from the JAR classpath, computes its
+SHA-256, and compares it against the value recorded in `MANIFEST.MF` at build
+time.  A mismatch causes the plugin to abort before executing the script.
+
+This check protects **result authenticity**: a tampered script could
+selectively suppress or fabricate discovered test methods, producing a
+falsified audit report.  By refusing to run a script whose hash does not
+match the build-time value, MethodAtlas ensures that the discovery output
+reflects the unmodified, peer-reviewed scanner logic.
+
+Security reports targeting this integrity chain — for example, a
+vulnerability that allows the manifest hash to be forged, or that allows the
+script bytes to be substituted without updating the manifest — are treated as
+**critical** regardless of CVSS score.
 
 ## Regulatory context
 

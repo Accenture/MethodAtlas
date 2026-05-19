@@ -399,10 +399,13 @@ Go has no annotation-based tag system.  The `tags` field is always empty.
 ### Parser technology
 
 MethodAtlas embeds a Python script (`py-scanner.py`) inside the JAR as a
-classpath resource.  At startup the script is extracted to a temporary file.
-A pool of long-lived Python worker processes runs the script; each worker
-receives JSON-line requests (`{ requestId, filePath }`) and returns JSON-line
-responses with discovered method descriptors.
+classpath resource.  At startup the JAR manifest entry `Py-Scanner-SHA256`
+is compared against a freshly computed SHA-256 of the embedded file; a
+mismatch aborts startup to detect JAR corruption or tampering.  The verified
+script is then extracted to a temporary file.  A pool of long-lived Python
+worker processes runs the script; each worker receives JSON-line requests
+(`{ requestId, filePath }`) and returns JSON-line responses with discovered
+method descriptors.
 
 The script calls `ast.parse()` on each file.  Because the `ast` module is part
 of Python's standard library and uses the same parser as the CPython interpreter,
@@ -459,6 +462,7 @@ is still scanned (prefix rule), but a file named `auth_test.py` is **not**
 - `python3` or `python` must be on the `PATH` and report version ≥ 3.8.
 - Files must be valid UTF-8 Python source.
 - Files must be syntactically valid Python (verified by `ast.parse()`).
+- The JAR must not be modified after build (script SHA-256 verification).
 
 ### FQCN computation
 

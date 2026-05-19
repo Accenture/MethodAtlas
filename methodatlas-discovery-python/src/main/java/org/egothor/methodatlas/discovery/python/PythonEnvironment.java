@@ -170,10 +170,17 @@ final class PythonEnvironment {
         }
         // Strip optional "Python " prefix
         String stripped = version.startsWith("Python ") ? version.substring(7) : version;
-        String[] parts = stripped.split("\\.");
         try {
-            int major = parts.length > 0 ? Integer.parseInt(parts[0].trim()) : 0;
-            int minor = parts.length > 1 ? Integer.parseInt(parts[1].trim()) : 0;
+            int firstDot = stripped.indexOf('.');
+            if (firstDot < 0) {
+                return new int[] { Integer.parseInt(stripped.trim()), 0 };
+            }
+            int major = Integer.parseInt(stripped.substring(0, firstDot).trim());
+            int secondDot = stripped.indexOf('.', firstDot + 1);
+            String minorStr = secondDot < 0
+                    ? stripped.substring(firstDot + 1)
+                    : stripped.substring(firstDot + 1, secondDot);
+            int minor = Integer.parseInt(minorStr.trim());
             return new int[] { major, minor };
         } catch (NumberFormatException e) {
             return new int[] { 0, 0 };
