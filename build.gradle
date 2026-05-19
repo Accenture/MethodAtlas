@@ -270,25 +270,41 @@ tasks.named('cyclonedxBom') {
 // ---------------------------------------------------------------------------
 // CycloneDX + Eclipse Buildship compatibility
 //
-// The CycloneDX plugin (3.x) eagerly creates a consumable 'cyclonedxDirectBom'
-// outgoing-variant configuration in every subproject as part of its aggregate
-// SBOM mechanism.  Eclipse Buildship's Gradle tooling-API model builder
-// performs variant selection on all 'canBeConsumed = true' configurations of
-// every subproject during project-model import.  This marks those
-// configurations as "consumed" before the CycloneDX plugin's lazy task
-// creation fires to add output artifacts.  Gradle 9 then rejects the mutation
-// with "Cannot mutate the artifacts of configuration after the configuration
-// was consumed as a variant."
+// The CycloneDX plugin (3.x) eagerly applies itself to every subproject,
+// registering a lazy 'cyclonedxDirectBom' task and a consumable
+// 'cyclonedxDirectBom' outgoing-variant configuration in each one.
 //
-// Marking the configuration as non-consumable in subprojects prevents the
-// tooling-API variant resolver from observing it.  The aggregate cyclonedxBom
-// task (already disabled) is the only consumer of these configurations, so
-// disabling consumption has no effect on any executed task.
+// Eclipse Buildship's Tooling-API model builder iterates ALL configurations
+// of every subproject (to populate the Gradle project model), regardless of
+// the canBeConsumed flag.  In Gradle 9 this iteration counts as "observing"
+// a configuration as a variant, after which no further mutation is permitted.
+// Buildship then forces all lazy tasks to be realized (to populate the task
+// list in the IDE).  When the CycloneDX task is realized, its configure
+// action tries to register its output as an artifact of the configuration.
+// Gradle 9 rejects this with "Cannot mutate the artifacts of configuration
+// after the configuration was consumed as a variant."
+//
+// Fix (two steps, both applied in projectsEvaluated):
+//   1. Force-realize the per-subproject cyclonedxDirectBom task via
+//      tasks.findByName() so the artifact is registered NOW, before Buildship
+//      observes the configuration.  findByName() is an eager lookup that
+//      realizes lazy tasks; the configure action runs immediately and
+//      completes without error because the configuration has not been
+//      observed yet.
+//   2. Mark the configuration canBeConsumed = false so Buildship does not
+//      include the per-subproject SBOM artifact in the IDE classpath.
+//
+// gradle.projectsEvaluated is used rather than subprojects { afterEvaluate }
+// because the CycloneDX plugin registers its own afterEvaluate on each
+// subproject that resets canBeConsumed = true; projectsEvaluated fires after
+// every project's afterEvaluate callbacks, so both mutations here are final.
 // ---------------------------------------------------------------------------
-subprojects {
-    plugins.withId('org.cyclonedx.bom') {
-        configurations.named('cyclonedxDirectBom').configure {
-            canBeConsumed = false
+gradle.projectsEvaluated {
+    subprojects.each { sub ->
+        def config = sub.configurations.findByName('cyclonedxDirectBom')
+        if (config != null) {
+            sub.tasks.findByName('cyclonedxDirectBom')  // pre-realize: registers artifact before Buildship observes config
+            config.canBeConsumed = false
         }
     }
 }
