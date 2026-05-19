@@ -243,7 +243,7 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
      * @param root scan root directory
      * @return dot-separated FQCN string; never {@code null} or empty
      */
-    static String buildFqcn(Path file, Path root) {
+    /* default */ static String buildFqcn(Path file, Path root) {
         Path parent = file.getParent();
         if (parent == null || parent.equals(root)) {
             return stemOf(file.getFileName().toString());
@@ -275,7 +275,7 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
      * @param root scan root directory
      * @return dot-separated stem string; never {@code null} or empty
      */
-    static String buildFileStem(Path file, Path root) {
+    /* default */ static String buildFileStem(Path file, Path root) {
         Path rel = root.relativize(file);
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < rel.getNameCount(); i++) {
@@ -300,7 +300,7 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
      * @param filename filename (not a full path) to strip
      * @return filename without the matching suffix
      */
-    static String stemOf(String filename) {
+    /* default */ static String stemOf(String filename) {
         if (filename.endsWith(".Tests.ps1")) {
             return filename.substring(0, filename.length() - ".Tests.ps1".length());
         }

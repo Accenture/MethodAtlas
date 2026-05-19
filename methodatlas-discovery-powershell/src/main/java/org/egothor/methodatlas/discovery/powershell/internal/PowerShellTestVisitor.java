@@ -28,11 +28,13 @@ import org.egothor.methodatlas.discovery.powershell.parser.PowerShellTestParser;
  */
 public final class PowerShellTestVisitor extends PowerShellTestBaseVisitor<Void> {
 
+    private static final int MIN_QUOTED_LENGTH = 2;
+
     private final List<CommandInfo> discoveredCommands = new ArrayList<>();
 
     /**
      * Visits an {@code It} block, extracts the test name and any tags, and
-     * records the result.  Recursion via {@link #visitChildren(org.antlr.v4.runtime.tree.ParseTree)}
+     * records the result.  Recursion via {@link #visitChildren(org.antlr.v4.runtime.tree.RuleNode)}
      * ensures that nested {@code It} blocks (rare in practice) are also captured.
      *
      * @param ctx parse-tree context for the {@code It} block
@@ -77,7 +79,7 @@ public final class PowerShellTestVisitor extends PowerShellTestBaseVisitor<Void>
             return "";
         }
         String raw = ctx.getText();
-        if (raw.length() < 2) {
+        if (raw.length() < MIN_QUOTED_LENGTH) {
             return raw;
         }
         if (raw.startsWith("\"") && raw.endsWith("\"")) {
