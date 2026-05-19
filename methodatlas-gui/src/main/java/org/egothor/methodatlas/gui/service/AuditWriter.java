@@ -149,7 +149,7 @@ public final class AuditWriter {
         return existing;
     }
 
-    @SuppressWarnings({"unchecked", "PMD.NPathComplexity", "PMD.AvoidInstantiatingObjectsInLoops"})
+    @SuppressWarnings({"PMD.NPathComplexity", "PMD.AvoidInstantiatingObjectsInLoops"})
     private static void updateOverrideYaml(Path dir, List<SavedEntry> entries,
             String operatorName, LocalDateTime timestamp) throws IOException {
         Path yamlFile = dir.resolve("overrides.yaml");
