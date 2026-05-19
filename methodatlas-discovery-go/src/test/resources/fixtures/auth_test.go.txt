@@ -1,0 +1,44 @@
+package auth
+
+import (
+	"errors"
+	"testing"
+)
+
+func TestLoginValid(t *testing.T) {
+	user := "alice"
+	pass := "secret123"
+	err := Login(user, pass)
+	if err != nil {
+		t.Fatalf("expected successful login, got: %v", err)
+	}
+}
+
+func TestLoginInvalidPassword(t *testing.T) {
+	user := "alice"
+	pass := "wrongpass"
+	err := Login(user, pass)
+	if err == nil {
+		t.Fatal("expected error for invalid password, got nil")
+	}
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("expected ErrInvalidCredentials, got: %v", err)
+	}
+}
+
+func TestLoginEmptyUsername(t *testing.T) {
+	pass := "secret123"
+	err := Login("", pass)
+	if err == nil {
+		t.Fatal("expected error for empty username, got nil")
+	}
+	if !errors.Is(err, ErrEmptyUsername) {
+		t.Errorf("expected ErrEmptyUsername, got: %v", err)
+	}
+}
+
+func BenchmarkLogin(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Login("alice", "secret123")
+	}
+}

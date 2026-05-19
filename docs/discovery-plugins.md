@@ -50,8 +50,9 @@ language projects.
 | `dotnet:BadNaming.cs` | `dotnet` plugin only |
 
 Built-in plugin IDs: **`java`** (`methodatlas-discovery-jvm`), **`dotnet`**
-(`methodatlas-discovery-dotnet`), and **`typescript`**
-(`methodatlas-discovery-typescript`). Third-party plugins declare their own ID
+(`methodatlas-discovery-dotnet`), **`typescript`**
+(`methodatlas-discovery-typescript`), and **`go`**
+(`methodatlas-discovery-go`). Third-party plugins declare their own ID
 via `TestDiscovery.pluginId()`.
 
 If no matching suffix reaches a plugin (e.g. all entries are targeted at other
@@ -307,6 +308,60 @@ emitted. This prevents runaway restart loops from consuming system resources.
 | `typescript.maxConsecutiveRestarts` | `int` | `5` | Circuit-breaker restart limit. |
 | `typescript.restartWindowSec` | `int` | `60` | Circuit-breaker sliding window width. |
 
+## Go
+
+**Plugin class:** `org.egothor.methodatlas.discovery.go.GoTestDiscovery`
+**Module:** `methodatlas-discovery-go`
+
+Go test functions are discovered by matching their signature against the
+standard `go test` convention.
+
+### Test function detection
+
+A function is treated as a test if its declaration matches:
+
+```go
+func TestXxx(t *testing.T)
+```
+
+where `Xxx` starts with an upper-case letter or underscore. Benchmark functions
+(`BenchmarkXxx`), example functions (`ExampleXxx`), and fuzz targets
+(`FuzzXxx`) are intentionally excluded and will not appear in the output.
+
+### Default file suffix
+
+`_test.go` (configurable via `-file-suffix go:_test.go`).
+
+### Tags and display names
+
+Go has no annotation-based tag or display-name system. The `tags` column is
+always empty and `display_name` is always blank. The `testMarkers` field has
+no effect on this plugin and should be left empty.
+
+### Configuration example
+
+=== "CLI"
+
+    ```bash
+    # Default — auto-detects _test.go files
+    ./methodatlas src/
+
+    # Explicit suffix targeting (useful in mixed-language monorepos)
+    ./methodatlas -file-suffix go:_test.go src/
+    ```
+
+=== "YAML"
+
+    ```yaml
+    fileSuffixes:
+      - go:_test.go
+    ```
+
+### The `properties` map (Go)
+
+The Go plugin does not use the `properties` map. Any keys present are silently
+ignored.
+
 ## Quick reference
 
 | Language / framework | `fileSuffixes` | `testMarkers` | `properties` |
@@ -321,6 +376,7 @@ emitted. This prevents runaway restart loops from consuming system resources.
 | TypeScript — Vitest | `typescript:.test.ts`, `typescript:.spec.ts` | *(leave empty)* | `functionNames=test`, `functionNames=it` |
 | TypeScript — Mocha | `typescript:.test.ts`, `typescript:.spec.ts` | *(leave empty)* | `functionNames=it` |
 | JavaScript — Jest | `typescript:.test.js`, `typescript:.spec.js` | *(leave empty)* | `functionNames=test`, `functionNames=it` |
+| Go — testing package | `go:_test.go` | *(not applicable)* | — |
 
 ## See also
 

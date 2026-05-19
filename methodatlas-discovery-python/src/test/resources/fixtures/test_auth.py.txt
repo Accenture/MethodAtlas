@@ -1,0 +1,30 @@
+import pytest
+
+
+class TestAuthService:
+
+    @pytest.mark.security
+    def test_login_with_valid_credentials(self):
+        result = auth_service.login("user", "correct")
+        assert result.success is True
+
+    @pytest.mark.security
+    @pytest.mark.slow
+    def test_login_with_invalid_password(self):
+        with pytest.raises(AuthError):
+            auth_service.login("user", "wrong-password")
+
+    def test_logout_clears_session(self):
+        auth_service.login("user", "correct")
+        auth_service.logout("user")
+        assert not auth_service.is_logged_in("user")
+
+
+def test_rate_limiting_blocks_brute_force():
+    for _ in range(10):
+        auth_service.login("user", "wrong")
+
+
+def helper_create_user(username):
+    """Not a test — must not be reported."""
+    return {"username": username}

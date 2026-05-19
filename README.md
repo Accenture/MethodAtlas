@@ -141,8 +141,11 @@ on Linux and macOS.
 | Java | `methodatlas-discovery-jvm` | JUnit 5, JUnit 4, TestNG (auto-detected from imports) | `@Tag("value")` | `@DisplayName("text")` | — |
 | C# (.NET) | `methodatlas-discovery-dotnet` | xUnit, NUnit, MSTest (auto-detected from `using` directives) | `[Category]` / `[Trait]` / `[TestCategory]` | xUnit `DisplayName=` only | — |
 | TypeScript / JavaScript | `methodatlas-discovery-typescript` | Jest, Vitest, Mocha (identified by function call names) | — | — | Node.js 18+ on PATH |
+| Go | `methodatlas-discovery-go` | Go testing package (`func Test…(t *testing.T)`) | — | — | — |
+| Python | `methodatlas-discovery-python` | pytest (`test_*` functions / `Test*` classes) | — | — | — |
+| PowerShell | `methodatlas-discovery-powershell` | Pester (`It "..."` blocks in `*.Tests.ps1`) | `-Tag "value"` on `It` line | — | — |
 
-All three plugins ship with the default distribution. The TypeScript plugin
+All six plugins ship with the default distribution. The TypeScript plugin
 disables itself gracefully when Node.js is not on the PATH. Additional languages
 can be added by implementing `TestDiscovery` (in `methodatlas-api`), declaring a
 unique `pluginId()`, and dropping the JAR on the classpath — no changes to the

@@ -1,0 +1,10 @@
+class TestSecurityHeaders:
+
+    @pytest.mark.security
+    def test_csp_header_present(self):
+        response = client.get("/")
+        assert "Content-Security-Policy" in response.headers
+
+    def test_hsts_header_present(self):
+        response = client.get("/")
+        assert "Strict-Transport-Security" in response.headers

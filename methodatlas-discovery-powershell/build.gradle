@@ -1,0 +1,68 @@
+plugins {
+    id 'java-library'
+    id 'com.github.spotbugs' version '6.4.8'
+    id 'net.ltgt.errorprone' version '4.1.0'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api    project(':methodatlas-api')
+
+    testImplementation(platform("org.junit:junit-bom:5.14.2"))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    errorprone 'com.google.errorprone:error_prone_core:2.36.0'
+}
+
+tasks.named('compileJava') {
+    options.errorprone.enabled = true
+}
+tasks.named('compileTestJava') {
+    options.errorprone.enabled = false
+    options.release = JavaVersion.current().majorVersion.toInteger()
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+// ---------------------------------------------------------------------------
+// Javadoc
+// ---------------------------------------------------------------------------
+javadoc {
+    failOnError = true
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    options.addBooleanOption('html5', true)
+    options.tags('apiNote:a:API Note:')
+    options.tags('implSpec:a:Implementation Requirements:')
+    options.tags('implNote:a:Implementation Note:')
+    options.tags('param')
+    options.tags('return')
+    options.tags('throws')
+    options.tags('since')
+    options.tags('version')
+    options.tags('see')
+}
+
+// Publish Javadoc as part of the standard build so plugin documentation is
+// generated and archived alongside the plugin JAR.
+build.dependsOn javadoc
+
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': 'MethodAtlas PowerShell Test Discovery',
+            'Implementation-Version': "${rootProject.version}"
+        )
+    }
+}

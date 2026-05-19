@@ -1,0 +1,23 @@
+Describe "Authentication Module" -Tag "security", "authentication" {
+
+    Context "Login Behavior" {
+
+        It "accepts valid credentials" {
+            $result = Invoke-Login -Username "admin" -Password "correct-password"
+            $result.Success | Should -BeTrue
+        }
+
+        It "rejects invalid password" -Tag "negative" {
+            { Invoke-Login -Username "admin" -Password "wrong" } | Should -Throw
+        }
+
+        It "rejects empty username" -Tag "negative", "boundary" {
+            { Invoke-Login -Username "" -Password "any" } | Should -Throw
+        }
+    }
+
+    It "creates audit log entry on login" {
+        Invoke-Login -Username "admin" -Password "correct-password"
+        Get-AuditLog | Should -Contain "admin logged in"
+    }
+}
