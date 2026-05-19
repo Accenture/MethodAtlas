@@ -120,7 +120,7 @@ public final class PythonTestDiscovery implements TestDiscovery {
     private final ReentrantLock poolInitLock = new ReentrantLock();
     private PythonEnvironment pythonEnv;
     private PythonWorkerPool workerPool;
-    private volatile boolean errors;
+    private final AtomicBoolean errors = new AtomicBoolean();
 
     /**
      * No-arg constructor required by {@link java.util.ServiceLoader}.
@@ -225,7 +225,7 @@ public final class PythonTestDiscovery implements TestDiscovery {
                         "Python 3.8+ is unavailable — {0} Python test file(s) under {1} will not be scanned.",
                         new Object[] { files.size(), root });
             }
-            errors = true;
+            errors.set(true);
             return Stream.empty();
         }
 
@@ -239,7 +239,7 @@ public final class PythonTestDiscovery implements TestDiscovery {
     /** {@inheritDoc} */
     @Override
     public boolean hadErrors() {
-        return errors;
+        return errors.get();
     }
 
     /**
@@ -304,7 +304,7 @@ public final class PythonTestDiscovery implements TestDiscovery {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING, "Cannot scan Python file: " + file, e);
             }
-            errors = true;
+            errors.set(true);
             return;
         }
 
