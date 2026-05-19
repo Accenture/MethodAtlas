@@ -141,39 +141,6 @@ class PowerShellTestDiscoveryTest {
     // ── Static helper unit tests ──────────────────────────────────────────────
 
     /**
-     * Verifies that {@link PowerShellTestDiscovery#extractTags(String)} parses
-     * a line with multiple {@code -Tag} values correctly.
-     */
-    @Test
-    void extractTags_parsesMultipleTags() {
-        String line = "        It \"rejects empty username\" -Tag \"negative\", \"boundary\" {";
-        List<String> tags = PowerShellTestDiscovery.extractTags(line);
-        assertEquals(List.of("negative", "boundary"), tags);
-    }
-
-    /**
-     * Verifies that {@link PowerShellTestDiscovery#extractTags(String)} returns
-     * an empty list when there is no {@code -Tag} switch on the line.
-     */
-    @Test
-    void extractTags_returnsEmptyWhenNoTag() {
-        String line = "        It \"accepts valid credentials\" {";
-        List<String> tags = PowerShellTestDiscovery.extractTags(line);
-        assertTrue(tags.isEmpty(), "Expected empty list, got: " + tags);
-    }
-
-    /**
-     * Verifies that {@link PowerShellTestDiscovery#extractTags(String)} handles
-     * a single-quoted tag value.
-     */
-    @Test
-    void extractTags_handlesSingleQuotedTag() {
-        String line = "        It 'my test' -Tag 'integration' {";
-        List<String> tags = PowerShellTestDiscovery.extractTags(line);
-        assertEquals(List.of("integration"), tags);
-    }
-
-    /**
      * Verifies that {@link PowerShellTestDiscovery#buildFileStem} strips the
      * {@code .Tests.ps1} suffix and produces the expected dot-separated stem.
      */
@@ -219,47 +186,6 @@ class PowerShellTestDiscoveryTest {
         Path file = root.resolve("modules").resolve("auth").resolve("Auth.Tests.ps1");
         String fqcn = PowerShellTestDiscovery.buildFqcn(file, root);
         assertEquals("modules.auth.Auth", fqcn);
-    }
-
-    /**
-     * Verifies that {@link PowerShellTestDiscovery#findItBlockEnd} returns the
-     * 1-based line number of the closing brace of a simple block.
-     */
-    @Test
-    void findItBlockEnd_simpleBlock() {
-        List<String> lines = List.of(
-                "It \"test\" {",          // idx 0
-                "    $x = 1",              // idx 1
-                "}"                        // idx 2
-        );
-        int end = PowerShellTestDiscovery.findItBlockEnd(lines, 0);
-        assertEquals(3, end, "Expected end at line 3 (1-based)");
-    }
-
-    /**
-     * Verifies that {@link PowerShellTestDiscovery#findItBlockEnd} handles
-     * nested braces (e.g. a script block inside the {@code It} body).
-     */
-    @Test
-    void findItBlockEnd_nestedBraces() {
-        List<String> lines = List.of(
-                "It \"test\" {",           // idx 0
-                "    { $x = 1 } | Should -Throw",  // idx 1
-                "}"                        // idx 2
-        );
-        int end = PowerShellTestDiscovery.findItBlockEnd(lines, 0);
-        assertEquals(3, end, "Expected end at line 3 (1-based)");
-    }
-
-    /**
-     * Verifies that {@link PowerShellTestDiscovery#findItBlockEnd} falls back
-     * to the start line + 1 when the {@code It} has no body brace.
-     */
-    @Test
-    void findItBlockEnd_noBodyFallback() {
-        List<String> lines = List.of("It \"test\"");
-        int end = PowerShellTestDiscovery.findItBlockEnd(lines, 0);
-        assertEquals(1, end, "Expected fallback end at line 1 (1-based, i.e. startIdx+1)");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

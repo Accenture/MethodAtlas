@@ -315,8 +315,9 @@ emitted. This prevents runaway restart loops from consuming system resources.
 **Plugin class:** `org.egothor.methodatlas.discovery.go.GoTestDiscovery`
 **Module:** `methodatlas-discovery-go`
 
-Go test functions are discovered by matching their signature against the
-standard `go test` convention.
+Go test functions are discovered by parsing each `_test.go` file with a
+structural ANTLR4 grammar (`GoTest.g4`) and matching function declarations
+against the standard `go test` convention.
 
 ### Test function detection
 
@@ -368,11 +369,22 @@ ignored.
 
 **Plugin class:** `org.egothor.methodatlas.discovery.python.PythonTestDiscovery`
 **Module:** `methodatlas-discovery-python`
+**Requires:** Python 3.8 or later on the `PATH`
 
 The Python plugin discovers test functions and methods following the
-[pytest](https://docs.pytest.org/) naming conventions. No external Python
-runtime is required — parsing is performed entirely in Java using regular
-expressions.
+[pytest](https://docs.pytest.org/) naming conventions.  Parsing is performed
+by a pool of long-lived Python worker processes that run the bundled
+`py-scanner.py` script using the standard-library `ast` module.  The AST-based
+approach correctly handles all valid Python syntax — including decorator stacks,
+type annotations, and async functions — and reports exact begin/end line numbers.
+
+### Prerequisites
+
+Python 3.8 or later must be installed and accessible as `python3` (or `python`)
+on the system `PATH`.  Python 3.8 is the minimum because `ast.Node.end_lineno`
+— used to compute per-function line ranges — was added in that release.  If
+Python is absent or below version 3.8, the plugin disables itself gracefully and
+logs a warning; all other plugins continue to function normally.
 
 ### File selection
 
@@ -440,10 +452,46 @@ field has no effect on this plugin and should be left empty.
       - python:_test.py
     ```
 
+### Configuration properties (Python)
+
+| Property key | Meaning | Default |
+|---|---|---|
+| `python.poolSize` | Number of Python worker processes | `min(2, CPU count)` |
+| `python.workerTimeoutSec` | Per-file worker timeout in seconds | `30` |
+| `python.maxConsecutiveRestarts` | Circuit-breaker restart limit | `5` |
+| `python.restartWindowSec` | Circuit-breaker sliding window in seconds | `60` |
+
+=== "CLI"
+
+    ```bash
+    # Default — auto-detects test_*.py and *_test.py
+    ./methodatlas src/
+
+    # Explicit suffix and longer timeout for large files
+    ./methodatlas \
+      -file-suffix python:_test.py \
+      -property python.workerTimeoutSec=60 \
+      src/
+    ```
+
+=== "YAML"
+
+    ```yaml
+    fileSuffixes:
+      - python:_test.py
+    properties:
+      python.workerTimeoutSec:
+        - "60"
+    ```
+
 ### The `properties` map (Python)
 
-The Python plugin does not use the `properties` map. Any keys present are
-silently ignored.
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `python.poolSize` | `int` | `min(2, CPUs)` | Worker-pool size. |
+| `python.workerTimeoutSec` | `int` | `30` | Per-file response timeout in seconds. |
+| `python.maxConsecutiveRestarts` | `int` | `5` | Circuit-breaker restart limit. |
+| `python.restartWindowSec` | `int` | `60` | Circuit-breaker sliding window in seconds. |
 
 ## PowerShell / Pester
 
@@ -452,7 +500,9 @@ silently ignored.
 
 The PowerShell plugin discovers Pester test cases from `It "…" { … }` blocks
 in PowerShell test scripts. No PowerShell runtime is required — parsing is
-performed entirely in Java using regular expressions.
+performed entirely in Java using a structural ANTLR4 grammar
+(`PowerShellTest.g4`) that covers `Describe`, `Context`, and `It` blocks while
+treating all other PowerShell content as opaque tokens.
 
 ### File selection
 

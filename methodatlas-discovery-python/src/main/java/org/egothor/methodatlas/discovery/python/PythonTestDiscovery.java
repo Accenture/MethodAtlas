@@ -1,98 +1,136 @@
 package org.egothor.methodatlas.discovery.python;
 
-import org.egothor.methodatlas.api.DiscoveredMethod;
-import org.egothor.methodatlas.api.SourceContent;
-import org.egothor.methodatlas.api.TestDiscovery;
-import org.egothor.methodatlas.api.TestDiscoveryConfig;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
+import org.egothor.methodatlas.api.DiscoveredMethod;
+import org.egothor.methodatlas.api.SourceContent;
+import org.egothor.methodatlas.api.TestDiscovery;
+import org.egothor.methodatlas.api.TestDiscoveryConfig;
 
 /**
  * Discovers Python test functions and methods in pytest-convention source files.
  *
  * <p>
+ * Scans a directory root for Python test files and delegates AST parsing to a
+ * pool of long-lived Python worker processes running the bundled
+ * {@code py-scanner.py} script.  This eliminates the Python interpreter
+ * startup overhead for large codebases.
+ * </p>
+ *
+ * <h2>File selection</h2>
+ *
+ * <p>
  * Two pytest file-naming conventions are supported by default:
  * </p>
  * <ul>
- *   <li>Files whose name starts with {@code "test_"} and ends with {@code ".py"}
- *       (e.g. {@code test_auth.py}).</li>
+ *   <li>Files whose name starts with {@code "test_"} and ends with
+ *       {@code ".py"} (e.g. {@code test_auth.py}).</li>
  *   <li>Files whose name ends with {@code "_test.py"}
  *       (e.g. {@code security_test.py}).</li>
  * </ul>
  *
  * <p>
- * If the caller supplies suffixes via
- * {@link TestDiscoveryConfig#fileSuffixesFor(String) fileSuffixesFor("python")},
- * those suffixes are used for the suffix check in addition to the built-in
- * {@code "test_"} prefix check, which is always active.
+ * Additional suffixes may be supplied via
+ * {@link TestDiscoveryConfig#fileSuffixesFor(String) fileSuffixesFor("python")}.
+ * The {@code test_} prefix check is always active regardless of configured suffixes.
  * </p>
  *
  * <h2>Parsing</h2>
  *
  * <p>
- * Parsing is performed by a line-by-line state machine.  No external parsing
- * library is required.  The state machine recognises:
+ * Parsing is performed by the bundled Python {@code py-scanner.py} script using
+ * the standard-library {@code ast} module (Python 3.8+).  The script resolves
+ * all Python syntax correctly and extracts:
  * </p>
  * <ul>
- *   <li>{@code class Test*} / {@code class *Test} / {@code class *Tests} —
- *       enter class scope</li>
- *   <li>{@code def test_*()} / {@code async def test_*()} — function / method
- *       to emit</li>
- *   <li>{@code @pytest.mark.<name>} — collect tag names accumulated before the
- *       next {@code def}</li>
+ *   <li>test functions ({@code def test_*}) — both sync and async</li>
+ *   <li>test methods inside {@code Test*} classes</li>
+ *   <li>{@code @pytest.mark.*} decorator names as tags</li>
+ *   <li>exact begin/end line numbers and LOC from the AST</li>
  * </ul>
+ *
+ * <h2>Python availability</h2>
+ *
+ * <p>
+ * Python is detected lazily on the first call to {@link #discover(Path)} that
+ * finds matching files.  When Python 3.8+ is absent, a {@code WARNING} is
+ * logged and an empty stream is returned; {@link #hadErrors()} returns
+ * {@code true}.
+ * </p>
+ *
+ * <h2>Resource management</h2>
+ *
+ * <p>
+ * The worker pool holds live Python sub-processes.  The orchestration layer
+ * calls {@link #close()} when the scan run finishes.  A JVM shutdown hook
+ * registered by the pool acts as a backstop.
+ * </p>
  *
  * <h2>ServiceLoader registration</h2>
  *
  * <p>
  * This class is registered in
  * {@code META-INF/services/org.egothor.methodatlas.api.TestDiscovery} so that
- * it is loaded automatically by the orchestration layer via
- * {@link java.util.ServiceLoader}.
+ * it is loaded automatically via {@link java.util.ServiceLoader}.
  * </p>
  *
+ * @see PythonWorkerPool
+ * @see PythonEnvironment
  * @see TestDiscovery
- * @see DiscoveredMethod
+ * @see TestDiscoveryConfig
  */
 public final class PythonTestDiscovery implements TestDiscovery {
 
     private static final Logger LOG =
             Logger.getLogger(PythonTestDiscovery.class.getName());
 
-    /** Regex that matches a pytest.mark decorator line. */
-    private static final Pattern MARK_PATTERN =
-            Pattern.compile("^\\s*@pytest\\.mark\\.(\\w+)");
+    /** Default file suffixes when no configuration is supplied. */
+    private static final List<String> DEFAULT_SUFFIXES = List.of("_test.py");
 
-    /** Regex that matches a class definition line. */
-    private static final Pattern CLASS_PATTERN =
-            Pattern.compile("^\\s*class\\s+(\\w+)");
+    /** Default pool size: at most 2 Python processes to keep memory use modest. */
+    private static final int DEFAULT_POOL_SIZE =
+            Math.min(2, Runtime.getRuntime().availableProcessors());
+
+    /** Default per-file worker timeout in seconds. */
+    private static final int DEFAULT_TIMEOUT_SEC = 30;
+
+    /** Default circuit-breaker: 5 restarts within 60 seconds trips the circuit. */
+    private static final int DEFAULT_MAX_RESTARTS = 5;
+    private static final int DEFAULT_RESTART_WINDOW_SEC = 60;
+
+    // ── Configured state (set by configure()) ──────────────────────────────
+    private List<String> fileSuffixes = DEFAULT_SUFFIXES;
+    private int poolSize = DEFAULT_POOL_SIZE;
+    private long workerTimeoutMillis = DEFAULT_TIMEOUT_SEC * 1_000L;
+    private int maxRestarts = DEFAULT_MAX_RESTARTS;
+    private int restartWindowSec = DEFAULT_RESTART_WINDOW_SEC;
+
+    // ── Runtime state (initialised lazily on first discover()) ────────────
+    private final ReentrantLock poolInitLock = new ReentrantLock();
+    private PythonEnvironment pythonEnv;
+    private PythonWorkerPool workerPool;
+    private boolean errors;
 
     /**
-     * Regex that matches a function definition (sync or async),
-     * where the function name starts with {@code test_}.
+     * No-arg constructor required by {@link java.util.ServiceLoader}.
      */
-    private static final Pattern DEF_PATTERN =
-            Pattern.compile("^\\s*(?:async\\s+)?def\\s+(test_\\w+)\\s*\\(");
-
-    /** Regex that matches a decorator line (starts with {@code @}). */
-    private static final Pattern DECORATOR_PATTERN =
-            Pattern.compile("^\\s*@");
-
-    private List<String> configSuffixes = List.of();
-    private boolean hadErrors;
+    public PythonTestDiscovery() {
+        // Required by ServiceLoader
+    }
 
     /**
-     * Returns the unique identifier for this provider.
+     * Returns the unique identifier of this discovery provider: {@code "python"}.
      *
      * @return {@code "python"}
      */
@@ -102,170 +140,217 @@ public final class PythonTestDiscovery implements TestDiscovery {
     }
 
     /**
-     * Configures this provider with the runtime {@link TestDiscoveryConfig}.
+     * Configures this provider from a {@link TestDiscoveryConfig}.
      *
      * <p>
-     * Suffix entries targeted at {@code "python"} (or global entries) are
-     * extracted via {@link TestDiscoveryConfig#fileSuffixesFor(String)} and
-     * stored for use during file selection.
+     * Reads the following configuration knobs:
+     * </p>
+     * <ul>
+     * <li><b>File suffixes</b> — via {@link TestDiscoveryConfig#fileSuffixesFor}
+     *     with ID {@code "python"}.  Falls back to {@code _test.py}.</li>
+     * <li><b>{@code python.poolSize}</b> — number of worker processes;
+     *     default: {@value #DEFAULT_POOL_SIZE}.</li>
+     * <li><b>{@code python.workerTimeoutSec}</b> — per-file timeout;
+     *     default: {@value #DEFAULT_TIMEOUT_SEC} s.</li>
+     * <li><b>{@code python.maxConsecutiveRestarts}</b> — circuit-breaker
+     *     restart limit; default: {@value #DEFAULT_MAX_RESTARTS}.</li>
+     * <li><b>{@code python.restartWindowSec}</b> — circuit-breaker sliding
+     *     window; default: {@value #DEFAULT_RESTART_WINDOW_SEC} s.</li>
+     * </ul>
+     *
+     * <p>
+     * Python detection and worker-pool creation are deferred until the first
+     * call to {@link #discover(Path)} that actually finds a matching file.
      * </p>
      *
      * @param config runtime configuration; never {@code null}
      */
     @Override
     public void configure(TestDiscoveryConfig config) {
-        configSuffixes = config.fileSuffixesFor(pluginId());
+        List<String> suffixes = config.fileSuffixesFor(pluginId());
+        this.fileSuffixes = suffixes.isEmpty() ? DEFAULT_SUFFIXES : suffixes;
+
+        this.poolSize = parseIntProperty(config, "python.poolSize", DEFAULT_POOL_SIZE);
+        int timeoutSec = parseIntProperty(config, "python.workerTimeoutSec", DEFAULT_TIMEOUT_SEC);
+        this.workerTimeoutMillis = timeoutSec * 1_000L;
+        this.maxRestarts = parseIntProperty(config, "python.maxConsecutiveRestarts",
+                DEFAULT_MAX_RESTARTS);
+        this.restartWindowSec = parseIntProperty(config, "python.restartWindowSec",
+                DEFAULT_RESTART_WINDOW_SEC);
     }
 
     /**
-     * Scans {@code root} recursively and returns a fully materialised stream of
-     * discovered test methods found in Python test files.
+     * Scans {@code root} and returns a stream of all discovered Python test
+     * methods.
      *
      * <p>
-     * Non-fatal per-file errors (e.g. read failures) are logged and skipped;
-     * {@link #hadErrors()} returns {@code true} after such a run.
+     * The file tree is traversed first.  Python detection and worker-pool
+     * creation are deferred until at least one matching file is found; projects
+     * with no Python test files never start a Python process at all.  If
+     * matching files are found but Python is unavailable, a warning is logged,
+     * {@link #hadErrors()} returns {@code true}, and an empty stream is
+     * returned.
      * </p>
      *
-     * @param root the directory to scan; must exist and be a directory
+     * @param root directory to scan; must be an existing directory
      * @return stream of discovered test methods; never {@code null}
-     * @throws IOException if the file tree cannot be traversed
+     * @throws IOException if traversing the file tree fails
      */
     @Override
     public Stream<DiscoveredMethod> discover(Path root) throws IOException {
-        hadErrors = false;
-        List<DiscoveredMethod> results = new ArrayList<>();
-
-        try (Stream<Path> walk = Files.walk(root)) {
-            walk.filter(Files::isRegularFile)
-                .filter(p -> isPythonTestFile(p.getFileName().toString(), configSuffixes))
-                .forEach(file -> processFile(file, root, results));
+        if (!Files.isDirectory(root)) {
+            return Stream.empty();
         }
 
-        return results.stream();
+        List<Path> files;
+        try (Stream<Path> walk = Files.walk(root)) {
+            files = walk
+                    .filter(Files::isRegularFile)
+                    .filter(p -> {
+                        Path fn = p.getFileName();
+                        return fn != null && isPythonTestFile(fn.toString(), fileSuffixes);
+                    })
+                    .toList();
+        }
+
+        if (files.isEmpty()) {
+            return Stream.empty();
+        }
+
+        ensurePoolReady();
+
+        if (pythonEnv == null || !pythonEnv.isAvailable() || workerPool == null) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Python 3.8+ is unavailable — {0} Python test file(s) under {1} will not be scanned.",
+                        new Object[] { files.size(), root });
+            }
+            errors = true;
+            return Stream.empty();
+        }
+
+        List<DiscoveredMethod> result = new ArrayList<>();
+        for (Path file : files) {
+            processFile(root, file, result);
+        }
+        return result.stream();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public boolean hadErrors() {
-        return hadErrors;
+        return errors;
     }
 
-    // -------------------------------------------------------------------------
-    // File processing
-    // -------------------------------------------------------------------------
+    /**
+     * Shuts down the worker pool and removes the JVM shutdown hook registered
+     * by the pool.  Idempotent.
+     *
+     * @throws IOException never thrown; declared to satisfy {@link java.io.Closeable}
+     */
+    @Override
+    public void close() throws IOException {
+        if (workerPool != null) {
+            workerPool.close();
+            workerPool = null;
+        }
+    }
+
+    // ── Private helpers ────────────────────────────────────────────────────
 
     /**
-     * Reads {@code file}, parses it, and appends any discovered methods to
-     * {@code results}. Logs and sets {@link #hadErrors} on any I/O failure.
-     *
-     * @param file    the source file to parse
-     * @param root    the scan root (used to compute the module path)
-     * @param results accumulator for discovered methods
+     * Initialises Python detection and the worker pool on first use.
+     * Subsequent calls are no-ops.
      */
-    private void processFile(Path file, Path root, List<DiscoveredMethod> results) {
+    private void ensurePoolReady() {
+        poolInitLock.lock();
         try {
-            List<String> lines = Files.readAllLines(file);
-            String modulePath = buildModulePath(file, root);
-            SourceContent sourceContent = buildSourceContent(lines);
-            parseLines(lines, file, modulePath, sourceContent, results);
-        } catch (IOException e) {
-            LOG.log(Level.WARNING, "Failed to read Python file: " + file, e);
-            hadErrors = true;
+            if (pythonEnv != null) {
+                return;
+            }
+            pythonEnv = new PythonEnvironment();
+            if (!pythonEnv.isAvailable()) {
+                return;
+            }
+            try {
+                Path scriptPath = PythonScriptExtractor.extractScript();
+                PythonWorkerCircuitBreaker cb =
+                        new PythonWorkerCircuitBreaker(maxRestarts, restartWindowSec);
+                workerPool = new PythonWorkerPool(
+                        scriptPath, pythonEnv, poolSize, workerTimeoutMillis, cb);
+            } catch (IOException e) {
+                LOG.log(Level.SEVERE,
+                        "Failed to initialise Python worker pool — Python scanning disabled", e);
+                pythonEnv = null;
+            }
+        } finally {
+            poolInitLock.unlock();
         }
     }
 
     /**
-     * Parses the given lines with a line-by-line state machine and appends
-     * any discovered test methods to {@code results}.
+     * Sends a single file to the worker pool, converts the response into
+     * {@link DiscoveredMethod} records, and appends them to {@code result}.
      *
-     * @param lines         source lines of the file
-     * @param file          absolute path of the source file
-     * @param modulePath    dot-separated module path for the file
-     * @param sourceContent lazy source-content provider shared by all methods
-     * @param results       accumulator for discovered methods
+     * @param root    scan root (for module-path computation)
+     * @param file    absolute path to the source file
+     * @param result  accumulator for discovered methods
      */
-    private void parseLines(
-            List<String> lines,
-            Path file,
-            String modulePath,
-            SourceContent sourceContent,
-            List<DiscoveredMethod> results) {
-
-        String currentClass = null;
-        int classIndent = -1;
-        List<String> pendingTags = new ArrayList<>();
-
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
-
-            if (isBlankOrComment(line)) {
-                continue;
+    private void processFile(Path root, Path file, List<DiscoveredMethod> result) {
+        List<PythonWorker.MethodDescriptor> descriptors;
+        try {
+            descriptors = workerPool.scan(file);
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Cannot scan Python file: " + file, e);
             }
+            errors = true;
+            return;
+        }
 
-            int indent = countIndent(line);
+        if (descriptors.isEmpty()) {
+            return;
+        }
 
-            // Exit class scope when a non-decorator, non-blank line is at or
-            // before the class indent level.
-            if (currentClass != null
-                    && indent <= classIndent
-                    && !isDecorator(line)) {
-                currentClass = null;
-                classIndent = -1;
-            }
+        String modulePath = buildModulePath(file, root);
+        SourceContent sourceContent = buildSourceContent(file);
 
-            Matcher markMatcher = MARK_PATTERN.matcher(line);
-            if (markMatcher.find()) {
-                pendingTags.add(markMatcher.group(1));
-                continue;
-            }
-
-            Matcher classMatcher = CLASS_PATTERN.matcher(line);
-            if (classMatcher.find()) {
-                pendingTags.clear();
-                String name = classMatcher.group(1);
-                if (isTestClassName(name)) {
-                    currentClass = name;
-                    classIndent = indent;
-                }
-                continue;
-            }
-
-            Matcher defMatcher = DEF_PATTERN.matcher(line);
-            if (defMatcher.find()) {
-                String methodName = defMatcher.group(1);
-                int funcIndent = indent;
-                int beginLine = i + 1;
-                int endLine = findFunctionEnd(lines, i, funcIndent);
-                int loc = endLine - beginLine + 1;
-                String fqcn = currentClass != null
-                        ? modulePath + "." + currentClass
-                        : modulePath;
-                DiscoveredMethod method = new DiscoveredMethod(
-                        fqcn,
-                        methodName,
-                        beginLine,
-                        endLine,
-                        loc,
-                        List.copyOf(pendingTags),
-                        null,
-                        file,
-                        modulePath,
-                        sourceContent);
-                results.add(method);
-                pendingTags.clear();
-                continue;
-            }
-
-            // Any other non-decorator, non-blank, non-comment line clears tags.
-            pendingTags.clear();
+        for (PythonWorker.MethodDescriptor d : descriptors) {
+            String fqcn = d.className() != null
+                    ? modulePath + "." + d.className()
+                    : modulePath;
+            result.add(new DiscoveredMethod(
+                    fqcn,
+                    d.name(),
+                    d.beginLine(),
+                    d.endLine(),
+                    d.loc(),
+                    d.tags(),
+                    null,
+                    file,
+                    modulePath,
+                    sourceContent));
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Package-private helpers (accessible from tests)
-    // -------------------------------------------------------------------------
+    private static SourceContent buildSourceContent(Path file) {
+        AtomicBoolean read = new AtomicBoolean(false);
+        AtomicReference<String> cache = new AtomicReference<>(null);
+        return () -> {
+            if (read.compareAndSet(false, true)) {
+                try {
+                    cache.set(Files.readString(file));
+                } catch (IOException e) {
+                    if (LOG.isLoggable(Level.FINE)) {
+                        LOG.log(Level.FINE, "Cannot read source for AI analysis: " + file, e);
+                    }
+                }
+            }
+            return Optional.ofNullable(cache.get());
+        };
+    }
+
+    // ── Package-private static helpers (accessible from tests) ────────────
 
     /**
      * Returns {@code true} when the given file name should be scanned for
@@ -276,22 +361,20 @@ public final class PythonTestDiscovery implements TestDiscovery {
      * </p>
      * <ol>
      *   <li>If the name starts with {@code "test_"} and ends with
-     *       {@code ".py"} → accept (always active, regardless of configured
-     *       suffixes).</li>
+     *       {@code ".py"} → accept (always active).</li>
      *   <li>If {@code configuredSuffixes} is non-empty: accept if the name
      *       ends with any of those suffixes.</li>
      *   <li>Otherwise (empty configured suffixes): accept if the name ends
      *       with the default suffix {@code "_test.py"}.</li>
      * </ol>
      *
-     * @param fileName          the simple file name (no directory component)
+     * @param fileName           the simple file name (no directory component)
      * @param configuredSuffixes suffixes from {@link TestDiscoveryConfig#fileSuffixesFor};
-     *                          an empty list means "use defaults"
+     *                           an empty list means "use defaults"
      * @return {@code true} if the file should be scanned
      */
     /* default */ static boolean isPythonTestFile(
             String fileName, List<String> configuredSuffixes) {
-        // The test_ prefix check is always active.
         if (fileName.startsWith("test_") && fileName.endsWith(".py")) {
             return true;
         }
@@ -328,7 +411,6 @@ public final class PythonTestDiscovery implements TestDiscovery {
         for (int i = 0; i < count; i++) {
             String segment = relative.getName(i).toString();
             if (i == count - 1) {
-                // Strip .py extension from the last segment.
                 int dot = segment.lastIndexOf('.');
                 if (dot > 0) {
                     segment = segment.substring(0, dot);
@@ -342,112 +424,20 @@ public final class PythonTestDiscovery implements TestDiscovery {
         return sb.toString();
     }
 
-    /**
-     * Finds the one-based line number of the last line belonging to the
-     * function that starts at {@code startIdx}.
-     *
-     * <p>
-     * The algorithm scans forward from {@code startIdx + 1}, skipping blank
-     * and comment lines.  Whenever a non-blank, non-comment line is found with
-     * an indent level greater than {@code funcIndent}, it is recorded as the
-     * last body line.  When a non-blank, non-comment line at or before
-     * {@code funcIndent} is found, the scan stops.
-     * </p>
-     *
-     * @param lines     all source lines of the file
-     * @param startIdx  zero-based index of the {@code def} line
-     * @param funcIndent indent level of the {@code def} keyword
-     * @return one-based line number of the last line of the function body;
-     *         equals {@code startIdx + 1} (the {@code def} line itself)
-     *         when the body is empty
-     */
-    /* default */ static int findFunctionEnd(
-            List<String> lines, int startIdx, int funcIndent) {
-        int lastBodyLine = startIdx; // 0-based; def line is the minimum
-        for (int i = startIdx + 1; i < lines.size(); i++) {
-            String line = lines.get(i);
-            if (isBlankOrComment(line)) {
-                continue;
-            }
-            int indent = countIndent(line);
-            if (indent <= funcIndent) {
-                break;
-            }
-            lastBodyLine = i;
+    private static int parseIntProperty(TestDiscoveryConfig config, String key,
+                                        int defaultValue) {
+        List<String> values = config.properties().get(key);
+        if (values == null || values.isEmpty()) {
+            return defaultValue;
         }
-        return lastBodyLine + 1; // convert to 1-based
-    }
-
-    // -------------------------------------------------------------------------
-    // Private utilities
-    // -------------------------------------------------------------------------
-
-    /**
-     * Returns {@code true} if {@code line} is blank or a Python comment.
-     *
-     * @param line source line (may contain leading whitespace)
-     * @return {@code true} for blank or {@code #}-comment lines
-     */
-    private static boolean isBlankOrComment(String line) {
-        String trimmed = line.strip();
-        return trimmed.isEmpty() || trimmed.startsWith("#");
-    }
-
-    /**
-     * Returns {@code true} if {@code line} starts with a decorator marker
-     * ({@code @}).
-     *
-     * @param line source line
-     * @return {@code true} when the stripped line begins with {@code @}
-     */
-    private static boolean isDecorator(String line) {
-        return DECORATOR_PATTERN.matcher(line).find();
-    }
-
-    /**
-     * Counts the number of leading space or tab characters in {@code line}.
-     * Tabs are counted as one character each (consistent with CPython indentation
-     * counting for detecting scope changes).
-     *
-     * @param line a source line
-     * @return number of leading whitespace characters
-     */
-    /* default */ static int countIndent(String line) {
-        int count = 0;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (c == ' ' || c == '\t') {
-                count++;
-            } else {
-                break;
+        try {
+            return Integer.parseInt(values.get(0));
+        } catch (NumberFormatException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.warning("Invalid value for property '" + key + "': " + values.get(0)
+                        + " — using default " + defaultValue);
             }
+            return defaultValue;
         }
-        return count;
-    }
-
-    /**
-     * Returns {@code true} when {@code className} follows pytest's test-class
-     * naming conventions.
-     *
-     * @param className simple class name
-     * @return {@code true} for names starting with {@code "Test"}, ending
-     *         with {@code "Test"}, or ending with {@code "Tests"}
-     */
-    private static boolean isTestClassName(String className) {
-        return className.startsWith("Test")
-                || className.endsWith("Test")
-                || className.endsWith("Tests");
-    }
-
-    /**
-     * Builds a {@link SourceContent} that lazily returns the file text from
-     * the pre-read {@code lines} list.
-     *
-     * @param lines source lines already read from the file
-     * @return a {@link SourceContent} that joins lines with the system line
-     *         separator
-     */
-    private static SourceContent buildSourceContent(List<String> lines) {
-        return () -> Optional.of(String.join(System.lineSeparator(), lines));
     }
 }

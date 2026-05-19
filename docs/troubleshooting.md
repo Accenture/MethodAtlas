@@ -219,6 +219,38 @@ file.
 
 **Remedy:** Re-download the distribution archive from the [GitHub Releases page](https://github.com/Accenture/MethodAtlas/releases) and verify the checksum (see [Installation — verifying the archive](installation.md#verifying-the-distribution-archive)).
 
+## Python plugin issues
+
+### Python tests not discovered
+
+**Symptom:** Python test files (e.g. `test_auth.py`) produce no output rows.
+
+**Causes and remedies:**
+
+| Cause | Remedy |
+|---|---|
+| Python not on PATH or below version 3.8 | Install Python 3.8+ and ensure `python3 --version` (or `python --version`) is accessible from the shell that runs MethodAtlas |
+| File suffix not matched | Default suffixes are `test_*.py` (prefix, always active) and `*_test.py` (default suffix). Add custom suffixes: `-file-suffix python:_spec.py` |
+
+### Warning: Python plugin disabled
+
+**Symptom:** MethodAtlas emits a warning like `Python not found on PATH — Python discovery plugin is disabled` and Python files are skipped.
+
+**Cause:** Neither `python3` nor `python` is found on the PATH, or the detected version is below 3.8.
+
+**Remedy:** Install Python 3.8 or later. Verify with `python3 --version`. If Python is installed but not on the system PATH in the environment where MethodAtlas runs (e.g. a CI container), ensure the PATH is configured before the MethodAtlas step.
+
+### Python worker timeout or circuit breaker triggered
+
+**Symptom:** MethodAtlas logs `Python worker pool circuit breaker TRIPPED` or `No Python worker available within … ms`.
+
+**Causes and remedies:**
+
+| Cause | Remedy |
+|---|---|
+| A large Python file causes the worker to exceed the 30-second timeout | Increase the timeout: `-property python.workerTimeoutSec=120` |
+| Repeated worker crashes tripped the circuit breaker | Check worker logs for root cause; if files are valid, increase the restart limit: `-property python.maxConsecutiveRestarts=10` |
+
 ## Java parsing issues
 
 ### Parse warnings for newer Java syntax

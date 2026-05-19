@@ -6,43 +6,55 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import org.antlr.v4.runtime.BaseErrorListener;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.discovery.go.internal.GoTestVisitor;
+import org.egothor.methodatlas.discovery.go.internal.MethodInfo;
+import org.egothor.methodatlas.discovery.go.parser.GoTestLexer;
+import org.egothor.methodatlas.discovery.go.parser.GoTestParser;
 
 /**
  * {@link TestDiscovery} implementation for Go source trees.
  *
  * <p>Scans a directory root for {@code *_test.go} files (configurable via
- * {@link TestDiscoveryConfig#fileSuffixesFor(String)}), reads each file
- * line by line, and emits one {@link DiscoveredMethod} per Go test function
- * matching the standard Go testing convention.</p>
+ * {@link TestDiscoveryConfig#fileSuffixesFor(String)}), parses each with the
+ * ANTLR4-generated {@code GoTest} grammar, and emits one
+ * {@link DiscoveredMethod} per Go test function found.</p>
  *
- * <h2>Test function detection</h2>
- * <p>A function is identified as a test if its signature matches:</p>
+ * <h2>Test-function detection</h2>
+ * <p>A function is identified as a test if its signature matches the
+ * {@code go test} specification:</p>
  * <pre>
  *   func TestXxx(t *testing.T)
  * </pre>
- * <p>where {@code Xxx} starts with an upper-case letter or underscore per the
- * {@code go test} specification. Benchmark functions ({@code BenchmarkXxx}),
- * example functions ({@code ExampleXxx}), and fuzz targets ({@code FuzzXxx})
- * are intentionally excluded.</p>
+ * <p>where {@code Xxx} starts with an upper-case letter or underscore.
+ * Benchmark ({@code BenchmarkXxx}), Example ({@code ExampleXxx}), and Fuzz
+ * ({@code FuzzXxx}) functions are not recognised by the visitor and are
+ * therefore excluded.</p>
  *
  * <h2>Tags and display names</h2>
  * <p>Go has no annotation-based tag or display-name system; both fields are
  * always empty / {@code null} in the emitted {@link DiscoveredMethod}.</p>
  *
- * <h2>Error handling</h2>
- * <p>Per-file {@link IOException}s are caught, logged at {@code WARNING}
- * level, and recorded via {@link #hadErrors()}.  A single unreadable file
- * does not abort the entire scan.</p>
+ * <h2>Parser scope</h2>
+ * <p>The {@code GoTest} grammar is structural: it covers package declarations,
+ * import declarations, and function/method declarations, treating function
+ * bodies as opaque balanced-brace content.  It is not a full implementation
+ * of the Go specification.  When a parse error occurs, a {@code WARNING} is
+ * logged; ANTLR4 error recovery then continues so remaining test functions
+ * are still discovered.</p>
  *
  * <h2>ServiceLoader registration</h2>
  * <p>Registered via
@@ -50,32 +62,16 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  *
  * @see TestDiscovery
  * @see DiscoveredMethod
+ * @see GoTestVisitor
  */
 public final class GoTestDiscovery implements TestDiscovery {
 
     private static final Logger LOG = Logger.getLogger(GoTestDiscovery.class.getName());
 
-    /**
-     * Regex that matches a Go test function declaration line.
-     *
-     * <p>Captured group 1 is the function name (e.g. {@code TestLoginValid}).</p>
-     */
-    private static final Pattern TEST_FUNC_PATTERN = Pattern.compile(
-            "^func\\s+(Test(?:[A-Z_]\\w*)?)\\s*\\(\\s*\\w+\\s+\\*testing\\.T\\b");
-
-    /**
-     * Regex that matches a Go package declaration line.
-     *
-     * <p>Captured group 1 is the package name.</p>
-     */
-    private static final Pattern PACKAGE_PATTERN = Pattern.compile(
-            "^package\\s+(\\w+)");
-
-    /** Default file suffix for Go test files. */
     private static final String DEFAULT_SUFFIX = "_test.go";
 
     private List<String> fileSuffixes = List.of(DEFAULT_SUFFIX);
-    private boolean errors;
+    private final AtomicBoolean errors = new AtomicBoolean();
 
     /**
      * No-arg constructor required by {@link java.util.ServiceLoader}.
@@ -106,9 +102,9 @@ public final class GoTestDiscovery implements TestDiscovery {
     }
 
     /**
-     * Scans {@code root} for Go test files and returns discovered test methods.
+     * Scans {@code root} for Go test files and returns discovered test functions.
      *
-     * <p>The returned stream is fully materialized before being returned; it is
+     * <p>The returned stream is fully materialised before being returned; it is
      * safe to call this method multiple times (e.g. once per scan root).</p>
      *
      * @param root directory to scan; must be an existing directory
@@ -127,8 +123,8 @@ public final class GoTestDiscovery implements TestDiscovery {
                 .forEach(file -> {
                     try {
                         discoverInFile(file, root, results);
-                    } catch (IOException e) {
-                        errors = true;
+                    } catch (Exception e) {
+                        errors.set(true);
                         if (LOG.isLoggable(Level.WARNING)) {
                             LOG.log(Level.WARNING, "Failed to process: " + file, e);
                         }
@@ -145,7 +141,7 @@ public final class GoTestDiscovery implements TestDiscovery {
      */
     @Override
     public boolean hadErrors() {
-        return errors;
+        return errors.get();
     }
 
     // ── Private helpers ────────────────────────────────────────────────────
@@ -161,86 +157,66 @@ public final class GoTestDiscovery implements TestDiscovery {
 
     private void discoverInFile(Path file, Path root,
                                 List<DiscoveredMethod> results) throws IOException {
-        List<String> lines = Files.readAllLines(file);
-        String packageName = extractPackageName(lines);
+        GoTestParser.SourceFileContext tree = parse(file);
+        if (tree == null) {
+            return;
+        }
+
+        GoTestVisitor visitor = new GoTestVisitor();
+        visitor.visit(tree);
+
+        List<MethodInfo> methods = visitor.getDiscoveredMethods();
+        if (methods.isEmpty()) {
+            return;
+        }
+
+        String packageName = visitor.getPackageName();
         String fqcn = buildFqcn(file, root, packageName);
         String stem = buildFileStem(file, root);
-        SourceContent content = () -> Optional.of(String.join(System.lineSeparator(), lines));
+        SourceContent content = buildSourceContent(file);
 
-        for (int i = 0; i < lines.size(); i++) {
-            Matcher m = TEST_FUNC_PATTERN.matcher(lines.get(i));
-            if (m.find()) {
-                String methodName = m.group(1);
-                int beginLine = i + 1;
-                int endLine = findFunctionEnd(lines, i);
-                int loc = endLine - beginLine + 1;
-                results.add(new DiscoveredMethod(
-                        fqcn,
-                        methodName,
-                        beginLine,
-                        endLine,
-                        loc,
-                        List.of(),
-                        null,
-                        file,
-                        stem,
-                        content));
+        for (MethodInfo m : methods) {
+            int loc = m.endLine() - m.beginLine() + 1;
+            results.add(new DiscoveredMethod(
+                    fqcn,
+                    m.name(),
+                    m.beginLine(),
+                    m.endLine(),
+                    loc,
+                    List.of(),
+                    null,
+                    file,
+                    stem,
+                    content));
+        }
+    }
+
+    private GoTestParser.SourceFileContext parse(Path file) throws IOException {
+        GoTestLexer lexer = new GoTestLexer(CharStreams.fromPath(file));
+        lexer.removeErrorListeners();
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        GoTestParser parser = new GoTestParser(tokens);
+        parser.removeErrorListeners();
+        List<String> syntaxErrors = new ArrayList<>();
+        parser.addErrorListener(new BaseErrorListener() {
+            @Override
+            public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                    int line, int charPositionInLine,
+                                    String msg, RecognitionException e) {
+                syntaxErrors.add(file + ":" + line + ":" + charPositionInLine + ": " + msg);
+            }
+        });
+        GoTestParser.SourceFileContext tree = parser.sourceFile();
+        if (!syntaxErrors.isEmpty()) {
+            errors.set(true);
+            if (LOG.isLoggable(Level.WARNING)) {
+                syntaxErrors.forEach(err -> LOG.warning("Go parse error: " + err));
             }
         }
+        return tree;
     }
 
     // ── Package-private static helpers (testable) ──────────────────────────
-
-    /**
-     * Finds the one-based line number of the closing brace of the function
-     * whose declaration starts at {@code startIdx} (zero-based).
-     *
-     * <p>Uses naive brace counting: increments depth for each {@code {}} found
-     * and decrements for each {@code }}. Returns the line number of the line
-     * that brings depth back to zero after the opening brace is seen.
-     * If no closing brace is found, returns the last line of the file.</p>
-     *
-     * @param lines    all lines of the source file
-     * @param startIdx zero-based index of the function declaration line
-     * @return one-based line number of the closing {@code }}
-     */
-    /* default */ static int findFunctionEnd(List<String> lines, int startIdx) {
-        int depth = 0;
-        boolean seenOpen = false;
-        for (int i = startIdx; i < lines.size(); i++) {
-            String line = lines.get(i);
-            for (int c = 0; c < line.length(); c++) {
-                char ch = line.charAt(c);
-                if (ch == '{') {
-                    depth++;
-                    seenOpen = true;
-                } else if (ch == '}') {
-                    depth--;
-                    if (seenOpen && depth == 0) {
-                        return i + 1;
-                    }
-                }
-            }
-        }
-        return lines.size();
-    }
-
-    /**
-     * Extracts the package name from the first {@code package} declaration
-     * found in {@code lines}.
-     *
-     * @param lines all lines of a Go source file
-     * @return the package name, or {@code "unknown"} if no declaration is found
-     */
-    /* default */ static String extractPackageName(List<String> lines) {
-        for (String line : lines) {
-            Matcher m = PACKAGE_PATTERN.matcher(line);
-            if (m.find()) {
-                return m.group(1);
-            }
-        }
-        return "unknown";
-    }
 
     /**
      * Derives the fully-qualified class name from the file's parent directory
@@ -248,8 +224,8 @@ public final class GoTestDiscovery implements TestDiscovery {
      *
      * <p>The path segments of the parent directory relative to {@code root}
      * are joined with {@code "."}.  If the file resides directly under
-     * {@code root} (no parent segments) or relativization fails, {@code packageName}
-     * is returned as the fallback.</p>
+     * {@code root} (no parent segments) or relativization fails,
+     * {@code packageName} is returned as the fallback.</p>
      *
      * @param file        path to the Go source file
      * @param root        scan root directory
@@ -259,8 +235,7 @@ public final class GoTestDiscovery implements TestDiscovery {
     /* default */ static String buildFqcn(Path file, Path root, String packageName) {
         try {
             Path relParent = root.relativize(file.getParent());
-            if (relParent.getNameCount() == 0
-                    || relParent.toString().isEmpty()) {
+            if (relParent.getNameCount() == 0 || relParent.toString().isEmpty()) {
                 return packageName;
             }
             StringBuilder sb = new StringBuilder();
@@ -299,5 +274,15 @@ public final class GoTestDiscovery implements TestDiscovery {
             sb.append(part);
         }
         return sb.toString();
+    }
+
+    private static SourceContent buildSourceContent(Path file) {
+        return () -> {
+            try {
+                return Optional.of(Files.readString(file));
+            } catch (IOException e) {
+                return Optional.empty();
+            }
+        };
     }
 }

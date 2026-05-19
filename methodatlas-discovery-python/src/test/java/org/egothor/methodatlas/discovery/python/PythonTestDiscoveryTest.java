@@ -13,12 +13,21 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Unit tests for {@link PythonTestDiscovery}.
+ *
+ * <p>Tests that invoke {@link PythonTestDiscovery#discover(Path)} require
+ * Python 3.8 or later on the system PATH.  When Python is absent the tests
+ * are skipped via {@code assumeTrue}; the static-helper tests
+ * ({@code buildModulePath_*}) do not require Python and always run.</p>
  */
 @Tag("unit")
 class PythonTestDiscoveryTest {
+
+    /** Detected once per test run; used by {@code assumeTrue} guards. */
+    private static final boolean PYTHON_AVAILABLE = new PythonEnvironment().isAvailable();
 
     @TempDir
     Path tempDir;
@@ -34,6 +43,7 @@ class PythonTestDiscoveryTest {
      */
     @Test
     void discover_findsTestMethods_inTestPrefixFile() throws IOException {
+        assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("test_auth.py.txt", "test_auth.py");
 
         PythonTestDiscovery sut = new PythonTestDiscovery();
@@ -54,6 +64,7 @@ class PythonTestDiscoveryTest {
      */
     @Test
     void discover_findsTestMethods_inTestSuffixFile() throws IOException {
+        assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("security_test.py.txt", "security_test.py");
 
         PythonTestDiscovery sut = new PythonTestDiscovery();
@@ -70,6 +81,7 @@ class PythonTestDiscoveryTest {
      */
     @Test
     void discover_extractsTagsFromDecorators() throws IOException {
+        assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("test_auth.py.txt", "test_auth.py");
 
         PythonTestDiscovery sut = new PythonTestDiscovery();
@@ -97,6 +109,7 @@ class PythonTestDiscoveryTest {
      */
     @Test
     void discover_classMethodsGetClassFqcn() throws IOException {
+        assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("test_auth.py.txt", "test_auth.py");
 
         PythonTestDiscovery sut = new PythonTestDiscovery();
@@ -124,6 +137,7 @@ class PythonTestDiscoveryTest {
      */
     @Test
     void discover_moduleLevelFunctionHasModuleFqcn() throws IOException {
+        assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("test_auth.py.txt", "test_auth.py");
 
         PythonTestDiscovery sut = new PythonTestDiscovery();
@@ -144,6 +158,7 @@ class PythonTestDiscoveryTest {
      */
     @Test
     void discover_ignoresNonTestFiles() throws IOException {
+        assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         Path utilsFile = tempDir.resolve("utils.py");
         Files.writeString(utilsFile,
                 "def create_user(name):\n    return name\n\ndef delete_user(name):\n    pass\n");

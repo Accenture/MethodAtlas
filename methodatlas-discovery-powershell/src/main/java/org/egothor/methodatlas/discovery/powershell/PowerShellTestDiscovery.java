@@ -9,79 +9,65 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import org.antlr.v4.runtime.BaseErrorListener;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.discovery.powershell.internal.CommandInfo;
+import org.egothor.methodatlas.discovery.powershell.internal.PowerShellTestVisitor;
+import org.egothor.methodatlas.discovery.powershell.parser.PowerShellTestLexer;
+import org.egothor.methodatlas.discovery.powershell.parser.PowerShellTestParser;
 
 /**
  * {@link TestDiscovery} implementation for PowerShell Pester test files.
  *
  * <p>Scans a directory root for {@code *.Tests.ps1} and {@code *.Test.ps1}
- * files (configurable via {@link TestDiscoveryConfig#fileSuffixes()}), parses
- * each file line by line, and emits one {@link DiscoveredMethod} per
- * {@code It "..."} block found.</p>
+ * files (configurable via {@link TestDiscoveryConfig#fileSuffixesFor(String)}),
+ * parses each with the ANTLR4-generated {@code PowerShellTest} grammar, and
+ * emits one {@link DiscoveredMethod} per {@code It "..."} block found.</p>
  *
  * <h2>Pester constructs recognised</h2>
  * <ul>
- *   <li>{@code It "test name"} — the primary test block; single- or double-quoted</li>
- *   <li>{@code Describe "name"} — outer container block; used for FQCN only</li>
- *   <li>{@code Context "name"} / {@code InModuleScope "name"} — inner container block</li>
- *   <li>{@code -Tag "value", "value2"} on the same {@code It} line — tag extraction</li>
+ *   <li>{@code It "test name"} — the primary test block; single- or
+ *       double-quoted; case-insensitive ({@code it}, {@code IT})</li>
+ *   <li>{@code Describe "name"} — outer container block</li>
+ *   <li>{@code Context "name"} — inner container block</li>
+ *   <li>{@code -Tag "a","b"} and {@code -Tag @("a","b")} on the {@code It}
+ *       line — tag extraction</li>
  * </ul>
  *
  * <h2>FQCN computation</h2>
- * <p>The FQCN is derived from the file path relative to the scan root: directory
- * segments are joined with {@code .} and the filename stem (with
+ * <p>The FQCN is derived from the file path relative to the scan root:
+ * directory segments are joined with {@code .} and the filename stem (with
  * {@code .Tests.ps1}, {@code .Test.ps1}, or {@code .ps1} stripped) forms the
- * final segment. For example, a file at
- * {@code src/auth/Auth.Tests.ps1} with root {@code src} yields FQCN
- * {@code auth.Auth}. A file directly in the root yields the filename stem.</p>
+ * final segment.  A file directly in the root yields only the filename stem.</p>
  *
- * <h2>Tag extraction</h2>
- * <p>Tags are extracted from the {@code It} line only. The {@code -Tag} switch
- * may be followed by one or more quoted strings, optionally wrapped in an array
- * literal ({@code @("a", "b")}). Tags inherited from enclosing
- * {@code Describe} blocks are not extracted in this version.</p>
+ * <h2>Parser scope</h2>
+ * <p>The {@code PowerShellTest} grammar is structural: it covers Pester
+ * {@code Describe}, {@code Context}, and {@code It} blocks, treating all other
+ * PowerShell content as opaque tokens.  Parse errors are logged at
+ * {@code WARNING} level; ANTLR4 error recovery continues so that remaining
+ * {@code It} blocks are still discovered.</p>
  *
  * <h2>ServiceLoader registration</h2>
  * <p>Registered via
  * {@code META-INF/services/org.egothor.methodatlas.api.TestDiscovery}.</p>
  *
- * @see org.egothor.methodatlas.api.TestDiscovery
- * @see org.egothor.methodatlas.api.DiscoveredMethod
+ * @see TestDiscovery
+ * @see DiscoveredMethod
+ * @see PowerShellTestVisitor
  */
 public final class PowerShellTestDiscovery implements TestDiscovery {
 
     private static final Logger LOG =
             Logger.getLogger(PowerShellTestDiscovery.class.getName());
-
-    /** Regex matching an {@code It} test block: {@code It 'name'} or {@code It "name"}. */
-    static final Pattern IT_PATTERN =
-            Pattern.compile("^\\s*It\\s+(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE);
-
-    /** Regex matching a {@code Describe} block header. */
-    static final Pattern DESCRIBE_PATTERN =
-            Pattern.compile("^\\s*Describe\\s+(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE);
-
-    /** Regex matching a {@code Context} or {@code InModuleScope} block header. */
-    static final Pattern CONTEXT_PATTERN =
-            Pattern.compile("^\\s*(?:Context|InModuleScope)\\s+(['\"])(.*?)\\1",
-                    Pattern.CASE_INSENSITIVE);
-
-    /**
-     * Regex matching the {@code -Tag} switch and the first quoted value that follows.
-     * Additional comma-separated quoted strings are picked up by {@link #QUOTED_STRING}.
-     */
-    static final Pattern TAG_ON_LINE =
-            Pattern.compile("-Tag\\s+(?:@\\()?(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE);
-
-    /** Regex for any quoted string — used to collect multi-value tag arrays. */
-    static final Pattern QUOTED_STRING = Pattern.compile("['\"]([^'\"]+)['\"]");
 
     /** Default file suffixes when no configuration is supplied. */
     private static final List<String> DEFAULT_SUFFIXES =
@@ -105,8 +91,8 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
     /**
      * {@inheritDoc}
      *
-     * <p>Reads {@link TestDiscoveryConfig#fileSuffixesFor(String)} for this plugin.
-     * When the resolved list is empty the default suffixes
+     * <p>Reads {@link TestDiscoveryConfig#fileSuffixesFor(String)} for this
+     * plugin.  When the resolved list is empty the default suffixes
      * ({@code .Tests.ps1}, {@code .Test.ps1}) are retained.</p>
      *
      * @param config runtime configuration; never {@code null}
@@ -122,7 +108,7 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
      * discovered {@code It} blocks as {@link DiscoveredMethod} instances.
      *
      * <p>Files are matched by the configured {@link #fileSuffixes}.
-     * Non-fatal per-file errors (e.g. unreadable files) are logged at
+     * Non-fatal per-file errors (e.g. parse failures) are logged at
      * {@code WARNING} and skipped; {@link #hadErrors()} returns {@code true}
      * after such an error.</p>
      *
@@ -158,14 +144,8 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
         return errors.get();
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ── Private helpers ────────────────────────────────────────────────────
 
-    /**
-     * Returns {@code true} when the file name ends with one of the configured suffixes.
-     *
-     * @param path file to test
-     * @return {@code true} when the file is a Pester test file
-     */
     private boolean isPesterFile(Path path) {
         Path fn = path.getFileName();
         if (fn == null) {
@@ -175,45 +155,34 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
         return fileSuffixes.stream().anyMatch(name::endsWith);
     }
 
-    /**
-     * Parses a single Pester test file and appends discovered methods to
-     * {@code results}.
-     *
-     * @param file    file to parse; must exist and be readable
-     * @param root    scan root used for FQCN and file-stem computation
-     * @param results accumulator for discovered methods
-     * @throws IOException if reading the file fails
-     */
     private void discoverInFile(Path file, Path root,
-                                 List<DiscoveredMethod> results) throws IOException {
-        List<String> lines = Files.readAllLines(file);
-        if (lines.isEmpty()) {
+                                List<DiscoveredMethod> results) throws IOException {
+        PowerShellTestParser.ScriptContext tree = parse(file);
+        if (tree == null) {
+            return;
+        }
+
+        PowerShellTestVisitor visitor = new PowerShellTestVisitor();
+        visitor.visit(tree);
+
+        List<CommandInfo> commands = visitor.getDiscoveredCommands();
+        if (commands.isEmpty()) {
             return;
         }
 
         String fqcn = buildFqcn(file, root);
         String stem = buildFileStem(file, root);
-        SourceContent content = () -> Optional.of(String.join(System.lineSeparator(), lines));
+        SourceContent content = buildSourceContent(file);
 
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
-            Matcher m = IT_PATTERN.matcher(line);
-            if (!m.find()) {
-                continue;
-            }
-            String methodName = m.group(2);
-            List<String> tags = extractTags(line);
-            int beginLine = i + 1; // 1-based
-            int endLine = findItBlockEnd(lines, i);
-            int loc = endLine - beginLine + 1;
-
+        for (CommandInfo cmd : commands) {
+            int loc = cmd.endLine() - cmd.beginLine() + 1;
             results.add(new DiscoveredMethod(
                     fqcn,
-                    methodName,
-                    beginLine,
-                    endLine,
+                    cmd.name(),
+                    cmd.beginLine(),
+                    cmd.endLine(),
                     loc,
-                    List.copyOf(tags),
+                    cmd.tags(),
                     null,
                     file,
                     stem,
@@ -221,70 +190,42 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
         }
     }
 
-    // ── Package-private static helpers (accessible from tests) ───────────────
-
-    /**
-     * Extracts tag values from a single {@code It} line.
-     *
-     * <p>Looks for the {@code -Tag} switch and collects every quoted string
-     * that follows it on the same line. An array literal form
-     * ({@code -Tag @("a", "b")}) and a simple form ({@code -Tag "a"}) are
-     * both handled. Returns an empty list when no {@code -Tag} is present.</p>
-     *
-     * @param line the raw source line to examine
-     * @return mutable list of tag strings (possibly empty)
-     */
-    static List<String> extractTags(String line) {
-        Matcher tagMatcher = TAG_ON_LINE.matcher(line);
-        if (!tagMatcher.find()) {
-            return new ArrayList<>();
-        }
-        // Collect all quoted strings that appear after the -Tag position
-        int tagStart = tagMatcher.start();
-        String afterTag = line.substring(tagStart);
-        Matcher qMatcher = QUOTED_STRING.matcher(afterTag);
-        List<String> tags = new ArrayList<>();
-        while (qMatcher.find()) {
-            tags.add(qMatcher.group(1));
-        }
-        return tags;
-    }
-
-    /**
-     * Finds the line number (1-based) of the closing {@code }} of the
-     * {@code It} block that starts at {@code startIdx}.
-     *
-     * <p>Brace counting begins at {@code startIdx}. When the opening brace
-     * for the block is not on {@code startIdx} (i.e. brace depth never
-     * reaches 1), the method falls back to returning {@code startIdx + 1}
-     * so that single-line {@code It} declarations without a body still
-     * produce a valid line range.</p>
-     *
-     * @param lines    all lines of the file (0-based)
-     * @param startIdx 0-based index of the {@code It} line
-     * @return 1-based line number of the closing brace; at least
-     *         {@code startIdx + 1}
-     */
-    static int findItBlockEnd(List<String> lines, int startIdx) {
-        int depth = 0;
-        boolean opened = false;
-        for (int i = startIdx; i < lines.size(); i++) {
-            String line = lines.get(i);
-            for (char ch : line.toCharArray()) {
-                if (ch == '{') {
-                    depth++;
-                    opened = true;
-                } else if (ch == '}') {
-                    depth--;
-                    if (opened && depth == 0) {
-                        return i + 1; // 1-based
-                    }
-                }
+    private PowerShellTestParser.ScriptContext parse(Path file) throws IOException {
+        PowerShellTestLexer lexer = new PowerShellTestLexer(CharStreams.fromPath(file));
+        lexer.removeErrorListeners();
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        PowerShellTestParser parser = new PowerShellTestParser(tokens);
+        parser.removeErrorListeners();
+        List<String> syntaxErrors = new ArrayList<>();
+        parser.addErrorListener(new BaseErrorListener() {
+            @Override
+            public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                    int line, int charPositionInLine,
+                                    String msg, RecognitionException e) {
+                syntaxErrors.add(file + ":" + line + ":" + charPositionInLine + ": " + msg);
+            }
+        });
+        PowerShellTestParser.ScriptContext tree = parser.script();
+        if (!syntaxErrors.isEmpty()) {
+            errors.set(true);
+            if (LOG.isLoggable(Level.WARNING)) {
+                syntaxErrors.forEach(err -> LOG.warning("PowerShell parse error: " + err));
             }
         }
-        // No opening brace found or unmatched — use the It line itself
-        return startIdx + 1;
+        return tree;
     }
+
+    private static SourceContent buildSourceContent(Path file) {
+        return () -> {
+            try {
+                return Optional.of(Files.readString(file));
+            } catch (IOException e) {
+                return Optional.empty();
+            }
+        };
+    }
+
+    // ── Package-private static helpers (accessible from tests) ────────────
 
     /**
      * Builds the FQCN for a file by relativising the parent directory from
@@ -359,7 +300,7 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
      * @param filename filename (not a full path) to strip
      * @return filename without the matching suffix
      */
-    private static String stemOf(String filename) {
+    static String stemOf(String filename) {
         if (filename.endsWith(".Tests.ps1")) {
             return filename.substring(0, filename.length() - ".Tests.ps1".length());
         }

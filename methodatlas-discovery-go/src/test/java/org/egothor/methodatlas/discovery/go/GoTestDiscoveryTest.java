@@ -114,6 +114,34 @@ class GoTestDiscoveryTest {
     }
 
     /**
+     * Verifies that the parser reports correct begin/end lines and LOC for a
+     * multi-line test function.
+     *
+     * @param tempDir JUnit-managed temporary directory
+     * @throws IOException if file operations fail
+     */
+    @Test
+    void discover_correctLocForMultiLineFunction(@TempDir Path tempDir) throws IOException {
+        String source = "package main\n\n"
+                + "import \"testing\"\n\n"
+                + "func TestMultiLine(t *testing.T) {\n"  // line 5
+                + "    t.Helper()\n"                        // line 6
+                + "    t.Log(\"hello\")\n"                  // line 7
+                + "}\n";                                    // line 8
+        Files.writeString(tempDir.resolve("multi_test.go"), source);
+
+        GoTestDiscovery discovery = new GoTestDiscovery();
+        List<DiscoveredMethod> methods = discovery.discover(tempDir).collect(Collectors.toList());
+
+        assertEquals(1, methods.size(), "expected exactly 1 test method");
+        DiscoveredMethod m = methods.get(0);
+        assertEquals("TestMultiLine", m.method());
+        assertEquals(5, m.beginLine(), "expected beginLine=5");
+        assertEquals(8, m.endLine(), "expected endLine=8");
+        assertEquals(4, m.loc(), "expected LOC=4");
+    }
+
+    /**
      * Verifies that {@link GoTestDiscovery#buildFqcn(Path, Path, String)}
      * derives the dot-separated directory path relative to the root.
      *
@@ -147,25 +175,6 @@ class GoTestDiscoveryTest {
 
         String stem = GoTestDiscovery.buildFileStem(file, tempDir);
         assertEquals("sub.pkg.auth", stem);
-    }
-
-    /**
-     * Verifies that {@link GoTestDiscovery#findFunctionEnd(List, int)}
-     * correctly tracks brace depth and returns the one-based line of the
-     * closing brace.
-     */
-    @Test
-    void findFunctionEnd_tracksDepth() {
-        List<String> lines = List.of(
-                "func TestFoo(t *testing.T) {",  // line 1, depth → 1
-                "    if true {",                  // line 2, depth → 2
-                "        t.Log(\"hi\")",           // line 3
-                "    }",                          // line 4, depth → 1
-                "}"                               // line 5, depth → 0
-        );
-
-        int end = GoTestDiscovery.findFunctionEnd(lines, 0);
-        assertEquals(5, end, "expected closing brace on line 5");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
-    id 'com.github.spotbugs' version '6.4.8'
-    id 'net.ltgt.errorprone' version '4.1.0'
+    id 'antlr'
+    id 'eclipse'
 }
 
 java {
@@ -13,30 +13,58 @@ repositories {
     mavenCentral()
 }
 
+generateGrammarSource {
+    maxHeapSize = '64m'
+    arguments += [
+        '-package', 'org.egothor.methodatlas.discovery.go.parser',
+        '-visitor',
+        '-no-listener'
+    ]
+    // The ANTLR plugin mirrors the grammar file's relative path within the
+    // antlr source set into this directory, so GoTest.g4 (at
+    // src/main/antlr4/org/.../parser/) produces:
+    //   build/generated-src/antlr/main/org/.../parser/GoTest*.java
+    outputDirectory = file("${buildDir}/generated-src/antlr/main")
+}
+
+compileJava.dependsOn generateGrammarSource
+
+sourceSets {
+    main {
+        antlr {
+            srcDirs = ['src/main/antlr4']
+        }
+    }
+}
+
+// Make Eclipse aware of the generated source directory so that import
+// resolution works without a full Gradle build first.
+eclipse {
+    classpath {
+        file.whenMerged { cp ->
+            def genSrc = 'build/generated-src/antlr/main'
+            if (!cp.entries.any {
+                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder &&
+                    it.path == genSrc }) {
+                cp.entries.add(new org.gradle.plugins.ide.eclipse.model.SourceFolder(
+                        genSrc, null))
+            }
+        }
+    }
+}
+
 dependencies {
-    api project(':methodatlas-api')
+    antlr 'org.antlr:antlr4:4.13.2'
+    api    project(':methodatlas-api')
+    implementation 'org.antlr:antlr4-runtime:4.13.2'
 
     testImplementation(platform("org.junit:junit-bom:5.14.2"))
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-    errorprone 'com.google.errorprone:error_prone_core:2.36.0'
 }
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
-}
-
-// ---------------------------------------------------------------------------
-// Error Prone – enabled on main sources only; test compilation uses
-// --release which can conflict with Error Prone's internal API access.
-// ---------------------------------------------------------------------------
-tasks.named('compileJava') {
-    options.errorprone.enabled = true
-}
-tasks.named('compileTestJava') {
-    options.errorprone.enabled = false
-    options.release = JavaVersion.current().majorVersion.toInteger()
 }
 
 // ---------------------------------------------------------------------------
