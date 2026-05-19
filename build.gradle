@@ -300,10 +300,10 @@ tasks.named('cyclonedxBom') {
 // every project's afterEvaluate callbacks, so both mutations here are final.
 // ---------------------------------------------------------------------------
 gradle.projectsEvaluated {
-    subprojects.each { sub ->
-        def config = sub.configurations.findByName('cyclonedxDirectBom')
+    allprojects.each { proj ->
+        def config = proj.configurations.findByName('cyclonedxDirectBom')
         if (config != null) {
-            sub.tasks.findByName('cyclonedxDirectBom')  // pre-realize: registers artifact before Buildship observes config
+            proj.tasks.findByName('cyclonedxDirectBom')  // pre-realize: registers artifact before Buildship observes config
             config.canBeConsumed = false
         }
     }
