@@ -149,7 +149,7 @@ public final class PythonTestDiscovery implements TestDiscovery {
      * <li><b>File suffixes</b> — via {@link TestDiscoveryConfig#fileSuffixesFor}
      *     with ID {@code "python"}.  Falls back to {@code _test.py}.</li>
      * <li><b>{@code python.poolSize}</b> — number of worker processes;
-     *     default: {@value #DEFAULT_POOL_SIZE}.</li>
+     *     default: {@code Math.min(2, availableProcessors())}.</li>
      * <li><b>{@code python.workerTimeoutSec}</b> — per-file timeout;
      *     default: {@value #DEFAULT_TIMEOUT_SEC} s.</li>
      * <li><b>{@code python.maxConsecutiveRestarts}</b> — circuit-breaker
