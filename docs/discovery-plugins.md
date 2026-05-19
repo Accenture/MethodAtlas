@@ -135,6 +135,17 @@ leave `testMarkers` empty unless you need to override it.
 | NUnit | `using NUnit.Framework;` | `Test`, `TestCase`, `TestCaseSource` |
 | MSTest | `using Microsoft.VisualStudio.TestTools.UnitTesting;` | `TestMethod`, `DataTestMethod` |
 
+### Tag reading
+
+When MethodAtlas scans a `.cs` file it reads existing category / trait
+attributes and records their values in the `tags` column:
+
+| Framework | Attribute read | Argument used |
+|---|---|---|
+| NUnit | `[Category("value")]` | first (and only) argument |
+| xUnit | `[Trait("Tag", "value")]` or `[Trait("Category", "value")]` | second argument (first must be `"Tag"` or `"Category"`, case-insensitive) |
+| MSTest | `[TestCategory("value")]` | first (and only) argument |
+
 ### Tag and display-name write-back
 
 The `.NET` plugin also ships a `SourcePatcher`
