@@ -138,23 +138,6 @@ final class CliArgs {
                 aiCacheFile = Paths.get(nextArg(args, ++i, arg));
                 continue;
             }
-            if (FLAG_APPLY_TAGS_FROM_CSV.equals(arg)) {
-                applyTagsFromCsvFile = Paths.get(nextArg(args, ++i, arg));
-                continue;
-            }
-            if (FLAG_MISMATCH_LIMIT.equals(arg)) {
-                mismatchLimit = Integer.parseInt(nextArg(args, ++i, arg));
-                continue;
-            }
-            if (FLAG_MIN_CONFIDENCE.equals(arg)) {
-                double parsed = Double.parseDouble(nextArg(args, ++i, arg));
-                if (parsed < 0.0 || parsed > 1.0) {
-                    throw new IllegalArgumentException(
-                            "-min-confidence value must be between 0.0 and 1.0, got: " + parsed);
-                }
-                minConfidence = parsed;
-                continue;
-            }
             if (arg.startsWith("-ai")) {
                 i = applyAiArg(arg, args, i, aiBuilder);
                 continue;
@@ -165,6 +148,8 @@ final class CliArgs {
                 case "-json" -> outputMode = OutputMode.JSON;
                 case "-github-annotations" -> outputMode = OutputMode.GITHUB_ANNOTATIONS;
                 case "-apply-tags" -> applyTags = true;
+                case FLAG_APPLY_TAGS_FROM_CSV -> applyTagsFromCsvFile = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_MISMATCH_LIMIT -> mismatchLimit = Integer.parseInt(nextArg(args, ++i, arg));
                 case "-content-hash" -> contentHash = true;
                 case FLAG_CONFIG -> i++; // value already consumed in pre-scan; skip here
                 case "-file-suffix" -> {
@@ -192,6 +177,7 @@ final class CliArgs {
                 case FLAG_SARIF_OMIT_SCORES -> sarifOmitScores = true;
                 case FLAG_DRIFT_DETECT -> driftDetect = true;
                 case FLAG_EMIT_SOURCE_ROOT -> emitSourceRoot = true;
+                case FLAG_MIN_CONFIDENCE -> minConfidence = parseConfidenceThreshold(nextArg(args, ++i, arg));
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
                 case "-manual-prepare" -> {
                     manualWorkDir = nextArg(args, ++i, arg);
@@ -375,6 +361,22 @@ final class CliArgs {
             default -> throw new IllegalArgumentException("Unknown AI argument: " + arg);
         }
         return idx;
+    }
+
+    /**
+     * Validates and parses the {@code -min-confidence} argument value.
+     *
+     * @param value raw string value from the command line
+     * @return parsed confidence threshold in the range {@code [0.0, 1.0]}
+     * @throws IllegalArgumentException if the value is outside {@code [0.0, 1.0]}
+     */
+    private static double parseConfidenceThreshold(String value) {
+        double parsed = Double.parseDouble(value);
+        if (parsed < 0.0 || parsed > 1.0) {
+            throw new IllegalArgumentException(
+                    "-min-confidence value must be between 0.0 and 1.0, got: " + parsed);
+        }
+        return parsed;
     }
 
     /**

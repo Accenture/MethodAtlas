@@ -160,13 +160,6 @@ import org.egothor.methodatlas.command.ScanCommand;
  * no scan path is supplied, the current working directory is scanned.
  * </p>
  *
- * <h2>Exit Codes</h2>
- *
- * <ul>
- * <li>{@code 0} — all files processed successfully</li>
- * <li>{@code 1} — one or more files could not be parsed or processed</li>
- * </ul>
- *
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  * @see org.egothor.methodatlas.api.SourcePatcher
  * @see org.egothor.methodatlas.emit.OutputEmitter

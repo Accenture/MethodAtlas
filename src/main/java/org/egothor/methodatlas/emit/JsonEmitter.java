@@ -96,6 +96,7 @@ public final class JsonEmitter implements TestMethodSink {
      * </p>
      */
     @Override
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion) {
         record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion, null);
@@ -140,12 +141,10 @@ public final class JsonEmitter implements TestMethodSink {
                 aiTags = suggestion.tags() != null ? List.copyOf(suggestion.tags()) : List.of();
                 aiReason = suggestion.reason();
                 aiInteractionScore = suggestion.interactionScore();
-                if (confidenceEnabled) {
-                    aiConfidence = suggestion.confidence();
-                }
-                if (driftDetect) {
-                    tagAiDrift = TagAiDrift.compute(tags != null ? tags : List.of(), suggestion).toValue();
-                }
+                aiConfidence = confidenceEnabled ? suggestion.confidence() : null;
+                tagAiDrift = driftDetect
+                        ? TagAiDrift.compute(tags != null ? tags : List.of(), suggestion).toValue()
+                        : null;
             } else {
                 aiTags = List.of();
             }
