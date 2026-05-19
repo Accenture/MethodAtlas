@@ -38,6 +38,37 @@ reference see [CLI Reference](cli-reference.md).
 ./methodatlas -property functionNames=test -property functionNames=it /path/to/project
 ```
 
+## Mixed-language projects
+
+```bash
+# Java + Go monorepo — each plugin gets only its own suffix
+./methodatlas \
+  -file-suffix java:Test.java \
+  -file-suffix go:_test.go \
+  services/
+
+# Python + TypeScript frontend + Java backend
+./methodatlas \
+  -file-suffix java:Test.java \
+  -file-suffix python:_test.py \
+  -file-suffix typescript:.test.ts \
+  -file-suffix typescript:.spec.ts \
+  src/
+
+# All six built-in plugins — explicit suffix per plugin (YAML form)
+# methodatlas.yaml:
+#   fileSuffixes:
+#     - java:Test.java
+#     - dotnet:Test.cs
+#     - typescript:.test.ts
+#     - typescript:.spec.ts
+#     - go:_test.go
+#     - python:_test.py
+#     - powershell:.Tests.ps1
+#     - powershell:.Test.ps1
+./methodatlas -config methodatlas.yaml src/
+```
+
 ## Configuration file
 
 ```bash

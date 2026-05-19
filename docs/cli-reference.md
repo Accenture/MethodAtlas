@@ -79,6 +79,10 @@ fileSuffixes:
   - dotnet:Test.cs           # dotnet plugin only
   - typescript:.test.ts      # typescript plugin only
   - typescript:.spec.ts      # typescript plugin only
+  - go:_test.go              # go plugin only
+  - python:_test.py          # python plugin only (test_*.py prefix is always active)
+  - powershell:.Tests.ps1    # powershell plugin only
+  - powershell:.Test.ps1     # powershell plugin only
   - IT.java                  # global — every plugin receives this
 testMarkers:             # annotation/attribute names for Java/.NET; empty = auto-detect
   - Test                 # (renamed from testAnnotations: in 2.x — see Migration Guide)
@@ -243,7 +247,7 @@ appropriate for single-language projects. The colon character was chosen as the
 separator because it cannot appear in a valid file name on Windows, macOS, or
 Linux.
 
-Built-in plugin IDs: `java`, `dotnet`, and `typescript`. Third-party plugins declare their own
+Built-in plugin IDs: `java`, `dotnet`, `typescript`, `go`, `python`, and `powershell`. Third-party plugins declare their own
 ID via `TestDiscovery.pluginId()` / `SourcePatcher.pluginId()`.
 
 If no suffix — global or plugin-specific — reaches a plugin after routing, that
@@ -268,6 +272,9 @@ Extends or replaces the set of identifiers that MethodAtlas uses to recognise te
 | Java / Kotlin (JVM) | Annotation simple name — `Test`, `ParameterizedTest`, `Fact`, … |
 | C# / .NET | Attribute simple name — `Test`, `TestMethod`, `Fact`, `Theory`, … |
 | TypeScript / JavaScript | Leave empty; use `-property functionNames=test` instead |
+| Go | Not applicable — tests are identified by `func TestXxx(t *testing.T)` convention; leave empty |
+| Python | Not applicable — tests are identified by the `test_` naming convention; leave empty |
+| PowerShell / Pester | Not applicable — tests are `It "…"` blocks; leave empty |
 
 `-test-annotation` is accepted as a backward-compatible alias and behaves identically. If you are upgrading from 2.x, see the [Migration Guide](migration.md#-test-annotation--test-marker) for the recommended update steps.
 

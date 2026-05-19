@@ -51,8 +51,10 @@ language projects.
 
 Built-in plugin IDs: **`java`** (`methodatlas-discovery-jvm`), **`dotnet`**
 (`methodatlas-discovery-dotnet`), **`typescript`**
-(`methodatlas-discovery-typescript`), and **`go`**
-(`methodatlas-discovery-go`). Third-party plugins declare their own ID
+(`methodatlas-discovery-typescript`), **`go`**
+(`methodatlas-discovery-go`), **`python`**
+(`methodatlas-discovery-python`), and **`powershell`**
+(`methodatlas-discovery-powershell`). Third-party plugins declare their own ID
 via `TestDiscovery.pluginId()`.
 
 If no matching suffix reaches a plugin (e.g. all entries are targeted at other
@@ -362,6 +364,166 @@ no effect on this plugin and should be left empty.
 The Go plugin does not use the `properties` map. Any keys present are silently
 ignored.
 
+## Python
+
+**Plugin class:** `org.egothor.methodatlas.discovery.python.PythonTestDiscovery`
+**Module:** `methodatlas-discovery-python`
+
+The Python plugin discovers test functions and methods following the
+[pytest](https://docs.pytest.org/) naming conventions. No external Python
+runtime is required — parsing is performed entirely in Java using regular
+expressions.
+
+### File selection
+
+Two file-naming conventions are supported by default:
+
+| Convention | Example | Active when |
+|---|---|---|
+| `test_*.py` prefix | `test_auth.py` | Always — cannot be disabled via CLI |
+| `*_test.py` suffix | `security_test.py` | Default when no `-file-suffix python:…` is set |
+
+If `-file-suffix python:<suffix>` is supplied, the suffix check uses that value
+instead of the default `_test.py`. The `test_` prefix check remains active
+regardless.
+
+### Test function and method detection
+
+The plugin recognises:
+
+- **Module-level functions** — any `def test_*()` or `async def test_*()`
+  function at module scope.
+- **Class methods** — `def test_*()` or `async def test_*()` methods inside a
+  class whose name starts with `Test`, ends with `Test`, or ends with `Tests`
+  (e.g. `TestAuth`, `AuthTest`, `AuthTests`).
+
+The fully-qualified class name (FQCN) is the dot-separated module path for
+module-level functions, or the module path suffixed with the class name for
+methods (`auth.test_auth.TestAuth`).
+
+### Tags from `@pytest.mark`
+
+Decorator lines immediately before a `def test_*` are inspected. Any
+`@pytest.mark.<name>` decorator contributes `name` to the `tags` column. All
+other decorators are ignored.
+
+```python
+@pytest.mark.security
+@pytest.mark.slow
+def test_token_expiry():
+    ...
+```
+
+emits `tags = security;slow`.
+
+### `testMarkers` — not applicable
+
+pytest identifies tests by function name, not by annotations. The `testMarkers`
+field has no effect on this plugin and should be left empty.
+
+### Configuration example
+
+=== "CLI"
+
+    ```bash
+    # Default — auto-detects test_*.py and *_test.py files
+    ./methodatlas src/
+
+    # Explicit suffix targeting (useful in mixed-language monorepos)
+    ./methodatlas -file-suffix python:_test.py src/
+    ```
+
+=== "YAML"
+
+    ```yaml
+    fileSuffixes:
+      - python:_test.py
+    ```
+
+### The `properties` map (Python)
+
+The Python plugin does not use the `properties` map. Any keys present are
+silently ignored.
+
+## PowerShell / Pester
+
+**Plugin class:** `org.egothor.methodatlas.discovery.powershell.PowerShellTestDiscovery`
+**Module:** `methodatlas-discovery-powershell`
+
+The PowerShell plugin discovers Pester test cases from `It "…" { … }` blocks
+in PowerShell test scripts. No PowerShell runtime is required — parsing is
+performed entirely in Java using regular expressions.
+
+### File selection
+
+Default suffixes (both are active unless overridden):
+
+| Suffix | Example |
+|---|---|
+| `.Tests.ps1` | `Auth.Tests.ps1` |
+| `.Test.ps1` | `Auth.Test.ps1` |
+
+Override with `-file-suffix powershell:<suffix>` to use a different convention
+(e.g. `.ps1` alone for projects that do not follow the Pester suffix convention).
+
+### Test case detection
+
+Every `It "description" { … }` block is emitted as one discovered method,
+regardless of nesting level. `It` is matched case-insensitively to support
+style variants.
+
+`Describe "…"` and `Context "…"` blocks are not emitted as separate records —
+they are used only to derive the FQCN (directory + file stem joined with `.`).
+
+### Tags from `-Tag`
+
+The `-Tag` parameter on a Pester `Describe`, `Context`, or `It` block is read
+and its values are collected into the `tags` column:
+
+```powershell
+Describe "Auth Module" -Tag "security", "auth" {
+    It "rejects expired tokens" -Tag "regression" {
+        ...
+    }
+}
+```
+
+Tags are collected at the `It` line only. Tags on enclosing `Describe`/`Context`
+blocks are **not** propagated to child `It` entries — Pester itself handles tag
+inheritance at runtime.
+
+### `testMarkers` — not applicable
+
+Pester uses the `It` keyword, not annotations or attributes. The `testMarkers`
+field has no effect on this plugin and should be left empty.
+
+### Configuration example
+
+=== "CLI"
+
+    ```bash
+    # Default — auto-detects *.Tests.ps1 and *.Test.ps1 files
+    ./methodatlas src/
+
+    # Explicit suffix targeting
+    ./methodatlas -file-suffix powershell:.Tests.ps1 \
+                  -file-suffix powershell:.Test.ps1 \
+                  src/
+    ```
+
+=== "YAML"
+
+    ```yaml
+    fileSuffixes:
+      - powershell:.Tests.ps1
+      - powershell:.Test.ps1
+    ```
+
+### The `properties` map (PowerShell)
+
+The PowerShell plugin does not use the `properties` map. Any keys present are
+silently ignored.
+
 ## Quick reference
 
 | Language / framework | `fileSuffixes` | `testMarkers` | `properties` |
@@ -377,6 +539,9 @@ ignored.
 | TypeScript — Mocha | `typescript:.test.ts`, `typescript:.spec.ts` | *(leave empty)* | `functionNames=it` |
 | JavaScript — Jest | `typescript:.test.js`, `typescript:.spec.js` | *(leave empty)* | `functionNames=test`, `functionNames=it` |
 | Go — testing package | `go:_test.go` | *(not applicable)* | — |
+| Python — pytest functions | `python:_test.py` | *(leave empty — name-based)* | — |
+| Python — pytest classes | `python:_test.py` | *(leave empty — name-based)* | — |
+| PowerShell — Pester | `powershell:.Tests.ps1`, `powershell:.Test.ps1` | *(not applicable)* | — |
 
 ## See also
 
