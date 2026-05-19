@@ -120,7 +120,7 @@ public final class PythonTestDiscovery implements TestDiscovery {
     private final ReentrantLock poolInitLock = new ReentrantLock();
     private PythonEnvironment pythonEnv;
     private PythonWorkerPool workerPool;
-    private boolean errors;
+    private volatile boolean errors;
 
     /**
      * No-arg constructor required by {@link java.util.ServiceLoader}.

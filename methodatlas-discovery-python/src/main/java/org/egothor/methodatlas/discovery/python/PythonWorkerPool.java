@@ -70,8 +70,9 @@ final class PythonWorkerPool implements Closeable {
      * @param workerTimeoutMillis per-request timeout in milliseconds
      * @param circuitBreaker      restart-limit tracker shared with this pool
      */
+    /* default */
     @SuppressWarnings("PMD.DoNotUseThreads")
-    /* default */ PythonWorkerPool(Path scriptPath, PythonEnvironment pythonEnv,
+    PythonWorkerPool(Path scriptPath, PythonEnvironment pythonEnv,
             int poolSize, long workerTimeoutMillis, PythonWorkerCircuitBreaker circuitBreaker) {
         this.scriptPath = scriptPath;
         this.pythonEnv = pythonEnv;
@@ -170,7 +171,12 @@ final class PythonWorkerPool implements Closeable {
                 return;
             }
             PythonWorker worker = createWorkerUnderLock();
-            idleWorkers.offer(worker);
+            if (!idleWorkers.offer(worker)) {
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.warning("Idle worker queue full; terminating newly created worker.");
+                }
+                worker.kill("idle queue full");
+            }
         } catch (IOException e) {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING,

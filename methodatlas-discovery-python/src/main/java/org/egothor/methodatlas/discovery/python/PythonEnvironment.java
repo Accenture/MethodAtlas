@@ -85,18 +85,18 @@ final class PythonEnvironment {
             int[] parsed = parseMajorMinor(foundVersion);
             boolean meetsRequirement = parsed[0] > MINIMUM_MAJOR_VERSION
                     || (parsed[0] == MINIMUM_MAJOR_VERSION && parsed[1] >= MINIMUM_MINOR_VERSION);
-            if (!meetsRequirement) {
+            if (meetsRequirement) {
+                this.available = true;
+                if (LOG.isLoggable(Level.INFO)) {
+                    LOG.log(Level.INFO, "Python detected: {0} (executable={1})",
+                            new Object[] { versionString, executableName });
+                }
+            } else {
                 this.available = false;
                 if (LOG.isLoggable(Level.WARNING)) {
                     LOG.warning("Python " + foundVersion + " is below the minimum required version "
                             + MINIMUM_MAJOR_VERSION + "." + MINIMUM_MINOR_VERSION
                             + " — Python discovery plugin is disabled.");
-                }
-            } else {
-                this.available = true;
-                if (LOG.isLoggable(Level.INFO)) {
-                    LOG.log(Level.INFO, "Python detected: {0} (executable={1})",
-                            new Object[] { versionString, executableName });
                 }
             }
         }
