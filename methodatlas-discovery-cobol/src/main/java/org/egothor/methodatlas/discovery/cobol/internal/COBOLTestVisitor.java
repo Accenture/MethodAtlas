@@ -143,7 +143,7 @@ public final class COBOLTestVisitor {
      * @return unquoted string value; empty when {@code raw} is {@code null}
      *         or has no recognisable quoting
      */
-    static String unquote(String raw) {
+    /* default */ static String unquote(String raw) {
         if (raw == null || raw.length() < 2) {
             return raw == null ? "" : raw;
         }
