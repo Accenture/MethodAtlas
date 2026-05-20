@@ -594,21 +594,111 @@ It "name" -Tag @("security", "regression") { }  # array literal
 Only the `It` line itself is inspected.  Tags on enclosing `Describe` or
 `Context` blocks are **not** propagated.
 
+## SAP ABAP
+
+**Plugin ID:** `abap`
+**Module:** `methodatlas-discovery-abap`
+**Parser:** Two ANTLR4 structural grammars — `ABAPTest.g4` (ABAP Unit) and `ECATTScript.g4` (ecATT)
+**Runtime requirement:** none — parsing is performed entirely in the JVM
+
+### Parser technology
+
+Two separate grammars cover the two SAP test conventions:
+
+**ABAP Unit** (`.abap` files): The `ABAPTest.g4` grammar is a case-insensitive structural
+grammar that recognises `CLASS … DEFINITION … FOR TESTING … ENDCLASS` blocks and
+`CLASS … IMPLEMENTATION … ENDCLASS` blocks.  The visitor records method declarations
+marked `FOR TESTING` and correlates them with their implementations to obtain precise
+begin and end line numbers.
+
+**ecATT** (`.ecl` files): The `ECATTScript.g4` grammar recognises exported ecATT script
+files produced by SAP transaction `SECATT`.  Each `FUNCTION … DONE` block is one test
+case; begin and end lines span the full block.
+
+### What is detected
+
+| Element | Detected | Notes |
+|---------|----------|-------|
+| `CLASS … DEFINITION FOR TESTING` methods with `FOR TESTING` | Yes | Only methods that carry `FOR TESTING` in their declaration |
+| `METHODS: name FOR TESTING` (chained form) | Yes | Both single and colon-chained forms |
+| `setup` / helper methods without `FOR TESTING` | No | Excluded by design |
+| ecATT `FUNCTION` blocks | Yes | Each FUNCTION in an `.ecl` export is one test |
+
+### Known limits
+
+| Limit | Detail |
+|-------|--------|
+| **Fixed-form only** | The grammar does not model all ABAP OO constructs (macros, form routines, function modules).  Structural class content outside METHOD/ENDMETHOD is consumed as opaque tokens. |
+| **ecATT file format** | Requires exported `.ecl` files from transaction `SECATT`.  Online scripts stored only inside the SAP system cannot be discovered without export. |
+| **No tag extraction** | ABAP Unit does not use annotation-based tags; the `tags` field is always empty. |
+
+### FQCN computation
+
+For ABAP Unit: the FQCN is the class name in upper-case (e.g. `ZCL_AUTH_TEST`).
+For ecATT: the FQCN equals the function name (e.g. `Z_AUTH_LOGIN_TEST`).
+
+The **file stem** is the file path relative to the scan root with separators replaced
+by `.` and the extension stripped.
+
+## COBOL
+
+**Plugin ID:** `cobol`
+**Module:** `methodatlas-discovery-cobol`
+**Parser:** ANTLR4 structural grammar (`COBOLTest.g4`) — case-insensitive, handles both conventions
+**Runtime requirement:** none — parsing is performed entirely in the JVM
+
+### Parser technology
+
+`COBOLTest.g4` is a case-insensitive structural grammar that recognises two COBOL
+test conventions in the same pass:
+
+**Micro Focus MFUnit**: paragraphs whose names start with `MFU-TC-` are test cases.
+Each paragraph spans from the name line to the line before the next paragraph or
+end of file.
+
+**COBOL-Check**: `TestCase 'name'` directives (typically in `.cut` files alongside
+COBOL source, or embedded in the source as specially marked statements) are emitted
+as test cases.  The enclosing `TestSuite` label is recorded for context.
+
+### What is detected
+
+| Element | Detected | Notes |
+|---------|----------|-------|
+| `MFU-TC-*` paragraphs in PROCEDURE DIVISION | Yes | Case-insensitive match on the `MFU-TC-` prefix |
+| `TestCase 'name'` directives (COBOL-Check) | Yes | Both single-quoted and double-quoted names |
+| `TestSuite 'name'` blocks | Context only | Suite label is not emitted as a separate record |
+| Regular COBOL paragraphs without `MFU-TC-` prefix | No | Only the MFUnit-prefixed convention is recognised |
+
+### Known limits
+
+| Limit | Detail |
+|-------|--------|
+| **Structural grammar** | The grammar does not model full COBOL syntax.  Fixed-form column restrictions (sequence area, indicator area) are not enforced; the grammar works correctly on free-form COBOL and on fixed-form files where the column restrictions do not affect the keywords parsed. |
+| **PROGRAM-ID extraction** | The grammar does not extract `PROGRAM-ID`; the FQCN is derived from the file path. |
+| **No tag extraction** | COBOL test frameworks do not use annotation-based tags; the `tags` field is always empty. |
+
+### FQCN computation
+
+The FQCN is the file path relative to the scan root with separators replaced by `.`
+and the file extension stripped (e.g. `cobol.auth.auth_test`).
+
+The **file stem** is identical to the FQCN.
+
 ## Summary comparison
 
-| | Java | C# | TypeScript | Go | Python | PowerShell |
-|---|---|---|---|---|---|---|
-| **Parser** | JavaParser AST | ANTLR4 structural | Node.js bundle (TS compiler API) | ANTLR4 structural | Python `ast` | ANTLR4 structural |
-| **Runtime needed** | None | None | Node.js 18+ | None | Python 3.8+ | None |
-| **Full syntax coverage** | Java 21 | Structural | Full TS/JS | Structural | Full CPython 3.8+ | Structural |
-| **Framework detection** | Auto (imports) | Auto (using directives) | N/A | N/A | N/A (name-based) | N/A (DSL keyword) |
-| **Tags** | `@Tag("v")` | `@Category`/`@Trait`/`@TestCategory` | None | None | `@pytest.mark.X` | `-Tag "v"` |
-| **Display name** | `@DisplayName("t")` | `[Fact(DisplayName="t")]` (xUnit only) | Test name = display name | None | None | Test description |
-| **Nested classes** | Yes | Yes | N/A | N/A | Direct methods only | N/A |
-| **Async tests** | N/A | N/A | Yes | N/A | Yes | N/A |
-| **Sub-test / parametrize expansion** | No (`@TestFactory` not expanded) | No | Partial (`test.each` detected once) | No (`t.Run` not expanded) | No (`parametrize` not expanded) | No |
-| **Error recovery** | Parse failure = skip file | ANTLR4 continues | Worker timeout/crash → replaced | ANTLR4 continues | Worker error → skip file | ANTLR4 continues |
-| **FQCN basis** | package + class | namespace + class | file path | parent directory | module path + class | directory + stem |
+| | Java | C# | TypeScript | Go | Python | PowerShell | SAP ABAP | COBOL |
+|---|---|---|---|---|---|---|---|---|
+| **Parser** | JavaParser AST | ANTLR4 structural | Node.js bundle (TS compiler API) | ANTLR4 structural | Python `ast` | ANTLR4 structural | ANTLR4 structural | ANTLR4 structural |
+| **Runtime needed** | None | None | Node.js 18+ | None | Python 3.8+ | None | None | None |
+| **Full syntax coverage** | Java 21 | Structural | Full TS/JS | Structural | Full CPython 3.8+ | Structural | Structural | Structural |
+| **Framework detection** | Auto (imports) | Auto (using directives) | N/A | N/A | N/A (name-based) | N/A (DSL keyword) | `FOR TESTING` attribute | `MFU-TC-` prefix / `TestCase` keyword |
+| **Tags** | `@Tag("v")` | `@Category`/`@Trait`/`@TestCategory` | None | None | `@pytest.mark.X` | `-Tag "v"` | None | None |
+| **Display name** | `@DisplayName("t")` | `[Fact(DisplayName="t")]` (xUnit only) | Test name = display name | None | None | Test description | None | TestCase label |
+| **Nested classes** | Yes | Yes | N/A | N/A | Direct methods only | N/A | N/A | N/A |
+| **Async tests** | N/A | N/A | Yes | N/A | Yes | N/A | N/A | N/A |
+| **Sub-test / parametrize expansion** | No | No | Partial | No | No | No | N/A | N/A |
+| **Error recovery** | Parse failure = skip file | ANTLR4 continues | Worker timeout/crash → replaced | ANTLR4 continues | Worker error → skip file | ANTLR4 continues | ANTLR4 continues | ANTLR4 continues |
+| **FQCN basis** | package + class | namespace + class | file path | parent directory | module path + class | directory + stem | class name / function name | file path |
 
 ## See also
 

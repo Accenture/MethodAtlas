@@ -1,0 +1,43 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. AUTHTEST.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+           01 WS-USER     PIC X(20) VALUE SPACES.
+           01 WS-PASS     PIC X(20) VALUE SPACES.
+           01 WS-RESULT   PIC X(10) VALUE SPACES.
+
+       PROCEDURE DIVISION.
+
+       MFU-TC-LOGIN-VALID.
+           MOVE 'ALICE'     TO WS-USER
+           MOVE 'SECRET123' TO WS-PASS
+           CALL 'Z_LOGIN' USING WS-USER WS-PASS WS-RESULT
+           IF WS-RESULT = 'OK'
+               DISPLAY 'PASS: valid login'
+           ELSE
+               DISPLAY 'FAIL: valid login'
+           END-IF
+           STOP RUN.
+
+       MFU-TC-LOGIN-INVALID-PASS.
+           MOVE 'ALICE'    TO WS-USER
+           MOVE 'WRONGPASS' TO WS-PASS
+           CALL 'Z_LOGIN' USING WS-USER WS-PASS WS-RESULT
+           IF WS-RESULT NOT = 'OK'
+               DISPLAY 'PASS: invalid password rejected'
+           ELSE
+               DISPLAY 'FAIL: invalid password not rejected'
+           END-IF
+           STOP RUN.
+
+       MFU-TC-LOGIN-EMPTY-USER.
+           MOVE SPACES     TO WS-USER
+           MOVE 'SECRET123' TO WS-PASS
+           CALL 'Z_LOGIN' USING WS-USER WS-PASS WS-RESULT
+           IF WS-RESULT NOT = 'OK'
+               DISPLAY 'PASS: empty user rejected'
+           ELSE
+               DISPLAY 'FAIL: empty user not rejected'
+           END-IF
+           STOP RUN.

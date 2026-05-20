@@ -1,0 +1,13 @@
+TestSuite 'Authentication'
+
+TestCase 'valid login succeeds'
+    CALL 'Z_LOGIN' USING 'ALICE' 'SECRET123' WS-RESULT
+    Expect WS-RESULT To Equal 'OK'
+
+TestCase 'invalid password is rejected'
+    CALL 'Z_LOGIN' USING 'ALICE' 'WRONGPASS' WS-RESULT
+    Expect WS-RESULT Not To Equal 'OK'
+
+TestCase 'empty username is rejected'
+    CALL 'Z_LOGIN' USING SPACES 'SECRET123' WS-RESULT
+    Expect WS-RESULT Not To Equal 'OK'

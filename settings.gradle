@@ -7,6 +7,8 @@ include 'methodatlas-discovery-typescript'
 include 'methodatlas-discovery-go'
 include 'methodatlas-discovery-python'
 include 'methodatlas-discovery-powershell'
+include 'methodatlas-discovery-abap'
+include 'methodatlas-discovery-cobol'
 
 // Documentation PDF module — not part of the binary distribution.
 // Build on request: ./gradlew :methodatlas-docs:generatePdf

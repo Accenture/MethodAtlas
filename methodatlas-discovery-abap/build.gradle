@@ -1,0 +1,92 @@
+plugins {
+    id 'java-library'
+    id 'antlr'
+    id 'eclipse'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+generateGrammarSource {
+    maxHeapSize = '64m'
+    arguments += [
+        '-package', 'org.egothor.methodatlas.discovery.abap.parser',
+        '-visitor',
+        '-no-listener'
+    ]
+    outputDirectory = file("${buildDir}/generated-src/antlr/main")
+}
+
+compileJava.dependsOn generateGrammarSource
+
+sourceSets {
+    main {
+        antlr {
+            srcDirs = ['src/main/antlr4']
+        }
+    }
+}
+
+eclipse {
+    classpath {
+        file.whenMerged { cp ->
+            def genSrc = 'build/generated-src/antlr/main'
+            if (!cp.entries.any {
+                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder &&
+                    it.path == genSrc }) {
+                cp.entries.add(new org.gradle.plugins.ide.eclipse.model.SourceFolder(
+                        genSrc, null))
+            }
+        }
+    }
+}
+
+dependencies {
+    antlr 'org.antlr:antlr4:4.13.2'
+    api    project(':methodatlas-api')
+    implementation 'org.antlr:antlr4-runtime:4.13.2'
+
+    testImplementation(platform("org.junit:junit-bom:5.14.2"))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+// ---------------------------------------------------------------------------
+// Javadoc
+// ---------------------------------------------------------------------------
+javadoc {
+    failOnError = true
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    options.addBooleanOption('html5', true)
+    options.tags('apiNote:a:API Note:')
+    options.tags('implSpec:a:Implementation Requirements:')
+    options.tags('implNote:a:Implementation Note:')
+    options.tags('param')
+    options.tags('return')
+    options.tags('throws')
+    options.tags('since')
+    options.tags('version')
+    options.tags('see')
+}
+
+build.dependsOn javadoc
+
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title':   'MethodAtlas ABAP Test Discovery',
+            'Implementation-Version': "${rootProject.version}"
+        )
+    }
+}

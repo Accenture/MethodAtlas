@@ -1,0 +1,50 @@
+CLASS zcl_auth_test DEFINITION
+  PUBLIC
+  FINAL
+  FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION SHORT.
+
+  PUBLIC SECTION.
+    METHODS:
+      setup,
+      test_valid_login     FOR TESTING,
+      test_invalid_login   FOR TESTING,
+      test_empty_user      FOR TESTING.
+
+ENDCLASS.
+
+CLASS zcl_auth_test IMPLEMENTATION.
+
+  METHOD setup.
+    " Initialise test fixtures
+  ENDMETHOD.
+
+  METHOD test_valid_login.
+    DATA lv_result TYPE abap_bool.
+    lv_result = zcl_auth=>login( iv_user = 'ALICE' iv_pass = 'SECRET123' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_result
+      exp = abap_true
+      msg = 'Valid login must succeed' ).
+  ENDMETHOD.
+
+  METHOD test_invalid_login.
+    DATA lv_result TYPE abap_bool.
+    lv_result = zcl_auth=>login( iv_user = 'ALICE' iv_pass = 'WRONGPASS' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_result
+      exp = abap_false
+      msg = 'Invalid password must be rejected' ).
+  ENDMETHOD.
+
+  METHOD test_empty_user.
+    DATA lv_result TYPE abap_bool.
+    lv_result = zcl_auth=>login( iv_user = '' iv_pass = 'SECRET123' ).
+    cl_abap_unit_assert=>assert_equals(
+      act = lv_result
+      exp = abap_false
+      msg = 'Empty username must be rejected' ).
+  ENDMETHOD.
+
+ENDCLASS.

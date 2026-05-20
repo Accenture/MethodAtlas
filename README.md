@@ -2,7 +2,7 @@
 
 <img src="MethodAtlas.png" width="20%" align="right" alt="MethodAtlas logo" />
 
-MethodAtlas is a CLI tool that scans test source trees for test methods and emits one structured record per discovered method — with optional AI-assisted security classification. Java (JUnit 5, JUnit 4, TestNG), C# (.NET — xUnit, NUnit, MSTest), and TypeScript/JavaScript (Jest, Vitest, Mocha) are supported out of the box; additional languages can be added as plugins.
+MethodAtlas is a CLI tool that scans test source trees for test methods and emits one structured record per discovered method — with optional AI-assisted security classification. Java (JUnit 5, JUnit 4, TestNG), C# (.NET — xUnit, NUnit, MSTest), TypeScript/JavaScript (Jest, Vitest, Mocha), Go, Python (pytest), PowerShell (Pester), SAP ABAP (ABAP Unit, ecATT), and COBOL (MFUnit, COBOL-Check) are supported out of the box; additional languages can be added as plugins.
 
 It is built for teams that must demonstrate test coverage of security properties to auditors, regulators, or security review boards: it separates **deterministic source analysis** from **optional AI interpretation** so that every result is traceable, repeatable, and defensible.
 
@@ -144,8 +144,10 @@ on Linux and macOS.
 | Go | `methodatlas-discovery-go` | Go testing package (`func Test…(t *testing.T)`) | — | — | — |
 | Python | `methodatlas-discovery-python` | pytest (`test_*` functions / `Test*` classes) | — | — | — |
 | PowerShell | `methodatlas-discovery-powershell` | Pester (`It "..."` blocks in `*.Tests.ps1`) | `-Tag "value"` on `It` line | — | — |
+| SAP ABAP | `methodatlas-discovery-abap` | ABAP Unit (`FOR TESTING` methods); ecATT (`FUNCTION` blocks in `.ecl` exports) | — | — | — |
+| COBOL | `methodatlas-discovery-cobol` | Micro Focus MFUnit (`MFU-TC-*` paragraphs); COBOL-Check (`TestCase '...'` directives) | — | — | — |
 
-All six plugins ship with the default distribution. The TypeScript plugin
+All eight plugins ship with the default distribution. The TypeScript plugin
 disables itself gracefully when Node.js is not on the PATH. Additional languages
 can be added by implementing `TestDiscovery` (in `methodatlas-api`), declaring a
 unique `pluginId()`, and dropping the JAR on the classpath — no changes to the
