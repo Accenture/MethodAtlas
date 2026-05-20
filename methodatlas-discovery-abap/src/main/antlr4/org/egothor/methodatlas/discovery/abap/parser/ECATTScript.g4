@@ -69,7 +69,9 @@ FUNCTION       : 'FUNCTION'       ;
 DO             : 'DO'             ;
 DONE           : 'DONE'           ;
 
-IDENTIFIER : [a-zA-Z_/] [a-zA-Z0-9_/]* ;
+// Character classes use lower-case only because grammar option
+// caseInsensitive=true makes [a-z] match both cases.
+IDENTIFIER : [a-z_/] [a-z0-9_/]* ;
 STRING_LIT : '\'' ( '\'\'' | ~'\'' )* '\'' ;
 INT_LIT    : [0-9]+ ;
 OTHER      : . ;

@@ -78,8 +78,10 @@ otherElement
 // LEXER RULES
 // ═══════════════════════════════════════════════════════════════════════
 
-// MFUnit paragraph prefix — matched before generic IDENTIFIER
-MFU_TC_ID  : 'MFU-TC-' [A-Za-z0-9-]+ ;
+// MFUnit paragraph prefix — matched before generic IDENTIFIER.
+// Character classes use lower-case only because grammar option
+// caseInsensitive=true makes [a-z] match both cases.
+MFU_TC_ID  : 'MFU-TC-' [a-z0-9\-]+ ;
 
 // COBOL-Check keywords
 TESTSUITE  : 'TESTSUITE' ;
@@ -92,7 +94,7 @@ PERIOD : '.' ;
 COMMA  : ',' ;
 
 // COBOL identifiers (letters, digits, hyphens; cannot start/end with hyphen)
-IDENTIFIER : [A-Za-z_] [A-Za-z0-9_-]* ;
+IDENTIFIER : [a-z_] [a-z0-9_\-]* ;
 
 // Both single-quoted and double-quoted strings
 QUOTED_STRING

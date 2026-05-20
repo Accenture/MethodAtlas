@@ -178,7 +178,9 @@ RPAREN  : ')' ;
 // ABAP identifiers: letters, digits, underscore, forward-slash (namespace),
 // tilde (interface method reference).
 
-IDENTIFIER : [a-zA-Z_/] [a-zA-Z0-9_/~]* ;
+// Character classes use lower-case only because grammar option
+// caseInsensitive=true makes [a-z] match both cases.
+IDENTIFIER : [a-z_/] [a-z0-9_/~]* ;
 
 // ── Literals ──────────────────────────────────────────────────────────
 

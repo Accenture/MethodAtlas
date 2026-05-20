@@ -24,7 +24,6 @@ import org.egothor.methodatlas.discovery.abap.internal.ABAPTestVisitor;
 import org.egothor.methodatlas.discovery.abap.internal.ECATTScriptVisitor;
 import org.egothor.methodatlas.discovery.abap.internal.MethodInfo;
 import org.egothor.methodatlas.discovery.abap.parser.ABAPTestLexer;
-import org.egothor.methodatlas.discovery.abap.parser.ABAPTestParser;
 import org.egothor.methodatlas.discovery.abap.parser.ECATTScriptLexer;
 import org.egothor.methodatlas.discovery.abap.parser.ECATTScriptParser;
 
@@ -139,16 +138,16 @@ public final class ABAPTestDiscovery implements TestDiscovery {
 
     private void discoverAbapUnit(Path file, Path root,
                                   List<DiscoveredMethod> results) throws IOException {
+        // ABAP discovery uses the lexer only — the visitor walks the raw
+        // token stream so the discovery is robust against the wide variety
+        // of statement-level constructs that appear inside method bodies
+        // and class headers.
         ABAPTestLexer lexer = new ABAPTestLexer(CharStreams.fromPath(file));
         lexer.removeErrorListeners();
         CommonTokenStream tokens = new CommonTokenStream(lexer);
-        ABAPTestParser parser = new ABAPTestParser(tokens);
-        parser.removeErrorListeners();
-        addSyntaxErrorListener(parser, file);
 
-        ABAPTestParser.SourceFileContext tree = parser.sourceFile();
         ABAPTestVisitor visitor = new ABAPTestVisitor();
-        visitor.visit(tree);
+        visitor.scan(tokens);
 
         List<MethodInfo> methods = visitor.getDiscoveredMethods();
         if (methods.isEmpty()) {
@@ -213,21 +212,6 @@ public final class ABAPTestDiscovery implements TestDiscovery {
         }
         String name = fn.toString();
         return ecattSuffixes.stream().anyMatch(name::endsWith);
-    }
-
-    private void addSyntaxErrorListener(ABAPTestParser parser, Path file) {
-        parser.addErrorListener(new BaseErrorListener() {
-            @Override
-            public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
-                                    int line, int charPositionInLine,
-                                    String msg, RecognitionException e) {
-                errors.set(true);
-                if (LOG.isLoggable(Level.WARNING)) {
-                    LOG.warning("ABAP parse error: " + file + ":" + line + ":"
-                            + charPositionInLine + ": " + msg);
-                }
-            }
-        });
     }
 
     private void addEcattSyntaxErrorListener(ECATTScriptParser parser, Path file) {

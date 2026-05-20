@@ -11,11 +11,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
-import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.Recognizer;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
@@ -23,7 +20,6 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.discovery.cobol.internal.COBOLTestVisitor;
 import org.egothor.methodatlas.discovery.cobol.internal.MethodInfo;
 import org.egothor.methodatlas.discovery.cobol.parser.COBOLTestLexer;
-import org.egothor.methodatlas.discovery.cobol.parser.COBOLTestParser;
 
 /**
  * {@link TestDiscovery} implementation for COBOL source trees.
@@ -134,27 +130,15 @@ public final class COBOLTestDiscovery implements TestDiscovery {
 
     private void discoverInFile(Path file, Path root,
                                 List<DiscoveredMethod> results) throws IOException {
+        // COBOL discovery uses the lexer only — the scanner walks the raw
+        // token stream so detection is robust against the wide variety of
+        // statement-level constructs COBOL programs contain.
         COBOLTestLexer lexer = new COBOLTestLexer(CharStreams.fromPath(file));
         lexer.removeErrorListeners();
         CommonTokenStream tokens = new CommonTokenStream(lexer);
-        COBOLTestParser parser = new COBOLTestParser(tokens);
-        parser.removeErrorListeners();
-        parser.addErrorListener(new BaseErrorListener() {
-            @Override
-            public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
-                                    int line, int charPositionInLine,
-                                    String msg, RecognitionException e) {
-                errors.set(true);
-                if (LOG.isLoggable(Level.WARNING)) {
-                    LOG.warning("COBOL parse error: " + file + ":" + line + ":"
-                            + charPositionInLine + ": " + msg);
-                }
-            }
-        });
 
-        COBOLTestParser.SourceFileContext tree = parser.sourceFile();
         COBOLTestVisitor visitor = new COBOLTestVisitor();
-        visitor.visit(tree);
+        visitor.scan(tokens);
 
         List<MethodInfo> methods = visitor.getDiscoveredMethods();
         if (methods.isEmpty()) {
