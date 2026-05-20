@@ -3,8 +3,8 @@ package org.egothor.methodatlas.discovery.cobol.internal;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.antlr.v4.runtime.BufferedBufferedTokenStream;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.egothor.methodatlas.discovery.cobol.parser.COBOLTestLexer;
 
 /**
@@ -33,7 +33,7 @@ import org.egothor.methodatlas.discovery.cobol.parser.COBOLTestLexer;
  * </ul>
  *
  * <p>Instances are single-use: construct one per file, call
- * {@link #scan(TokenStream)}, then read results via
+ * {@link #scan(BufferedTokenStream)}, then read results via
  * {@link #getDiscoveredMethods()}.</p>
  */
 public final class COBOLTestVisitor {
@@ -54,7 +54,7 @@ public final class COBOLTestVisitor {
      *
      * @param tokens fully-lexed COBOL token stream; never {@code null}
      */
-    public void scan(TokenStream tokens) {
+    public void scan(BufferedTokenStream tokens) {
         tokens.fill();
         int n = tokens.size();
 

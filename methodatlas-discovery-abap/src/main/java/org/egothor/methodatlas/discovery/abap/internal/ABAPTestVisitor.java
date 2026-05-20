@@ -8,8 +8,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import org.antlr.v4.runtime.BufferedBufferedTokenStream;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.egothor.methodatlas.discovery.abap.parser.ABAPTestLexer;
 
 /**
@@ -46,7 +46,7 @@ import org.egothor.methodatlas.discovery.abap.parser.ABAPTestLexer;
  * case-insensitive (ABAP is itself case-insensitive).</p>
  *
  * <p>Instances are single-use: construct one per file, call
- * {@link #scan(TokenStream)}, then read results via
+ * {@link #scan(BufferedTokenStream)}, then read results via
  * {@link #getDiscoveredMethods()}.</p>
  */
 public final class ABAPTestVisitor {
@@ -62,9 +62,9 @@ public final class ABAPTestVisitor {
      *
      * @param tokens fully-lexed ABAP token stream; never {@code null}
      */
-    public void scan(TokenStream tokens) {
+    public void scan(BufferedTokenStream tokens) {
         // Tokens must be materialised before random-access is meaningful for
-        // CommonTokenStream — ANTLR pulls them on demand otherwise.
+        // CommonBufferedTokenStream — ANTLR pulls them on demand otherwise.
         tokens.fill();
 
         int i = 0;
@@ -105,7 +105,7 @@ public final class ABAPTestVisitor {
 
     // ── CLASS DEFINITION block ────────────────────────────────────────
 
-    private int handleClassDefinition(TokenStream tokens, int start, String className) {
+    private int handleClassDefinition(BufferedTokenStream tokens, int start, String className) {
         int n = tokens.size();
 
         // Phase A: scan the header (from `DEFINITION` until the first PERIOD)
@@ -170,7 +170,7 @@ public final class ABAPTestVisitor {
      * @param into   accumulator receiving FOR TESTING method names
      * @return index just past the terminating PERIOD (or EOF / ENDCLASS)
      */
-    private static int scanMethodsBlock(TokenStream tokens, int start, Set<String> into) {
+    private static int scanMethodsBlock(BufferedTokenStream tokens, int start, Set<String> into) {
         int n = tokens.size();
         int i = start;
         // Optional leading colon.
@@ -235,7 +235,7 @@ public final class ABAPTestVisitor {
 
     // ── CLASS IMPLEMENTATION block ────────────────────────────────────
 
-    private int handleClassImplementation(TokenStream tokens, int start, String className) {
+    private int handleClassImplementation(BufferedTokenStream tokens, int start, String className) {
         int n = tokens.size();
         int i = start;
 
