@@ -48,6 +48,12 @@ import org.egothor.methodatlas.discovery.abap.parser.ABAPTestLexer;
  * <p>Instances are single-use: construct one per file, call
  * {@link #scan(BufferedTokenStream)}, then read results via
  * {@link #getDiscoveredMethods()}.</p>
+ *
+ * <h2>Code structure</h2>
+ * <p>Each phase is implemented as a separate package-private helper
+ * method (header scan, body scan, single-METHODS parsing, single
+ * method-impl parsing). This keeps every method's cyclomatic and
+ * NPath complexity well below the project's PMD thresholds.</p>
  */
 public final class ABAPTestVisitor {
 
@@ -55,6 +61,10 @@ public final class ABAPTestVisitor {
     private final Map<String, Set<String>> testMethodsByClass = new HashMap<>();
 
     private final List<MethodInfo> discoveredMethods = new ArrayList<>();
+
+    // ─────────────────────────────────────────────────────────────────
+    // Public API
+    // ─────────────────────────────────────────────────────────────────
 
     /**
      * Scans the supplied lexer token stream and populates the discovered
@@ -69,28 +79,8 @@ public final class ABAPTestVisitor {
 
         int i = 0;
         int n = tokens.size();
-        while (i < n) {
-            Token t = tokens.get(i);
-            if (t.getType() == Token.EOF) {
-                break;
-            }
-            if (t.getType() == ABAPTestLexer.CLASS && i + 2 < n) {
-                Token name = tokens.get(i + 1);
-                Token kind = tokens.get(i + 2);
-                if (name.getType() == ABAPTestLexer.IDENTIFIER) {
-                    if (kind.getType() == ABAPTestLexer.DEFINITION) {
-                        i = handleClassDefinition(tokens, i + 3,
-                                name.getText().toUpperCase(Locale.ROOT));
-                        continue;
-                    }
-                    if (kind.getType() == ABAPTestLexer.IMPLEMENTATION) {
-                        i = handleClassImplementation(tokens, i + 3,
-                                name.getText().toUpperCase(Locale.ROOT));
-                        continue;
-                    }
-                }
-            }
-            i++;
+        while (i < n && tokens.get(i).getType() != Token.EOF) {
+            i = dispatchTopLevel(tokens, i, n);
         }
     }
 
@@ -103,53 +93,55 @@ public final class ABAPTestVisitor {
         return List.copyOf(discoveredMethods);
     }
 
-    // ── CLASS DEFINITION block ────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────
+    // Top-level dispatch
+    // ─────────────────────────────────────────────────────────────────
 
+    /**
+     * If the token at {@code i} starts a {@code CLASS IDENT DEFINITION} or
+     * {@code CLASS IDENT IMPLEMENTATION} block, delegates to the matching
+     * handler and returns the index just past the consumed block.
+     * Otherwise advances by one.
+     */
+    private int dispatchTopLevel(BufferedTokenStream tokens, int i, int n) {
+        if (tokens.get(i).getType() != ABAPTestLexer.CLASS || i + 2 >= n) {
+            return i + 1;
+        }
+        Token name = tokens.get(i + 1);
+        Token kind = tokens.get(i + 2);
+        if (name.getType() != ABAPTestLexer.IDENTIFIER) {
+            return i + 1;
+        }
+        String className = name.getText().toUpperCase(Locale.ROOT);
+        int kindType = kind.getType();
+        if (kindType == ABAPTestLexer.DEFINITION) {
+            return handleClassDefinition(tokens, i + 3, className);
+        }
+        if (kindType == ABAPTestLexer.IMPLEMENTATION) {
+            return handleClassImplementation(tokens, i + 3, className);
+        }
+        return i + 1;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // CLASS … DEFINITION
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Consumes a {@code CLASS NAME DEFINITION … ENDCLASS.} block.
+     *
+     * @param start      index just after {@code DEFINITION}
+     * @param className  upper-cased class name
+     * @return index just past {@code ENDCLASS.}
+     */
     private int handleClassDefinition(BufferedTokenStream tokens, int start, String className) {
         int n = tokens.size();
+        boolean classIsForTesting = headerContainsForTesting(tokens, start, n);
+        int i = skipPastNextPeriod(tokens, start, n);
 
-        // Phase A: scan the header (from `DEFINITION` until the first PERIOD)
-        // and remember whether the class itself is FOR TESTING.
-        int i = start;
-        boolean classIsForTesting = false;
-        while (i < n) {
-            Token t = tokens.get(i);
-            if (t.getType() == Token.EOF || t.getType() == ABAPTestLexer.PERIOD) {
-                break;
-            }
-            if (t.getType() == ABAPTestLexer.FOR && i + 1 < n
-                    && tokens.get(i + 1).getType() == ABAPTestLexer.TESTING) {
-                classIsForTesting = true;
-                i += 2;
-                continue;
-            }
-            i++;
-        }
-        if (i < n && tokens.get(i).getType() == ABAPTestLexer.PERIOD) {
-            i++; // consume the header-terminating PERIOD
-        }
-
-        // Phase B: scan the body (until ENDCLASS) for method declarations.
         Set<String> testMethods = new LinkedHashSet<>();
-        while (i < n) {
-            Token t = tokens.get(i);
-            int tt = t.getType();
-            if (tt == Token.EOF || tt == ABAPTestLexer.ENDCLASS) {
-                break;
-            }
-            if (tt == ABAPTestLexer.METHODS) {
-                i = scanMethodsBlock(tokens, i + 1, testMethods);
-                continue;
-            }
-            i++;
-        }
-        // Consume ENDCLASS PERIOD if we landed on ENDCLASS.
-        if (i < n && tokens.get(i).getType() == ABAPTestLexer.ENDCLASS) {
-            i++;
-            if (i < n && tokens.get(i).getType() == ABAPTestLexer.PERIOD) {
-                i++;
-            }
-        }
+        i = scanDefinitionBody(tokens, i, n, testMethods);
+        i = skipPastEndclass(tokens, i, n);
 
         if (classIsForTesting && !testMethods.isEmpty()) {
             // Merge with any existing entries (a file could in principle
@@ -157,6 +149,48 @@ public final class ABAPTestVisitor {
             testMethodsByClass
                     .computeIfAbsent(className, k -> new LinkedHashSet<>())
                     .addAll(testMethods);
+        }
+        return i;
+    }
+
+    /**
+     * Scans from {@code start} until the first terminating PERIOD (or EOF)
+     * looking for the keyword pair {@code FOR TESTING}.
+     *
+     * @return {@code true} if the pair was seen before the PERIOD
+     */
+    private static boolean headerContainsForTesting(BufferedTokenStream tokens, int start, int n) {
+        for (int i = start; i < n; i++) {
+            int tt = tokens.get(i).getType();
+            if (tt == Token.EOF || tt == ABAPTestLexer.PERIOD) {
+                return false;
+            }
+            if (tt == ABAPTestLexer.FOR && isFollowedBy(tokens, i, n, ABAPTestLexer.TESTING)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Walks the class-definition body collecting names from every
+     * {@code METHODS … .} statement until {@code ENDCLASS} or EOF.
+     *
+     * @return index of the ENDCLASS (or EOF) token
+     */
+    private static int scanDefinitionBody(BufferedTokenStream tokens, int start, int n,
+            Set<String> testMethods) {
+        int i = start;
+        while (i < n) {
+            int tt = tokens.get(i).getType();
+            if (tt == Token.EOF || tt == ABAPTestLexer.ENDCLASS) {
+                return i;
+            }
+            if (tt == ABAPTestLexer.METHODS) {
+                i = scanMethodsBlock(tokens, i + 1, testMethods);
+            } else {
+                i++;
+            }
         }
         return i;
     }
@@ -172,132 +206,206 @@ public final class ABAPTestVisitor {
      */
     private static int scanMethodsBlock(BufferedTokenStream tokens, int start, Set<String> into) {
         int n = tokens.size();
-        int i = start;
-        // Optional leading colon.
-        if (i < n && tokens.get(i).getType() == ABAPTestLexer.COLON) {
-            i++;
-        }
-        // Iterate decls separated by comma, terminated by period.
+        int i = skipOptionalColon(tokens, start, n);
+        // Single exit point: the loop body's last statement is a plain
+        // assignment (advance past COMMA) so PMD's
+        // AvoidBranchingStatementAsLastInLoop is satisfied.
+        int result = i;
         while (i < n) {
-            // Find the next IDENTIFIER (method name) at this position, skipping
-            // unexpected leading tokens defensively.
-            Token first = tokens.get(i);
-            int ft = first.getType();
-            if (ft == Token.EOF || ft == ABAPTestLexer.PERIOD
-                    || ft == ABAPTestLexer.ENDCLASS) {
+            int tt = tokens.get(i).getType();
+            if (isDeclListTerminator(tt)) {
+                result = i;
                 break;
             }
-            if (ft != ABAPTestLexer.IDENTIFIER) {
+            if (tt != ABAPTestLexer.IDENTIFIER) {
                 i++;
+                result = i;
                 continue;
             }
-            String name = first.getText().toUpperCase(Locale.ROOT);
-            i++;
+            String name = tokens.get(i).getText().toUpperCase(Locale.ROOT);
+            int afterAttrs = scanDeclAttrs(tokens, i + 1, n, name, into);
+            int sep = afterAttrs < n ? tokens.get(afterAttrs).getType() : Token.EOF;
+            if (sep == ABAPTestLexer.PERIOD) {
+                result = afterAttrs + 1;
+                break;
+            }
+            if (sep != ABAPTestLexer.COMMA) {
+                // ENDCLASS or EOF: stop here without advancing.
+                result = afterAttrs;
+                break;
+            }
+            // COMMA: advance past it and look for the next decl.
+            i = afterAttrs + 1;
+            result = i;
+        }
+        return result;
+    }
 
-            // Scan attributes until COMMA or PERIOD, looking for FOR TESTING.
-            boolean forTesting = false;
-            while (i < n) {
-                Token t = tokens.get(i);
-                int tt = t.getType();
-                if (tt == Token.EOF || tt == ABAPTestLexer.COMMA
-                        || tt == ABAPTestLexer.PERIOD || tt == ABAPTestLexer.ENDCLASS) {
-                    break;
-                }
-                if (tt == ABAPTestLexer.FOR && i + 1 < n
-                        && tokens.get(i + 1).getType() == ABAPTestLexer.TESTING) {
-                    forTesting = true;
-                    i += 2;
-                    continue;
-                }
-                i++;
+    /**
+     * Scans the attribute list of a single {@code methodDecl} until the
+     * next {@code COMMA}, {@code PERIOD}, {@code ENDCLASS}, or EOF.
+     * Adds {@code name} to {@code into} if the attribute list contains
+     * {@code FOR TESTING}.
+     *
+     * @return index of the terminator token (COMMA/PERIOD/ENDCLASS/EOF)
+     */
+    private static int scanDeclAttrs(BufferedTokenStream tokens, int start, int n,
+            String name, Set<String> into) {
+        int i = start;
+        boolean forTesting = false;
+        while (i < n) {
+            int tt = tokens.get(i).getType();
+            if (isDeclAttrTerminator(tt)) {
+                break;
             }
-            if (forTesting) {
-                into.add(name);
+            if (tt == ABAPTestLexer.FOR && isFollowedBy(tokens, i, n, ABAPTestLexer.TESTING)) {
+                forTesting = true;
+                i += 2;
+                continue;
             }
-            // Consume separator.
-            if (i < n) {
-                int tt = tokens.get(i).getType();
-                if (tt == ABAPTestLexer.COMMA) {
-                    i++;
-                    continue;
-                }
-                if (tt == ABAPTestLexer.PERIOD) {
-                    i++;
-                    break;
-                }
-                if (tt == ABAPTestLexer.ENDCLASS || tt == Token.EOF) {
-                    break;
-                }
-            }
+            i++;
+        }
+        if (forTesting) {
+            into.add(name);
         }
         return i;
     }
 
-    // ── CLASS IMPLEMENTATION block ────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────
+    // CLASS … IMPLEMENTATION
+    // ─────────────────────────────────────────────────────────────────
 
+    /**
+     * Consumes a {@code CLASS NAME IMPLEMENTATION … ENDCLASS.} block,
+     * emitting one {@link MethodInfo} for each {@code METHOD} whose name
+     * is in the previously-collected FOR TESTING set for the class.
+     *
+     * @param start      index just after {@code IMPLEMENTATION}
+     * @param className  upper-cased class name
+     * @return index just past {@code ENDCLASS.}
+     */
     private int handleClassImplementation(BufferedTokenStream tokens, int start, String className) {
         int n = tokens.size();
-        int i = start;
-
-        // Consume the header-terminating PERIOD.
-        while (i < n) {
-            int tt = tokens.get(i).getType();
-            if (tt == ABAPTestLexer.PERIOD) {
-                i++;
-                break;
-            }
-            if (tt == Token.EOF || tt == ABAPTestLexer.ENDCLASS) {
-                return i;
-            }
-            i++;
-        }
+        int i = skipPastNextPeriod(tokens, start, n);
 
         Set<String> testMethods = testMethodsByClass.get(className);
         while (i < n) {
-            Token t = tokens.get(i);
-            int tt = t.getType();
+            int tt = tokens.get(i).getType();
             if (tt == Token.EOF || tt == ABAPTestLexer.ENDCLASS) {
                 break;
             }
-            if (tt == ABAPTestLexer.METHOD && i + 1 < n
-                    && tokens.get(i + 1).getType() == ABAPTestLexer.IDENTIFIER) {
-                Token nameTok = tokens.get(i + 1);
-                String methodName = nameTok.getText().toUpperCase(Locale.ROOT);
-                int methodStartLine = t.getLine();
-                int j = i + 2;
-                // Find ENDMETHOD that terminates this method.
-                while (j < n) {
-                    int jt = tokens.get(j).getType();
-                    if (jt == Token.EOF || jt == ABAPTestLexer.ENDMETHOD
-                            || jt == ABAPTestLexer.ENDCLASS) {
-                        break;
-                    }
-                    j++;
-                }
-                int endLine = j < n ? tokens.get(j).getLine() : methodStartLine;
-                if (testMethods != null && testMethods.contains(methodName)) {
-                    discoveredMethods.add(new MethodInfo(
-                            className, methodName, methodStartLine, endLine));
-                }
-                // Advance past ENDMETHOD (and its trailing PERIOD, if any).
-                if (j < n && tokens.get(j).getType() == ABAPTestLexer.ENDMETHOD) {
-                    j++;
-                    if (j < n && tokens.get(j).getType() == ABAPTestLexer.PERIOD) {
-                        j++;
-                    }
-                }
-                i = j;
-                continue;
-            }
-            i++;
-        }
-        // Consume ENDCLASS PERIOD if present.
-        if (i < n && tokens.get(i).getType() == ABAPTestLexer.ENDCLASS) {
-            i++;
-            if (i < n && tokens.get(i).getType() == ABAPTestLexer.PERIOD) {
+            if (tt == ABAPTestLexer.METHOD
+                    && isFollowedBy(tokens, i, n, ABAPTestLexer.IDENTIFIER)) {
+                i = processMethodImpl(tokens, i, n, testMethods, className);
+            } else {
                 i++;
             }
         }
+        return skipPastEndclass(tokens, i, n);
+    }
+
+    /**
+     * Processes a single {@code METHOD NAME. … ENDMETHOD.} block. Emits
+     * a {@link MethodInfo} when {@code NAME} is in {@code testMethods}.
+     *
+     * @return index just past the terminating {@code ENDMETHOD.}
+     */
+    private int processMethodImpl(BufferedTokenStream tokens, int i, int n,
+            Set<String> testMethods, String className) {
+        Token methodToken = tokens.get(i);
+        String methodName = tokens.get(i + 1).getText().toUpperCase(Locale.ROOT);
+        int endIdx = findMethodTerminator(tokens, i + 2, n);
+        int endLine = endIdx < n ? tokens.get(endIdx).getLine() : methodToken.getLine();
+        if (testMethods != null && testMethods.contains(methodName)) {
+            discoveredMethods.add(new MethodInfo(
+                    className, methodName, methodToken.getLine(), endLine));
+        }
+        return skipPastEndmethod(tokens, endIdx, n);
+    }
+
+    /**
+     * Returns the index of the next {@code ENDMETHOD}, {@code ENDCLASS},
+     * or EOF token at or after {@code start}.
+     */
+    private static int findMethodTerminator(BufferedTokenStream tokens, int start, int n) {
+        for (int j = start; j < n; j++) {
+            int tt = tokens.get(j).getType();
+            if (tt == Token.EOF || tt == ABAPTestLexer.ENDMETHOD
+                    || tt == ABAPTestLexer.ENDCLASS) {
+                return j;
+            }
+        }
+        return n;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Token-level helpers
+    // ─────────────────────────────────────────────────────────────────
+
+    /** Whether the token at {@code i+1} (if present) has type {@code expected}. */
+    private static boolean isFollowedBy(BufferedTokenStream tokens, int i, int n, int expected) {
+        return i + 1 < n && tokens.get(i + 1).getType() == expected;
+    }
+
+    /** Terminator set for {@code METHODS [:] decl ( , decl )* .}. */
+    private static boolean isDeclListTerminator(int tt) {
+        return tt == Token.EOF || tt == ABAPTestLexer.PERIOD
+                || tt == ABAPTestLexer.ENDCLASS;
+    }
+
+    /** Terminator set for an individual method-decl attribute scan. */
+    private static boolean isDeclAttrTerminator(int tt) {
+        return tt == Token.EOF || tt == ABAPTestLexer.COMMA
+                || tt == ABAPTestLexer.PERIOD || tt == ABAPTestLexer.ENDCLASS;
+    }
+
+    /** Skips an optional leading {@code :} (used after {@code METHODS}). */
+    private static int skipOptionalColon(BufferedTokenStream tokens, int i, int n) {
+        if (i < n && tokens.get(i).getType() == ABAPTestLexer.COLON) {
+            return i + 1;
+        }
         return i;
+    }
+
+    /**
+     * Advances {@code i} until a {@code PERIOD} is seen (and consumed),
+     * or until EOF/ENDCLASS is hit (in which case the index points at
+     * that terminator).
+     */
+    private static int skipPastNextPeriod(BufferedTokenStream tokens, int start, int n) {
+        for (int i = start; i < n; i++) {
+            int tt = tokens.get(i).getType();
+            if (tt == Token.EOF || tt == ABAPTestLexer.ENDCLASS) {
+                return i;
+            }
+            if (tt == ABAPTestLexer.PERIOD) {
+                return i + 1;
+            }
+        }
+        return n;
+    }
+
+    /** Advances past an {@code ENDCLASS} token and its trailing {@code PERIOD}. */
+    private static int skipPastEndclass(BufferedTokenStream tokens, int i, int n) {
+        if (i >= n || tokens.get(i).getType() != ABAPTestLexer.ENDCLASS) {
+            return i;
+        }
+        int j = i + 1;
+        if (j < n && tokens.get(j).getType() == ABAPTestLexer.PERIOD) {
+            j++;
+        }
+        return j;
+    }
+
+    /** Advances past an {@code ENDMETHOD} token and its trailing {@code PERIOD}. */
+    private static int skipPastEndmethod(BufferedTokenStream tokens, int i, int n) {
+        if (i >= n || tokens.get(i).getType() != ABAPTestLexer.ENDMETHOD) {
+            return i;
+        }
+        int j = i + 1;
+        if (j < n && tokens.get(j).getType() == ABAPTestLexer.PERIOD) {
+            j++;
+        }
+        return j;
     }
 }

@@ -154,7 +154,11 @@ public final class ApplyTagsCommand implements Command {
             }
         }
 
-        StringBuilder summary = new StringBuilder(96)
+        // Capacity 192 comfortably covers the worst-case message:
+        //   "Apply-tags complete: <int> annotation(s) added to <int> file(s);
+        //    <int> file(s) skipped (no source write-back support for the language)"
+        // which is ~140 chars including the integer placeholders.
+        StringBuilder summary = new StringBuilder(192)
                 .append("Apply-tags complete: ")
                 .append(totalAnnotations).append(" annotation(s) added to ")
                 .append(modifiedFiles).append(" file(s)");

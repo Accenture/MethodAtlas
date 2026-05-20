@@ -252,7 +252,12 @@ public final class ApplyTagsFromCsvEngine {
             }
         }
 
-        StringBuilder summary = new StringBuilder(128)
+        // Capacity 224 comfortably covers the worst-case message:
+        //   "Apply-tags-from-csv complete: <int> change(s) in <int> file(s);
+        //    <int> mismatch(es) skipped. <int> file(s) skipped (no source
+        //    write-back support for the language)."
+        // which is ~165 chars including the integer placeholders.
+        StringBuilder summary = new StringBuilder(224)
                 .append("Apply-tags-from-csv complete: ")
                 .append(totalChanges).append(" change(s) in ")
                 .append(modifiedFiles).append(" file(s); ")
