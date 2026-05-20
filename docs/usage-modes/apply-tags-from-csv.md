@@ -2,6 +2,24 @@
 
 The `-apply-tags-from-csv <file>` mode applies reviewed annotation decisions back to source files (Java and C#). It reads a MethodAtlas CSV that a human has already reviewed and edited, then writes the tag and display-name annotations recorded in that CSV.
 
+## Language support
+
+Source write-back is implemented only for **Java** and **C#** — the two languages whose discovery plugins ship a `SourcePatcher` SPI implementation. See the table in [Source Write-back — Language support](apply-tags.md#language-support) for the full matrix.
+
+Files in any other discovered language (TypeScript/JS, Go, Python, PowerShell, SAP ABAP, COBOL) are skipped during the apply phase. The engine prints a per-file notice such as:
+
+```text
+Apply-tags-from-csv: skipped tests/test_login.py — source write-back is not supported for this language (currently Java and C# only)
+```
+
+and appends the aggregate skip count to the summary line:
+
+```text
+Apply-tags-from-csv complete: 6 change(s) in 2 file(s); 0 mismatch(es) skipped. 3 file(s) skipped (no source write-back support for the language).
+```
+
+CSV rows describing tests in unsupported languages are reported as mismatches (the source-method inventory only knows about files for which a `SourcePatcher` is available). When you scan a polyglot tree, lower the `-mismatch-limit` only after auditing which rows are expected to be unwritable.
+
 ## When to use this mode
 
 - Your organisation requires human sign-off before any source annotation is written — the CSV is the review artefact.

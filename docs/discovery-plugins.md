@@ -603,6 +603,47 @@ silently ignored.
 | Python — pytest functions | `python:_test.py` | *(leave empty — name-based)* | — |
 | Python — pytest classes | `python:_test.py` | *(leave empty — name-based)* | — |
 | PowerShell — Pester | `powershell:.Tests.ps1`, `powershell:.Test.ps1` | *(not applicable)* | — |
+| SAP ABAP — ABAP Unit | `abap:.abap`, `abap:.ecl` | *(not applicable — `FOR TESTING` is recognised structurally)* | — |
+| COBOL — MFUnit / COBOL-Check | `cobol:.cbl`, `cobol:.cob`, `cobol:.cobol`, `cobol:.cut` | *(not applicable — `MFU-TC-*` paragraphs and `TestCase` directives are recognised structurally)* | — |
+
+## Source write-back (`SourcePatcher`) support
+
+A second SPI, `org.egothor.methodatlas.api.SourcePatcher`, is used by the
+`-apply-tags` and `-apply-tags-from-csv` modes to write annotation decisions
+back into source files. Not every discovery plugin ships one — and that is by
+design: the SPI is only implemented where MethodAtlas can do a safe,
+formatting-preserving edit.
+
+| Plugin     | Discovery | `SourcePatcher`            | What `-apply-tags` does |
+|------------|-----------|----------------------------|--------------------------|
+| jvm        | ✓         | `JavaSourcePatcher`        | Inserts `@DisplayName` and `@Tag` via JavaParser, preserving comments and whitespace |
+| dotnet     | ✓         | `DotNetSourcePatcher`      | Inserts `[Category]` / `[Trait]` / `[TestCategory]` and xUnit `DisplayName=` |
+| typescript | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |
+| go         | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |
+| python     | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |
+| powershell | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |
+| abap       | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |
+| cobol      | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |
+
+The skip notice has the form:
+
+```text
+Apply-tags: skipped <path> — source write-back is not supported for this language (currently Java and C# only)
+```
+
+and the completion summary appends an aggregate skip count when at least one
+file was skipped. Skipped files do not cause a non-zero exit code; treat the
+constraint as a known scope limit, not an error. The GUI gates the Stage and
+"Accept All AI Tags" buttons identically: if the currently selected method
+lives in a file whose language has no `SourcePatcher`, the buttons are disabled
+and a tooltip explains that source write-back is not available for that
+language.
+
+If you need to add `SourcePatcher` support for an additional language,
+implement the SPI (see
+[`SourcePatcher.java`](https://github.com/EgothorOrg/methodatlas/blob/main/methodatlas-api/src/main/java/org/egothor/methodatlas/api/SourcePatcher.java))
+and register it in `META-INF/services/org.egothor.methodatlas.api.SourcePatcher`
+inside your plugin JAR.
 
 ## See also
 

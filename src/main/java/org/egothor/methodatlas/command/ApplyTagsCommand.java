@@ -30,6 +30,18 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  * line is written to the supplied writer on completion.
  * </p>
  *
+ * <h2>Languages supported for write-back</h2>
+ * <p>
+ * Source write-back is only available for languages whose discovery plugin
+ * ships a {@link SourcePatcher} implementation. At the time of writing this
+ * is <strong>Java</strong> (JUnit&nbsp;5 / 4 / TestNG) and
+ * <strong>C#</strong> (xUnit / NUnit / MSTest). Files discovered by any other
+ * plugin (TypeScript, Go, Python, PowerShell, SAP&nbsp;ABAP, COBOL, …) are
+ * recognised but skipped during write-back; the command prints a per-file
+ * notice and an aggregate skip count in the summary line. Skipped files do
+ * not cause a non-zero exit code on their own.
+ * </p>
+ *
  * @see ApplyTagsFromCsvCommand
  * @see org.egothor.methodatlas.api.SourcePatcher
  */
@@ -95,6 +107,7 @@ public final class ApplyTagsCommand implements Command {
 
         int modifiedFiles = 0;
         int totalAnnotations = 0;
+        int skippedFiles = 0;
 
         for (Map.Entry<Path, List<DiscoveredMethod>> entry : byFile.entrySet()) {
             Path sourceFile = entry.getKey();
@@ -104,6 +117,15 @@ public final class ApplyTagsCommand implements Command {
                     .filter(p -> p.supports(sourceFile))
                     .findFirst().orElse(null);
             if (patcher == null) {
+                skippedFiles++;
+                if (LOG.isLoggable(Level.INFO)) {
+                    LOG.log(Level.INFO,
+                            "Skipping {0}: no SourcePatcher available for this language",
+                            sourceFile);
+                }
+                out.println("Apply-tags: skipped " + sourceFile
+                        + " — source write-back is not supported for this language "
+                        + "(currently Java and C# only)");
                 continue;
             }
 
@@ -132,8 +154,15 @@ public final class ApplyTagsCommand implements Command {
             }
         }
 
-        out.println("Apply-tags complete: " + totalAnnotations + " annotation(s) added to "
-                + modifiedFiles + " file(s)");
+        StringBuilder summary = new StringBuilder(96)
+                .append("Apply-tags complete: ")
+                .append(totalAnnotations).append(" annotation(s) added to ")
+                .append(modifiedFiles).append(" file(s)");
+        if (skippedFiles > 0) {
+            summary.append("; ").append(skippedFiles)
+                    .append(" file(s) skipped (no source write-back support for the language)");
+        }
+        out.println(summary.toString());
         return hadErrors ? 1 : 0;
     }
 }

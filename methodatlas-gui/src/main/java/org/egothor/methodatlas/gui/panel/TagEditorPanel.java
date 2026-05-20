@@ -4,12 +4,14 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.gui.model.AnalysisModel;
 import org.egothor.methodatlas.gui.model.AppSettings;
 import org.egothor.methodatlas.gui.model.MethodEntry;
+import org.egothor.methodatlas.gui.service.SourceWriteBackSupport;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -49,6 +51,7 @@ public final class TagEditorPanel extends JPanel {
 
     private final AnalysisModel model;
     private MethodEntry currentEntry;
+    private SourceWriteBackSupport writeBackSupport;
 
     /**
      * @param model model to observe
@@ -63,6 +66,27 @@ public final class TagEditorPanel extends JPanel {
         model.addPropertyChangeListener("selectedEntry", this::onSelectionChanged);
         model.addPropertyChangeListener("entries", this::onEntriesChanged);
         model.addPropertyChangeListener("cleared", e -> clearUi());
+    }
+
+    /**
+     * Installs the {@link SourceWriteBackSupport} used to gate the Stage and
+     * Accept-All-AI-Tags buttons. When {@code null} (the default) every file
+     * with a non-{@code null} path is treated as supported, preserving the
+     * pre-existing behaviour for tests that do not exercise this gating.
+     *
+     * <p>
+     * Typically the {@link org.egothor.methodatlas.gui.MainWindow} sets a
+     * fresh instance whenever a scan starts.
+     * </p>
+     *
+     * @param support write-back support service, or {@code null} to disable
+     *                language gating in the editor
+     */
+    public void setWriteBackSupport(SourceWriteBackSupport support) {
+        this.writeBackSupport = support;
+        if (currentEntry != null) {
+            refreshUi();
+        }
     }
 
     // ── Layout ────────────────────────────────────────────────────────────
@@ -210,7 +234,26 @@ public final class TagEditorPanel extends JPanel {
             reasonLabel.setText("");
         }
 
-        boolean canApply = currentEntry.discovered().filePath() != null;
+        Path filePath = currentEntry.discovered().filePath();
+        boolean hasFile = filePath != null;
+        boolean writeBackSupported = hasFile
+                && (writeBackSupport == null || writeBackSupport.supports(filePath));
+        boolean canApply = hasFile && writeBackSupported;
+
+        if (!writeBackSupported && hasFile) {
+            String langs = writeBackSupport == null ? "Java, C#"
+                    : writeBackSupport.supportedLanguagesLabel();
+            String reason = "Source write-back is not supported for this language "
+                    + "(supported: " + langs + ").";
+            applyButton.setToolTipText(reason);
+            applyAiButton.setToolTipText(reason);
+        } else {
+            applyButton.setToolTipText(
+                    "Stage the currently toggled AI chips plus any custom override "
+                            + "— use Accept All AI Tags to skip toggling");
+            applyAiButton.setToolTipText("Stage all AI-suggested tags for this method");
+        }
+
         applyButton.setEnabled(canApply);
         applyAiButton.setEnabled(hasAi && canApply);
         unstageButton.setEnabled(currentEntry.hasPendingChanges());

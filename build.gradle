@@ -124,6 +124,8 @@ dependencies {
     runtimeOnly project(':methodatlas-discovery-go')
     runtimeOnly project(':methodatlas-discovery-python')
     runtimeOnly project(':methodatlas-discovery-powershell')
+    runtimeOnly project(':methodatlas-discovery-abap')
+    runtimeOnly project(':methodatlas-discovery-cobol')
 
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.1'

@@ -483,13 +483,27 @@ See [Classification Overrides](ai/overrides.md) for the full file format, field 
 
 Instead of emitting a report, modifies source files in place by inserting AI-generated `@DisplayName` and `@Tag` annotations on security-relevant test methods. Requires AI to be enabled via `-ai` or `-manual-consume`.
 
-A summary line is always printed to standard output:
+**Supported languages.** Source write-back is implemented only for **Java** (`.java`) and **C#** (`.cs`). Files discovered in any other supported language (TypeScript/JavaScript, Go, Python, PowerShell, SAP ABAP, COBOL) are recognised but skipped during write-back. Each skipped file produces a notice such as:
+
+```text
+Apply-tags: skipped src/api/login_test.py — source write-back is not supported for this language (currently Java and C# only)
+```
+
+A summary line is always printed to standard output. Without any unsupported files:
 
 ```text
 Apply-tags complete: 12 annotation(s) added to 3 file(s)
 ```
 
-See [Source Write-back](usage-modes/apply-tags.md) for the complete workflow and formatting guarantees.
+When at least one discovered file is in an unsupported language the summary appends a skip count:
+
+```text
+Apply-tags complete: 12 annotation(s) added to 3 file(s); 4 file(s) skipped (no source write-back support for the language)
+```
+
+Skipped files do not cause a non-zero exit code on their own.
+
+See [Source Write-back](usage-modes/apply-tags.md) for the complete workflow, the supported-language matrix, and formatting guarantees.
 
 ### `-apply-tags-from-csv`
 
@@ -515,10 +529,18 @@ What the engine does for each matched method:
 
 Required imports (`org.junit.jupiter.api.Tag`, `org.junit.jupiter.api.DisplayName`) are added to files that need them.
 
+**Supported languages.** Like `-apply-tags`, write-back is implemented only for **Java** and **C#**. Files in any other discovered language are skipped during the apply phase with a per-file notice and an aggregate skip count appended to the summary line. CSV rows describing tests in unsupported languages are reported as mismatches because the source-method inventory only includes files for which a `SourcePatcher` is available.
+
 A summary line is always printed:
 
 ```text
 Apply-tags-from-csv complete: 7 change(s) in 2 file(s); 0 mismatch(es) skipped.
+```
+
+When at least one discovered file is in an unsupported language the summary appends a skip count:
+
+```text
+Apply-tags-from-csv complete: 7 change(s) in 2 file(s); 0 mismatch(es) skipped. 4 file(s) skipped (no source write-back support for the language).
 ```
 
 See [Apply Tags from CSV](usage-modes/apply-tags-from-csv.md) for the complete workflow, mismatch handling details, and CI integration.

@@ -60,6 +60,20 @@ import org.egothor.methodatlas.api.SourcePatcher;
  * therefore causes any mismatch to abort the run without touching source files.
  * </p>
  *
+ * <h2>Languages supported for write-back</h2>
+ * <p>
+ * Source write-back is only available for languages whose discovery plugin
+ * ships a {@link SourcePatcher} implementation — currently
+ * <strong>Java</strong> (JUnit&nbsp;5 / 4 / TestNG) and <strong>C#</strong>
+ * (xUnit / NUnit / MSTest). Files whose language has no patcher are skipped
+ * during the apply phase; a per-file notice is written to {@code log} and
+ * the aggregate skip count is appended to the completion summary line.
+ * These files do not appear in the source-method index built by
+ * {@link SourcePatcher#discoverMethodsByClass(Path)} either, so rows in the
+ * CSV that describe tests in unsupported languages will be reported as
+ * mismatches.
+ * </p>
+ *
  * <p>
  * This class is a non-instantiable utility holder.
  * </p>
@@ -179,6 +193,7 @@ public final class ApplyTagsFromCsvEngine {
             int mismatchCount, PrintWriter log) {
         int modifiedFiles = 0;
         int totalChanges = 0;
+        int skippedFiles = 0;
         boolean hadErrors = false;
 
         for (Map.Entry<Path, List<MethodKey>> entry : sourceIndex.entrySet()) {
@@ -191,6 +206,15 @@ public final class ApplyTagsFromCsvEngine {
                     .filter(p -> p.supports(path))
                     .findFirst().orElse(null);
             if (patcher == null) {
+                skippedFiles++;
+                if (LOG.isLoggable(Level.INFO)) {
+                    LOG.log(Level.INFO,
+                            "Skipping {0}: no SourcePatcher available for this language",
+                            path);
+                }
+                log.println("Apply-tags-from-csv: skipped " + path
+                        + " — source write-back is not supported for this language "
+                        + "(currently Java and C# only)");
                 continue;
             }
 
@@ -228,8 +252,16 @@ public final class ApplyTagsFromCsvEngine {
             }
         }
 
-        log.println("Apply-tags-from-csv complete: " + totalChanges + " change(s) in "
-                + modifiedFiles + " file(s); " + mismatchCount + " mismatch(es) skipped.");
+        StringBuilder summary = new StringBuilder(128)
+                .append("Apply-tags-from-csv complete: ")
+                .append(totalChanges).append(" change(s) in ")
+                .append(modifiedFiles).append(" file(s); ")
+                .append(mismatchCount).append(" mismatch(es) skipped.");
+        if (skippedFiles > 0) {
+            summary.append(' ').append(skippedFiles)
+                    .append(" file(s) skipped (no source write-back support for the language).");
+        }
+        log.println(summary.toString());
         return hadErrors ? 1 : 0;
     }
 

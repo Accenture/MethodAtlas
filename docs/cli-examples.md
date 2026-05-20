@@ -155,12 +155,15 @@ for row in r:
 ## Source write-back
 
 ```bash
-# Apply AI annotations to source files
+# Apply AI annotations to source files (Java + C# only — see note below)
 ./methodatlas -ai -apply-tags /path/to/tests
 
 # Apply annotations using manual responses
 ./methodatlas -manual-consume ./work ./responses -apply-tags /path/to/tests
 ```
+
+!!! info "Languages supported for write-back"
+    `-apply-tags` and `-apply-tags-from-csv` modify only **Java** (`.java`) and **C#** (`.cs`) source files. Tests in TypeScript/JavaScript, Go, Python, PowerShell, SAP ABAP, and COBOL are discovered and reported in CSV/SARIF/plain output, but their source files are left untouched and a per-file skip notice is printed during write-back. See [Source Write-back — Language support](usage-modes/apply-tags.md#language-support).
 
 ## Manual AI workflow
 

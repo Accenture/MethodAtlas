@@ -17,10 +17,17 @@ dependencies {
     implementation project(':')
     implementation project(':methodatlas-api')
 
-    // Discovery providers needed at runtime via ServiceLoader
+    // Discovery providers needed at runtime via ServiceLoader.
+    // SourcePatcher (save-back) is implemented by jvm + dotnet only;
+    // the remaining providers contribute test inventory only.
     runtimeOnly project(':methodatlas-discovery-jvm')
     runtimeOnly project(':methodatlas-discovery-dotnet')
     runtimeOnly project(':methodatlas-discovery-typescript')
+    runtimeOnly project(':methodatlas-discovery-go')
+    runtimeOnly project(':methodatlas-discovery-python')
+    runtimeOnly project(':methodatlas-discovery-powershell')
+    runtimeOnly project(':methodatlas-discovery-abap')
+    runtimeOnly project(':methodatlas-discovery-cobol')
 
     // FlatLaf — professional flat Look and Feel, Apache 2.0
     implementation 'com.formdev:flatlaf:3.4'
@@ -31,6 +38,15 @@ dependencies {
     // Jackson — settings serialisation and YAML audit output
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.1'
+
+    // Unit tests for non-UI GUI helpers (SourceWriteBackSupport et al.)
+    testImplementation(platform("org.junit:junit-bom:5.14.2"))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }
 
 application {

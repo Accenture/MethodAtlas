@@ -39,8 +39,8 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **Security-only filter** — `-security-only` suppresses non-security methods from CSV/plain output; applied automatically in SARIF mode
 - **Mismatch limit** — `-mismatch-limit` safety gate for `-apply-tags-from-csv`; aborts without touching source files when the CSV diverges from the current codebase
 - **GitHub Actions annotations** — `-github-annotations` emits inline PR annotations for security-relevant methods without requiring a GitHub Advanced Security licence
-- **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent
-- **Apply-tags-from-csv** — applies human-reviewed annotation decisions from a CSV back to source; separates the review step from the write-back
+- **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent. **Supported languages:** Java (`.java`) and C# (`.cs`). Files in any other discovered language are recognised but skipped during write-back with a clear per-file notice and an aggregate skip count in the summary line.
+- **Apply-tags-from-csv** — applies human-reviewed annotation decisions from a CSV back to source; separates the review step from the write-back. Same Java/C# language scope as `-apply-tags`.
 - **Manual AI workflow** — two-phase prepare/consume workflow for environments where API access is blocked
 - **Local inference** — Ollama support keeps source code entirely within your network
 - **YAML configuration** — share scan settings across a team or CI pipeline without repeating CLI flags
@@ -136,16 +136,18 @@ on Linux and macOS.
 
 ## Supported languages and frameworks
 
-| Language | Plugin module | Test frameworks | Tag attribute | Display-name support | Requires |
-| --- | --- | --- | --- | --- | --- |
-| Java | `methodatlas-discovery-jvm` | JUnit 5, JUnit 4, TestNG (auto-detected from imports) | `@Tag("value")` | `@DisplayName("text")` | — |
-| C# (.NET) | `methodatlas-discovery-dotnet` | xUnit, NUnit, MSTest (auto-detected from `using` directives) | `[Category]` / `[Trait]` / `[TestCategory]` | xUnit `DisplayName=` only | — |
-| TypeScript / JavaScript | `methodatlas-discovery-typescript` | Jest, Vitest, Mocha (identified by function call names) | — | — | Node.js 18+ on PATH |
-| Go | `methodatlas-discovery-go` | Go testing package (`func Test…(t *testing.T)`) | — | — | — |
-| Python | `methodatlas-discovery-python` | pytest (`test_*` functions / `Test*` classes) | — | — | — |
-| PowerShell | `methodatlas-discovery-powershell` | Pester (`It "..."` blocks in `*.Tests.ps1`) | `-Tag "value"` on `It` line | — | — |
-| SAP ABAP | `methodatlas-discovery-abap` | ABAP Unit (`FOR TESTING` methods); ecATT (`FUNCTION` blocks in `.ecl` exports) | — | — | — |
-| COBOL | `methodatlas-discovery-cobol` | Micro Focus MFUnit (`MFU-TC-*` paragraphs); COBOL-Check (`TestCase '...'` directives) | — | — | — |
+| Language | Plugin module | Test frameworks | Tag attribute | Display-name support | Source write-back (`-apply-tags`) | Requires |
+| --- | --- | --- | --- | --- | --- | --- |
+| Java | `methodatlas-discovery-jvm` | JUnit 5, JUnit 4, TestNG (auto-detected from imports) | `@Tag("value")` | `@DisplayName("text")` | **Yes** | — |
+| C# (.NET) | `methodatlas-discovery-dotnet` | xUnit, NUnit, MSTest (auto-detected from `using` directives) | `[Category]` / `[Trait]` / `[TestCategory]` | xUnit `DisplayName=` only | **Yes** | — |
+| TypeScript / JavaScript | `methodatlas-discovery-typescript` | Jest, Vitest, Mocha (identified by function call names) | — | — | No | Node.js 18+ on PATH |
+| Go | `methodatlas-discovery-go` | Go testing package (`func Test…(t *testing.T)`) | — | — | No | — |
+| Python | `methodatlas-discovery-python` | pytest (`test_*` functions / `Test*` classes) | — | — | No | — |
+| PowerShell | `methodatlas-discovery-powershell` | Pester (`It "..."` blocks in `*.Tests.ps1`) | `-Tag "value"` on `It` line | — | No | — |
+| SAP ABAP | `methodatlas-discovery-abap` | ABAP Unit (`FOR TESTING` methods); ecATT (`FUNCTION` blocks in `.ecl` exports) | — | — | No | — |
+| COBOL | `methodatlas-discovery-cobol` | Micro Focus MFUnit (`MFU-TC-*` paragraphs); COBOL-Check (`TestCase '...'` directives) | — | — | No | — |
+
+The **Source write-back** column lists which languages support `-apply-tags` and `-apply-tags-from-csv` writing AI/CSV decisions back into source. Currently only languages whose discovery plugin ships a `SourcePatcher` SPI implementation (Java and C#) support write-back. Discovered tests in other languages are still reported in CSV/SARIF/plain output, but the apply-tags flow leaves their source files untouched and prints a per-file skip notice — see [Source Write-back — Language support](docs/usage-modes/apply-tags.md#language-support) for the full diagnostic format.
 
 All eight plugins ship with the default distribution. The TypeScript plugin
 disables itself gracefully when Node.js is not on the PATH. Additional languages

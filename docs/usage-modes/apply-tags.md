@@ -2,6 +2,37 @@
 
 The `-apply-tags` modifier instructs MethodAtlas to insert AI-generated display names and tags directly into the scanned Java (`.java`) and C# (`.cs`) source files, instead of writing a CSV report.
 
+## Language support
+
+Source write-back is implemented only for languages whose discovery plugin ships a `SourcePatcher` SPI implementation:
+
+| Language        | Discovered? | Source write-back? | Notes                                                  |
+| --------------- | ----------- | ------------------ | ------------------------------------------------------ |
+| Java            | Yes         | **Yes**            | `@DisplayName`, `@Tag` inserted via JavaParser         |
+| C#              | Yes         | **Yes**            | `[DisplayName]`, `[TestCategory]` / `[Trait]` / `[Category]` attribute write-back |
+| TypeScript / JS | Yes         | No                 | Files are recognised but skipped during write-back     |
+| Go              | Yes         | No                 | Files are recognised but skipped during write-back     |
+| Python          | Yes         | No                 | Files are recognised but skipped during write-back     |
+| PowerShell      | Yes         | No                 | Files are recognised but skipped during write-back     |
+| SAP ABAP        | Yes         | No                 | Files are recognised but skipped during write-back     |
+| COBOL           | Yes         | No                 | Files are recognised but skipped during write-back     |
+
+When MethodAtlas encounters a file in an unsupported language during `-apply-tags`, it prints a per-file notice such as:
+
+```text
+Apply-tags: skipped src/api/login_test.py — source write-back is not supported for this language (currently Java and C# only)
+```
+
+and the completion summary appends a skip count:
+
+```text
+Apply-tags complete: 4 annotation(s) added to 2 file(s); 3 file(s) skipped (no source write-back support for the language)
+```
+
+Skipped files do not cause a non-zero exit code on their own — MethodAtlas treats unsupported languages as a known constraint, not an error.
+
+If you need to record AI-suggested tags for languages that do not yet support write-back, use one of the report formats ([CSV](../output-formats.md), [SARIF](../output-formats.md), or the AI override file) instead.
+
 ## When to use this mode
 
 - You want to apply AI-suggested annotations to test source files automatically, without manually editing each file.

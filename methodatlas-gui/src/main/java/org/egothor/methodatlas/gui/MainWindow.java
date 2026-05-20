@@ -15,6 +15,7 @@ import org.egothor.methodatlas.gui.panel.TagEditorPanel;
 import org.egothor.methodatlas.gui.service.AnalysisService;
 import org.egothor.methodatlas.gui.service.AuditWriter;
 import org.egothor.methodatlas.gui.service.SettingsManager;
+import org.egothor.methodatlas.gui.service.SourceWriteBackSupport;
 
 import javax.swing.*;
 import java.awt.*;
@@ -32,7 +33,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.Set;
 
 /**
@@ -65,6 +65,7 @@ public final class MainWindow extends JFrame {
     private boolean updatingProfileCombo;
     private final AnalysisModel model = new AnalysisModel();
     private AnalysisService currentService;
+    private SourceWriteBackSupport writeBackSupport;
 
     // ── Toolbar controls ──────────────────────────────────────────────────
 
@@ -273,6 +274,15 @@ public final class MainWindow extends JFrame {
         settings.setLastDirectory(dir);
         model.clear();
 
+        // Rebuild SourcePatcher set against the current settings so the tag
+        // editor knows which discovered methods can actually be written back.
+        TestDiscoveryConfig discoveryConfig = new TestDiscoveryConfig(
+                TagEditorPanel.buildFlatSuffixes(settings),
+                Set.copyOf(settings.getTestAnnotations()),
+                Map.of());
+        writeBackSupport = new SourceWriteBackSupport(discoveryConfig);
+        tagEditorPanel.setWriteBackSupport(writeBackSupport);
+
         currentService = new AnalysisService(settings, root, model);
         currentService.execute();
         runButton.setEnabled(false);
@@ -321,16 +331,17 @@ public final class MainWindow extends JFrame {
             if (fp != null) { byFile.computeIfAbsent(fp, k -> new ArrayList<>()).add(entry); }
         }
 
-        // Load and configure all SourcePatcher implementations
-        TestDiscoveryConfig config = new TestDiscoveryConfig(
-                TagEditorPanel.buildFlatSuffixes(settings),
-                Set.copyOf(settings.getTestAnnotations()),
-                Map.of());
-        List<SourcePatcher> patchers = new ArrayList<>();
-        ServiceLoader.load(SourcePatcher.class).forEach(p -> {
-            p.configure(config);
-            patchers.add(p);
-        });
+        // Reuse (or lazily build) the SourceWriteBackSupport that gates the
+        // tag editor. This guarantees the same configured patchers are used
+        // for both UI gating and on-disk write-back.
+        if (writeBackSupport == null) {
+            TestDiscoveryConfig config = new TestDiscoveryConfig(
+                    TagEditorPanel.buildFlatSuffixes(settings),
+                    Set.copyOf(settings.getTestAnnotations()),
+                    Map.of());
+            writeBackSupport = new SourceWriteBackSupport(config);
+            tagEditorPanel.setWriteBackSupport(writeBackSupport);
+        }
 
         List<String> errors = new ArrayList<>();
         Set<Path> savedFiles = new LinkedHashSet<>();
@@ -340,12 +351,11 @@ public final class MainWindow extends JFrame {
             Path filePath = fe.getKey();
             List<MethodEntry> entries = fe.getValue();
 
-            SourcePatcher patcher = patchers.stream()
-                    .filter(p -> p.supports(filePath))
-                    .findFirst()
-                    .orElse(null);
+            SourcePatcher patcher = writeBackSupport.findPatcher(filePath);
             if (patcher == null) {
-                errors.add("No patcher available for: " + filePath.getFileName());
+                errors.add(filePath.getFileName()
+                        + ": source write-back is not supported for this language "
+                        + "(supported: " + writeBackSupport.supportedLanguagesLabel() + ")");
                 continue;
             }
 
