@@ -219,7 +219,7 @@
    <rule ref="category/java/documentation.xml/CommentContent"/>
    <rule ref="category/java/documentation.xml/CommentRequired">
       <properties>
-         <property name="fieldCommentRequirement" value="Ignored"/>
+         <property name="fieldCommentRequirement" value="ignored"/>
       </properties>
    </rule>
    <rule ref="category/java/documentation.xml/CommentSize">
@@ -274,7 +274,7 @@
    <rule ref="category/java/errorprone.xml/DoNotHardCodeSDCard"/>
    <rule ref="category/java/errorprone.xml/DoNotTerminateVM"/>
    <rule ref="category/java/errorprone.xml/DoNotThrowExceptionInFinally"/>
-   <rule ref="category/java/errorprone.xml/DontImportSun"/>
+   <!-- obsolete: rule ref="category/java/errorprone.xml/DontImportSun"/ -->
    <rule ref="category/java/errorprone.xml/DontUseFloatTypeForLoopIndices"/>
    <rule ref="category/java/errorprone.xml/EmptyCatchBlock">
       <properties>
