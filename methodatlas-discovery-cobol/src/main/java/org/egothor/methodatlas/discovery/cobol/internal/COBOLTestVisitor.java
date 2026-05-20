@@ -3,7 +3,7 @@ package org.egothor.methodatlas.discovery.cobol.internal;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.antlr.v4.runtime.BufferedBufferedTokenStream;
+import org.antlr.v4.runtime.BufferedTokenStream;
 import org.antlr.v4.runtime.Token;
 import org.egothor.methodatlas.discovery.cobol.parser.COBOLTestLexer;
 

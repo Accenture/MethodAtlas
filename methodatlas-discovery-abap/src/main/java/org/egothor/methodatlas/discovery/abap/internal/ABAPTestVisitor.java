@@ -8,7 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import org.antlr.v4.runtime.BufferedBufferedTokenStream;
+import org.antlr.v4.runtime.BufferedTokenStream;
 import org.antlr.v4.runtime.Token;
 import org.egothor.methodatlas.discovery.abap.parser.ABAPTestLexer;
 
@@ -64,7 +64,7 @@ public final class ABAPTestVisitor {
      */
     public void scan(BufferedTokenStream tokens) {
         // Tokens must be materialised before random-access is meaningful for
-        // CommonBufferedTokenStream — ANTLR pulls them on demand otherwise.
+        // CommonTokenStream — ANTLR pulls them on demand otherwise.
         tokens.fill();
 
         int i = 0;

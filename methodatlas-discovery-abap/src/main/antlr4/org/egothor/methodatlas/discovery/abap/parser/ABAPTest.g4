@@ -187,12 +187,17 @@ IDENTIFIER : [a-z_/] [a-z0-9_/~]* ;
 STRING_LIT : '\'' ( '\'\'' | ~'\'' )* '\'' ;
 INT_LIT    : [0-9]+ ;
 
-// ── Operators and other characters (consumed as opaque tokens) ────────
-
-OTHER : . ;
-
 // ── Comments and whitespace ───────────────────────────────────────────
+// MUST appear before the OTHER catch-all so a single whitespace
+// character is skipped (WS) rather than emitted as an OTHER token.
+// (ANTLR maximal-munch: same-length matches break ties by declaration
+// order; OTHER declared first would win and emit unwanted space tokens
+// that break adjacency checks like FOR + TESTING in the scanner.)
 
 // ABAP line comment starts with " (double-quote).
 LINE_COMMENT : '"' ~[\r\n]* -> skip ;
 WS : [ \t\r\n]+ -> skip ;
+
+// ── Operators and other characters (consumed as opaque tokens) ────────
+
+OTHER : . ;

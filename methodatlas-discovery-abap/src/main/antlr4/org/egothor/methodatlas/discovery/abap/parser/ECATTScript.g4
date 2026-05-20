@@ -74,7 +74,11 @@ DONE           : 'DONE'           ;
 IDENTIFIER : [a-z_/] [a-z0-9_/]* ;
 STRING_LIT : '\'' ( '\'\'' | ~'\'' )* '\'' ;
 INT_LIT    : [0-9]+ ;
-OTHER      : . ;
 
+// LINE_COMMENT and WS MUST appear before the OTHER catch-all so that
+// single-character whitespace is skipped rather than emitted as an
+// OTHER token (which would break the scanner's adjacency checks).
 LINE_COMMENT : '*' ~[\r\n]* -> skip ;
 WS : [ \t\r\n]+ -> skip ;
+
+OTHER      : . ;
