@@ -1,5 +1,6 @@
 package org.egothor.methodatlas.gui.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -98,12 +99,12 @@ class SourceWriteBackSupportTest {
     }
 
     @Test
-    void findPatcher_javaFile_returnsJvmPatcher() {
+    void findPatcher_javaFile_returnsJavaPatcher() {
         SourceWriteBackSupport sut = new SourceWriteBackSupport(DEFAULT_CONFIG);
         SourcePatcher patcher = sut.findPatcher(Path.of("FooTest.java"));
-        assertNotNull(patcher, "expected JVM patcher for .java file");
-        assertTrue(patcher.pluginId().equals("jvm"),
-                "expected pluginId() == jvm, got " + patcher.pluginId());
+        assertNotNull(patcher, "expected Java patcher for .java file");
+        assertEquals("java", patcher.pluginId(),
+                "expected pluginId() == java, got " + patcher.pluginId());
     }
 
     @Test

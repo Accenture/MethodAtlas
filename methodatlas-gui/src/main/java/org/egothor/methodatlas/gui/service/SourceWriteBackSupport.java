@@ -37,8 +37,16 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  */
 public final class SourceWriteBackSupport {
 
+    /**
+     * Mapping from a patcher's {@code pluginId()} to the human-readable
+     * language label used in {@link #supportedLanguagesLabel()}. Keys must
+     * match the {@code pluginId()} return values of the actual
+     * {@link SourcePatcher} implementations:
+     * {@code JavaSourcePatcher.pluginId() == "java"} and
+     * {@code DotNetSourcePatcher.pluginId() == "dotnet"}.
+     */
     private static final Map<String, String> LANGUAGE_LABELS = Map.of(
-            "jvm",    "Java",
+            "java",   "Java",
             "dotnet", "C#"
     );
 
@@ -51,7 +59,6 @@ public final class SourceWriteBackSupport {
      * @param config runtime configuration forwarded to every patcher; never
      *               {@code null}
      */
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     public SourceWriteBackSupport(TestDiscoveryConfig config) {
         List<SourcePatcher> loaded = new ArrayList<>();
         ServiceLoader.load(SourcePatcher.class).forEach(p -> {

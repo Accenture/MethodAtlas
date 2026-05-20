@@ -319,102 +319,164 @@ public final class MainWindow extends JFrame {
 
     // ── Save All Changes ──────────────────────────────────────────────────
 
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+    /**
+     * Persists every staged {@link MethodEntry} to disk by routing each
+     * source file through its matching {@link SourcePatcher}. Files in a
+     * language with no patcher (TypeScript, Go, Python, …) are collected
+     * as per-file errors so the user gets an explicit message instead of
+     * a silent skip.
+     *
+     * <p>The actual work is delegated to small single-responsibility
+     * helpers ({@link #groupStagedByFile}, {@link #ensureWriteBackSupport},
+     * {@link #patchSingleFile}, {@link #writeAuditEvidence},
+     * {@link #reportSaveResult}) to keep the method's NPath complexity
+     * within the project PMD threshold.</p>
+     */
     private void saveAllChanges() {
         List<MethodEntry> staged = model.getStagedEntries();
-        if (staged.isEmpty()) { return; }
-
-        // Group staged entries by source file
-        Map<Path, List<MethodEntry>> byFile = new LinkedHashMap<>();
-        for (MethodEntry entry : staged) {
-            Path fp = entry.discovered().filePath();
-            if (fp != null) { byFile.computeIfAbsent(fp, k -> new ArrayList<>()).add(entry); }
+        if (staged.isEmpty()) {
+            return;
         }
 
-        // Reuse (or lazily build) the SourceWriteBackSupport that gates the
-        // tag editor. This guarantees the same configured patchers are used
-        // for both UI gating and on-disk write-back.
-        if (writeBackSupport == null) {
-            TestDiscoveryConfig config = new TestDiscoveryConfig(
-                    TagEditorPanel.buildFlatSuffixes(settings),
-                    Set.copyOf(settings.getTestAnnotations()),
-                    Map.of());
-            writeBackSupport = new SourceWriteBackSupport(config);
-            tagEditorPanel.setWriteBackSupport(writeBackSupport);
-        }
+        Map<Path, List<MethodEntry>> byFile = groupStagedByFile(staged);
+        ensureWriteBackSupport();
 
         List<String> errors = new ArrayList<>();
         Set<Path> savedFiles = new LinkedHashSet<>();
         List<AuditWriter.SavedEntry> auditEntries = new ArrayList<>();
 
         for (Map.Entry<Path, List<MethodEntry>> fe : byFile.entrySet()) {
-            Path filePath = fe.getKey();
-            List<MethodEntry> entries = fe.getValue();
-
-            SourcePatcher patcher = writeBackSupport.findPatcher(filePath);
-            if (patcher == null) {
-                errors.add(filePath.getFileName()
-                        + ": source write-back is not supported for this language "
-                        + "(supported: " + writeBackSupport.supportedLanguagesLabel() + ")");
-                continue;
-            }
-
-            Map<String, List<String>> tagsToApply = new LinkedHashMap<>();
-            Map<String, String> displayNames = new LinkedHashMap<>();
-            for (MethodEntry e : entries) {
-                tagsToApply.put(e.discovered().method(), e.getPendingTags());
-                String dn = e.getPendingDisplayName();
-                if (dn != null) { displayNames.put(e.discovered().method(), dn); }
-            }
-
-            StringWriter sw = new StringWriter();
-            try {
-                patcher.patch(filePath, tagsToApply, displayNames, new PrintWriter(sw));
-                for (MethodEntry e : entries) {
-                    // Snapshot before clearing so AuditWriter sees the applied values
-                    auditEntries.add(new AuditWriter.SavedEntry(
-                            e.discovered().fqcn(),
-                            e.discovered().method(),
-                            e.discovered().loc(),
-                            e.getPendingTags(),
-                            e.getPendingDisplayName(),
-                            e.suggestion()));
-                    e.setAppliedTags(e.getPendingTags());
-                    e.clearStagedPatch();
-                    model.notifyEntryChanged(e);
-                }
-                savedFiles.add(filePath);
-            } catch (IOException ex) {
-                errors.add(filePath.getFileName() + ": " + ex.getMessage());
-            }
+            patchSingleFile(fe.getKey(), fe.getValue(), errors, savedFiles, auditEntries);
         }
 
         editorPanel.reloadIfAmong(savedFiles);
         saveAllButton.setEnabled(model.hasStagedChanges());
 
-        // Write audit evidence — warn on failure, do not roll back source patches
-        if (!auditEntries.isEmpty()) {
-            String dir = dirField.getText().trim();
-            if (!dir.isEmpty()) {
-                try {
-                    AuditWriter.write(Path.of(dir), auditEntries, settings.getOperatorName());
-                } catch (IOException ex) {
-                    JOptionPane.showMessageDialog(this,
-                            "Source files were saved but audit records could not be written to .methodatlas/:\n"
-                                    + ex.getMessage(),
-                            "Audit Write Warning", JOptionPane.WARNING_MESSAGE);
-                }
+        writeAuditEvidence(auditEntries);
+        reportSaveResult(staged, savedFiles, errors);
+    }
+
+    /**
+     * Groups every staged entry by its source-file path. Entries whose
+     * {@code filePath()} is {@code null} (e.g. unsaved buffers) are
+     * silently skipped because they cannot be written to disk.
+     */
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
+    private static Map<Path, List<MethodEntry>> groupStagedByFile(List<MethodEntry> staged) {
+        Map<Path, List<MethodEntry>> byFile = new LinkedHashMap<>();
+        for (MethodEntry entry : staged) {
+            Path fp = entry.discovered().filePath();
+            if (fp != null) {
+                byFile.computeIfAbsent(fp, k -> new ArrayList<>()).add(entry);
+            }
+        }
+        return byFile;
+    }
+
+    /**
+     * Lazily creates the shared {@link SourceWriteBackSupport} and hands
+     * it to the tag editor so UI gating and on-disk write-back agree on
+     * which languages are supported.
+     */
+    private void ensureWriteBackSupport() {
+        if (writeBackSupport != null) {
+            return;
+        }
+        TestDiscoveryConfig config = new TestDiscoveryConfig(
+                TagEditorPanel.buildFlatSuffixes(settings),
+                Set.copyOf(settings.getTestAnnotations()),
+                Map.of());
+        writeBackSupport = new SourceWriteBackSupport(config);
+        tagEditorPanel.setWriteBackSupport(writeBackSupport);
+    }
+
+    /**
+     * Writes all staged changes for one source file via its
+     * {@link SourcePatcher}. Records per-file errors in {@code errors},
+     * appends a {@link AuditWriter.SavedEntry} for each persisted method,
+     * and adds the file to {@code savedFiles} on success.
+     */
+    private void patchSingleFile(Path filePath, List<MethodEntry> entries,
+            List<String> errors, Set<Path> savedFiles,
+            List<AuditWriter.SavedEntry> auditEntries) {
+        SourcePatcher patcher = writeBackSupport.findPatcher(filePath);
+        if (patcher == null) {
+            errors.add(filePath.getFileName()
+                    + ": source write-back is not supported for this language "
+                    + "(supported: " + writeBackSupport.supportedLanguagesLabel() + ")");
+            return;
+        }
+
+        Map<String, List<String>> tagsToApply = new LinkedHashMap<>();
+        Map<String, String> displayNames = new LinkedHashMap<>();
+        for (MethodEntry e : entries) {
+            tagsToApply.put(e.discovered().method(), e.getPendingTags());
+            String dn = e.getPendingDisplayName();
+            if (dn != null) {
+                displayNames.put(e.discovered().method(), dn);
             }
         }
 
+        StringWriter sw = new StringWriter();
+        try {
+            patcher.patch(filePath, tagsToApply, displayNames, new PrintWriter(sw));
+            for (MethodEntry e : entries) {
+                // Snapshot before clearing so AuditWriter sees the applied values.
+                auditEntries.add(new AuditWriter.SavedEntry(
+                        e.discovered().fqcn(),
+                        e.discovered().method(),
+                        e.discovered().loc(),
+                        e.getPendingTags(),
+                        e.getPendingDisplayName(),
+                        e.suggestion()));
+                e.setAppliedTags(e.getPendingTags());
+                e.clearStagedPatch();
+                model.notifyEntryChanged(e);
+            }
+            savedFiles.add(filePath);
+        } catch (IOException ex) {
+            errors.add(filePath.getFileName() + ": " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Writes the audit log to the project's {@code .methodatlas/} folder
+     * (rooted at the currently scanned directory). Audit-write failures
+     * are surfaced as a warning dialog but do <strong>not</strong> roll
+     * back the source-file patches that have already been written.
+     */
+    private void writeAuditEvidence(List<AuditWriter.SavedEntry> auditEntries) {
+        if (auditEntries.isEmpty()) {
+            return;
+        }
+        String dir = dirField.getText().trim();
+        if (dir.isEmpty()) {
+            return;
+        }
+        try {
+            AuditWriter.write(Path.of(dir), auditEntries, settings.getOperatorName());
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Source files were saved but audit records could not be written to .methodatlas/:\n"
+                            + ex.getMessage(),
+                    "Audit Write Warning", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    /**
+     * Sets the status-bar message on a clean save, or shows an error
+     * dialog listing every per-file failure when any error occurred.
+     */
+    private void reportSaveResult(List<MethodEntry> staged,
+            Set<Path> savedFiles, List<String> errors) {
         if (errors.isEmpty()) {
             model.setStatusMessage("Saved " + staged.size() + " method(s) across "
                     + savedFiles.size() + " file(s)");
-        } else {
-            JOptionPane.showMessageDialog(this,
-                    "Some files could not be saved:\n" + String.join("\n", errors),
-                    "Save Error", JOptionPane.ERROR_MESSAGE);
+            return;
         }
+        JOptionPane.showMessageDialog(this,
+                "Some files could not be saved:\n" + String.join("\n", errors),
+                "Save Error", JOptionPane.ERROR_MESSAGE);
     }
 
     // ── Model observer ────────────────────────────────────────────────────
