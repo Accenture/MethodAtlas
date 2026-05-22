@@ -6,6 +6,9 @@ on:
     - cron: '0 4 * * 0'   # Every Sunday at 04:00 UTC
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   pitest:
     name: PIT mutation testing
