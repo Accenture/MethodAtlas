@@ -254,6 +254,25 @@ public final class MethodAtlasApp {
         }
 
         CliConfig cliConfig = CliArgs.parse(args);
+
+        // Establish the run identity once and place it in the thread-local
+        // context so the JUL formatter (Item 20) can prepend the correlation
+        // id to every log record emitted during this invocation. clear() in
+        // the finally block keeps the thread-local from outliving the run
+        // when MethodAtlas is invoked programmatically (the standard CLI
+        // exits the JVM anyway).
+        String version = MethodAtlasApp.class.getPackage().getImplementationVersion();
+        ScanRun scanRun = ScanRun.create(version, cliConfig.toString());
+        ScanRunContext.set(scanRun);
+        try {
+            return runWithScanRun(out, cliConfig);
+        } finally {
+            ScanRunContext.clear();
+        }
+    }
+
+    @SuppressWarnings({"PMD.NPathComplexity", "PMD.CyclomaticComplexity"}) // dispatch over CLI modes
+    private static int runWithScanRun(PrintWriter out, CliConfig cliConfig) throws IOException {
         AiRuntimeBuilder aiRuntimeBuilder = new AiRuntimeBuilder();
         ClassificationOverride override = new OverrideLoader().load(cliConfig.overrideFile());
         AiResultCache aiCache = aiRuntimeBuilder.buildCache(cliConfig.aiCacheFile());
