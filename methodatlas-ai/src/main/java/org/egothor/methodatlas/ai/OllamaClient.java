@@ -174,38 +174,11 @@ public final class OllamaClient implements AiProviderClient {
 
             String json = JsonText.extractFirstJsonObject(response.message().content());
             AiClassSuggestion suggestion = httpSupport.objectMapper().readValue(json, AiClassSuggestion.class);
-            return normalize(suggestion);
+            return AiProviderClient.normalize(suggestion);
 
         } catch (Exception e) { // NOPMD
             throw new AiSuggestionException("Ollama suggestion failed for " + fqcn, e);
         }
-    }
-
-    /**
-     * Normalizes a provider response into the application's internal result
-     * invariants.
-     *
-     * <p>
-     * The method ensures that collection-valued fields are never {@code null} and
-     * removes malformed method entries that do not define a usable method name.
-     * </p>
-     *
-     * @param input raw suggestion returned by the provider
-     * @return normalized suggestion
-     */
-    private static AiClassSuggestion normalize(AiClassSuggestion input) {
-        List<AiMethodSuggestion> methods = input.methods() == null ? List.of() : input.methods();
-        List<String> classTags = input.classTags() == null ? List.of() : input.classTags();
-
-        List<AiMethodSuggestion> normalizedMethods = methods.stream()
-                .filter(method -> method != null && method.methodName() != null && !method.methodName().isBlank())
-                .map(method -> new AiMethodSuggestion(method.methodName(), method.securityRelevant(),
-                        method.displayName(), method.tags() == null ? List.of() : method.tags(), method.reason(),
-                        method.confidence(), method.interactionScore()))
-                .toList();
-
-        return new AiClassSuggestion(input.className(), input.classSecurityRelevant(), classTags, input.classReason(),
-                normalizedMethods);
     }
 
     /**

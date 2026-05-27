@@ -43,7 +43,7 @@ class AiSuggestionEngineImplTest {
     @DisplayName("suggestForClass delegates to provider client using DefaultSecurityTaxonomy text")
     @Tag("positive")
     void suggestForClass_delegatesToProviderClient_usingDefaultTaxonomy() throws Exception {
-        AiProviderClient client = mock(AiProviderClient.class);
+        AiProviderClient client = mock(OllamaClient.class);
         AiClassSuggestion expected = new AiClassSuggestion("com.acme.security.AccessControlServiceTest", true,
                 List.of("security", "access-control"), "Class validates access-control behavior.",
                 List.of(new AiMethodSuggestion("shouldRejectUnauthenticatedRequest", true,
@@ -83,7 +83,7 @@ class AiSuggestionEngineImplTest {
     @DisplayName("suggestForClass delegates to provider client using OptimizedSecurityTaxonomy text")
     @Tag("positive")
     void suggestForClass_delegatesToProviderClient_usingOptimizedTaxonomy() throws Exception {
-        AiProviderClient client = mock(AiProviderClient.class);
+        AiProviderClient client = mock(OllamaClient.class);
         AiClassSuggestion expected = new AiClassSuggestion("com.acme.storage.PathTraversalValidationTest", true,
                 List.of("security", "input-validation"), "Class validates protection against unsafe path input.",
                 List.of(new AiMethodSuggestion("shouldRejectRelativePathTraversalSequence", true,
@@ -133,7 +133,7 @@ class AiSuggestionEngineImplTest {
                 """;
         Files.writeString(taxonomyFile, taxonomyText);
 
-        AiProviderClient client = mock(AiProviderClient.class);
+        AiProviderClient client = mock(OllamaClient.class);
         AiClassSuggestion expected = new AiClassSuggestion("com.acme.audit.AuditLoggingTest", true,
                 List.of("security", "logging"), "Class verifies security-relevant audit logging behavior.",
                 List.of(new AiMethodSuggestion("shouldNotLogRawBearerToken", true,
@@ -173,7 +173,7 @@ class AiSuggestionEngineImplTest {
     void constructor_throwsWhenTaxonomyFileCannotBeRead() {
         Path missingTaxonomyFile = tempDir.resolve("missing-taxonomy.txt");
 
-        AiProviderClient client = mock(AiProviderClient.class);
+        AiProviderClient client = mock(OllamaClient.class);
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.ANTHROPIC)
                 .taxonomyFile(missingTaxonomyFile).build();
 

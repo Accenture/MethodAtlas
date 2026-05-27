@@ -171,43 +171,11 @@ public final class AnthropicClient implements AiProviderClient {
 
             String json = JsonText.extractFirstJsonObject(text);
             AiClassSuggestion suggestion = httpSupport.objectMapper().readValue(json, AiClassSuggestion.class);
-            return normalize(suggestion);
+            return AiProviderClient.normalize(suggestion);
 
         } catch (Exception e) { // NOPMD
             throw new AiSuggestionException("Anthropic suggestion failed for " + fqcn, e);
         }
-    }
-
-    /**
-     * Normalizes AI results returned by the provider.
-     *
-     * <p>
-     * This method ensures that collection fields are never {@code null} and removes
-     * malformed method entries that do not contain a valid method name.
-     * </p>
-     *
-     * <p>
-     * The normalization step protects the rest of the application from
-     * provider-side inconsistencies and guarantees that the resulting
-     * {@link AiClassSuggestion} object satisfies the expected invariants.
-     * </p>
-     *
-     * @param input raw suggestion returned by the provider
-     * @return normalized suggestion instance
-     */
-    private static AiClassSuggestion normalize(AiClassSuggestion input) {
-        List<AiMethodSuggestion> methods = input.methods() == null ? List.of() : input.methods();
-        List<String> classTags = input.classTags() == null ? List.of() : input.classTags();
-
-        List<AiMethodSuggestion> normalizedMethods = methods.stream()
-                .filter(method -> method != null && method.methodName() != null && !method.methodName().isBlank())
-                .map(method -> new AiMethodSuggestion(method.methodName(), method.securityRelevant(),
-                        method.displayName(), method.tags() == null ? List.of() : method.tags(), method.reason(),
-                        method.confidence(), method.interactionScore()))
-                .toList();
-
-        return new AiClassSuggestion(input.className(), input.classSecurityRelevant(), classTags, input.classReason(),
-                normalizedMethods);
     }
 
     /**
