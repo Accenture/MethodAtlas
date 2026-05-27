@@ -149,5 +149,6 @@ nav:
     - Discovery Plugins: discovery-plugins.md
     - Parser Internals: parser-internals.md
     - Build Reports: reports.md
+    - Quality Gates: quality-gates.md
   - Migration Guide: migration.md
   - Troubleshooting: troubleshooting.md

@@ -339,6 +339,34 @@ gradle.projectsEvaluated {
 // The rootProject.file(".ruleset") reference ensures all modules use the
 // single shared ruleset regardless of their location in the project tree.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Per-module quality-gate floors
+//
+// Each Java subproject enforces its own JaCoCo instruction-coverage floor.
+// Floors are set to each module's current measured coverage so that the
+// existing state is locked in (no regression) without immediately failing
+// modules whose coverage is below the historical root-only 70 % threshold.
+//
+// Phase 4 of the architecture remediation plan ratchets the GUI floors up
+// after the audit-trail extraction and hardening lands.
+//
+// See docs/quality-gates.md for the full rationale and the procedure for
+// raising a floor.
+// ---------------------------------------------------------------------------
+ext.coverageFloors = [
+    // Module                          floor   measured  notes
+    'methodatlas-api'                 : 0.40,   //  45.7 % small SPI, high per-instruction volatility
+    'methodatlas-discovery-jvm'       : 0.85,   //  90.9 % strongest plugin test suite
+    'methodatlas-discovery-dotnet'    : 0.38,   //  40.3 % ANTLR-generated parser dominates SLOC
+    'methodatlas-discovery-typescript': 0.17,   //  19.3 % most logic in bundled JS (excluded from JaCoCo)
+    'methodatlas-discovery-go'        : 0.44,   //  46.6 %
+    'methodatlas-discovery-python'    : 0.62,   //  65.7 %
+    'methodatlas-discovery-powershell': 0.70,   //  72.9 %
+    'methodatlas-discovery-abap'      : 0.38,   //  40.0 % ANTLR-generated parser dominates SLOC
+    'methodatlas-discovery-cobol'     : 0.30,   //  31.8 % ANTLR-generated parser dominates SLOC
+    'methodatlas-gui'                 : 0.01,   //   1.1 % ratchets up in Phase 4 (audit-trail extraction)
+]
+
 subprojects {
     plugins.withId('java') {
         apply plugin: 'pmd'
@@ -353,6 +381,41 @@ subprojects {
             reports {
                 html.required = true
             }
+        }
+
+        // -----------------------------------------------------------------
+        // JaCoCo – per-module instruction-coverage enforcement.
+        //
+        // Each module enforces its own floor from rootProject.coverageFloors
+        // (defined above). Modules absent from the map fall back to 0.00 and
+        // surface as a TODO for explicit calibration.
+        // -----------------------------------------------------------------
+        apply plugin: 'jacoco'
+        jacoco {
+            toolVersion = '0.8.14'
+        }
+        tasks.named('test').configure {
+            finalizedBy 'jacocoTestReport'
+        }
+        tasks.named('jacocoTestReport').configure {
+            reports {
+                xml.required = true   // consumed by Codecov / SonarCloud
+                html.required = true  // human-readable report
+            }
+        }
+        def moduleFloor = rootProject.coverageFloors.getOrDefault(project.name, 0.00) as BigDecimal
+        tasks.named('jacocoTestCoverageVerification').configure {
+            dependsOn 'test'
+            violationRules {
+                rule {
+                    limit {
+                        minimum = moduleFloor
+                    }
+                }
+            }
+        }
+        tasks.named('check').configure {
+            dependsOn 'jacocoTestCoverageVerification'
         }
     }
 }

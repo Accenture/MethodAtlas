@@ -18,9 +18,10 @@ The following reports are generated automatically and published alongside this d
 
 -   :microscope: **JaCoCo Coverage**
 
-    Test instruction coverage report. Build gate: ≥ 70 % instruction coverage.
+    Test instruction coverage report. Build gate: per-module floor (root ≥ 70 %; subprojects see [Quality Gates](quality-gates.md)).
 
-    <a href="../jacoco/index.html" class="md-button">Open Coverage Report</a>
+    <a href="../jacoco/index.html" class="md-button">Open Root Coverage</a>
+    <a href="../jacoco-modules/index.html" class="md-button">Open Per-Module Coverage</a>
 
 -   :mag: **PMD Static Analysis**
 
@@ -80,8 +81,8 @@ The workflow is designed to be copied and adapted for other projects. See [CI/CD
 
 | Gate | Tool | Threshold | Scope |
 | --- | --- | --- | --- |
-| Instruction coverage | JaCoCo | ≥ 70 % | Every push (`./gradlew check`) |
-| Mutation score | PIT | ≥ 60 % | Every push (`./gradlew check`) |
+| Instruction coverage | JaCoCo | Per-module floor (root ≥ 70 %); see [Quality Gates](quality-gates.md) | Every push (`./gradlew check`) |
+| Mutation score | PIT | ≥ 60 % (root project) | Every push (`./gradlew check`) |
 | Static analysis | PMD | configured ruleset | Every push |
 | Bug patterns | SpotBugs | configured exclusions | Every push |
 | Dependency vulnerabilities | OWASP Dependency-Check | CVSS < 7.0 | On demand / weekly — only when `NVD_API_KEY` is set |

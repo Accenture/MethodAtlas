@@ -102,7 +102,7 @@ jobs:
 
       - name: Copy Java reports into site/
         run: |
-          mkdir -p site/jacoco site/pmd site/spotbugs site/tests site/javadoc site/pitest
+          mkdir -p site/jacoco site/pmd site/spotbugs site/tests site/javadoc site/pitest site/jacoco-modules
 
           cp -r build/reports/jacoco/test/html/. site/jacoco/
           cp -r build/reports/pmd/.               site/pmd/
@@ -110,6 +110,35 @@ jobs:
           cp -r build/reports/tests/test/.        site/tests/
           cp -r build/docs/javadoc/.              site/javadoc/
           cp -r build/reports/pitest/.            site/pitest/ 2>/dev/null || true
+
+          # Per-module JaCoCo HTML reports — one directory per Java subproject.
+          # The per-module enforcement (see docs/quality-gates.md) generates a
+          # separate report under each <module>/build/reports/jacoco/test/html.
+          for module_dir in methodatlas-*/build/reports/jacoco/test/html; do
+            if [ -d "$module_dir" ]; then
+              module_name=$(echo "$module_dir" | cut -d/ -f1)
+              mkdir -p "site/jacoco-modules/$module_name"
+              cp -r "$module_dir"/. "site/jacoco-modules/$module_name/"
+            fi
+          done
+
+          # Minimal index page so visitors can navigate the per-module reports.
+          {
+            echo '<!DOCTYPE html>'
+            echo '<html lang="en"><head><meta charset="utf-8">'
+            echo '<title>Per-module JaCoCo coverage</title>'
+            echo '<style>body{font-family:system-ui,sans-serif;margin:2rem;max-width:48rem}'
+            echo 'h1{margin-bottom:0.5rem}p{color:#555}a{display:block;padding:0.4rem 0}</style>'
+            echo '</head><body>'
+            echo '<h1>Per-module JaCoCo coverage</h1>'
+            echo '<p>Each Java subproject enforces its own instruction-coverage floor.'
+            echo 'See <a href="../quality-gates/">Quality Gates</a> for the full table.</p>'
+            for module_dir in site/jacoco-modules/*/; do
+              module_name=$(basename "$module_dir")
+              echo "<a href=\"$module_name/index.html\">$module_name</a>"
+            done
+            echo '</body></html>'
+          } > site/jacoco-modules/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

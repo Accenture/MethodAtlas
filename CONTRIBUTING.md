@@ -101,8 +101,12 @@ Set `NVD_API_KEY` only if you intend to run `./gradlew dependencyCheckAnalyze`.
   Stale `@see` / `@link` references are treated as bugs.
 - PMD ruleset: `/.ruleset` — zero violations on `pmdMain`.
 - SpotBugs: zero violations (filter file: `config/spotbugs/excludeFilter.xml`).
-- JaCoCo instruction coverage: ≥ 70 % (enforced by `jacocoTestCoverageVerification`).
-- PIT mutation score: ≥ 60 % (enforced by `pitest` gate).
+- JaCoCo instruction coverage: enforced per module against a current-state
+  floor; root project remains at ≥ 70 %. See
+  [`docs/quality-gates.md`](docs/quality-gates.md) for the per-module table
+  and the ratchet policy.
+- PIT mutation score: ≥ 60 % on the root project (enforced by the `pitest`
+  gate). Per-module PIT enforcement is a follow-up.
 - Error Prone is enabled on main sources — fix any reported issues, do not
   suppress without a justification comment.
 
