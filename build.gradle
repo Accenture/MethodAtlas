@@ -356,6 +356,7 @@ gradle.projectsEvaluated {
 ext.coverageFloors = [
     // Module                          floor   measured  notes
     'methodatlas-api'                 : 0.40,   //  45.7 % small SPI, high per-instruction volatility
+    'methodatlas-ai'                  : 0.00,   //   0.0 % placeholder; populated in Item 10 (ai package move)
     'methodatlas-discovery-jvm'       : 0.85,   //  90.9 % strongest plugin test suite
     'methodatlas-discovery-dotnet'    : 0.38,   //  40.3 % ANTLR-generated parser dominates SLOC
     'methodatlas-discovery-typescript': 0.17,   //  19.3 % most logic in bundled JS (excluded from JaCoCo)
@@ -388,6 +389,11 @@ ext.pitConfig = [
         targetClasses  : ['org.egothor.methodatlas.api.*'],
         excludedClasses: [],
         threshold      : 0,     // current  0.0 % — SPI is mostly records and interfaces; few mutations exist
+    ],
+    'methodatlas-ai': [
+        targetClasses  : ['org.egothor.methodatlas.ai.*'],
+        excludedClasses: [],
+        threshold      : 0,     // placeholder; populated in Item 10 (ai package move)
     ],
     'methodatlas-discovery-jvm': [
         targetClasses  : ['org.egothor.methodatlas.discovery.jvm.*'],
@@ -509,6 +515,16 @@ subprojects {
                 timestampedReports  = false
                 outputFormats       = ['HTML', 'XML']
                 mutationThreshold   = pitCfg.threshold
+            }
+            // Skip PIT when the module has no production Java sources to
+            // mutate. This covers the brief window between an extracted
+            // module's skeleton commit and the subsequent move-content
+            // commit; PIT would otherwise abort with a non-zero exit
+            // because no classes match the configured target package.
+            tasks.named('pitest').configure {
+                onlyIf {
+                    !sourceSets.main.allJava.empty
+                }
             }
             tasks.named('check').configure {
                 dependsOn 'pitest'
