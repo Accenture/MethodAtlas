@@ -57,7 +57,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 // SarifEmitter handles multiple SARIF rule types, severity tiers, and output variants;
 // its aggregate class CC legitimately exceeds the 80 default.
 @SuppressWarnings("PMD.CyclomaticComplexity")
-public final class SarifEmitter implements TestMethodSink {
+public final class SarifEmitter implements TestMethodSink, RecordEmitter {
 
     private static final String SARIF_SCHEMA =
             "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";

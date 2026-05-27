@@ -52,7 +52,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
  * @see OutputEmitter
  * @see TestMethodSink
  */
-public final class JsonEmitter implements TestMethodSink {
+public final class JsonEmitter implements TestMethodSink, RecordEmitter {
 
     private final boolean aiEnabled;
     private final boolean confidenceEnabled;

@@ -28,7 +28,7 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  *
  * @see OutputMode
  */
-public final class OutputEmitter {
+public final class OutputEmitter implements RecordEmitter {
 
     private static final String PLAIN_ABSENT = "-";
     private static final String CSV_ABSENT = "";

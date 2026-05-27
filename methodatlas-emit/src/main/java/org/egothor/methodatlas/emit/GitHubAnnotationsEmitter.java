@@ -33,7 +33,7 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  *
  * @see TestMethodSink
  */
-public final class GitHubAnnotationsEmitter implements TestMethodSink {
+public final class GitHubAnnotationsEmitter implements TestMethodSink, RecordEmitter {
 
     /** Interaction score at or above which a security test is flagged as a potential placebo. */
     public static final double PLACEBO_THRESHOLD = 0.8;
