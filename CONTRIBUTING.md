@@ -106,6 +106,25 @@ Set `NVD_API_KEY` only if you intend to run `./gradlew dependencyCheckAnalyze`.
 - Error Prone is enabled on main sources — fix any reported issues, do not
   suppress without a justification comment.
 
+### Architectural boundaries
+
+The plugin seam is enforced at build time by ArchUnit in
+`org.egothor.methodatlas.arch.ArchitectureTest`. Three invariants must hold:
+
+- Non-plugin code (orchestration core, AI subsystem, output emitters, GUI)
+  must not declare a compile-time dependency on any class in a
+  `org.egothor.methodatlas.discovery.*` package. Plugins are loaded at runtime
+  through `ServiceLoader` via the SPI in `methodatlas-api`.
+- Each discovery plugin must depend only on `methodatlas-api` and external
+  (non-MethodAtlas) libraries. Imports of root, AI, `emit`, or GUI types from
+  inside a plugin are rejected.
+- Discovery plugins must not depend on each other. Each language plugin is
+  independently distributable.
+
+If a legitimate need to widen these rules arises, update the test class in the
+same change and explain the rationale in the commit body — these are
+load-bearing invariants for the optional-plugin contract.
+
 ### TypeScript scanner bundle
 
 - Source: `methodatlas-discovery-typescript/src/main/node/ts-scanner.js`

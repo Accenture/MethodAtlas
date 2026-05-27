@@ -142,6 +142,22 @@ dependencies {
     // ArchUnit – structural architecture tests
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
 
+    // Plugin modules placed on the test runtime classpath so ArchUnit can
+    // scan their bytecode and enforce the plugin-seam invariants asserted
+    // in org.egothor.methodatlas.arch.ArchitectureTest.  testRuntimeOnly
+    // (not testImplementation) keeps the plugin classes out of the test
+    // compile classpath: no test class can accidentally form a compile-time
+    // dependency on a plugin, which would itself violate the rules under
+    // test.
+    testRuntimeOnly project(':methodatlas-discovery-jvm')
+    testRuntimeOnly project(':methodatlas-discovery-dotnet')
+    testRuntimeOnly project(':methodatlas-discovery-typescript')
+    testRuntimeOnly project(':methodatlas-discovery-go')
+    testRuntimeOnly project(':methodatlas-discovery-python')
+    testRuntimeOnly project(':methodatlas-discovery-powershell')
+    testRuntimeOnly project(':methodatlas-discovery-abap')
+    testRuntimeOnly project(':methodatlas-discovery-cobol')
+
     mockitoAgent('org.mockito:mockito-core:5.22.0') {
         transitive = false
     }
