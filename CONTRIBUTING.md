@@ -59,6 +59,7 @@ Set `NVD_API_KEY` only if you intend to run `./gradlew dependencyCheckAnalyze`.
 | `:` (root) | CLI entry point and command-mode orchestration |
 | `methodatlas-api` | Public SPI: `TestDiscovery`, `SourcePatcher`, `DiscoveredMethod`, `ScanRecord` |
 | `methodatlas-ai` | AI suggestion engine, provider clients, taxonomy, manual workflow |
+| `methodatlas-emit` | Output emitters (CSV, plain, SARIF, JSON, GitHub annotations, delta) and audit-schema types (populated in Item 7) |
 | `methodatlas-discovery-jvm` | Java / Kotlin test discovery via JavaParser |
 | `methodatlas-discovery-dotnet` | C# test discovery via ANTLR grammar |
 | `methodatlas-discovery-typescript` | TypeScript test discovery via esbuild bundle |
