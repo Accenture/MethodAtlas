@@ -13,9 +13,10 @@ repositories {
 }
 
 dependencies {
-    // MethodAtlas core (AI engine, CLI plumbing, patchers)
+    // MethodAtlas core (CLI plumbing, patchers, orchestration)
     implementation project(':')
     implementation project(':methodatlas-api')
+    implementation project(':methodatlas-ai')
 
     // Discovery providers needed at runtime via ServiceLoader.
     // SourcePatcher (save-back) is implemented by jvm + dotnet only;
