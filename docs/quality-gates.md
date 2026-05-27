@@ -17,6 +17,7 @@ buffer for natural measurement noise. The full mapping lives in the
 | `methodatlas-api` | 40 % | 45.7 % | Small SPI; per-instruction volatility is high. |
 | `methodatlas-ai` | 80 % | 84.9 % | AI subsystem; strong test suite. |
 | `methodatlas-emit` | 65 % | 67.7 % | Output emitters (CSV / SARIF / JSON / delta / GitHub annotations) and audit-schema types. |
+| `methodatlas-gui-core` | 55 % | 60.2 % | Swing-free GUI domain types (`AppSettings`, `MethodEntry`, `AnalysisModel`, `AiProfile`); ratchets in Item 14 (AuditWriter hardening). |
 | `methodatlas-discovery-jvm` | 85 % | 90.9 % | Strongest plugin test suite. |
 | `methodatlas-discovery-dotnet` | 38 % | 40.3 % | ANTLR-generated parser dominates SLOC. |
 | `methodatlas-discovery-typescript` | 17 % | 19.3 % | Most logic in the bundled JS scanner; the Java glue is thin. |

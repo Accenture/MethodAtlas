@@ -63,7 +63,7 @@ Set `NVD_API_KEY` only if you intend to run `./gradlew dependencyCheckAnalyze`.
 | `methodatlas-discovery-jvm` | Java / Kotlin test discovery via JavaParser |
 | `methodatlas-discovery-dotnet` | C# test discovery via ANTLR grammar |
 | `methodatlas-discovery-typescript` | TypeScript test discovery via esbuild bundle |
-| `methodatlas-gui-core` | Swing-free GUI domain types (`AppSettings`, `MethodEntry`, `AnalysisModel`, `AuditWriter`) (populated in Item 13) |
+| `methodatlas-gui-core` | Swing-free GUI domain types (`AppSettings`, `MethodEntry`, `AnalysisModel`, `AiProfile`); `AuditWriter` moves here in Item 14 |
 | `methodatlas-gui` | Swing desktop GUI (FlatLaf, RSyntaxTextArea); depends on `methodatlas-gui-core` for the audit-trail and settings logic |
 | `methodatlas-docs` | PDF documentation — not part of the binary distribution |
 

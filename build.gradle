@@ -360,7 +360,7 @@ ext.coverageFloors = [
     'methodatlas-api'                 : 0.40,   //  45.7 % small SPI, high per-instruction volatility
     'methodatlas-ai'                  : 0.80,   //  84.9 % AI subsystem; strong test suite
     'methodatlas-emit'                : 0.65,   //  67.7 % emit module; covers CSV/SARIF/JSON/delta + schema types
-    'methodatlas-gui-core'            : 0.00,   //   0.0 % placeholder; populated in Item 13 (GUI domain extraction)
+    'methodatlas-gui-core'            : 0.55,   //  60.2 % Swing-free GUI domain types; ratchets again in Item 14 (AuditWriter hardening)
     'methodatlas-discovery-jvm'       : 0.85,   //  90.9 % strongest plugin test suite
     'methodatlas-discovery-dotnet'    : 0.38,   //  40.3 % ANTLR-generated parser dominates SLOC
     'methodatlas-discovery-typescript': 0.17,   //  19.3 % most logic in bundled JS (excluded from JaCoCo)

@@ -18,6 +18,7 @@ dependencies {
     implementation project(':methodatlas-api')
     implementation project(':methodatlas-ai')
     implementation project(':methodatlas-emit')
+    implementation project(':methodatlas-gui-core')
 
     // Discovery providers needed at runtime via ServiceLoader.
     // SourcePatcher (save-back) is implemented by jvm + dotnet only;
