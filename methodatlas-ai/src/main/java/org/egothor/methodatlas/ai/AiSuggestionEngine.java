@@ -38,6 +38,49 @@ import java.util.List;
  */
 @SuppressWarnings("PMD.ImplicitFunctionalInterface")
 public interface AiSuggestionEngine {
+
+    /**
+     * Constructs an {@code AiSuggestionEngine} configured for the active AI
+     * provider. Callers receive an instance through this static factory
+     * rather than naming the implementation class directly, which keeps the
+     * concrete type out of caller imports and makes the impl substitutable
+     * (for example, by a stub in unit tests or by a future alternative
+     * implementation).
+     *
+     * <p>
+     * The returned engine is stateless beyond its configuration and is safe
+     * to share across threads.
+     * </p>
+     *
+     * @param options AI runtime configuration; must not be {@code null}
+     * @return a configured engine ready to handle
+     *         {@link #suggestForClass(String, String, String, java.util.List)}
+     *         calls
+     * @throws AiSuggestionException if the engine cannot be initialised for
+     *                               the supplied options
+     */
+    static AiSuggestionEngine create(AiOptions options) throws AiSuggestionException {
+        return new AiSuggestionEngineImpl(options);
+    }
+
+    /**
+     * Constructs an {@code AiSuggestionEngine} that notifies
+     * {@code rateLimitListener} before each rate-limit pause. The listener is
+     * the GUI's hook into long-running calls and is supplied by the Swing
+     * worker that orchestrates analysis.
+     *
+     * @param options           AI runtime configuration; must not be {@code null}
+     * @param rateLimitListener callback invoked before each HTTP&nbsp;429
+     *                          pause; must not be {@code null}
+     * @return a configured engine
+     * @throws AiSuggestionException if the engine cannot be initialised
+     * @see RateLimitListener
+     */
+    static AiSuggestionEngine create(AiOptions options, RateLimitListener rateLimitListener)
+            throws AiSuggestionException {
+        return new AiSuggestionEngineImpl(options, rateLimitListener);
+    }
+
     /**
      * Requests AI-generated security classification for a single parsed test class.
      *

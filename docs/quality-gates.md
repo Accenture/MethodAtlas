@@ -26,7 +26,7 @@ buffer for natural measurement noise. The full mapping lives in the
 | `methodatlas-discovery-powershell` | 70 % | 72.9 % | |
 | `methodatlas-discovery-abap` | 38 % | 40.0 % | ANTLR-generated parser dominates SLOC. |
 | `methodatlas-discovery-cobol` | 30 % | 31.8 % | ANTLR-generated parser dominates SLOC. |
-| `methodatlas-gui` | 1 % | 1.1 % | Placeholder. Phase 4 of the architecture remediation plan extracts the audit-trail logic into `methodatlas-gui-core` and raises this substantially. |
+| `methodatlas-gui` | 1 % | 1.3 % | Swing event-loop code only after Items 13/14 moved the audit-trail logic and domain types into `methodatlas-gui-core` (where they reach 75 % overall and 99 % on `AuditWriter` specifically). The view layer here is genuinely thin and benefits little from automated tests; the business logic lives in `methodatlas-gui-core` and is comprehensively covered there. Raising this floor further would require AssertJ-Swing UI tests, which are out of scope for the present remediation plan. |
 
 The floor is enforced by `jacocoTestCoverageVerification` and is wired into
 the `check` lifecycle in the root `build.gradle` `subprojects` block. The

@@ -5,7 +5,6 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
-import org.egothor.methodatlas.ai.AiSuggestionEngineImpl;
 import org.egothor.methodatlas.ai.AiSuggestionException;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.RateLimitListener;
@@ -243,7 +242,7 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
 
         AiSuggestionEngine engine;
         try {
-            engine = new AiSuggestionEngineImpl(buildAiOptions(), rateLimitListener);
+            engine = AiSuggestionEngine.create(buildAiOptions(), rateLimitListener);
         } catch (AiSuggestionException e) {
             LOG.log(Level.WARNING, "AI engine initialisation failed", e);
             publish(new StatusChange(AnalysisModel.Status.DONE,
