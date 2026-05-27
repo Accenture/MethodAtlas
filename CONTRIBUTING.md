@@ -105,8 +105,11 @@ Set `NVD_API_KEY` only if you intend to run `./gradlew dependencyCheckAnalyze`.
   floor; root project remains at ≥ 70 %. See
   [`docs/quality-gates.md`](docs/quality-gates.md) for the per-module table
   and the ratchet policy.
-- PIT mutation score: ≥ 60 % on the root project (enforced by the `pitest`
-  gate). Per-module PIT enforcement is a follow-up.
+- PIT mutation score: enforced per module against a current-state floor;
+  root project remains at ≥ 60 %. ANTLR-generated parser packages are
+  excluded from mutation. See
+  [`docs/quality-gates.md`](docs/quality-gates.md) for the per-module
+  table.
 - Error Prone is enabled on main sources — fix any reported issues, do not
   suppress without a justification comment.
 

@@ -82,7 +82,7 @@ The workflow is designed to be copied and adapted for other projects. See [CI/CD
 | Gate | Tool | Threshold | Scope |
 | --- | --- | --- | --- |
 | Instruction coverage | JaCoCo | Per-module floor (root ≥ 70 %); see [Quality Gates](quality-gates.md) | Every push (`./gradlew check`) |
-| Mutation score | PIT | ≥ 60 % (root project) | Every push (`./gradlew check`) |
+| Mutation score | PIT | Per-module floor (root ≥ 60 %); see [Quality Gates](quality-gates.md) | Every push (`./gradlew check`) |
 | Static analysis | PMD | configured ruleset | Every push |
 | Bug patterns | SpotBugs | configured exclusions | Every push |
 | Dependency vulnerabilities | OWASP Dependency-Check | CVSS < 7.0 | On demand / weekly — only when `NVD_API_KEY` is set |

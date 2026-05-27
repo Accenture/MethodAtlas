@@ -367,6 +367,75 @@ ext.coverageFloors = [
     'methodatlas-gui'                 : 0.01,   //   1.1 % ratchets up in Phase 4 (audit-trail extraction)
 ]
 
+// ---------------------------------------------------------------------------
+// Per-module PIT (mutation-testing) configuration
+//
+// Each Java subproject runs PIT against its own package and enforces its own
+// mutation-score floor. ANTLR-generated parser/lexer classes are excluded
+// from mutation because mutating generated code yields no signal — the
+// grammar, not the parser, is the source of correctness.
+//
+// Thresholds (the integer percentage values) are set to roughly each
+// module's currently measured mutation score, with a small buffer. The
+// GUI module starts at zero pending the Phase 4 audit-trail extraction.
+//
+// See docs/quality-gates.md for the rationale and the procedure for raising
+// a floor.
+// ---------------------------------------------------------------------------
+ext.pitConfig = [
+    // Module                          target package                                excluded packages                                                  threshold  measured  notes
+    'methodatlas-api': [
+        targetClasses  : ['org.egothor.methodatlas.api.*'],
+        excludedClasses: [],
+        threshold      : 0,     // current  0.0 % — SPI is mostly records and interfaces; few mutations exist
+    ],
+    'methodatlas-discovery-jvm': [
+        targetClasses  : ['org.egothor.methodatlas.discovery.jvm.*'],
+        excludedClasses: [],
+        threshold      : 60,    // current 68.6 %
+    ],
+    'methodatlas-discovery-dotnet': [
+        targetClasses  : ['org.egothor.methodatlas.discovery.dotnet.*'],
+        excludedClasses: ['org.egothor.methodatlas.discovery.dotnet.parser.*'],
+        threshold      : 35,    // current 41.6 %
+    ],
+    'methodatlas-discovery-typescript': [
+        targetClasses  : ['org.egothor.methodatlas.discovery.typescript.*'],
+        excludedClasses: [],
+        threshold      : 10,    // current 15.6 % — most logic in bundled JS, not mutated by PIT
+    ],
+    'methodatlas-discovery-go': [
+        targetClasses  : ['org.egothor.methodatlas.discovery.go.*'],
+        excludedClasses: ['org.egothor.methodatlas.discovery.go.parser.*'],
+        threshold      : 42,    // current 48.0 %
+    ],
+    'methodatlas-discovery-python': [
+        targetClasses  : ['org.egothor.methodatlas.discovery.python.*'],
+        excludedClasses: [],
+        threshold      : 30,    // current 34.9 %
+    ],
+    'methodatlas-discovery-powershell': [
+        targetClasses  : ['org.egothor.methodatlas.discovery.powershell.*'],
+        excludedClasses: ['org.egothor.methodatlas.discovery.powershell.parser.*'],
+        threshold      : 38,    // current 43.9 %
+    ],
+    'methodatlas-discovery-abap': [
+        targetClasses  : ['org.egothor.methodatlas.discovery.abap.*'],
+        excludedClasses: ['org.egothor.methodatlas.discovery.abap.parser.*'],
+        threshold      : 38,    // current 44.0 %
+    ],
+    'methodatlas-discovery-cobol': [
+        targetClasses  : ['org.egothor.methodatlas.discovery.cobol.*'],
+        excludedClasses: ['org.egothor.methodatlas.discovery.cobol.parser.*'],
+        threshold      : 33,    // current 39.2 %
+    ],
+    'methodatlas-gui': [
+        targetClasses  : ['org.egothor.methodatlas.gui.*'],
+        excludedClasses: [],
+        threshold      : 0,     // current  1.0 % — placeholder; Phase 4 audit-trail extraction ratchets this up
+    ],
+]
+
 subprojects {
     plugins.withId('java') {
         apply plugin: 'pmd'
@@ -416,6 +485,34 @@ subprojects {
         }
         tasks.named('check').configure {
             dependsOn 'jacocoTestCoverageVerification'
+        }
+
+        // -----------------------------------------------------------------
+        // PIT – per-module mutation-testing gate.
+        //
+        // Each Java subproject is configured against its own package via
+        // rootProject.pitConfig.  ANTLR-generated parser/lexer classes are
+        // excluded where applicable; mutating generated code has no signal.
+        // -----------------------------------------------------------------
+        def pitCfg = rootProject.pitConfig[project.name]
+        if (pitCfg != null) {
+            apply plugin: 'info.solidsoft.pitest'
+            pitest {
+                junit5PluginVersion = '1.2.2'
+                targetClasses       = pitCfg.targetClasses
+                targetTests         = pitCfg.targetClasses
+                if (!pitCfg.excludedClasses.isEmpty()) {
+                    excludedClasses = pitCfg.excludedClasses
+                }
+                mutators            = ['STRONGER']
+                threads             = 2
+                timestampedReports  = false
+                outputFormats       = ['HTML', 'XML']
+                mutationThreshold   = pitCfg.threshold
+            }
+            tasks.named('check').configure {
+                dependsOn 'pitest'
+            }
         }
     }
 }

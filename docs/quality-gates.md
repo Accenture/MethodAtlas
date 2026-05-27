@@ -43,12 +43,39 @@ justified in the commit body, documented in this file, and approved through
 the standard review process. Refactors that legitimately remove tested code
 (for example, deleting a dead module) are the typical justification.
 
-## Project-wide PIT mutation gate
+## Per-module PIT mutation score
 
-The root project enforces a 60 % PIT mutation-score floor on classes in
-`org.egothor.methodatlas.*`. Per-module PIT floors will be added in a
-follow-up commit (see Item 2b of the architecture remediation plan) once a
-baseline measurement is taken for each Java subproject.
+Every Java module runs PIT against its own package and enforces its own
+mutation-score floor. The full mapping lives in the `ext.pitConfig` map at
+the top of the root `build.gradle`. ANTLR-generated parser and lexer
+classes are excluded from mutation because mutating generated code yields
+no signal — the grammar, not the parser, is the source of correctness.
+
+| Module | Floor | Approximate current mutation score | Notes |
+| --- | ---: | ---: | --- |
+| root (`methodatlas`) | 60 % | 72 % | Established threshold; comfortably exceeded today. |
+| `methodatlas-api` | 0 % | 0 % | SPI is mostly records and interfaces; few mutations exist. |
+| `methodatlas-discovery-jvm` | 60 % | 68.6 % | |
+| `methodatlas-discovery-dotnet` | 35 % | 41.6 % | Parser package excluded. |
+| `methodatlas-discovery-typescript` | 10 % | 15.6 % | Most logic in bundled JS, not mutated by PIT. |
+| `methodatlas-discovery-go` | 42 % | 48.0 % | Parser package excluded. |
+| `methodatlas-discovery-python` | 30 % | 34.9 % | |
+| `methodatlas-discovery-powershell` | 38 % | 43.9 % | Parser package excluded. |
+| `methodatlas-discovery-abap` | 38 % | 44.0 % | Parser package excluded. |
+| `methodatlas-discovery-cobol` | 33 % | 39.2 % | Parser package excluded. |
+| `methodatlas-gui` | 0 % | 1.0 % | Placeholder. Phase 4 ratchets up after audit-trail extraction. |
+
+The floor is enforced by the per-module `pitest` task and is wired into the
+`check` lifecycle in the root `build.gradle` `subprojects` block. The
+module-local task fails the build if the mutation score drops below the
+configured threshold.
+
+The same ratchet policy applies as for JaCoCo: floors only go up. Raising
+a floor after a tests-strengthening change should be done in the same
+commit, by updating the `threshold` value in `ext.pitConfig` and the table
+above. A full PIT run across all modules takes roughly 40 minutes on a
+typical developer machine; CI runs PIT under `continue-on-error` for the
+Pages build but enforces the gate on `./gradlew check`.
 
 ## Other gates
 
