@@ -17,7 +17,7 @@ buffer for natural measurement noise. The full mapping lives in the
 | `methodatlas-api` | 40 % | 45.7 % | Small SPI; per-instruction volatility is high. |
 | `methodatlas-ai` | 80 % | 84.9 % | AI subsystem; strong test suite. |
 | `methodatlas-emit` | 65 % | 67.7 % | Output emitters (CSV / SARIF / JSON / delta / GitHub annotations) and audit-schema types. |
-| `methodatlas-gui-core` | 55 % | 60.2 % | Swing-free GUI domain types (`AppSettings`, `MethodEntry`, `AnalysisModel`, `AiProfile`); ratchets in Item 14 (AuditWriter hardening). |
+| `methodatlas-gui-core` | 75 % | 76.0 % | Swing-free GUI domain types plus the audit-trail writer. `AuditWriter` itself reaches 99 % line coverage after Item 14 hardening. |
 | `methodatlas-discovery-jvm` | 85 % | 90.9 % | Strongest plugin test suite. |
 | `methodatlas-discovery-dotnet` | 38 % | 40.3 % | ANTLR-generated parser dominates SLOC. |
 | `methodatlas-discovery-typescript` | 17 % | 19.3 % | Most logic in the bundled JS scanner; the Java glue is thin. |
@@ -60,6 +60,7 @@ no signal — the grammar, not the parser, is the source of correctness.
 | `methodatlas-api` | 0 % | 0 % | SPI is mostly records and interfaces; few mutations exist. |
 | `methodatlas-ai` | 70 % | 74.7 % | AI subsystem; ratcheted after Item 11b record refactor (provider de-duplication via `HttpJsonExecutor`). |
 | `methodatlas-emit` | 45 % | 49.1 % | Output emitters and audit-schema types; SARIF/JSON paths well-covered, CSV-parsing edge cases dominate surviving mutants. |
+| `methodatlas-gui-core` | 50 % | 56.0 % | Swing-free GUI domain types and `AuditWriter`. |
 | `methodatlas-discovery-jvm` | 60 % | 68.6 % | |
 | `methodatlas-discovery-dotnet` | 35 % | 41.6 % | Parser package excluded. |
 | `methodatlas-discovery-typescript` | 10 % | 15.6 % | Most logic in bundled JS, not mutated by PIT. |

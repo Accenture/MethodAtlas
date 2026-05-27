@@ -360,7 +360,7 @@ ext.coverageFloors = [
     'methodatlas-api'                 : 0.40,   //  45.7 % small SPI, high per-instruction volatility
     'methodatlas-ai'                  : 0.80,   //  84.9 % AI subsystem; strong test suite
     'methodatlas-emit'                : 0.65,   //  67.7 % emit module; covers CSV/SARIF/JSON/delta + schema types
-    'methodatlas-gui-core'            : 0.55,   //  60.2 % Swing-free GUI domain types; ratchets again in Item 14 (AuditWriter hardening)
+    'methodatlas-gui-core'            : 0.75,   //  75.96 % Swing-free GUI domain types; AuditWriter at 99 % after Item 14 hardening
     'methodatlas-discovery-jvm'       : 0.85,   //  90.9 % strongest plugin test suite
     'methodatlas-discovery-dotnet'    : 0.38,   //  40.3 % ANTLR-generated parser dominates SLOC
     'methodatlas-discovery-typescript': 0.17,   //  19.3 % most logic in bundled JS (excluded from JaCoCo)
@@ -408,7 +408,7 @@ ext.pitConfig = [
     'methodatlas-gui-core': [
         targetClasses  : ['org.egothor.methodatlas.gui.*'],
         excludedClasses: [],
-        threshold      : 0,     // placeholder; populated in Item 13 (GUI domain extraction)
+        threshold      : 50,    // current 56.0 % after Item 14 audit-trail hardening; AuditWriter specifically at 99 % line coverage
     ],
     'methodatlas-discovery-jvm': [
         targetClasses  : ['org.egothor.methodatlas.discovery.jvm.*'],
