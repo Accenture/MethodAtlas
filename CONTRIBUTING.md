@@ -115,6 +115,12 @@ Set `NVD_API_KEY` only if you intend to run `./gradlew dependencyCheckAnalyze`.
   table.
 - Error Prone is enabled on main sources — fix any reported issues, do not
   suppress without a justification comment.
+- `@SuppressWarnings` is a deliberate annotation, not boilerplate. Every
+  suppression carries a one-line inline comment explaining the principled
+  reason (third-party API, language limitation, documented PMD false
+  positive). Prefer changing the code over adding a suppression. The
+  project-wide policy and the current per-module density are documented
+  in [`docs/architecture.md`](docs/architecture.md#suppresswarnings-density).
 
 ### Architectural boundaries
 

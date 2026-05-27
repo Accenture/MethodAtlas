@@ -451,6 +451,9 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 
 | Document | Contents |
 | --- | --- |
+| [docs/architecture.md](docs/architecture.md) | Module topology with diagram, plugin-seam invariants, per-module quality gates, extension points |
+| [docs/audit-trail.md](docs/audit-trail.md) | Audit-trail artefacts, scan-run identity, structured JSON log schema |
+| [docs/quality-gates.md](docs/quality-gates.md) | Per-module JaCoCo and PIT floors with ratchet policy |
 | [docs/cli-reference.md](docs/cli-reference.md) | Complete option reference, YAML schema, exit codes, and example commands |
 | [docs/cli-examples.md](docs/cli-examples.md) | Practical command-line examples grouped by use case |
 | [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, GitHub Annotations, and JSON format descriptions |
