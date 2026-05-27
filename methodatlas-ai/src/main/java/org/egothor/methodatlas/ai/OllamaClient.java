@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Egothor
+// Copyright 2026 Accenture
 package org.egothor.methodatlas.ai;
 
 import java.net.URI;
@@ -13,46 +16,47 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <a href="https://ollama.ai/">Ollama</a> inference service.
  *
  * <p>
- * This client submits taxonomy-guided classification prompts to the Ollama HTTP
- * API and converts the returned model response into the internal
+ * This client submits taxonomy-guided classification prompts to the Ollama
+ * HTTP API and converts the returned model response into the internal
  * {@link AiClassSuggestion} representation used by the MethodAtlas AI
  * subsystem.
  * </p>
  *
- * <h2>Operational Responsibilities</h2>
+ * <h2>Operational responsibilities</h2>
  *
  * <ul>
- * <li>verifying local Ollama availability</li>
- * <li>constructing chat-style inference requests</li>
- * <li>injecting the system prompt and taxonomy-guided user prompt</li>
- * <li>executing HTTP requests against the Ollama API</li>
- * <li>extracting and normalizing JSON classification results</li>
+ *   <li>verifying local Ollama availability via a lightweight probe</li>
+ *   <li>constructing chat-style inference requests against {@code /api/chat}</li>
+ *   <li>injecting the system prompt and the taxonomy-guided user prompt</li>
+ *   <li>extracting and normalising the JSON classification result</li>
  * </ul>
  *
  * <p>
- * The client uses the Ollama {@code /api/chat} endpoint for inference and the
- * {@code /api/tags} endpoint as a lightweight availability probe.
+ * Intended primarily for local, offline, or privacy-preserving inference
+ * scenarios where source code should not leave the host.
  * </p>
  *
- * <p>
- * This implementation is intended primarily for local, offline, or
- * privacy-preserving inference scenarios where source code should not be sent
- * to an external provider.
- * </p>
+ * <h2>Record components</h2>
  *
+ * <ul>
+ *   <li>{@code options}  — AI runtime configuration; never {@code null}</li>
+ *   <li>{@code executor} — shared HTTP-and-JSON orchestrator; never {@code null}</li>
+ * </ul>
+ *
+ * @param options  AI runtime configuration
+ * @param executor shared HTTP-and-JSON orchestrator
  * @see AiProviderClient
  * @see AiProviderFactory
- * @see AiSuggestionEngine
+ * @see HttpJsonExecutor
+ * @since 1.0.0
  */
-public final class OllamaClient implements AiProviderClient {
+public record OllamaClient(AiOptions options, HttpJsonExecutor executor) implements AiProviderClient {
+
     /**
-     * System prompt used to enforce deterministic, machine-readable model output.
-     *
-     * <p>
-     * The prompt instructs the model to behave as a strict classification engine
-     * and to return JSON only, without markdown fences or explanatory prose, so
-     * that the response can be parsed automatically.
-     * </p>
+     * System prompt used to enforce deterministic, machine-readable model
+     * output. The prompt instructs the model to behave as a strict
+     * classification engine and to return JSON only, so the response can be
+     * parsed automatically without dealing with markdown fences or commentary.
      */
     private static final String SYSTEM_PROMPT = """
             You are a precise software security classification engine.
@@ -60,51 +64,40 @@ public final class OllamaClient implements AiProviderClient {
             Never include markdown fences, explanations, or extra text.
             """;
 
-    private final AiOptions options;
-    private final HttpSupport httpSupport;
-
     /**
-     * Creates a new Ollama client with no rate-limit notification.
-     *
-     * <p>Rate-limit pauses are handled transparently.  Use
-     * {@link #OllamaClient(AiOptions, RateLimitListener)} when callers need
-     * to be notified of such pauses.</p>
+     * Creates an Ollama client with no rate-limit notification. Rate-limit
+     * pauses are handled transparently. Use
+     * {@link #OllamaClient(AiOptions, RateLimitListener)} when callers need to
+     * be notified of such pauses.
      *
      * @param options AI runtime configuration
      */
     public OllamaClient(AiOptions options) {
-        this(options, (w, a, m) -> {});
+        this(options, (waited, attempt, message) -> { });
     }
 
     /**
-     * Creates a new Ollama client that notifies {@code rateLimitListener}
-     * before each rate-limit sleep.
+     * Creates an Ollama client that notifies {@code rateLimitListener} before
+     * each rate-limit sleep.
      *
-     * @param options             AI runtime configuration
-     * @param rateLimitListener   callback invoked before each HTTP&nbsp;429
-     *                            pause; must not be {@code null}
+     * @param options           AI runtime configuration
+     * @param rateLimitListener callback invoked before each HTTP&nbsp;429
+     *                          pause; must not be {@code null}
      * @see RateLimitListener
      */
     public OllamaClient(AiOptions options, RateLimitListener rateLimitListener) {
-        this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener);
+        this(options, new HttpJsonExecutor(
+                new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener)));
     }
 
     /**
-     * Determines whether the configured Ollama service is reachable.
+     * Probes the Ollama service via the {@code /api/tags} endpoint. Any
+     * exception raised during the probe — connection refused, timeout, DNS
+     * failure — is treated as "unavailable" and reported as {@code false}
+     * rather than propagated; the orchestration layer chooses an alternative
+     * provider on {@link AiProvider#AUTO}.
      *
-     * <p>
-     * The method performs a lightweight availability probe against the
-     * {@code /api/tags} endpoint. If the endpoint responds successfully, the
-     * provider is considered available.
-     * </p>
-     *
-     * <p>
-     * Any exception raised during the probe is treated as an indication that the
-     * provider is unavailable.
-     * </p>
-     *
-     * @return {@code true} if the Ollama service is reachable; {@code false}
+     * @return {@code true} if the Ollama service responded; {@code false}
      *         otherwise
      */
     @Override
@@ -112,156 +105,88 @@ public final class OllamaClient implements AiProviderClient {
         try {
             URI uri = URI.create(options.baseUrl() + "/api/tags");
             HttpRequest request = HttpRequest.newBuilder(uri).GET().timeout(options.timeout()).build();
-
-            httpSupport.httpClient().send(request, HttpResponse.BodyHandlers.discarding());
-
+            executor.httpSupport().httpClient().send(request, HttpResponse.BodyHandlers.discarding());
             return true;
-        } catch (Exception e) {
+        } catch (Exception e) { // NOPMD - any probe failure means "unavailable"
             return false;
         }
     }
 
-    /**
-     * Submits a classification request to the Ollama chat API for the specified
-     * test class.
-     *
-     * <p>
-     * The request consists of:
-     * </p>
-     * <ul>
-     * <li>a system prompt enforcing strict JSON output</li>
-     * <li>a user prompt containing the test class source and taxonomy text</li>
-     * <li>provider options such as deterministic temperature settings</li>
-     * </ul>
-     *
-     * <p>
-     * The returned response is expected to contain a JSON object in the message
-     * content field. That JSON text is extracted, deserialized into an
-     * {@link AiClassSuggestion}, and then normalized before being returned.
-     * </p>
-     *
-     * @param fqcn          fully qualified class name being analyzed
-     * @param classSource   complete source code of the class being analyzed
-     * @param taxonomyText  taxonomy definition guiding classification
-     * @param targetMethods deterministically extracted JUnit test methods that must
-     *                      be classified
-     * @return normalized AI classification result
-     *
-     * @throws AiSuggestionException if the request fails, if the provider returns
-     *                               invalid content, or if response deserialization
-     *                               fails
-     */
     @Override
     public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
+        HttpRequest request;
         try {
             String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
-
             ChatRequest payload = new ChatRequest(options.modelName(),
-                    List.of(new Message("system", SYSTEM_PROMPT), new Message("user", prompt)), false,
-                    new Options(0.0));
-
-            String requestBody = httpSupport.objectMapper().writeValueAsString(payload);
+                    List.of(new Message("system", SYSTEM_PROMPT), new Message("user", prompt)),
+                    false, new Options(0.0));
+            String requestBody = executor.httpSupport().objectMapper().writeValueAsString(payload);
             URI uri = URI.create(options.baseUrl() + "/api/chat");
-
-            HttpRequest request = httpSupport.jsonPost(uri, requestBody, options.timeout()).build();
-            String responseBody = httpSupport.postJson(request);
-            ChatResponse response = httpSupport.objectMapper().readValue(responseBody, ChatResponse.class);
-
-            if (response.message() == null || response.message().content() == null || response.message().content().isBlank()) {
-                throw new AiSuggestionException("Ollama returned no message content");
-            }
-
-            String json = JsonText.extractFirstJsonObject(response.message().content());
-            AiClassSuggestion suggestion = httpSupport.objectMapper().readValue(json, AiClassSuggestion.class);
-            return AiProviderClient.normalize(suggestion);
-
-        } catch (Exception e) { // NOPMD
+            request = executor.httpSupport().jsonPost(uri, requestBody, options.timeout()).build();
+        } catch (Exception e) { // NOPMD - payload serialisation failure
             throw new AiSuggestionException("Ollama suggestion failed for " + fqcn, e);
         }
+        return executor.execute("Ollama", fqcn, request, ChatResponse.class, response -> {
+            if (response.message() == null || response.message().content() == null
+                    || response.message().content().isBlank()) {
+                throw new AiSuggestionException("Ollama returned no message content");
+            }
+            return response.message().content();
+        });
     }
 
     /**
-     * Request payload sent to the Ollama chat API.
-     *
-     * <p>
-     * This record models the JSON structure expected by the {@code /api/chat}
-     * endpoint.
-     * </p>
+     * Request payload sent to the Ollama chat API. Models the JSON structure
+     * expected by the {@code /api/chat} endpoint.
      *
      * @param model    model identifier used for inference
      * @param messages ordered chat messages sent to the model
      * @param stream   whether streaming responses are requested
      * @param options  provider-specific inference options
      */
-    private record ChatRequest(String model, List<Message> messages, boolean stream, Options options) {
-    }
+    private record ChatRequest(String model, List<Message> messages, boolean stream, Options options) { }
 
     /**
      * Chat message sent to the Ollama API.
      *
-     * @param role    logical role of the message sender, such as {@code system} or
-     *                {@code user}
+     * @param role    logical role of the message sender ({@code system}, {@code user})
      * @param content textual message content
      */
-    private record Message(String role, String content) {
-    }
+    private record Message(String role, String content) { }
 
     /**
      * Provider-specific inference options supplied to the Ollama API.
      *
      * <p>
-     * Currently only the {@code temperature} sampling parameter is configured.
-     * Temperature controls the randomness of model output:
-     * </p>
-     *
-     * <ul>
-     * <li>{@code 0.0} produces deterministic output</li>
-     * <li>higher values increase variation and creativity</li>
-     * </ul>
-     *
-     * <p>
-     * The MethodAtlas AI integration explicitly sets {@code temperature} to
-     * {@code 0.0} in order to obtain stable, repeatable classification results and
-     * strictly formatted JSON output suitable for automated parsing.
-     * </p>
-     *
-     * <p>
-     * Allowing stochastic sampling would significantly increase the probability
-     * that the model produces explanatory text, formatting variations, or malformed
-     * JSON responses, which would break the downstream deserialization pipeline.
+     * Only the {@code temperature} sampling parameter is configured.
+     * MethodAtlas sets temperature to {@code 0.0} to obtain stable, repeatable
+     * classification results and strictly formatted JSON. Stochastic sampling
+     * would risk markdown fences, formatting variations, and malformed JSON
+     * that would break downstream parsing.
      * </p>
      *
      * @param temperature sampling temperature controlling response randomness
      */
-    private record Options(@JsonProperty("temperature") Double temperature) {
-    }
+    private record Options(@JsonProperty("temperature") Double temperature) { }
 
     /**
-     * Partial response model returned by the Ollama chat API.
-     *
-     * <p>
-     * Only the fields required by this client are modeled. Unknown properties are
-     * ignored to maintain compatibility with future API extensions.
-     * </p>
+     * Partial response model returned by the Ollama chat API. Unknown
+     * properties are ignored for forward compatibility with future API
+     * extensions.
      *
      * @param message the response message payload
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record ChatResponse(ResponseMessage message) {
-    }
+    private record ChatResponse(ResponseMessage message) { }
 
     /**
-     * Message payload returned within an Ollama chat response.
-     *
-     * <p>
-     * The client reads the {@code content} component and expects it to contain the
+     * Message payload returned within an Ollama chat response. The client
+     * reads the {@code content} component and expects it to contain the
      * JSON classification result generated by the model.
-     * </p>
      *
      * @param content the textual content of the message
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record ResponseMessage(String content) {
-    }
+    private record ResponseMessage(String content) { }
 }

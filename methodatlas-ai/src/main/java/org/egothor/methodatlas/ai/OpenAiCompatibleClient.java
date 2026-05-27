@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Egothor
+// Copyright 2026 Accenture
 package org.egothor.methodatlas.ai;
 
 import java.net.URI;
@@ -9,59 +12,41 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * {@link AiProviderClient} implementation for AI providers that expose an
- * OpenAI-compatible chat completion API.
+ * OpenAI-compatible chat-completion API.
  *
  * <p>
- * This client supports providers that expose an OpenAI-compatible chat
- * completions endpoint. The path appended to the configured base URL is
- * provider-specific: most providers use {@code /v1/chat/completions}, while
- * {@link AiProvider#GITHUB_MODELS}, {@link AiProvider#XAI}, and
- * {@link AiProvider#MISTRAL} use {@code /chat/completions} because their
- * default base URLs already include the {@code /v1} segment (or omit it
- * entirely, as is the case for GitHub Models).
+ * Supports the broad family of providers that follow the OpenAI protocol:
+ * OpenAI itself, OpenRouter, Groq, Mistral, GitHub Models, xAI. The path
+ * appended to the configured base URL is provider-specific:
+ * {@code /v1/chat/completions} for most providers; {@code /chat/completions}
+ * for {@link AiProvider#GITHUB_MODELS}, {@link AiProvider#XAI}, and
+ * {@link AiProvider#MISTRAL} because their default base URLs already include
+ * (or, in the case of GitHub Models, deliberately omit) the {@code /v1}
+ * segment.
  * </p>
  *
- * <p>
- * The client constructs a chat-style prompt consisting of a system message
- * defining the classification rules and a user message containing the test
- * class source together with the taxonomy definition. The model response is
- * expected to contain a JSON object describing the security classification.
- * </p>
- *
- * <h2>Operational Responsibilities</h2>
+ * <h2>Record components</h2>
  *
  * <ul>
- * <li>constructing OpenAI-compatible chat completion requests</li>
- * <li>injecting the taxonomy-driven classification prompt</li>
- * <li>performing authenticated HTTP requests</li>
- * <li>extracting JSON content from the model response</li>
- * <li>normalizing the result into {@link AiClassSuggestion}</li>
+ *   <li>{@code options}  — AI runtime configuration; never {@code null}</li>
+ *   <li>{@code executor} — shared HTTP-and-JSON orchestrator; never {@code null}</li>
  * </ul>
  *
- * <p>
- * The implementation is provider-neutral for APIs that follow the OpenAI
- * protocol, which allows reuse across multiple compatible services such as
- * OpenRouter.
- * </p>
- *
- * <p>
- * Instances are typically created through
- * {@link AiProviderFactory#create(AiOptions)}.
- * </p>
- *
+ * @param options  AI runtime configuration
+ * @param executor shared HTTP-and-JSON orchestrator
  * @see AiProvider
  * @see AiProviderClient
  * @see AiProviderFactory
+ * @see HttpJsonExecutor
+ * @since 1.0.0
  */
-public final class OpenAiCompatibleClient implements AiProviderClient {
+public record OpenAiCompatibleClient(AiOptions options, HttpJsonExecutor executor) implements AiProviderClient {
+
     /**
-     * System prompt instructing the model to operate strictly as a classification
-     * engine and to return machine-readable JSON output.
-     *
-     * <p>
-     * The prompt intentionally forbids explanatory text and markdown formatting to
-     * ensure that the returned content can be parsed reliably by the application.
-     * </p>
+     * System prompt instructing the model to operate strictly as a
+     * classification engine and to return machine-readable JSON output.
+     * Forbids explanatory text and markdown formatting so the response can
+     * be parsed reliably.
      */
     private static final String SYSTEM_PROMPT = """
             You are a precise software security classification engine.
@@ -69,45 +54,35 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
             Never include markdown fences, explanations, or extra text.
             """;
 
-    private final AiOptions options;
-    private final HttpSupport httpSupport;
-
     /**
-     * Creates a new client for an OpenAI-compatible provider with no
-     * rate-limit notification.
-     *
-     * <p>Rate-limit pauses are handled transparently.  Use
-     * {@link #OpenAiCompatibleClient(AiOptions, RateLimitListener)} when
-     * callers need to be notified of such pauses.</p>
+     * Creates a client for an OpenAI-compatible provider with no rate-limit
+     * notification.
      *
      * @param options AI runtime configuration
      */
     public OpenAiCompatibleClient(AiOptions options) {
-        this(options, (w, a, m) -> {});
+        this(options, (waited, attempt, message) -> { });
     }
 
     /**
-     * Creates a new client for an OpenAI-compatible provider that notifies
+     * Creates a client for an OpenAI-compatible provider that notifies
      * {@code rateLimitListener} before each rate-limit sleep.
      *
-     * @param options             AI runtime configuration
-     * @param rateLimitListener   callback invoked before each HTTP&nbsp;429
-     *                            pause; must not be {@code null}
+     * @param options           AI runtime configuration
+     * @param rateLimitListener callback invoked before each HTTP&nbsp;429
+     *                          pause; must not be {@code null}
      * @see RateLimitListener
      */
     public OpenAiCompatibleClient(AiOptions options, RateLimitListener rateLimitListener) {
-        this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener);
+        this(options, new HttpJsonExecutor(
+                new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener)));
     }
 
     /**
-     * Determines whether the configured provider can be used in the current runtime
-     * environment.
-     *
-     * <p>
-     * For OpenAI-compatible providers, availability is determined by the presence
-     * of a usable API key resolved through {@link AiOptions#resolvedApiKey()}.
-     * </p>
+     * Availability for OpenAI-compatible providers is determined by the
+     * presence of a usable API key resolved through
+     * {@link AiOptions#resolvedApiKey()} — the call is otherwise pre-flight
+     * inexpensive (no network probe).
      *
      * @return {@code true} if a usable API key is available
      */
@@ -117,55 +92,18 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
         return key != null && !key.isBlank();
     }
 
-    /**
-     * Submits a classification request to an OpenAI-compatible chat completion API.
-     *
-     * <p>
-     * The request payload includes:
-     * </p>
-     *
-     * <ul>
-     * <li>the configured model identifier</li>
-     * <li>a system prompt defining classification rules</li>
-     * <li>a user prompt containing the test class source and taxonomy</li>
-     * <li>a deterministic temperature setting</li>
-     * </ul>
-     *
-     * <p>
-     * When the selected provider is {@link AiProvider#OPENROUTER}, additional HTTP
-     * headers are included to identify the calling application.
-     * </p>
-     *
-     * <p>
-     * The response is expected to contain a JSON object in the message content
-     * field. The JSON text is extracted and deserialized into an
-     * {@link AiClassSuggestion}.
-     * </p>
-     *
-     * @param fqcn          fully qualified class name being analyzed
-     * @param classSource   complete source code of the class
-     * @param taxonomyText  taxonomy definition guiding classification
-     * @param targetMethods deterministically extracted JUnit test methods that must
-     *                      be classified
-     * @return normalized classification result
-     *
-     * @throws AiSuggestionException if the provider request fails, the model
-     *                               response is invalid, or JSON deserialization
-     *                               fails
-     */
     @Override
     public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
+        HttpRequest request;
         try {
             String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
-
             ChatRequest payload = new ChatRequest(options.modelName(),
                     List.of(new Message("system", SYSTEM_PROMPT), new Message("user", prompt)), 0.0);
-
-            String requestBody = httpSupport.objectMapper().writeValueAsString(payload);
-
+            String requestBody = executor.httpSupport().objectMapper().writeValueAsString(payload);
             URI uri = URI.create(options.baseUrl() + chatCompletionsPath(options.provider()));
-            HttpRequest.Builder requestBuilder = httpSupport.jsonPost(uri, requestBody, options.timeout())
+
+            HttpRequest.Builder requestBuilder = executor.httpSupport().jsonPost(uri, requestBody, options.timeout())
                     .header("Authorization", "Bearer " + options.resolvedApiKey());
 
             if (options.provider() == AiProvider.OPENROUTER) {
@@ -173,35 +111,27 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
                 requestBuilder.header("X-Title", "MethodAtlas");
             }
 
-            String responseBody = httpSupport.postJson(requestBuilder.build());
-            ChatResponse response = httpSupport.objectMapper().readValue(responseBody, ChatResponse.class);
+            request = requestBuilder.build();
+        } catch (Exception e) { // NOPMD - payload serialisation failure
+            throw new AiSuggestionException("OpenAI-compatible suggestion failed for " + fqcn, e);
+        }
 
+        return executor.execute("OpenAI-compatible", fqcn, request, ChatResponse.class, response -> {
             if (response.choices() == null || response.choices().isEmpty()) {
                 throw new AiSuggestionException("No choices returned by model");
             }
-
-            String content = response.choices().get(0).message().content();
-            String json = JsonText.extractFirstJsonObject(content);
-            AiClassSuggestion suggestion = httpSupport.objectMapper().readValue(json, AiClassSuggestion.class);
-            return AiProviderClient.normalize(suggestion);
-
-        } catch (Exception e) { // NOPMD
-            throw new AiSuggestionException("OpenAI-compatible suggestion failed for " + fqcn, e);
-        }
+            return response.choices().get(0).message().content();
+        });
     }
 
     /**
-     * Returns the chat completions URL path for the given provider.
-     *
-     * <p>
-     * Most OpenAI-compatible providers expose their completions endpoint at
-     * {@code /v1/chat/completions} relative to their base URL. A small number
-     * of providers omit the {@code /v1} prefix — for example, the GitHub Models
-     * inference API ({@code models.inference.ai.azure.com}). Providers such as
-     * {@link AiProvider#XAI} and {@link AiProvider#MISTRAL} already embed
-     * {@code /v1} in their default base URL, so they also use the shorter path
-     * here to avoid producing a double-versioned URL.
-     * </p>
+     * Returns the chat-completions URL path for the given provider. Most
+     * OpenAI-compatible providers expose their completions endpoint at
+     * {@code /v1/chat/completions} relative to their base URL. GitHub
+     * Models, xAI, and Mistral already embed {@code /v1} in their default
+     * base URL (or, for GitHub Models, deliberately omit version segments),
+     * so they use the shorter path here to avoid producing a
+     * double-versioned URL.
      *
      * @param provider the active provider
      * @return the path component to append to the base URL
@@ -214,38 +144,33 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
     }
 
     /**
-     * Request payload for an OpenAI-compatible chat completion request.
+     * Request payload for an OpenAI-compatible chat-completion request.
      *
      * @param model       model identifier used for inference
      * @param messages    ordered chat messages sent to the model
      * @param temperature sampling temperature controlling response variability
      */
-    private record ChatRequest(String model, List<Message> messages, @JsonProperty("temperature") Double temperature) {
-    }
+    private record ChatRequest(String model, List<Message> messages,
+            @JsonProperty("temperature") Double temperature) { }
 
     /**
      * Chat message included in the request payload.
      *
-     * @param role    logical role of the message sender, such as {@code system} or
-     *                {@code user}
+     * @param role    logical role of the message sender ({@code system}, {@code user})
      * @param content textual message content
      */
-    private record Message(String role, String content) {
-    }
+    private record Message(String role, String content) { }
 
     /**
-     * Partial response model returned by the chat completion API.
-     *
-     * <p>
-     * Only fields required for extracting the model response are mapped. Unknown
-     * properties are ignored to preserve compatibility with provider API changes.
-     * </p>
+     * Partial response model returned by the chat-completion API. Only fields
+     * required for extracting the model response are mapped; unknown
+     * properties are ignored to preserve compatibility with provider API
+     * changes.
      *
      * @param choices list of completion choices returned by the provider
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record ChatResponse(List<Choice> choices) {
-    }
+    private record ChatResponse(List<Choice> choices) { }
 
     /**
      * Individual completion choice returned by the provider.
@@ -253,20 +178,15 @@ public final class OpenAiCompatibleClient implements AiProviderClient {
      * @param message the message payload contained in this choice
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record Choice(ResponseMessage message) {
-    }
+    private record Choice(ResponseMessage message) { }
 
     /**
-     * Message payload returned inside a completion choice.
-     *
-     * <p>
-     * The {@code content} component is expected to contain the JSON classification
-     * result generated by the model.
-     * </p>
+     * Message payload returned inside a completion choice. The {@code content}
+     * component is expected to contain the JSON classification result
+     * generated by the model.
      *
      * @param content the textual content of the message
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record ResponseMessage(String content) {
-    }
+    private record ResponseMessage(String content) { }
 }

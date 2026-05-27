@@ -394,7 +394,7 @@ ext.pitConfig = [
     'methodatlas-ai': [
         targetClasses  : ['org.egothor.methodatlas.ai.*'],
         excludedClasses: [],
-        threshold      : 65,    // current 70.4 % AI subsystem; Item 11 will ratchet up after provider refactor
+        threshold      : 70,    // current 74.7 % after Item 11b record refactor (was 70.4 %)
     ],
     'methodatlas-discovery-jvm': [
         targetClasses  : ['org.egothor.methodatlas.discovery.jvm.*'],

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Egothor
+// Copyright 2026 Accenture
 package org.egothor.methodatlas.ai;
 
 import java.net.URI;
@@ -8,56 +11,38 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * {@link AiProviderClient} implementation for the Anthropic API.
+ * {@link AiProviderClient} implementation for the Anthropic
+ * <a href="https://docs.anthropic.com/">Claude API</a>.
  *
  * <p>
- * This client submits classification requests to the Anthropic
- * <a href="https://docs.anthropic.com/">Claude API</a> and converts the
- * returned response into the internal {@link AiClassSuggestion} model used by
- * the MethodAtlas AI subsystem.
+ * Submits classification requests to the {@code /v1/messages} endpoint using
+ * Anthropic's message format: a system prompt defines the classification
+ * rules and the user message contains the class source together with the
+ * taxonomy specification. The first {@code text} block of the response is
+ * extracted and parsed as the JSON classification.
  * </p>
  *
- * <h2>Operational Responsibilities</h2>
+ * <h2>Record components</h2>
  *
  * <ul>
- * <li>constructing Anthropic message API requests</li>
- * <li>injecting the taxonomy-driven classification prompt</li>
- * <li>performing authenticated HTTP calls to the Anthropic service</li>
- * <li>extracting the JSON result embedded in the model response</li>
- * <li>normalizing the result into {@link AiClassSuggestion}</li>
+ *   <li>{@code options}  — AI runtime configuration; never {@code null}</li>
+ *   <li>{@code executor} — shared HTTP-and-JSON orchestrator; never {@code null}</li>
  * </ul>
  *
- * <p>
- * The client uses the {@code /v1/messages} endpoint and relies on the Claude
- * message format, where a system prompt defines classification rules and the
- * user message contains the class source together with the taxonomy
- * specification.
- * </p>
- *
- * <p>
- * Instances of this class are typically created by
- * {@link AiProviderFactory#create(AiOptions)}.
- * </p>
- *
- * <p>
- * This implementation is stateless apart from immutable configuration and is
- * therefore safe for reuse across multiple requests.
- * </p>
- *
+ * @param options  AI runtime configuration
+ * @param executor shared HTTP-and-JSON orchestrator
  * @see AiProviderClient
  * @see AiSuggestionEngine
  * @see AiProviderFactory
+ * @see HttpJsonExecutor
+ * @since 1.0.0
  */
-public final class AnthropicClient implements AiProviderClient {
+public record AnthropicClient(AiOptions options, HttpJsonExecutor executor) implements AiProviderClient {
+
     /**
-     * System prompt used to instruct the model to return strictly formatted JSON
-     * responses suitable for automated parsing.
-     *
-     * <p>
-     * The prompt enforces deterministic output behavior and prevents the model from
-     * returning explanations, markdown formatting, or conversational responses that
-     * would break the JSON extraction pipeline.
-     * </p>
+     * System prompt enforcing deterministic JSON output. Forbids
+     * explanations, markdown formatting, or conversational responses that
+     * would break the JSON-extraction pipeline.
      */
     private static final String SYSTEM_PROMPT = """
             You are a precise software security classification engine.
@@ -65,45 +50,32 @@ public final class AnthropicClient implements AiProviderClient {
             Never include markdown fences, explanations, or extra text.
             """;
 
-    private final AiOptions options;
-    private final HttpSupport httpSupport;
-
     /**
-     * Creates a new Anthropic client with no rate-limit notification.
-     *
-     * <p>Rate-limit pauses caused by HTTP&nbsp;429 responses are handled
-     * transparently.  Use
-     * {@link #AnthropicClient(AiOptions, RateLimitListener)} when callers
-     * need to be notified of such pauses.</p>
+     * Creates an Anthropic client with no rate-limit notification.
      *
      * @param options AI runtime configuration
      */
     public AnthropicClient(AiOptions options) {
-        this(options, (w, a, m) -> {});
+        this(options, (waited, attempt, message) -> { });
     }
 
     /**
-     * Creates a new Anthropic client that notifies {@code rateLimitListener}
+     * Creates an Anthropic client that notifies {@code rateLimitListener}
      * before each rate-limit sleep.
      *
-     * @param options             AI runtime configuration
-     * @param rateLimitListener   callback invoked before each HTTP&nbsp;429
-     *                            pause; must not be {@code null}
+     * @param options           AI runtime configuration
+     * @param rateLimitListener callback invoked before each HTTP&nbsp;429
+     *                          pause; must not be {@code null}
      * @see RateLimitListener
      */
     public AnthropicClient(AiOptions options, RateLimitListener rateLimitListener) {
-        this.options = options;
-        this.httpSupport = new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener);
+        this(options, new HttpJsonExecutor(
+                new HttpSupport(options.timeout(), options.maxRetries(), rateLimitListener)));
     }
 
     /**
-     * Determines whether the Anthropic provider can be used in the current runtime
-     * environment.
-     *
-     * <p>
-     * The provider is considered available when a non-empty API key can be resolved
-     * from {@link AiOptions#resolvedApiKey()}.
-     * </p>
+     * Availability is determined by the presence of a usable API key
+     * resolved through {@link AiOptions#resolvedApiKey()}.
      *
      * @return {@code true} if a usable API key is configured
      */
@@ -113,88 +85,66 @@ public final class AnthropicClient implements AiProviderClient {
         return key != null && !key.isBlank();
     }
 
-    /**
-     * Submits a classification request to the Anthropic API for the specified test
-     * class.
-     *
-     * <p>
-     * The method constructs a message-based request containing:
-     * </p>
-     *
-     * <ul>
-     * <li>a system prompt enforcing deterministic JSON output</li>
-     * <li>a user prompt containing the class source and taxonomy definition</li>
-     * </ul>
-     *
-     * <p>
-     * The response is parsed to extract the first JSON object returned by the
-     * model, which is then deserialized into an {@link AiClassSuggestion}.
-     * </p>
-     *
-     * @param fqcn          fully qualified class name being analyzed
-     * @param classSource   complete source code of the class
-     * @param taxonomyText  taxonomy definition guiding classification
-     * @param targetMethods deterministically extracted JUnit test methods that must
-     *                      be classified
-     *
-     * @return normalized AI classification result
-     *
-     * @throws AiSuggestionException if the provider request fails, the response
-     *                               cannot be parsed, or the provider returns
-     *                               invalid content
-     */
     @Override
     public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
+        HttpRequest request;
         try {
             String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
-
             MessageRequest payload = new MessageRequest(options.modelName(), SYSTEM_PROMPT,
-                    List.of(new ContentMessage("user", List.of(new ContentBlock("text", prompt)))), 0.0, 2_000);
-
-            String requestBody = httpSupport.objectMapper().writeValueAsString(payload);
+                    List.of(new ContentMessage("user", List.of(new ContentBlock("text", prompt)))),
+                    0.0, 2_000);
+            String requestBody = executor.httpSupport().objectMapper().writeValueAsString(payload);
             URI uri = URI.create(options.baseUrl() + "/v1/messages");
 
-            HttpRequest request = httpSupport.jsonPost(uri, requestBody, options.timeout())
-                    .header("x-api-key", options.resolvedApiKey()).header("anthropic-version", "2023-06-01").build();
-
-            String responseBody = httpSupport.postJson(request);
-            MessageResponse response = httpSupport.objectMapper().readValue(responseBody, MessageResponse.class);
-
-            if (response.content() == null || response.content().isEmpty()) {
-                throw new AiSuggestionException("No content returned by Anthropic");
-            }
-
-            String text = response.content().stream().filter(block -> "text".equals(block.type())).map(ResponseBlock::text)
-                    .filter(value -> value != null && !value.isBlank()).findFirst()
-                    .orElseThrow(() -> new AiSuggestionException("Anthropic returned no text block"));
-
-            String json = JsonText.extractFirstJsonObject(text);
-            AiClassSuggestion suggestion = httpSupport.objectMapper().readValue(json, AiClassSuggestion.class);
-            return AiProviderClient.normalize(suggestion);
-
-        } catch (Exception e) { // NOPMD
+            request = executor.httpSupport().jsonPost(uri, requestBody, options.timeout())
+                    .header("x-api-key", options.resolvedApiKey())
+                    .header("anthropic-version", "2023-06-01")
+                    .build();
+        } catch (Exception e) { // NOPMD - payload serialisation failure
             throw new AiSuggestionException("Anthropic suggestion failed for " + fqcn, e);
         }
+
+        return executor.execute("Anthropic", fqcn, request, MessageResponse.class,
+                AnthropicClient::extractContent);
     }
 
     /**
-     * Request payload sent to the Anthropic message API.
+     * Extracts the first non-blank text block from an Anthropic response.
+     * Distinguishes two empty-content failure modes with separate diagnostic
+     * messages: "No content returned by Anthropic" when the content list is
+     * empty, and "Anthropic returned no text block" when the content list
+     * contains only non-text blocks.
      *
-     * <p>
-     * This record models the JSON structure expected by the {@code /v1/messages}
-     * endpoint and is serialized using Jackson before transmission.
-     * </p>
+     * @param response deserialised Anthropic response
+     * @return text content of the first usable text block
+     * @throws AiSuggestionException when no usable text content is present
+     */
+    private static String extractContent(MessageResponse response) throws AiSuggestionException {
+        if (response.content() == null || response.content().isEmpty()) {
+            throw new AiSuggestionException("No content returned by Anthropic");
+        }
+        return response.content().stream()
+                .filter(block -> "text".equals(block.type()))
+                .map(ResponseBlock::text)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElseThrow(() -> new AiSuggestionException("Anthropic returned no text block"));
+    }
+
+    /**
+     * Request payload sent to the Anthropic message API. Models the JSON
+     * structure expected by the {@code /v1/messages} endpoint and is
+     * serialised using Jackson before transmission.
      *
      * @param model       model identifier
-     * @param system      system prompt controlling model behavior
+     * @param system      system prompt controlling model behaviour
      * @param messages    list of message objects forming the conversation
      * @param temperature sampling temperature
      * @param maxTokens   maximum token count for the response
      */
     private record MessageRequest(String model, String system, List<ContentMessage> messages, Double temperature,
-            @JsonProperty("max_tokens") Integer maxTokens) {
-    }
+            @JsonProperty("max_tokens") Integer maxTokens) { }
 
     /**
      * Message container used by the Anthropic message API.
@@ -202,8 +152,7 @@ public final class AnthropicClient implements AiProviderClient {
      * @param role    role of the message sender (for example {@code user})
      * @param content message content blocks
      */
-    private record ContentMessage(String role, List<ContentBlock> content) {
-    }
+    private record ContentMessage(String role, List<ContentBlock> content) { }
 
     /**
      * Individual content block within a message payload.
@@ -211,35 +160,26 @@ public final class AnthropicClient implements AiProviderClient {
      * @param type block type (for example {@code text})
      * @param text textual content of the block
      */
-    private record ContentBlock(String type, String text) {
-    }
+    private record ContentBlock(String type, String text) { }
 
     /**
-     * Partial response model returned by the Anthropic API.
-     *
-     * <p>
-     * Only the fields required by this client are mapped. Additional fields are
-     * ignored to maintain forward compatibility with API changes.
-     * </p>
+     * Partial response model returned by the Anthropic API. Only the fields
+     * required by this client are mapped; additional fields are ignored to
+     * maintain forward compatibility with API changes.
      *
      * @param content list of content blocks in the response
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record MessageResponse(List<ResponseBlock> content) {
-    }
+    private record MessageResponse(List<ResponseBlock> content) { }
 
     /**
-     * Content block returned within a provider response.
-     *
-     * <p>
-     * The client scans these blocks to locate the first text segment containing the
+     * Content block returned within a provider response. The client scans
+     * these blocks to locate the first {@code text} segment containing the
      * JSON classification result.
-     * </p>
      *
      * @param type block type (for example {@code text})
      * @param text textual content of the block
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record ResponseBlock(String type, String text) {
-    }
+    private record ResponseBlock(String type, String text) { }
 }

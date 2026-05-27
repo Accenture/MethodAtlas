@@ -56,7 +56,7 @@ no signal — the grammar, not the parser, is the source of correctness.
 | --- | ---: | ---: | --- |
 | root (`methodatlas`) | 60 % | 72 % | Established threshold; comfortably exceeded today. |
 | `methodatlas-api` | 0 % | 0 % | SPI is mostly records and interfaces; few mutations exist. |
-| `methodatlas-ai` | 65 % | 70.4 % | AI subsystem; Item 11 will ratchet up after the provider refactor. |
+| `methodatlas-ai` | 70 % | 74.7 % | AI subsystem; ratcheted after Item 11b record refactor (provider de-duplication via `HttpJsonExecutor`). |
 | `methodatlas-discovery-jvm` | 60 % | 68.6 % | |
 | `methodatlas-discovery-dotnet` | 35 % | 41.6 % | Parser package excluded. |
 | `methodatlas-discovery-typescript` | 10 % | 15.6 % | Most logic in bundled JS, not mutated by PIT. |
