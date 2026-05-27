@@ -9,8 +9,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import org.egothor.methodatlas.TagAiDrift;
-import org.egothor.methodatlas.TestMethodSink;
+import org.egothor.methodatlas.emit.TagAiDrift;
+import org.egothor.methodatlas.emit.TestMethodSink;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
 import com.fasterxml.jackson.annotation.JsonInclude;

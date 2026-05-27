@@ -1,4 +1,4 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.emit;
 
 /**
  * Output formats supported by the MethodAtlas application.

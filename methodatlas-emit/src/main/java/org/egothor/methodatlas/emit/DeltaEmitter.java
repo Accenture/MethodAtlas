@@ -4,8 +4,8 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.egothor.methodatlas.DeltaEntry;
-import org.egothor.methodatlas.DeltaReport;
+import org.egothor.methodatlas.emit.DeltaEntry;
+import org.egothor.methodatlas.emit.DeltaReport;
 import org.egothor.methodatlas.api.ScanRecord;
 
 /**

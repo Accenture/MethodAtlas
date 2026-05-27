@@ -14,9 +14,9 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import org.egothor.methodatlas.AiResultCache;
-import org.egothor.methodatlas.ClassificationOverride;
+import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.egothor.methodatlas.CliConfig;
-import org.egothor.methodatlas.TestMethodSink;
+import org.egothor.methodatlas.emit.TestMethodSink;
 import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.AiOptions;

@@ -4,7 +4,7 @@
 package org.egothor.methodatlas.command;
 
 import org.egothor.methodatlas.AiResultCache;
-import org.egothor.methodatlas.ClassificationOverride;
+import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 

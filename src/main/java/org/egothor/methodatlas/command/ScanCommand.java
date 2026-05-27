@@ -10,10 +10,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.egothor.methodatlas.AiResultCache;
-import org.egothor.methodatlas.ClassificationOverride;
+import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.egothor.methodatlas.CliConfig;
-import org.egothor.methodatlas.OutputMode;
-import org.egothor.methodatlas.TestMethodSink;
+import org.egothor.methodatlas.emit.OutputMode;
+import org.egothor.methodatlas.emit.TestMethodSink;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;

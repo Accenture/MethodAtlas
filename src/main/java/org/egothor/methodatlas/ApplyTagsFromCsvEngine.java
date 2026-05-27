@@ -16,6 +16,7 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 import org.egothor.methodatlas.api.ScanRecord;
+import org.egothor.methodatlas.emit.DeltaReport;
 import org.egothor.methodatlas.api.SourcePatcher;
 
 /**

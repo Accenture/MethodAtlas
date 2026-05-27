@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.egothor.methodatlas.ai.AiOptions;
+import org.egothor.methodatlas.emit.OutputMode;
 import org.egothor.methodatlas.ai.AiProvider;
 
 /**

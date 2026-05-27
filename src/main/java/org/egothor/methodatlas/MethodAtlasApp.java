@@ -13,6 +13,9 @@ import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.command.AiRuntimeBuilder;
 import org.egothor.methodatlas.command.ApplyTagsCommand;
+
+import org.egothor.methodatlas.emit.ClassificationOverride;
+import org.egothor.methodatlas.emit.OutputMode;
 import org.egothor.methodatlas.command.ApplyTagsFromCsvCommand;
 import org.egothor.methodatlas.command.DiffCommand;
 import org.egothor.methodatlas.command.GitHubAnnotationsCommand;

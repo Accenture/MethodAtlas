@@ -6,7 +6,7 @@ package org.egothor.methodatlas.command;
 import java.io.IOException;
 import java.nio.file.Path;
 
-import org.egothor.methodatlas.ClassificationOverride;
+import org.egothor.methodatlas.emit.ClassificationOverride;
 
 /**
  * Loads classification override files into {@link ClassificationOverride}

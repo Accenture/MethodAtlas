@@ -1,4 +1,4 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.emit;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -236,14 +236,21 @@ public final class DeltaReport {
     /**
      * Returns all scan records from the given MethodAtlas CSV file.
      *
-     * <p>Used by {@link AiResultCache} to build an in-memory lookup from a previous
-     * scan output without going through the full delta-comparison path.</p>
+     * <p>
+     * Used by {@code AiResultCache} (in the root project) to build an
+     * in-memory lookup from a previous scan output without going through the
+     * full delta-comparison path. Public so cross-module callers can reuse
+     * the CSV parser; {@code methodatlas-emit} owns the CSV-schema contract,
+     * so concentrating the parsing here keeps the schema readable in one
+     * place.
+     * </p>
      *
      * @param csvPath path to a MethodAtlas CSV output file
-     * @return unmodifiable list of parsed records; empty when the file has no data rows
+     * @return unmodifiable list of parsed records; empty when the file has no
+     *         data rows
      * @throws IOException if the file cannot be read
      */
-    /* default */ static List<ScanRecord> loadRecords(Path csvPath) throws IOException {
+    public static List<ScanRecord> loadRecords(Path csvPath) throws IOException {
         return parseCsv(csvPath).records();
     }
 
@@ -260,7 +267,7 @@ public final class DeltaReport {
      * @param line the raw CSV line to parse (no line terminator)
      * @return list of unescaped field values; never {@code null}
      */
-    /* default */ static List<String> parseCsvLine(String line) {
+    public static List<String> parseCsvLine(String line) {
         List<String> result = new ArrayList<>();
         StringBuilder field = new StringBuilder();
         int pos = 0;

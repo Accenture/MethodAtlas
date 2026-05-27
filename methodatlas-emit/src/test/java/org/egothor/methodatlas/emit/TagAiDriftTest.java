@@ -1,4 +1,4 @@
-package org.egothor.methodatlas;
+package org.egothor.methodatlas.emit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;

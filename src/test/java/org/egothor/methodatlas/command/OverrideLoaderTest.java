@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import org.egothor.methodatlas.ClassificationOverride;
+import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

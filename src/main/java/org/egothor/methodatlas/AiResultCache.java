@@ -11,6 +11,7 @@ import java.util.Optional;
 import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.api.ScanRecord;
+import org.egothor.methodatlas.emit.DeltaReport;
 
 /**
  * In-memory cache of AI classification results loaded from a previous MethodAtlas scan output.

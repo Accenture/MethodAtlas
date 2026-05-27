@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Path;
 
-import org.egothor.methodatlas.DeltaReport;
+import org.egothor.methodatlas.emit.DeltaReport;
 import org.egothor.methodatlas.emit.DeltaEmitter;
 
 /**

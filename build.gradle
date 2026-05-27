@@ -119,6 +119,7 @@ configurations {
 dependencies {
     implementation project(':methodatlas-api')
     implementation project(':methodatlas-ai')
+    implementation project(':methodatlas-emit')
     runtimeOnly project(':methodatlas-discovery-jvm')
     runtimeOnly project(':methodatlas-discovery-dotnet')
     runtimeOnly project(':methodatlas-discovery-typescript')
@@ -358,7 +359,7 @@ ext.coverageFloors = [
     // Module                          floor   measured  notes
     'methodatlas-api'                 : 0.40,   //  45.7 % small SPI, high per-instruction volatility
     'methodatlas-ai'                  : 0.80,   //  84.9 % AI subsystem; strong test suite
-    'methodatlas-emit'                : 0.00,   //   0.0 % placeholder; populated in Item 7 (emit package move)
+    'methodatlas-emit'                : 0.65,   //  67.7 % emit module; covers CSV/SARIF/JSON/delta + schema types
     'methodatlas-discovery-jvm'       : 0.85,   //  90.9 % strongest plugin test suite
     'methodatlas-discovery-dotnet'    : 0.38,   //  40.3 % ANTLR-generated parser dominates SLOC
     'methodatlas-discovery-typescript': 0.17,   //  19.3 % most logic in bundled JS (excluded from JaCoCo)
@@ -400,7 +401,8 @@ ext.pitConfig = [
     'methodatlas-emit': [
         targetClasses  : ['org.egothor.methodatlas.emit.*'],
         excludedClasses: [],
-        threshold      : 0,     // placeholder; populated in Item 7 (emit package move)
+        threshold      : 45,    // current 49.1 % emit module; SARIF/JSON output paths are well-covered;
+                                // CSV-parsing edge cases dominate the surviving mutants
     ],
     'methodatlas-discovery-jvm': [
         targetClasses  : ['org.egothor.methodatlas.discovery.jvm.*'],

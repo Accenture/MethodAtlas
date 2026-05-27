@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.egothor.methodatlas.TestMethodSink;
+import org.egothor.methodatlas.emit.TestMethodSink;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.api.DiscoveredMethod;

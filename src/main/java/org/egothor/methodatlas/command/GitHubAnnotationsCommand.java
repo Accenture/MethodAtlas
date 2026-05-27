@@ -7,7 +7,7 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import org.egothor.methodatlas.AiResultCache;
-import org.egothor.methodatlas.ClassificationOverride;
+import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.egothor.methodatlas.CliConfig;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;

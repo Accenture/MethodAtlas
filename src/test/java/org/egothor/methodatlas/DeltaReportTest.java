@@ -16,6 +16,8 @@ import java.nio.file.Path;
 import java.util.List;
 
 import org.egothor.methodatlas.emit.DeltaEmitter;
+import org.egothor.methodatlas.emit.DeltaEntry;
+import org.egothor.methodatlas.emit.DeltaReport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
