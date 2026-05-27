@@ -22,7 +22,7 @@ import java.io.PrintWriter;
  * </p>
  *
  * @see org.egothor.methodatlas.MethodAtlasApp
- * @see CommandSupport
+ * @see ScanOrchestrator
  */
 @FunctionalInterface
 public interface Command {

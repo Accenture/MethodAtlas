@@ -107,7 +107,7 @@ public final class ManualPrepareCommand implements Command {
                     }
                     String fileStem = classMethods.get(0).fileStem();
                     List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
-                            .map(CommandSupport::toTargetMethod).toList();
+                            .map(ScanOrchestrator::toTargetMethod).toList();
                     try {
                         Path workFile = engine.prepare(fileStem, fqcn, classSource, targetMethods);
                         out.println("Prepared: " + workFile);

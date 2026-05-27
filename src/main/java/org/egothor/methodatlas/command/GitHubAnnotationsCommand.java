@@ -32,29 +32,29 @@ public final class GitHubAnnotationsCommand implements Command {
     private final AiSuggestionEngine aiEngine;
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
-    private final PluginLoader pluginLoader;
+    private final ScanOrchestrator scanOrchestrator;
 
     /**
      * Creates a new GitHub Annotations command.
      *
-     * @param cliConfig       full parsed CLI configuration
-     * @param discoveryConfig discovery configuration forwarded to providers
-     * @param aiEngine        AI engine providing suggestions; {@code null} when
-     *                        AI is disabled
-     * @param override        human classification overrides
-     * @param aiCache         AI result cache
-     * @param pluginLoader    loader used to resolve test-discovery plugins
-     *                        from the classpath
+     * @param cliConfig         full parsed CLI configuration
+     * @param discoveryConfig   discovery configuration forwarded to providers
+     * @param aiEngine          AI engine providing suggestions; {@code null}
+     *                          when AI is disabled
+     * @param override          human classification overrides
+     * @param aiCache           AI result cache
+     * @param scanOrchestrator  scan-and-emit orchestrator used to process all
+     *                          configured roots
      */
     public GitHubAnnotationsCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache, PluginLoader pluginLoader) {
+            AiResultCache aiCache, ScanOrchestrator scanOrchestrator) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
-        this.pluginLoader = pluginLoader;
+        this.scanOrchestrator = scanOrchestrator;
     }
 
     /**
@@ -71,8 +71,8 @@ public final class GitHubAnnotationsCommand implements Command {
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
         String filePrefix = ContentHasher.filePrefix(roots);
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
-        return CommandSupport.scan(roots, cliConfig, discoveryConfig, aiEngine,
-                CommandSupport.filterSink(emitter, false, cliConfig.minConfidence(), confidenceEnabled),
-                override, aiCache, pluginLoader);
+        return scanOrchestrator.scan(roots, cliConfig, discoveryConfig, aiEngine,
+                scanOrchestrator.filterSink(emitter, false, cliConfig.minConfidence(), confidenceEnabled),
+                override, aiCache);
     }
 }

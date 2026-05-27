@@ -16,7 +16,11 @@ import java.util.List;
  *
  * <p>
  * Two unrelated-but-small concerns live here because both are stateless,
- * dependency-free, and would otherwise clutter {@link CommandSupport}:
+ * dependency-free, and named-focused. Pulling them into one
+ * single-responsibility utility class keeps each concern visible without
+ * the cost of constructor injection — both methods are pure functions
+ * mandated by their specifications (SHA-256 for hashing, OS-native
+ * relativisation for the prefix), so there is nothing to substitute:
  * </p>
  * <ul>
  *   <li>{@link #hashClass(String)} — computes a SHA-256 fingerprint of the
@@ -37,7 +41,7 @@ import java.util.List;
  * relativisation has only one correct answer.
  * </p>
  *
- * @see CommandSupport
+ * @see ScanOrchestrator
  * @since 1.0.0
  */
 public final class ContentHasher {

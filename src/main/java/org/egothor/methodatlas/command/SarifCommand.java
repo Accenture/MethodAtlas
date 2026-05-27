@@ -33,29 +33,29 @@ public final class SarifCommand implements Command {
     private final AiSuggestionEngine aiEngine;
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
-    private final PluginLoader pluginLoader;
+    private final ScanOrchestrator scanOrchestrator;
 
     /**
      * Creates a new SARIF command.
      *
-     * @param cliConfig       full parsed CLI configuration
-     * @param discoveryConfig discovery configuration forwarded to providers
-     * @param aiEngine        AI engine providing suggestions; {@code null} when
-     *                        AI is disabled
-     * @param override        human classification overrides
-     * @param aiCache         AI result cache
-     * @param pluginLoader    loader used to resolve test-discovery plugins
-     *                        from the classpath
+     * @param cliConfig         full parsed CLI configuration
+     * @param discoveryConfig   discovery configuration forwarded to providers
+     * @param aiEngine          AI engine providing suggestions; {@code null}
+     *                          when AI is disabled
+     * @param override          human classification overrides
+     * @param aiCache           AI result cache
+     * @param scanOrchestrator  scan-and-emit orchestrator used to process all
+     *                          configured roots and buffer SARIF results
      */
     public SarifCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache, PluginLoader pluginLoader) {
+            AiResultCache aiCache, ScanOrchestrator scanOrchestrator) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
-        this.pluginLoader = pluginLoader;
+        this.scanOrchestrator = scanOrchestrator;
     }
 
     /**
@@ -76,10 +76,9 @@ public final class SarifCommand implements Command {
         boolean scoresInMessage = !cliConfig.sarifOmitScores();
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix, scoresInMessage);
 
-        int result = CommandSupport.scan(roots, cliConfig, discoveryConfig, aiEngine,
-                CommandSupport.filterSink(sarifEmitter, cliConfig.securityOnly(),
-                        cliConfig.minConfidence(), confidenceEnabled), override, aiCache,
-                pluginLoader);
+        int result = scanOrchestrator.scan(roots, cliConfig, discoveryConfig, aiEngine,
+                scanOrchestrator.filterSink(sarifEmitter, cliConfig.securityOnly(),
+                        cliConfig.minConfidence(), confidenceEnabled), override, aiCache);
         sarifEmitter.flush(out);
         return result;
     }

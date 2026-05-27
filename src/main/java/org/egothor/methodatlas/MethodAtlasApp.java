@@ -11,9 +11,9 @@ import java.nio.file.Path;
 import org.egothor.methodatlas.ai.ManualConsumeEngine;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.command.AiRuntimeBuilder;
 import org.egothor.methodatlas.command.ApplyTagsCommand;
 import org.egothor.methodatlas.command.ApplyTagsFromCsvCommand;
-import org.egothor.methodatlas.command.CommandSupport;
 import org.egothor.methodatlas.command.DiffCommand;
 import org.egothor.methodatlas.command.GitHubAnnotationsCommand;
 import org.egothor.methodatlas.command.JsonCommand;
@@ -22,6 +22,7 @@ import org.egothor.methodatlas.command.OverrideLoader;
 import org.egothor.methodatlas.command.PluginLoader;
 import org.egothor.methodatlas.command.SarifCommand;
 import org.egothor.methodatlas.command.ScanCommand;
+import org.egothor.methodatlas.command.ScanOrchestrator;
 
 /**
  * Command-line application for scanning Java test sources, extracting JUnit
@@ -250,16 +251,18 @@ public final class MethodAtlasApp {
         }
 
         CliConfig cliConfig = CliArgs.parse(args);
+        AiRuntimeBuilder aiRuntimeBuilder = new AiRuntimeBuilder();
         ClassificationOverride override = new OverrideLoader().load(cliConfig.overrideFile());
-        AiResultCache aiCache = CommandSupport.buildAiCache(cliConfig.aiCacheFile());
+        AiResultCache aiCache = aiRuntimeBuilder.buildCache(cliConfig.aiCacheFile());
 
         TestDiscoveryConfig discoveryConfig =
                 new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties());
 
-        // One PluginLoader is shared by every command in this run; the loader is
-        // stateless and the providers it returns are owned (and closed) by the
-        // command that requested them.
+        // One PluginLoader + one ScanOrchestrator are shared by every command in
+        // this run; both are stateless and the providers they resolve are owned
+        // (and closed) by the command that requested them.
         PluginLoader pluginLoader = new PluginLoader();
+        ScanOrchestrator scanOrchestrator = new ScanOrchestrator(pluginLoader);
 
         // Manual prepare phase: write AI prompt work files; no CSV output.
         if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {
@@ -271,7 +274,7 @@ public final class MethodAtlasApp {
         if (cliConfig.manualMode() instanceof ManualMode.Consume consume) {
             aiEngine = new ManualConsumeEngine(consume.responseDir());
         } else {
-            aiEngine = CommandSupport.buildAiEngine(cliConfig.aiOptions());
+            aiEngine = aiRuntimeBuilder.buildEngine(cliConfig.aiOptions());
         }
 
         // Apply-tags-from-csv mode: apply reviewed CSV decisions to source files.
@@ -281,29 +284,30 @@ public final class MethodAtlasApp {
 
         // Apply-tags mode: annotate source files; no report emitted.
         if (cliConfig.applyTags()) {
-            return new ApplyTagsCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader)
-                    .execute(out);
+            return new ApplyTagsCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache,
+                    pluginLoader, scanOrchestrator).execute(out);
         }
 
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
-            return new SarifCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader)
-                    .execute(out);
+            return new SarifCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache,
+                    scanOrchestrator).execute(out);
         }
 
         // JSON mode: buffer all records; write flat JSON array after scan completes.
         if (cliConfig.outputMode() == OutputMode.JSON) {
-            return new JsonCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader)
-                    .execute(out);
+            return new JsonCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache,
+                    pluginLoader, scanOrchestrator).execute(out);
         }
 
         // GitHub Annotations mode: emit ::notice/::warning workflow commands.
         if (cliConfig.outputMode() == OutputMode.GITHUB_ANNOTATIONS) {
-            return new GitHubAnnotationsCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader)
-                    .execute(out);
+            return new GitHubAnnotationsCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache,
+                    scanOrchestrator).execute(out);
         }
 
         // CSV / PLAIN mode: emit incrementally (default).
-        return new ScanCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader).execute(out);
+        return new ScanCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache,
+                pluginLoader, scanOrchestrator).execute(out);
     }
 }

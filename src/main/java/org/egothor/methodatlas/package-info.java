@@ -135,7 +135,9 @@
  *     one class per CLI mode ({@code ScanCommand}, {@code SarifCommand},
  *     {@code DiffCommand}, {@code ApplyTagsCommand}, {@code ApplyTagsFromCsvCommand},
  *     {@code GitHubAnnotationsCommand}, {@code ManualPrepareCommand}), plus
- *     shared infrastructure in {@code CommandSupport}</li>
+ *     focused collaborators that the commands compose ({@code PluginLoader},
+ *     {@code OverrideLoader}, {@code ContentHasher}, {@code AiRuntimeBuilder},
+ *     {@code ScanOrchestrator})</li>
  * </ul>
  *
  * @see org.egothor.methodatlas.MethodAtlasApp

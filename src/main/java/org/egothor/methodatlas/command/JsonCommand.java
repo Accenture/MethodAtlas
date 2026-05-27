@@ -51,28 +51,33 @@ public final class JsonCommand implements Command {
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
     private final PluginLoader pluginLoader;
+    private final ScanOrchestrator scanOrchestrator;
 
     /**
      * Creates a new JSON command.
      *
-     * @param cliConfig       full parsed CLI configuration
-     * @param discoveryConfig discovery configuration forwarded to providers
-     * @param aiEngine        AI engine providing suggestions; {@code null} when
-     *                        AI is disabled
-     * @param override        human classification overrides
-     * @param aiCache         AI result cache
-     * @param pluginLoader    loader used to resolve {@link TestDiscovery}
-     *                        providers from the classpath
+     * @param cliConfig         full parsed CLI configuration
+     * @param discoveryConfig   discovery configuration forwarded to providers
+     * @param aiEngine          AI engine providing suggestions; {@code null}
+     *                          when AI is disabled
+     * @param override          human classification overrides
+     * @param aiCache           AI result cache
+     * @param pluginLoader      loader used to resolve and close
+     *                          {@link TestDiscovery} providers
+     * @param scanOrchestrator  scan-and-emit orchestrator used to process
+     *                          each root with the per-record sink
      */
     public JsonCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache, PluginLoader pluginLoader) {
+            AiResultCache aiCache, PluginLoader pluginLoader,
+            ScanOrchestrator scanOrchestrator) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
         this.pluginLoader = pluginLoader;
+        this.scanOrchestrator = scanOrchestrator;
     }
 
     /**
@@ -103,8 +108,8 @@ public final class JsonCommand implements Command {
                 TestMethodSink rootSink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
                         jsonEmitter.record(fqcn, method, beginLine, loc, contentHash, tags, displayName,
                                 suggestion, finalSourceRoot);
-                if (CommandSupport.runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine,
-                        CommandSupport.filterSink(rootSink, cliConfig.securityOnly(),
+                if (scanOrchestrator.runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine,
+                        scanOrchestrator.filterSink(rootSink, cliConfig.securityOnly(),
                                 cliConfig.minConfidence(), confidenceEnabled),
                         cliConfig.contentHash(), override, aiCache)) {
                     hadErrors = true;

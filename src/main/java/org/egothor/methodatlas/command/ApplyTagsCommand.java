@@ -56,28 +56,34 @@ public final class ApplyTagsCommand implements Command {
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
     private final PluginLoader pluginLoader;
+    private final ScanOrchestrator scanOrchestrator;
 
     /**
      * Creates a new apply-tags command.
      *
-     * @param cliConfig       full parsed CLI configuration
-     * @param discoveryConfig discovery configuration forwarded to providers
-     * @param aiEngine        AI engine providing suggestions; {@code null} when
-     *                        AI is disabled
-     * @param override        human classification overrides
-     * @param aiCache         AI result cache
-     * @param pluginLoader    loader used to resolve {@link TestDiscovery} and
-     *                        {@link SourcePatcher} plugins from the classpath
+     * @param cliConfig         full parsed CLI configuration
+     * @param discoveryConfig   discovery configuration forwarded to providers
+     * @param aiEngine          AI engine providing suggestions; {@code null}
+     *                          when AI is disabled
+     * @param override          human classification overrides
+     * @param aiCache           AI result cache
+     * @param pluginLoader      loader used to resolve {@link TestDiscovery}
+     *                          and {@link SourcePatcher} plugins
+     * @param scanOrchestrator  orchestrator providing
+     *                          {@code collectMethodsByFile} and
+     *                          {@code gatherAiSuggestionsForFile} helpers
      */
     public ApplyTagsCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache, PluginLoader pluginLoader) {
+            AiResultCache aiCache, PluginLoader pluginLoader,
+            ScanOrchestrator scanOrchestrator) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
         this.pluginLoader = pluginLoader;
+        this.scanOrchestrator = scanOrchestrator;
     }
 
     /**
@@ -100,14 +106,13 @@ public final class ApplyTagsCommand implements Command {
         Map<Path, List<DiscoveredMethod>> byFile;
         boolean hadErrors;
         try {
-            byFile = CommandSupport.collectMethodsByFile(roots, providers);
+            byFile = scanOrchestrator.collectMethodsByFile(roots, providers);
             hadErrors = providers.stream().anyMatch(TestDiscovery::hadErrors);
         } finally {
             pluginLoader.closeAll(providers);
         }
 
-        CommandSupport.AiRuntime ai =
-                new CommandSupport.AiRuntime(cliConfig.aiOptions(), aiEngine, override, aiCache);
+        AiRuntime ai = new AiRuntime(cliConfig.aiOptions(), aiEngine, override, aiCache);
 
         int modifiedFiles = 0;
         int totalAnnotations = 0;
@@ -140,7 +145,7 @@ public final class ApplyTagsCommand implements Command {
             Map<String, List<String>> tagsToApply = new LinkedHashMap<>();
             Map<String, String> displayNames = new LinkedHashMap<>();
 
-            CommandSupport.gatherAiSuggestionsForFile(byClass, ai, aiCache, tagsToApply, displayNames);
+            scanOrchestrator.gatherAiSuggestionsForFile(byClass, ai, aiCache, tagsToApply, displayNames);
 
             if (!tagsToApply.isEmpty() || !displayNames.isEmpty()) {
                 try {
