@@ -18,6 +18,7 @@ import org.egothor.methodatlas.command.DiffCommand;
 import org.egothor.methodatlas.command.GitHubAnnotationsCommand;
 import org.egothor.methodatlas.command.JsonCommand;
 import org.egothor.methodatlas.command.ManualPrepareCommand;
+import org.egothor.methodatlas.command.OverrideLoader;
 import org.egothor.methodatlas.command.PluginLoader;
 import org.egothor.methodatlas.command.SarifCommand;
 import org.egothor.methodatlas.command.ScanCommand;
@@ -249,7 +250,7 @@ public final class MethodAtlasApp {
         }
 
         CliConfig cliConfig = CliArgs.parse(args);
-        ClassificationOverride override = CommandSupport.loadClassificationOverride(cliConfig.overrideFile());
+        ClassificationOverride override = new OverrideLoader().load(cliConfig.overrideFile());
         AiResultCache aiCache = CommandSupport.buildAiCache(cliConfig.aiCacheFile());
 
         TestDiscoveryConfig discoveryConfig =

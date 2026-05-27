@@ -1,13 +1,8 @@
 package org.egothor.methodatlas.command;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -37,21 +32,21 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  *
  * <p>
  * This utility class centralises scan orchestration, AI suggestion resolution,
- * content hashing, and other cross-cutting concerns that have not yet been
- * extracted into dedicated collaborators. Plugin resolution moved to
- * {@link PluginLoader}; remaining responsibilities migrate to
- * {@code OverrideLoader}, {@code ContentHasher}, {@code AiRuntimeBuilder},
- * and {@code ScanOrchestrator} in subsequent phases of the architecture
- * remediation plan.
+ * and a small set of cross-cutting concerns that have not yet been extracted
+ * into dedicated collaborators. Plugin resolution moved to
+ * {@link PluginLoader}, override loading to {@link OverrideLoader}, and
+ * content fingerprinting plus path-prefix derivation to {@link ContentHasher};
+ * remaining responsibilities (AI engine and cache construction, scan and
+ * discovery orchestration) migrate to {@code AiRuntimeBuilder} and
+ * {@code ScanOrchestrator} in the next phase of the architecture remediation
+ * plan.
  * </p>
  *
  * <p>
- * Methods marked {@code public} ({@link #computeFilePrefix},
- * {@link #buildAiEngine}, {@link #buildAiCache}, and
- * {@link #loadClassificationOverride}) are called either by
- * {@link org.egothor.methodatlas.MethodAtlasApp} (a different package) or
- * directly by unit tests; all other methods are package-private and intended
- * for use within the {@code org.egothor.methodatlas.command} package only.
+ * Methods marked {@code public} ({@link #buildAiEngine}, {@link #buildAiCache})
+ * are called from {@link org.egothor.methodatlas.MethodAtlasApp} (a different
+ * package); all other methods are package-private and intended for use within
+ * the {@code org.egothor.methodatlas.command} package only.
  * </p>
  */
 @SuppressWarnings("PMD.CyclomaticComplexity") // centralised utility class; total CC naturally high across many small methods
@@ -122,26 +117,6 @@ public final class CommandSupport {
             return AiResultCache.load(cacheFile);
         } catch (IOException e) {
             throw new IllegalArgumentException("Cannot load AI cache file: " + cacheFile, e);
-        }
-    }
-
-    /**
-     * Loads the classification override file, or returns the empty no-op
-     * singleton when no override file is configured.
-     *
-     * @param overrideFile path to the YAML override file, or {@code null}
-     * @return loaded override set; never {@code null}
-     * @throws IllegalArgumentException if the file exists but cannot be read or
-     *                                  contains invalid YAML
-     */
-    public static ClassificationOverride loadClassificationOverride(Path overrideFile) {
-        if (overrideFile == null) {
-            return ClassificationOverride.empty();
-        }
-        try {
-            return ClassificationOverride.load(overrideFile);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Cannot load override file: " + overrideFile, e);
         }
     }
 
@@ -240,7 +215,7 @@ public final class CommandSupport {
             String classSource = classMethods.get(0).sourceContent().get().orElse(null);
 
             String lookupHash = (contentHashEnabled || aiCache.isActive()) && classSource != null
-                    ? computeContentHash(classSource) : null;
+                    ? ContentHasher.hashClass(classSource) : null;
             String outputHash = contentHashEnabled ? lookupHash : null;
 
             String fileStem = classMethods.get(0).fileStem();
@@ -315,7 +290,7 @@ public final class CommandSupport {
 
             String classSource = classMethods.get(0).sourceContent().get().orElse(null);
             String lookupHash = aiCache.isActive() && classSource != null
-                    ? computeContentHash(classSource) : null;
+                    ? ContentHasher.hashClass(classSource) : null;
             String fileStem = classMethods.get(0).fileStem();
             List<String> methodNames = classMethods.stream().map(DiscoveredMethod::method).toList();
             List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
@@ -411,64 +386,6 @@ public final class CommandSupport {
     // -------------------------------------------------------------------------
     // Utility methods
     // -------------------------------------------------------------------------
-
-    /**
-     * Computes a SHA-256 content fingerprint of a class source string.
-     *
-     * <p>
-     * The hash is derived from the JavaParser pretty-printed form of the class
-     * declaration, which normalizes whitespace so that insignificant formatting
-     * changes do not alter the fingerprint. The result is a 64-character
-     * lowercase hexadecimal string.
-     * </p>
-     *
-     * @param classSource JavaParser pretty-print of the class declaration
-     * @return 64-character lowercase hex SHA-256 digest
-     * @throws IllegalStateException if SHA-256 is unavailable (never in practice;
-     *                               SHA-256 is mandated by the Java SE spec)
-     */
-    /* default */ static String computeContentHash(String classSource) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(classSource.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(bytes);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
-    }
-
-    /**
-     * Derives the file path prefix used in GitHub Actions workflow command
-     * annotations from the first configured scan root.
-     *
-     * <p>
-     * The prefix is made relative to the current working directory so that the
-     * resulting annotation paths (e.g. {@code src/test/java/com/acme/AuthTest.java})
-     * match what GitHub resolves as inline positions in the PR diff.
-     * </p>
-     *
-     * @param roots configured scan roots; may be empty
-     * @return forward-slash path ending with {@code /}, or empty string when
-     *         {@code roots} is empty
-     */
-    public static String computeFilePrefix(List<Path> roots) {
-        if (roots.isEmpty()) {
-            return "";
-        }
-        Path root = roots.get(0).toAbsolutePath().normalize();
-        String prefix;
-        try {
-            Path cwd = Paths.get("").toAbsolutePath();
-            prefix = cwd.relativize(root).toString().replace('\\', '/');
-        } catch (IllegalArgumentException e) {
-            // Different drive on Windows — fall back to the absolute path.
-            prefix = root.toString().replace('\\', '/');
-        }
-        if (!prefix.isEmpty() && !prefix.endsWith("/")) {
-            prefix += "/";
-        }
-        return prefix;
-    }
 
     /**
      * Wraps a {@link TestMethodSink} so that only records that pass all active

@@ -72,7 +72,7 @@ public final class SarifCommand implements Command {
         boolean confidenceEnabled = aiEnabled && cliConfig.aiOptions().confidence();
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
 
-        String filePrefix = CommandSupport.computeFilePrefix(roots);
+        String filePrefix = ContentHasher.filePrefix(roots);
         boolean scoresInMessage = !cliConfig.sarifOmitScores();
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix, scoresInMessage);
 

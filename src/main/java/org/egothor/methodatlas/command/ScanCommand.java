@@ -103,7 +103,7 @@ public final class ScanCommand implements Command {
         boolean hadErrors = false;
         try {
             for (Path root : roots) {
-                String sourceRoot = emitSourceRoot ? CommandSupport.computeFilePrefix(List.of(root)) : null;
+                String sourceRoot = emitSourceRoot ? ContentHasher.filePrefix(List.of(root)) : null;
                 TestMethodSink rootSink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
                         emitter.emit(mode, fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
                 if (CommandSupport.runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine,

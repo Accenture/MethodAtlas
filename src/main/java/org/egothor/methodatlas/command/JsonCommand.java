@@ -98,7 +98,7 @@ public final class JsonCommand implements Command {
         boolean hadErrors = false;
         try {
             for (Path root : roots) {
-                String sourceRoot = emitSourceRoot ? CommandSupport.computeFilePrefix(List.of(root)) : null;
+                String sourceRoot = emitSourceRoot ? ContentHasher.filePrefix(List.of(root)) : null;
                 final String finalSourceRoot = sourceRoot;
                 TestMethodSink rootSink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) ->
                         jsonEmitter.record(fqcn, method, beginLine, loc, contentHash, tags, displayName,

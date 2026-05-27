@@ -15,7 +15,6 @@ import java.nio.file.Path;
 import java.util.List;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
-import org.egothor.methodatlas.command.CommandSupport;
 import org.egothor.methodatlas.emit.GitHubAnnotationsEmitter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -440,29 +439,12 @@ class GitHubAnnotationsEmitterTest {
     }
 
     // -------------------------------------------------------------------------
-    // CommandSupport.computeFilePrefix
-    // -------------------------------------------------------------------------
-
-    @Test
-    void computeFilePrefix_emptyList_returnsEmptyString() {
-        assertEquals("", CommandSupport.computeFilePrefix(List.of()));
-    }
-
-    @Test
-    void computeFilePrefix_relativeRoot_endsWithSlash(@TempDir Path tempDir) {
-        String prefix = CommandSupport.computeFilePrefix(List.of(tempDir));
-        assertTrue(prefix.endsWith("/"), "Prefix should end with /");
-    }
-
-    @Test
-    void computeFilePrefix_usesForwardSlashes(@TempDir Path tempDir) {
-        String prefix = CommandSupport.computeFilePrefix(List.of(tempDir));
-        assertFalse(prefix.contains("\\"), "Prefix should use forward slashes only");
-    }
-
-    // -------------------------------------------------------------------------
     // Edge cases — buildMessage fallback and blank displayName
     // -------------------------------------------------------------------------
+
+    // Note: tests for the file-prefix helper itself moved to
+    // org.egothor.methodatlas.command.ContentHasherTest after the
+    // CommandSupport.computeFilePrefix extraction in Phase 1 / Item 4.
 
     @Test
     @DisplayName("all optional message fields absent: message falls back to 'Security test'")
