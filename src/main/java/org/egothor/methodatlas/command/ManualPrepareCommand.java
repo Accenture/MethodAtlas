@@ -41,6 +41,7 @@ public final class ManualPrepareCommand implements Command {
     private final ManualMode.Prepare prepare;
     private final CliConfig cliConfig;
     private final TestDiscoveryConfig discoveryConfig;
+    private final PluginLoader pluginLoader;
 
     /**
      * Creates a new manual-prepare command.
@@ -48,12 +49,15 @@ public final class ManualPrepareCommand implements Command {
      * @param prepare         manual prepare mode configuration (work and response dirs)
      * @param cliConfig       full parsed CLI configuration
      * @param discoveryConfig discovery configuration forwarded to providers
+     * @param pluginLoader    loader used to resolve {@link TestDiscovery}
+     *                        providers from the classpath
      */
     public ManualPrepareCommand(ManualMode.Prepare prepare, CliConfig cliConfig,
-            TestDiscoveryConfig discoveryConfig) {
+            TestDiscoveryConfig discoveryConfig, PluginLoader pluginLoader) {
         this.prepare = prepare;
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
+        this.pluginLoader = pluginLoader;
     }
 
     /**
@@ -75,7 +79,7 @@ public final class ManualPrepareCommand implements Command {
         }
 
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
-        List<TestDiscovery> providers = CommandSupport.loadProviders(discoveryConfig);
+        List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
         boolean hadErrors = false;
         int prepared = 0;
 
@@ -116,7 +120,7 @@ public final class ManualPrepareCommand implements Command {
                 }
             }
         } finally {
-            CommandSupport.closeAll(providers);
+            pluginLoader.closeAll(providers);
         }
 
         out.println("Manual prepare complete. Wrote " + prepared + " work file(s) to " + prepare.workDir()

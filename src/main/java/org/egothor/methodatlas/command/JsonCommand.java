@@ -50,6 +50,7 @@ public final class JsonCommand implements Command {
     private final AiSuggestionEngine aiEngine;
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
+    private final PluginLoader pluginLoader;
 
     /**
      * Creates a new JSON command.
@@ -60,15 +61,18 @@ public final class JsonCommand implements Command {
      *                        AI is disabled
      * @param override        human classification overrides
      * @param aiCache         AI result cache
+     * @param pluginLoader    loader used to resolve {@link TestDiscovery}
+     *                        providers from the classpath
      */
     public JsonCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache) {
+            AiResultCache aiCache, PluginLoader pluginLoader) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
+        this.pluginLoader = pluginLoader;
     }
 
     /**
@@ -90,7 +94,7 @@ public final class JsonCommand implements Command {
         JsonEmitter jsonEmitter = new JsonEmitter(aiEnabled, confidenceEnabled, contentHashEnabled,
                 cliConfig.driftDetect(), emitSourceRoot);
 
-        List<TestDiscovery> providers = CommandSupport.loadProviders(discoveryConfig);
+        List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
         boolean hadErrors = false;
         try {
             for (Path root : roots) {
@@ -107,7 +111,7 @@ public final class JsonCommand implements Command {
                 }
             }
         } finally {
-            CommandSupport.closeAll(providers);
+            pluginLoader.closeAll(providers);
         }
 
         if (aiCache.isActive() && LOG.isLoggable(Level.INFO)) {

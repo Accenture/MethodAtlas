@@ -18,6 +18,7 @@ import org.egothor.methodatlas.command.DiffCommand;
 import org.egothor.methodatlas.command.GitHubAnnotationsCommand;
 import org.egothor.methodatlas.command.JsonCommand;
 import org.egothor.methodatlas.command.ManualPrepareCommand;
+import org.egothor.methodatlas.command.PluginLoader;
 import org.egothor.methodatlas.command.SarifCommand;
 import org.egothor.methodatlas.command.ScanCommand;
 
@@ -254,9 +255,14 @@ public final class MethodAtlasApp {
         TestDiscoveryConfig discoveryConfig =
                 new TestDiscoveryConfig(cliConfig.fileSuffixes(), cliConfig.testMarkers(), cliConfig.properties());
 
+        // One PluginLoader is shared by every command in this run; the loader is
+        // stateless and the providers it returns are owned (and closed) by the
+        // command that requested them.
+        PluginLoader pluginLoader = new PluginLoader();
+
         // Manual prepare phase: write AI prompt work files; no CSV output.
         if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {
-            return new ManualPrepareCommand(prepare, cliConfig, discoveryConfig).execute(out);
+            return new ManualPrepareCommand(prepare, cliConfig, discoveryConfig, pluginLoader).execute(out);
         }
 
         // Determine AI engine: manual consume reads from files; normal mode calls APIs.
@@ -269,30 +275,34 @@ public final class MethodAtlasApp {
 
         // Apply-tags-from-csv mode: apply reviewed CSV decisions to source files.
         if (cliConfig.applyTagsFromCsvFile() != null) {
-            return new ApplyTagsFromCsvCommand(cliConfig, discoveryConfig).execute(out);
+            return new ApplyTagsFromCsvCommand(cliConfig, discoveryConfig, pluginLoader).execute(out);
         }
 
         // Apply-tags mode: annotate source files; no report emitted.
         if (cliConfig.applyTags()) {
-            return new ApplyTagsCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache).execute(out);
+            return new ApplyTagsCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader)
+                    .execute(out);
         }
 
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
-            return new SarifCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache).execute(out);
+            return new SarifCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader)
+                    .execute(out);
         }
 
         // JSON mode: buffer all records; write flat JSON array after scan completes.
         if (cliConfig.outputMode() == OutputMode.JSON) {
-            return new JsonCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache).execute(out);
+            return new JsonCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader)
+                    .execute(out);
         }
 
         // GitHub Annotations mode: emit ::notice/::warning workflow commands.
         if (cliConfig.outputMode() == OutputMode.GITHUB_ANNOTATIONS) {
-            return new GitHubAnnotationsCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache).execute(out);
+            return new GitHubAnnotationsCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader)
+                    .execute(out);
         }
 
         // CSV / PLAIN mode: emit incrementally (default).
-        return new ScanCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache).execute(out);
+        return new ScanCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache, pluginLoader).execute(out);
     }
 }

@@ -32,6 +32,7 @@ public final class GitHubAnnotationsCommand implements Command {
     private final AiSuggestionEngine aiEngine;
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
+    private final PluginLoader pluginLoader;
 
     /**
      * Creates a new GitHub Annotations command.
@@ -42,15 +43,18 @@ public final class GitHubAnnotationsCommand implements Command {
      *                        AI is disabled
      * @param override        human classification overrides
      * @param aiCache         AI result cache
+     * @param pluginLoader    loader used to resolve test-discovery plugins
+     *                        from the classpath
      */
     public GitHubAnnotationsCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache) {
+            AiResultCache aiCache, PluginLoader pluginLoader) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
+        this.pluginLoader = pluginLoader;
     }
 
     /**
@@ -69,6 +73,6 @@ public final class GitHubAnnotationsCommand implements Command {
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
         return CommandSupport.scan(roots, cliConfig, discoveryConfig, aiEngine,
                 CommandSupport.filterSink(emitter, false, cliConfig.minConfidence(), confidenceEnabled),
-                override, aiCache);
+                override, aiCache, pluginLoader);
     }
 }

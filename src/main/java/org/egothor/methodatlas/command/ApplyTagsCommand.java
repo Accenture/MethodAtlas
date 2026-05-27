@@ -55,6 +55,7 @@ public final class ApplyTagsCommand implements Command {
     private final AiSuggestionEngine aiEngine;
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
+    private final PluginLoader pluginLoader;
 
     /**
      * Creates a new apply-tags command.
@@ -65,15 +66,18 @@ public final class ApplyTagsCommand implements Command {
      *                        AI is disabled
      * @param override        human classification overrides
      * @param aiCache         AI result cache
+     * @param pluginLoader    loader used to resolve {@link TestDiscovery} and
+     *                        {@link SourcePatcher} plugins from the classpath
      */
     public ApplyTagsCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache) {
+            AiResultCache aiCache, PluginLoader pluginLoader) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
+        this.pluginLoader = pluginLoader;
     }
 
     /**
@@ -87,8 +91,8 @@ public final class ApplyTagsCommand implements Command {
     @Override
     public int execute(PrintWriter out) throws IOException {
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
-        List<SourcePatcher> patchers = CommandSupport.loadPatchers(discoveryConfig);
-        List<TestDiscovery> providers = CommandSupport.loadProviders(discoveryConfig);
+        List<SourcePatcher> patchers = pluginLoader.loadPatchers(discoveryConfig);
+        List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
 
         // Initializers are omitted: both variables are assigned unconditionally in the
         // try block, which satisfies JLS §16.2.15 definite-assignment for try-finally
@@ -99,7 +103,7 @@ public final class ApplyTagsCommand implements Command {
             byFile = CommandSupport.collectMethodsByFile(roots, providers);
             hadErrors = providers.stream().anyMatch(TestDiscovery::hadErrors);
         } finally {
-            CommandSupport.closeAll(providers);
+            pluginLoader.closeAll(providers);
         }
 
         CommandSupport.AiRuntime ai =

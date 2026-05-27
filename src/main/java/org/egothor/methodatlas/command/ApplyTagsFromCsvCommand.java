@@ -28,16 +28,21 @@ public final class ApplyTagsFromCsvCommand implements Command {
 
     private final CliConfig cliConfig;
     private final TestDiscoveryConfig discoveryConfig;
+    private final PluginLoader pluginLoader;
 
     /**
      * Creates a new apply-tags-from-csv command.
      *
      * @param cliConfig       full parsed CLI configuration
      * @param discoveryConfig discovery configuration forwarded to patchers
+     * @param pluginLoader    loader used to resolve {@link SourcePatcher}
+     *                        plugins from the classpath
      */
-    public ApplyTagsFromCsvCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig) {
+    public ApplyTagsFromCsvCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
+            PluginLoader pluginLoader) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
+        this.pluginLoader = pluginLoader;
     }
 
     /**
@@ -51,7 +56,7 @@ public final class ApplyTagsFromCsvCommand implements Command {
     @Override
     public int execute(PrintWriter out) throws IOException {
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
-        List<SourcePatcher> patchers = CommandSupport.loadPatchers(discoveryConfig);
+        List<SourcePatcher> patchers = pluginLoader.loadPatchers(discoveryConfig);
         return ApplyTagsFromCsvEngine.apply(
                 cliConfig.applyTagsFromCsvFile(),
                 roots,

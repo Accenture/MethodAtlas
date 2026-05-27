@@ -41,6 +41,7 @@ public final class ScanCommand implements Command {
     private final AiSuggestionEngine aiEngine;
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
+    private final PluginLoader pluginLoader;
 
     /**
      * Creates a new scan command.
@@ -51,15 +52,18 @@ public final class ScanCommand implements Command {
      *                        AI is disabled
      * @param override        human classification overrides
      * @param aiCache         AI result cache
+     * @param pluginLoader    loader used to resolve {@link TestDiscovery}
+     *                        providers from the classpath
      */
     public ScanCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache) {
+            AiResultCache aiCache, PluginLoader pluginLoader) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
+        this.pluginLoader = pluginLoader;
     }
 
     /**
@@ -95,7 +99,7 @@ public final class ScanCommand implements Command {
         // Scan each root with its own sink so the source_root value can be captured
         // per root. When emitSourceRoot is false, sourceRoot is null and the column
         // is omitted from the output.
-        List<TestDiscovery> providers = CommandSupport.loadProviders(discoveryConfig);
+        List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
         boolean hadErrors = false;
         try {
             for (Path root : roots) {
@@ -110,7 +114,7 @@ public final class ScanCommand implements Command {
                 }
             }
         } finally {
-            CommandSupport.closeAll(providers);
+            pluginLoader.closeAll(providers);
         }
 
         if (aiCache.isActive() && LOG.isLoggable(Level.INFO)) {

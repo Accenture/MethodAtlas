@@ -33,6 +33,7 @@ public final class SarifCommand implements Command {
     private final AiSuggestionEngine aiEngine;
     private final ClassificationOverride override;
     private final AiResultCache aiCache;
+    private final PluginLoader pluginLoader;
 
     /**
      * Creates a new SARIF command.
@@ -43,15 +44,18 @@ public final class SarifCommand implements Command {
      *                        AI is disabled
      * @param override        human classification overrides
      * @param aiCache         AI result cache
+     * @param pluginLoader    loader used to resolve test-discovery plugins
+     *                        from the classpath
      */
     public SarifCommand(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, ClassificationOverride override,
-            AiResultCache aiCache) {
+            AiResultCache aiCache, PluginLoader pluginLoader) {
         this.cliConfig = cliConfig;
         this.discoveryConfig = discoveryConfig;
         this.aiEngine = aiEngine;
         this.override = override;
         this.aiCache = aiCache;
+        this.pluginLoader = pluginLoader;
     }
 
     /**
@@ -74,7 +78,8 @@ public final class SarifCommand implements Command {
 
         int result = CommandSupport.scan(roots, cliConfig, discoveryConfig, aiEngine,
                 CommandSupport.filterSink(sarifEmitter, cliConfig.securityOnly(),
-                        cliConfig.minConfidence(), confidenceEnabled), override, aiCache);
+                        cliConfig.minConfidence(), confidenceEnabled), override, aiCache,
+                pluginLoader);
         sarifEmitter.flush(out);
         return result;
     }

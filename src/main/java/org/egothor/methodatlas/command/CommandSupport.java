@@ -9,12 +9,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.ServiceLoader;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -32,7 +29,6 @@ import org.egothor.methodatlas.ai.AiSuggestionException;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.SuggestionLookup;
 import org.egothor.methodatlas.api.DiscoveredMethod;
-import org.egothor.methodatlas.api.SourcePatcher;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
 
@@ -40,14 +36,17 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  * Shared static infrastructure used by two or more {@link Command} implementations.
  *
  * <p>
- * This utility class centralises provider loading, scan orchestration, AI suggestion
- * resolution, content hashing, and other cross-cutting concerns. All methods are
- * static; this class cannot be instantiated.
+ * This utility class centralises scan orchestration, AI suggestion resolution,
+ * content hashing, and other cross-cutting concerns that have not yet been
+ * extracted into dedicated collaborators. Plugin resolution moved to
+ * {@link PluginLoader}; remaining responsibilities migrate to
+ * {@code OverrideLoader}, {@code ContentHasher}, {@code AiRuntimeBuilder},
+ * and {@code ScanOrchestrator} in subsequent phases of the architecture
+ * remediation plan.
  * </p>
  *
  * <p>
- * Methods marked {@code public} ({@link #requireUniqueDiscoveryIds},
- * {@link #requireUniquePatcherIds}, {@link #computeFilePrefix},
+ * Methods marked {@code public} ({@link #computeFilePrefix},
  * {@link #buildAiEngine}, {@link #buildAiCache}, and
  * {@link #loadClassificationOverride}) are called either by
  * {@link org.egothor.methodatlas.MethodAtlasApp} (a different package) or
@@ -147,125 +146,16 @@ public final class CommandSupport {
     }
 
     // -------------------------------------------------------------------------
-    // Provider and patcher loading
-    // -------------------------------------------------------------------------
-
-    /**
-     * Loads all {@link TestDiscovery} providers registered via {@link ServiceLoader},
-     * configures each with {@code config}, and returns the list.
-     *
-     * <p>
-     * Providers are discovered from the classpath using the standard
-     * {@code META-INF/services/org.egothor.methodatlas.api.TestDiscovery}
-     * service file.
-     * </p>
-     *
-     * @param config runtime configuration forwarded to every provider via
-     *               {@link TestDiscovery#configure}
-     * @return non-empty list of configured providers
-     * @throws IllegalStateException if no providers are found on the classpath
-     */
-    @SuppressWarnings("PMD.CloseResource") // callers are responsible for closing providers via closeAll()
-    /* default */ static List<TestDiscovery> loadProviders(TestDiscoveryConfig config) {
-        List<TestDiscovery> providers = new ArrayList<>();
-        for (TestDiscovery provider : ServiceLoader.load(TestDiscovery.class)) {
-            provider.configure(config);
-            providers.add(provider);
-        }
-        if (providers.isEmpty()) {
-            throw new IllegalStateException(
-                    "No TestDiscovery providers found on the classpath. "
-                    + "Ensure at least one provider JAR ships the service registration file "
-                    + "META-INF/services/org.egothor.methodatlas.api.TestDiscovery.");
-        }
-        requireUniqueDiscoveryIds(providers);
-        return providers;
-    }
-
-    /**
-     * Closes every provider in the list, logging any {@link IOException} at
-     * {@link Level#FINE} and continuing so that all providers are attempted.
-     *
-     * @param providers list of providers to close; never {@code null}
-     */
-    @SuppressWarnings("PMD.CloseResource") // this method IS the close mechanism; p.close() is called explicitly
-    /* default */ static void closeAll(List<TestDiscovery> providers) {
-        for (TestDiscovery p : providers) {
-            try {
-                p.close();
-            } catch (IOException e) {
-                if (LOG.isLoggable(Level.FINE)) {
-                    LOG.log(Level.FINE, "Failed to close provider " + p.pluginId(), e);
-                }
-            }
-        }
-    }
-
-    /**
-     * Loads all {@link SourcePatcher} providers registered via {@link ServiceLoader},
-     * configures each with {@code config}, and returns the list.
-     *
-     * @param config runtime configuration forwarded to every patcher via
-     *               {@link SourcePatcher#configure}
-     * @return possibly-empty list of configured patchers
-     */
-    /* default */ static List<SourcePatcher> loadPatchers(TestDiscoveryConfig config) {
-        List<SourcePatcher> patchers = new ArrayList<>();
-        for (SourcePatcher patcher : ServiceLoader.load(SourcePatcher.class)) {
-            patcher.configure(config);
-            patchers.add(patcher);
-        }
-        requireUniquePatcherIds(patchers);
-        return patchers;
-    }
-
-    /**
-     * Verifies that every {@link TestDiscovery} provider in the list has a
-     * unique {@link TestDiscovery#pluginId()}.
-     *
-     * @param providers list of configured providers
-     * @throws IllegalStateException if two or more providers share the same ID
-     */
-    @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
-    public static void requireUniqueDiscoveryIds(List<TestDiscovery> providers) {
-        Set<String> seen = new LinkedHashSet<>();
-        for (TestDiscovery p : providers) {
-            String id = p.pluginId();
-            if (!seen.add(id)) {
-                throw new IllegalStateException(
-                        "Duplicate TestDiscovery plugin ID \"" + id + "\": two or more "
-                        + "registered providers claim the same pluginId(). "
-                        + "Each provider must declare a unique identifier.");
-            }
-        }
-    }
-
-    /**
-     * Verifies that every {@link SourcePatcher} in the list has a unique
-     * {@link SourcePatcher#pluginId()}.
-     *
-     * @param patchers list of configured patchers
-     * @throws IllegalStateException if two or more patchers share the same ID
-     */
-    public static void requireUniquePatcherIds(List<SourcePatcher> patchers) {
-        Set<String> seen = new LinkedHashSet<>();
-        for (SourcePatcher p : patchers) {
-            String id = p.pluginId();
-            if (!seen.add(id)) {
-                throw new IllegalStateException(
-                        "Duplicate SourcePatcher plugin ID \"" + id + "\": two or more "
-                        + "registered patchers claim the same pluginId(). "
-                        + "Each patcher must declare a unique identifier.");
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Scan orchestration
     // -------------------------------------------------------------------------
 
     /**
      * Scans all roots and forwards each discovered test method to {@code sink}.
+     *
+     * <p>
+     * Plugin resolution is delegated to the supplied {@link PluginLoader};
+     * tests can inject a fake loader to substitute a known set of providers.
+     * </p>
      *
      * @param roots           source roots to scan
      * @param cliConfig       full parsed CLI configuration
@@ -274,14 +164,17 @@ public final class CommandSupport {
      * @param sink            receiver of discovered test method records
      * @param override        human classification overrides
      * @param aiCache         AI result cache
+     * @param pluginLoader    loader used to resolve and close
+     *                        {@link TestDiscovery} providers
      * @return {@code 0} if all files were processed successfully, {@code 1} if any
      *         file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
      */
     /* default */ static int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, TestMethodSink sink,
-            ClassificationOverride override, AiResultCache aiCache) throws IOException {
-        List<TestDiscovery> providers = loadProviders(discoveryConfig);
+            ClassificationOverride override, AiResultCache aiCache,
+            PluginLoader pluginLoader) throws IOException {
+        List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
         boolean hadErrors = false;
         try {
             for (Path root : roots) {
@@ -291,7 +184,7 @@ public final class CommandSupport {
                 }
             }
         } finally {
-            closeAll(providers);
+            pluginLoader.closeAll(providers);
         }
         return hadErrors ? 1 : 0;
     }
