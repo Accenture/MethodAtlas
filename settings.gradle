@@ -21,6 +21,11 @@ include 'methodatlas-docs'
 // Run:   ./gradlew :methodatlas-gui:run
 include 'methodatlas-gui'
 
+// Swing-free domain types for the GUI (AppSettings, MethodEntry, AnalysisModel, AuditWriter).
+// Built independently so the GUI test suite can exercise the audit-trail and
+// settings logic without spinning up a Swing event loop.
+include 'methodatlas-gui-core'
+
 // ---------------------------------------------------------------------------
 // Compatibility rewrite:
 // Treat historical `./gradlew cyclonedxBom` as the MethodAtlas root
