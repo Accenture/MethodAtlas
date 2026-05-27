@@ -150,5 +150,6 @@ nav:
     - Parser Internals: parser-internals.md
     - Build Reports: reports.md
     - Quality Gates: quality-gates.md
+    - Audit Trail: audit-trail.md
   - Migration Guide: migration.md
   - Troubleshooting: troubleshooting.md
