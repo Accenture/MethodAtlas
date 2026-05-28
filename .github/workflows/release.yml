@@ -84,11 +84,23 @@ jobs:
             texlive-pictures \
             lmodern \
             fonts-dejavu
-          # texlive-fonts-extra ships Libertinus Serif / Sans under
-          # /usr/share/texlive/texmf-dist/fonts/opentype/public/libertinus-fonts/.
-          # On Ubuntu the texlive package installs a fontconfig snippet that
-          # exposes this path; refresh the fontconfig cache so xelatex's
-          # fontspec can locate Libertinus by family name.
+          # texlive-fonts-extra ships Libertinus Serif / Sans / Mono OTF
+          # files inside TeX Live's font tree, but Ubuntu's texlive package
+          # does NOT register that tree with fontconfig — so xelatex's
+          # fontspec can't find them by family name. Copy the OTFs into
+          # /usr/local/share/fonts/ (a path fontconfig always scans) and
+          # refresh the cache so 'Libertinus Serif' resolves at PDF build
+          # time. kpsewhich locates the file regardless of TeX Live
+          # version-specific path layout.
+          LIBERTINUS_OTF=$(kpsewhich -format=opentype\ fonts LibertinusSerif-Regular.otf || true)
+          if [ -n "$LIBERTINUS_OTF" ] && [ -f "$LIBERTINUS_OTF" ]; then
+            LIBERTINUS_DIR=$(dirname "$LIBERTINUS_OTF")
+            sudo mkdir -p /usr/local/share/fonts/libertinus
+            sudo cp "$LIBERTINUS_DIR"/*.otf /usr/local/share/fonts/libertinus/
+            echo "Copied Libertinus OTF files from $LIBERTINUS_DIR"
+          else
+            echo "WARNING: LibertinusSerif-Regular.otf not found via kpsewhich"
+          fi
           sudo fc-cache -f >/dev/null 2>&1 || true
 
       # ----------------------------------------------------------------------
