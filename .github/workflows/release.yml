@@ -79,14 +79,21 @@ jobs:
             texlive-fonts-recommended \
             texlive-fonts-extra \
             texlive-latex-extra \
+            lmodern \
             fonts-dejavu
           # texlive-fonts-extra ships Libertinus Serif / Sans under
           # /usr/share/texlive/texmf-dist/fonts/opentype/public/libertinus-fonts/.
           # On Ubuntu the texlive package installs a fontconfig snippet that
           # exposes this path; refresh the fontconfig cache so xelatex's
           # fontspec can locate Libertinus by family name.
+          #
+          # lmodern is also installed explicitly: pandoc's default LaTeX
+          # template loads \usepackage{lmodern} unconditionally even when a
+          # fontspec mainfont is set, and lmodern is not pulled in as a
+          # dependency of texlive-fonts-recommended on every Ubuntu release.
           sudo fc-cache -f >/dev/null 2>&1 || true
           fc-list | grep -i libertinus | head -3 || echo "WARNING: Libertinus not visible to fontconfig"
+          kpsewhich lmodern.sty || echo "WARNING: lmodern.sty not found in TeX path"
 
       - name: Install Mermaid CLI
         run: npm install --global @mermaid-js/mermaid-cli

@@ -118,10 +118,11 @@ The PDF is **not** part of the standard `./gradlew build` lifecycle — it is bu
     sudo apt-get install -y \
         pandoc texlive-xetex texlive-fonts-recommended \
         texlive-fonts-extra texlive-latex-extra \
-        fonts-dejavu
+        lmodern fonts-dejavu
 
     # texlive-fonts-extra ships Libertinus; refresh fontconfig so xelatex
-    # can find it via fontspec.
+    # can find it via fontspec. lmodern is required by pandoc's default
+    # LaTeX template even when a fontspec mainfont is configured.
     sudo fc-cache -f
 
     npm install -g @mermaid-js/mermaid-cli
