@@ -67,6 +67,19 @@ A [CycloneDX](https://cyclonedx.org/) 1.5 software bill of materials listing all
 
 To access: go to the [Releases](../../releases) page and download `bom.json` from the relevant release.
 
+!!! note "Task name aliasing"
+    The public Gradle task name `cyclonedxBom` is wired in `settings.gradle` to invoke `:cyclonedxDirectBom` internally. Historical CI references rely on this alias — do not rename either task. The artefact path is `build/reports/cyclonedx-direct/bom.json`.
+
+### License compliance (`checkLicense`)
+
+The `./gradlew checkLicense` task enforces that every runtime dependency carries a licence on the allowlist at `config/allowed-licenses.json`. It is part of the standard build gates and fails the build on any non-allowlisted licence — a copyleft licence introduced via a transitive dependency, for instance.
+
+The report file is `build/reports/dependency-license/index.html` and lists every dependency with its declared licence. To add a new licence to the allowlist, edit `config/allowed-licenses.json` and submit a PR — the change is reviewed alongside the dependency that pulled it in.
+
+### Error Prone
+
+[Error Prone](https://errorprone.info/) is applied to main sources only (test sources are excluded to avoid noise from JUnit's assertion idioms). Findings appear as compilation warnings and, for the rules configured as errors, fail the build at `compileJava`. There is no standalone HTML report — findings are part of the compiler output captured by `./gradlew build`.
+
 ### SpotBugs SARIF — GitHub Code Scanning
 
 SpotBugs also emits a SARIF file (`build/reports/spotbugs/main.sarif`) that is uploaded to GitHub Code Scanning on every Monday security scan run. Findings appear in the **Security → Code scanning** tab of the repository and as inline annotations on pull request diffs.
@@ -86,23 +99,67 @@ The workflow is designed to be copied and adapted for other projects. See [CI/CD
 | Static analysis | PMD | configured ruleset | Every push |
 | Bug patterns | SpotBugs | configured exclusions | Every push |
 | Dependency vulnerabilities | OWASP Dependency-Check | CVSS < 7.0 | On demand / weekly — only when `NVD_API_KEY` is set |
+| Licence allowlist | `checkLicense` | `config/allowed-licenses.json` | Every push |
+| Error-Prone bug patterns | Error Prone | configured ruleset | Every push (main sources) |
 
 See [CI/CD Setup](ci-setup.md) for the full workflow configuration.
 
 ## Documentation PDF
 
-A combined single-document PDF of the full documentation set can be built on demand from the `methodatlas-docs` Gradle module. It is **not generated automatically** during the standard build or CI pipeline.
+A combined single-document PDF of the full documentation set (a book of every page in the documentation, in the order defined by `docs/publication-order.txt`) is produced by the `methodatlas-docs` Gradle module.
 
-**Prerequisites:** pandoc, XeLaTeX (MikTeX on Windows, TeX Live on Linux/macOS), `mmdc` (`npm install -g @mermaid-js/mermaid-cli`), and Python 3.9+.
+The PDF is **not** part of the standard `./gradlew build` lifecycle — it is built on demand. The [Release workflow](https://github.com/Accenture/MethodAtlas/blob/main/.github/workflows/release.yml) invokes it automatically for every `release@x.y.z` tag and uploads the resulting file (`MethodAtlas-<version>.pdf`) alongside the distribution archives and the CycloneDX SBOM.
 
-```bash
-# Windows
-.\gradlew :methodatlas-docs:generatePdf
+**Prerequisites for local builds:** pandoc 3+, XeLaTeX, Mermaid CLI (`mmdc`), and Python 3.9+. The Gradle build is platform-aware — it picks `python` versus `python3` automatically, calls `mmdc` or `mmdc.cmd` as appropriate, and discovers a Chromium / Chrome / Edge browser for Mermaid rendering from each OS's standard install locations.
 
-# Linux / macOS
-./gradlew :methodatlas-docs:generatePdf
-```
+=== "Linux (Debian / Ubuntu)"
+
+    ```bash
+    sudo apt-get install -y \
+        pandoc texlive-xetex texlive-fonts-recommended \
+        texlive-fonts-extra texlive-latex-extra \
+        fonts-libertinus fonts-dejavu
+
+    npm install -g @mermaid-js/mermaid-cli
+
+    ./gradlew :methodatlas-docs:generatePdf
+    ```
+
+=== "Windows (MikTeX)"
+
+    ```powershell
+    # MikTeX, pandoc, Node.js, and Python 3 must be on PATH.
+    mpm --install=libertinus-fonts --install=libertinus-otf
+    mpm --install=dejavu-otf --install=dejavu
+    initexmf --update-fndb
+
+    npm install -g @mermaid-js/mermaid-cli
+
+    .\gradlew :methodatlas-docs:generatePdf
+    ```
+
+=== "macOS (MacTeX)"
+
+    ```bash
+    # MacTeX bundles Libertinus and DejaVu; only pandoc + mmdc are extra.
+    brew install pandoc
+    npm install -g @mermaid-js/mermaid-cli
+
+    ./gradlew :methodatlas-docs:generatePdf
+    ```
+
+The CI release workflow uses the Linux recipe above, so the artefact
+shipped on every release is the byte-identical equivalent of running the
+Linux commands on a clean Ubuntu host.
 
 Output: `methodatlas-docs/build/MethodAtlas.pdf`
 
 The Mermaid diagrams embedded in the documentation are rendered to PNG before the PDF is assembled. See `docs/publication-order.txt` for the document order and `methodatlas-docs/build.gradle` for all pandoc options.
+
+### Release asset
+
+| Asset | Where to download |
+|---|---|
+| `MethodAtlas-<version>.pdf` | [GitHub Releases](../../releases) — attached to every `release@*` tag from `2026.05` onward |
+| `methodatlas-<version>.zip` / `.tar` | Distribution archives (CLI + GUI sharing one `lib/`) |
+| `bom.json` | CycloneDX 1.5 SBOM |

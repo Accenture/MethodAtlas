@@ -1,9 +1,9 @@
 site_name: MethodAtlas
 site_description: >-
-  Scan test sources across Java (JUnit 5, JUnit 4, TestNG), C# (xUnit, NUnit, MSTest),
-  and TypeScript/JavaScript (Jest, Vitest, Mocha); build a structured security test
-  inventory and enrich results with AI-generated classification.
-  Built for regulated environments.
+  A reproducible, audit-friendly map of every test in your codebase —
+  classified for security relevance and ready to ship into regulated
+  pipelines. Eight languages, ten AI providers, five report formats,
+  zero compilation.
 site_url: https://accenture.github.io/MethodAtlas/
 repo_url: https://github.com/Accenture/MethodAtlas
 repo_name: Accenture/MethodAtlas
@@ -92,6 +92,8 @@ extra:
 
 nav:
   - Home: index.md
+  - Fast Track: fast-track.md
+  - Implementer Track: implementer-track.md
   - Introduction:
     - What is MethodAtlas: why-methodatlas.md
     - MethodAtlas and SAST Tools: concepts/vs-sast.md

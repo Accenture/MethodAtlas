@@ -80,11 +80,17 @@
 % -----------------------------------------------------------------------------
 
 \usepackage{newunicodechar}
-\newfontfamily\symbolfallback{Noto Sans Symbols}[Scale=MatchLowercase]
+% Unicode → portable PDF rendering. Each entry is intentionally rendered with
+% glyphs available in every standard TeX distribution (no external symbol
+% font), so the PDF builds identically on MikTeX, TeX Live, and CI runners
+% without extra font packages.
 \newunicodechar{≥}{\ensuremath{\geq}}             % U+2265 GREATER-THAN OR EQUAL TO
 \newunicodechar{↪}{\ensuremath{\hookrightarrow}}  % U+21AA RIGHTWARDS ARROW WITH HOOK
 \newunicodechar{⚠}{\textbf{[!]}}                  % U+26A0 WARNING SIGN
-\newunicodechar{⚙}{{\symbolfallback ⚙}}            % U+2699 GEAR
+\newunicodechar{⚙}{\textbf{[Settings]}}            % U+2699 GEAR — text fallback
+\newunicodechar{✓}{\ensuremath{\checkmark}}        % U+2713 CHECK MARK — math fallback
+\newunicodechar{✎}{\ensuremath{\diamond}}          % U+270E LOWER RIGHT PENCIL — math diamond fallback
+\newunicodechar{✱}{\ensuremath{\ast}}              % U+2731 HEAVY ASTERISK — math fallback
 
 % U+FE0F VARIATION SELECTOR-16 is an invisible emoji modifier; set its catcode
 % to 9 (ignored) so XeLaTeX silently drops it everywhere.
@@ -366,7 +372,8 @@
     \begin{center}%
       {\small\color{white!80}\MethodAtlasEdition}\\[0.35em]
       {\small\color{white!80}\MethodAtlasBuildDate}\\[0.75em]
-      {\footnotesize \MethodAtlasPublisher}\\[0.35em]
+      {\footnotesize Published by \MethodAtlasPublisher}\\[0.25em]
+      {\footnotesize\color{white!80}\textcopyright\ 2024--\the\year\ Egothor and Accenture}\\[0.45em]
       {\footnotesize \MethodAtlasLicense}%
     \end{center}%
 

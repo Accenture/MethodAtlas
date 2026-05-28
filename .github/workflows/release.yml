@@ -65,6 +65,45 @@ jobs:
         run: ./gradlew cyclonedxBom
 
       # -----------------------------------------------------------------------
+      # Documentation PDF.  Built on demand only — not part of the standard
+      # `build` lifecycle.  Requires pandoc, XeLaTeX, Mermaid CLI, and Python
+      # which are installed below.  The output is published alongside the
+      # distribution archives so the release asset bundle is self-contained.
+      # -----------------------------------------------------------------------
+      - name: Install pandoc and XeLaTeX (TeX Live)
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            pandoc \
+            texlive-xetex \
+            texlive-fonts-recommended \
+            texlive-fonts-extra \
+            texlive-latex-extra \
+            fonts-libertinus \
+            fonts-dejavu
+          # fonts-libertinus exposes Libertinus Serif / Sans to fontconfig
+          # so xelatex's fontspec can locate it by family name (matches the
+          # MikTeX libertinus-fonts package used on Windows developer hosts).
+          fc-cache -f -v >/dev/null 2>&1 || true
+
+      - name: Install Mermaid CLI
+        run: npm install --global @mermaid-js/mermaid-cli
+
+      - name: Set up Python (for Mermaid + Pandoc preprocessor)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build documentation PDF
+        run: ./gradlew :methodatlas-docs:generatePdf
+
+      - name: Rename PDF to versioned filename
+        run: |
+          VERSION="${GITHUB_REF_NAME#release@}"
+          cp methodatlas-docs/build/MethodAtlas.pdf \
+             methodatlas-docs/build/MethodAtlas-${VERSION}.pdf
+
+      # -----------------------------------------------------------------------
       # Changelog via git-cliff (reads cliff.toml at repo root)
       # -----------------------------------------------------------------------
       - name: Install git-cliff
@@ -91,4 +130,5 @@ jobs:
             --notes-file /tmp/CHANGELOG_RELEASE.md \
             build/distributions/*.zip \
             build/distributions/*.tar \
-            build/reports/cyclonedx-direct/bom.json
+            build/reports/cyclonedx-direct/bom.json \
+            methodatlas-docs/build/MethodAtlas-${VERSION}.pdf

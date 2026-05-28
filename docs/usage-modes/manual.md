@@ -2,14 +2,39 @@
 
 The manual AI workflow produces the same enriched CSV output as [API AI enrichment](api-ai.md) without requiring any outbound network connection from the scan host. An operator carries prompt files to an internet-connected workstation, interacts with an AI chat interface there, and returns the responses for processing.
 
+The mode exists because many regulated, classified, or DLP-restricted
+environments forbid arbitrary outbound traffic from the build estate
+even when the data being sent — test source code — would otherwise be
+acceptable to release. Manual mode preserves the entire AI-enrichment
+output (security relevance, suggested tags, rationale, confidence
+score, interaction score) without ever opening an HTTP connection from
+the scanned host.
+
 ## When to use this mode
+
+The decision to run manual mode is usually driven by a policy
+constraint, not a technical limitation. Four situations recur in
+regulated environments:
 
 - The scan host has no outbound internet access (air-gapped network, strict DLP policy).
 - Your organisation requires a human to review and approve what is submitted to an AI provider before transmission.
 - You want to use a specific AI chat interface (ChatGPT, Claude.ai, an internal portal) that does not expose a programmable API.
 - You are evaluating different AI providers and want to compare their responses without committing to API credentials.
 
-If the scan host has direct API access, [API AI enrichment](api-ai.md) is simpler. The output is identical.
+If none of these apply and the scan host has direct API access,
+[API AI enrichment](api-ai.md) is simpler — it runs in a single
+invocation and requires no operator step. The on-disk CSV, SARIF, and
+JSON outputs are byte-for-byte identical between the two modes when the
+same prompt and model produce the same response, so a project can move
+between manual and API enrichment without changing any downstream
+tooling.
+
+The trade-off is operator time: manual mode adds a per-class human step
+between prepare and consume. For 50 classes that step takes minutes; for
+2,000 classes it takes hours and is usually batched across multiple
+operators or interleaved with other review work. The consume phase is
+incremental, so partial responses are allowed and the workflow can run
+across several days without losing progress.
 
 ## Overview of the workflow
 

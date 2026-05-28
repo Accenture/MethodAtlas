@@ -21,23 +21,36 @@
 # File paths are relative to the repository root.
 # Lines beginning with '#' are comments and must be stripped before passing
 # to pandoc (the grep command above handles this automatically).
+#
+# Book structure
+# ──────────────────────────────────────────────────────────────────────────
+#   Part I   Introduction          — what the tool is, who it is for
+#   Part II  Getting started       — installation + Fast Track
+#   Part III Reference             — CLI, output, plugins, GUI
+#   Part IV  Usage modes           — every command-line workflow
+#   Part V   AI enrichment         — providers, taxonomy, caching, drift
+#   Part VI  CI/CD integration     — platforms and gating
+#   Part VII Security teams        — reading findings, ASVS mapping
+#   Part VIII Regulated environments — PCI DSS, ISO 27001, SSDF, DORA, SOC 2
+#   Part IX  Lifecycle & support   — migration, troubleshooting, reports
+# ──────────────────────────────────────────────────────────────────────────
 
-# ── Introduction ─────────────────────────────────────────────────────────────
+# ── Part I — Introduction ─────────────────────────────────────────────────────
 README.md
 docs/why-methodatlas.md
 
-# ── Getting started ───────────────────────────────────────────────────────────
+# ── Part II — Getting started ─────────────────────────────────────────────────
 docs/installation.md
-docs/index.md
+docs/fast-track.md
 
-# ── Reference ─────────────────────────────────────────────────────────────────
+# ── Part III — Reference ──────────────────────────────────────────────────────
 docs/cli-reference.md
 docs/cli-examples.md
 docs/output-formats.md
 docs/discovery-plugins.md
 docs/gui.md
 
-# ── Usage modes ───────────────────────────────────────────────────────────────
+# ── Part IV — Usage modes ─────────────────────────────────────────────────────
 docs/usage-modes/index.md
 docs/usage-modes/static-inventory.md
 docs/usage-modes/api-ai.md
@@ -48,7 +61,7 @@ docs/usage-modes/delta.md
 docs/usage-modes/security-only.md
 docs/usage-modes/multi-root.md
 
-# ── AI enrichment ─────────────────────────────────────────────────────────────
+# ── Part V — AI enrichment ────────────────────────────────────────────────────
 docs/ai/index.md
 docs/ai/providers.md
 docs/ai/confidence.md
@@ -60,7 +73,8 @@ docs/ai/remote-overrides.md
 docs/ai/caching.md
 docs/ai/drift-detection.md
 
-# ── CI integration ────────────────────────────────────────────────────────────
+# ── Part VI — CI/CD integration ───────────────────────────────────────────────
+docs/implementer-track.md
 docs/ci-setup.md
 docs/ci/github-actions.md
 docs/ci/gitlab.md
@@ -68,14 +82,14 @@ docs/ci/azure-devops.md
 docs/ci/monorepo.md
 docs/ci/release-gating.md
 
-# ── Concepts ──────────────────────────────────────────────────────────────────
+# ── Part VII — Security teams ─────────────────────────────────────────────────
 docs/concepts/for-security-teams.md
 docs/concepts/vs-sast.md
 docs/concepts/data-governance.md
 docs/concepts/asvs-mapping.md
 docs/concepts/remediation.md
 
-# ── Compliance and regulated environments ─────────────────────────────────────
+# ── Part VIII — Regulated environments ────────────────────────────────────────
 docs/compliance.md
 docs/deployment/index.md
 docs/deployment/onboarding.md
@@ -86,7 +100,11 @@ docs/deployment/dora.md
 docs/deployment/soc2.md
 docs/deployment/air-gapped.md
 
-# ── Migration and support ─────────────────────────────────────────────────────
+# ── Part IX — Lifecycle and support ───────────────────────────────────────────
 docs/migration.md
 docs/troubleshooting.md
+docs/audit-trail.md
+docs/parser-internals.md
+docs/architecture.md
+docs/quality-gates.md
 docs/reports.md

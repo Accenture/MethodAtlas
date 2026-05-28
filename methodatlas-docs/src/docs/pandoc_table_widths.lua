@@ -77,6 +77,23 @@ function Table(tbl)
       return set_widths(tbl, {0.2, 0.8})
     end
 
+    -- Track-summary "Read | Why … / What it answers / Why it matters / When …"
+    if contains(headers[1], "read") then
+      return set_widths(tbl, {0.32, 0.68})
+    end
+
+    -- Discovery-plugin "Suffix | Example"
+    if contains(headers[1], "suffix")
+        and contains(headers[2], "example") then
+      return set_widths(tbl, {0.35, 0.65})
+    end
+
+    -- Fast-track "If you want to… | Read"
+    if contains(headers[1], "if you want")
+        or contains(headers[1], "you want") then
+      return set_widths(tbl, {0.55, 0.45})
+    end
+
     if contains(headers[1], "field")
         and contains(headers[2], "compared") then
       return set_widths(tbl, {0.2, 0.8})
@@ -217,6 +234,44 @@ function Table(tbl)
     if contains(headers[2], "feature")
         and contains(headers[3], "evidence") then
       return set_widths(tbl, {0.3, 0.4, 0.3})
+    end
+
+    -- Fast Track "You have | What to do | Reference"
+    if contains(headers[1], "you have")
+        and contains(headers[2], "what to do") then
+      return set_widths(tbl, {0.28, 0.47, 0.25})
+    end
+
+    -- Fast Track "Flag | Output | When to use"
+    if contains(headers[1], "flag")
+        and contains(headers[2], "output") then
+      return set_widths(tbl, {0.22, 0.20, 0.58})
+    end
+
+    -- Implementer Track "Platform | Recipe | Notes"
+    if contains(headers[1], "platform")
+        and contains(headers[2], "recipe") then
+      return set_widths(tbl, {0.22, 0.30, 0.48})
+    end
+
+    -- Implementer Track "Format | When | Schema page"
+    if contains(headers[1], "format")
+        and contains(headers[2], "when")
+        and contains(headers[3], "schema") then
+      return set_widths(tbl, {0.25, 0.40, 0.35})
+    end
+
+    -- Implementer Track "Framework | Page | Substantive citations"
+    if contains(headers[1], "framework")
+        and contains(headers[2], "page")
+        and contains(headers[3], "substantive") then
+      return set_widths(tbl, {0.28, 0.27, 0.45})
+    end
+
+    -- Discovery plugins "Convention | File extension(s) | What is emitted"
+    if contains(headers[1], "convention")
+        and contains(headers[3], "emitted") then
+      return set_widths(tbl, {0.24, 0.26, 0.50})
     end
 
     -- Generic 3-column table: keep the last column reasonably wide.

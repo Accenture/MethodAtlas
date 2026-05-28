@@ -14,65 +14,137 @@
       .md-sidebar--primary { display: none }
     }
 
-    /* Hero */
+    /* ───────── Hero ───────── */
     .hero {
-      min-height: 20rem;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 2.75rem 1.5rem 2.25rem;
+      padding: 3.25rem 1.5rem 2.5rem;
       background: var(--md-primary-fg-color);
       color: var(--md-primary-bg-color);
     }
 
-    .hero h1 {
-      font-size: 2.4rem;
+    .hero-eyebrow {
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      font-size: .72rem;
       font-weight: 700;
-      letter-spacing: -.03em;
-      margin: 0 0 .65rem;
+      opacity: .82;
+      margin: 0 0 .55rem;
+    }
+
+    .hero h1 {
+      font-size: 2.45rem;
+      font-weight: 700;
+      letter-spacing: -.025em;
+      margin: 0 0 .7rem;
       color: var(--md-primary-bg-color);
     }
 
-    .hero p {
-      font-size: 1.05rem;
-      max-width: 44rem;
-      opacity: .9;
-      line-height: 1.7;
-      margin: 0 0 1.5rem;
+    .hero-tagline {
+      font-size: 1.1rem;
+      max-width: 46rem;
+      opacity: .92;
+      line-height: 1.55;
+      margin: 0 0 1.85rem;
     }
 
+    /* Hero buttons — 4 hot-links, two roles per row on mobile */
     .hero-buttons {
-      display: flex;
-      gap: .75rem;
-      flex-wrap: wrap;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .65rem;
+      width: 100%;
+      max-width: 52rem;
+    }
+
+    @media (max-width: 47.99em) {
+      .hero-buttons { grid-template-columns: 1fr 1fr; }
     }
 
     .hero-buttons a {
-      display: inline-block;
-      padding: .55rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      text-align: left;
+      padding: .85rem 1rem .9rem;
       border-radius: 4px;
       font-weight: 600;
-      font-size: .88rem;
+      font-size: .9rem;
       text-decoration: none;
-      transition: opacity .15s;
+      transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+      min-height: 4.1rem;
     }
 
-    .hero-buttons a:hover { opacity: .85 }
+    .hero-buttons a:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    }
+
+    .hero-buttons a small {
+      display: block;
+      font-size: .72rem;
+      font-weight: 500;
+      opacity: .78;
+      margin-top: .15rem;
+      letter-spacing: .01em;
+      line-height: 1.35;
+    }
 
     .btn-primary {
       background: var(--md-primary-bg-color);
       color: var(--md-primary-fg-color);
     }
+    .btn-primary small { color: var(--md-primary-fg-color); }
 
-    .btn-secondary {
+    .btn-outline {
       border: 2px solid var(--md-primary-bg-color);
       color: var(--md-primary-bg-color);
+      background: transparent;
+    }
+    .btn-outline small { color: var(--md-primary-bg-color); }
+
+    /* ───────── At-a-glance strip ───────── */
+    .glance {
+      background: var(--md-default-bg-color);
+      border-bottom: 1px solid var(--md-default-fg-color--lightest);
+      padding: 1.4rem 1.5rem;
     }
 
-    /* Two-column body */
+    .glance-inner {
+      max-width: 72rem;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1.6rem;
+      text-align: center;
+    }
+
+    @media (max-width: 47.99em) {
+      .glance-inner { grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+    }
+
+    .glance-stat strong {
+      display: block;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--md-primary-fg-color);
+      line-height: 1;
+    }
+
+    .glance-stat span {
+      display: block;
+      font-size: .76rem;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--md-default-fg-color--light);
+      margin-top: .35rem;
+    }
+
+    /* ───────── Two-column body ───────── */
     .body-section {
       max-width: 72rem;
       margin: 0 auto;
@@ -183,22 +255,58 @@
     .qs-links a:hover { text-decoration: underline; }
   </style>
 
+  <!-- ───────── Hero ───────── -->
   <section class="hero">
+    <p class="hero-eyebrow">Source-level test inventory &middot; AI security classification</p>
     <h1>MethodAtlas</h1>
-    <p>
-      Scan test sources across Java (JUnit&nbsp;5, JUnit&nbsp;4, TestNG), C# (xUnit, NUnit, MSTest),
-      TypeScript/JavaScript (Jest, Vitest, Mocha), Go, Python (pytest), PowerShell (Pester),
-      SAP&nbsp;ABAP (ABAP&nbsp;Unit, ecATT), and COBOL (MFUnit, COBOL-Check);
-      build a structured security test inventory and enrich results with AI-generated classification
-      &mdash; without compiling a single class.
+    <p class="hero-tagline">
+      A reproducible, audit-friendly map of every test in your codebase &mdash;
+      classified for security relevance and ready to ship into regulated pipelines.
     </p>
-    <div class="hero-buttons">
-      <a class="btn-primary" href="installation/">Get started</a>
-      <a class="btn-secondary" href="why-methodatlas/">What is MethodAtlas?</a>
-      <a class="btn-secondary" href="usage-modes/">Usage modes</a>
+
+    <nav class="hero-buttons" aria-label="Documentation tracks">
+      <a class="btn-primary" href="fast-track/">
+        Fast Track
+        <small>First scan in 30&nbsp;minutes</small>
+      </a>
+      <a class="btn-primary" href="implementer-track/">
+        Implementer Track
+        <small>CI/CD &amp; regulated environments</small>
+      </a>
+      <a class="btn-outline" href="why-methodatlas/">
+        What is MethodAtlas?
+        <small>The case for source-level inventory</small>
+      </a>
+      <a class="btn-outline" href="cli-reference/">
+        CLI reference
+        <small>Every flag, every mode</small>
+      </a>
+    </nav>
+  </section>
+
+  <!-- ───────── At-a-glance strip ───────── -->
+  <section class="glance" aria-label="At a glance">
+    <div class="glance-inner">
+      <div class="glance-stat">
+        <strong>8</strong>
+        <span>Languages</span>
+      </div>
+      <div class="glance-stat">
+        <strong>10</strong>
+        <span>AI providers</span>
+      </div>
+      <div class="glance-stat">
+        <strong>5</strong>
+        <span>Report formats</span>
+      </div>
+      <div class="glance-stat">
+        <strong>0</strong>
+        <span>Compilation steps</span>
+      </div>
     </div>
   </section>
 
+  <!-- ───────── Two-column body ───────── -->
   <div class="body-section">
     <!-- Left: Feature list -->
     <div>
@@ -208,29 +316,28 @@
           <span class="feature-check">✓</span>
           <div>
             <strong>Source-level test inventory</strong>
-            <p>Discovers test methods via lexical parsing &mdash; no compilation required.
-               Supports Java (JUnit&nbsp;5, JUnit&nbsp;4, TestNG), C# (xUnit, NUnit, MSTest),
-               TypeScript/JavaScript (Jest, Vitest, Mocha), Go, Python (pytest),
-               PowerShell (Pester), SAP&nbsp;ABAP (ABAP&nbsp;Unit, ecATT), and
-               COBOL (MFUnit, COBOL-Check); framework detected automatically.</p>
+            <p>Discovers test methods via lexical parsing &mdash; no compilation, no class loading.
+               Eight languages and their idiomatic test frameworks are recognised out of the box;
+               see <a href="discovery-plugins/#quick-reference">the language matrix</a>.</p>
           </div>
         </li>
         <li>
           <span class="feature-check">✓</span>
           <div>
             <strong>AI security classification</strong>
-            <p>Integrates with ten providers &mdash; Ollama (local), OpenAI, Anthropic,
-               Azure&nbsp;OpenAI, Mistral, Groq, xAI, GitHub&nbsp;Models, and OpenRouter &mdash;
-               to label each test by security relevance, taxonomy tags, and human-readable rationale.</p>
-            <span class="feature-scope">Only test source files are submitted &mdash; production code is never read or transmitted.</span>
+            <p>Ten providers &mdash; one local (Ollama) and nine cloud (OpenAI, Anthropic,
+               Azure&nbsp;OpenAI, Mistral, Groq, xAI, GitHub&nbsp;Models, OpenRouter, plus an
+               <code>auto</code> selector) &mdash; label each test by security relevance,
+               taxonomy tags, and rationale.</p>
+            <span class="feature-scope">Only test source files are submitted. Production code is never read or transmitted.</span>
           </div>
         </li>
         <li>
           <span class="feature-check">✓</span>
           <div>
-            <strong>Multiple output formats</strong>
-            <p>Exports results as CSV (default), plain text, or SARIF&nbsp;2.1.0 for direct
-               integration with GitHub Code Scanning and other SAST tooling.</p>
+            <strong>CI-ready output formats</strong>
+            <p>CSV (default), plain text, SARIF&nbsp;2.1.0, GitHub Actions annotations,
+               and flat JSON. Pick the schema your downstream tooling already speaks.</p>
           </div>
         </li>
         <li>
@@ -238,23 +345,25 @@
           <div>
             <strong>Source write-back</strong>
             <p>The <code>-apply-tags</code> mode inserts AI-suggested display names and tags
-               directly into Java and C# source files using a lexical-preserving printer.</p>
+               directly into Java/Kotlin and C# source files using a formatting-preserving
+               printer.</p>
           </div>
         </li>
         <li>
           <span class="feature-check">✓</span>
           <div>
-            <strong>Manual AI workflow</strong>
-            <p>Two-phase prepare&nbsp;/ consume mode for air-gapped or policy-restricted
-               environments where direct API calls are not permitted.</p>
+            <strong>Manual / air-gapped workflow</strong>
+            <p>Two-phase prepare and consume mode for environments where direct AI API calls
+               are not permitted &mdash; the runtime never leaves the secure perimeter.</p>
           </div>
         </li>
         <li>
           <span class="feature-check">✓</span>
           <div>
-            <strong>YAML configuration</strong>
-            <p>Shareable configuration files store scan settings; CLI flags override them
-               selectively, eliminating per-run repetition in team or CI workflows.</p>
+            <strong>Compliance evidence</strong>
+            <p>Immutable per-run CSV audit trail, schema-versioned override YAML, and
+               framework-specific guidance for PCI&nbsp;DSS, ISO&nbsp;27001, NIST&nbsp;SSDF,
+               EU&nbsp;DORA, and SOC&nbsp;2.</p>
           </div>
         </li>
       </ul>
@@ -286,9 +395,9 @@
   src/test/java</pre>
 
       <p class="qs-links">
-        <a href="installation/">Full installation guide</a>
+        <a href="installation/">Installation guide</a>
         &nbsp;&middot;&nbsp;
-        <a href="usage-modes/">All usage modes</a>
+        <a href="fast-track/">Fast Track walkthrough</a>
         &nbsp;&middot;&nbsp;
         <a href="cli-reference/">CLI reference</a>
       </p>

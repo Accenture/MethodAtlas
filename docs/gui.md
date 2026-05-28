@@ -6,11 +6,12 @@ The `methodatlas-gui` module is a professional Swing desktop application for int
 
 [![MethodAtlas GUI — tag editor panel showing AI-suggested security/crypto chips, green check-marks for already-reviewed methods, and the orange warning triangle for the currently selected method](images/gui-tag-editor.png)](images/gui-tag-editor.png)
 
-The window is divided into three areas:
+The window is divided into the following areas:
 
-- **Left** — results tree, grouping discovered methods by class with colour-coded status icons
-- **Top-right** — syntax-highlighted source editor (RSyntaxTextArea) with line numbers and code folding
-- **Bottom-right** — tag editor with the current method's existing tags, AI-suggested tag chips, a custom override field, and staging buttons
+- **Left** — results tree (`ScanPanel`), grouping discovered methods by class with colour-coded status icons
+- **Top-right** — syntax-highlighted source editor (`EditorPanel`, RSyntaxTextArea) with line numbers and code folding
+- **Bottom-right** — tag editor (`TagEditorPanel`) with the current method's existing tags, AI-suggested tag chips, a custom override field, and staging buttons
+- **Lower strip** — an **activity panel** (`ActivityPanel`) that streams the live JUL log of the current run (scan progress, AI provider responses, write-back notices) and a **status bar** (`StatusBar`) showing the current scan run id, active AI profile, and aggregate counts (discovered / staged / saved)
 
 ## Results tree icons
 
@@ -34,6 +35,9 @@ Three buttons appear in the bottom-right of the tag editor panel.  Understanding
 
 !!! note "Nothing is written to disk until Save All Changes"
     Both staging buttons only mark the method as pending — no file I/O happens.  The toolbar **Save All Changes** button batches all staged patches per file into a single write, which prevents line-number drift when multiple methods in the same class are modified.
+
+!!! warning "Languages without a `SourcePatcher` cannot be written back"
+    The **Stage Selection** and **Accept All AI Tags** buttons are disabled when the currently selected method lives in a language whose discovery plugin does not ship a `SourcePatcher` SPI implementation. At the time of writing, source write-back is available only for **Java/Kotlin** and **C#**; TypeScript, Go, Python, PowerShell, ABAP, and COBOL are discovery-only. A tooltip on the disabled buttons explains the limit, matching the CLI behaviour described in [Discovery plugins — Source write-back](discovery-plugins.md#source-write-back-sourcepatcher-support).
 
 ## Staged workflow
 

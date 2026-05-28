@@ -1,20 +1,57 @@
 # Installation
 
+MethodAtlas ships as a self-contained Java application with a small set of
+auxiliary native tools required only for specific scan paths. This chapter
+walks through the three supported installation routes — pre-built
+distribution archive, build-from-source, and standalone JAR — and explains
+when to pick each. By the end you will have a working `methodatlas` binary
+on your `PATH`, a verified checksum, and a first scan running against a
+real test source tree.
+
+The same archive contains both the command-line scanner and the Swing
+desktop GUI. There is one shared `lib/` directory and two start scripts
+(`bin/methodatlas`, `bin/methodatlas-gui`), so no separate install is
+needed if you later decide to use the interactive review surface.
+
 ## Requirements
+
+The runtime footprint is intentionally small. Apart from a modern Java
+runtime there are no mandatory dependencies; everything else is opt-in.
 
 | Requirement | Version | Required for |
 |--------|-----------------|----------------|
 | Java runtime | 21 or later (Temurin recommended) | All functionality |
 | Node.js | 18 or later | TypeScript/JavaScript test discovery only |
 | Operating system | Linux, macOS, Windows | — |
+| Disk space | < 60 MB unpacked | Distribution archive + grammar bundles |
+| RAM at runtime | ~256 MB JVM heap for typical scans; ~1 GB for very large monorepos | Scaled by scan size, not by AI use |
 
-MethodAtlas parses source files without compiling them, so no project build
-tool (Gradle, Maven, etc.) is required at runtime. Node.js is only needed when
-scanning TypeScript or JavaScript test files — if it is absent or below version 18,
-the TypeScript plugin disables itself gracefully and all other plugins continue normally.
+**Java 21+** is required because MethodAtlas uses sealed types, pattern
+matching on records, and the modern `java.net.http.HttpClient` introduced
+in long-term-support release 21. Older JDKs will refuse to launch with a
+clear error message — the requirement is enforced at JVM startup. Temurin
+is recommended because it is freely redistributable and ships on all
+major CI runners; any other certified OpenJDK build (Microsoft, Amazon
+Corretto, Oracle, Zulu) works identically.
+
+**Node.js 18+** is consumed only by the TypeScript discovery plugin, which
+spawns a small Node-based parser to walk `*.ts` / `*.tsx` ASTs. If Node
+is absent or below the minimum version the plugin disables itself
+silently, the scan continues for every other language, and a single
+diagnostic is logged. Java, C#, Go, Python, PowerShell, ABAP, and COBOL
+scans require no runtime beyond the JVM.
+
+MethodAtlas parses source files lexically — it never compiles your code
+and never resolves your project's dependencies. As a result no build tool
+(Gradle, Maven, MSBuild, npm install) is required on the scan host, and
+broken or partially-checked-out projects can still be inventoried.
 
 
 ## Option 1 — Distribution archive (recommended)
+
+The distribution archive is the canonical install for end users, CI
+runners, and air-gapped environments. It is reproducible, signed with a
+SHA-256 checksum, and contains everything needed to scan in offline mode.
 
 Pre-built distribution archives are published on the
 [GitHub Releases page](https://github.com/Accenture/MethodAtlas/releases).
@@ -63,8 +100,20 @@ The `bin/` scripts handle the classpath automatically. No manual `-cp` flag need
 ./methodatlas --help
 ```
 
+A successful `--help` invocation prints the synopsis, the full flag list,
+and the exit-code table. If the binary exits non-zero or prints a Java
+launcher error, the most common cause is a JDK older than 21 on the
+`PATH`; check with `java --version`.
+
 
 ## Option 2 — Build from source
+
+Building from source is appropriate when you need to pin to a specific
+commit, apply a downstream patch, or produce an internal distribution
+that has been reviewed by a security or compliance function. The build
+is fully reproducible from a clean checkout — every dependency is
+declared in `gradle/libs.versions.toml`, and Gradle's wrapper pins the
+build tool version.
 
 ```bash
 git clone https://github.com/Accenture/MethodAtlas.git
@@ -77,14 +126,24 @@ cd MethodAtlas
 build/install/methodatlas/bin/methodatlas src/test/java
 ```
 
-To produce a portable archive:
+To produce a portable archive identical in layout to the published
+release artefacts:
 
 ```bash
 ./gradlew distZip       # → build/distributions/methodatlas-<version>.zip
 ./gradlew distTar       # → build/distributions/methodatlas-<version>.tar
 ```
 
-Java 21 or later is required at build time. The build enforces this automatically.
+Java 21 or later is required at build time. The build enforces this
+automatically via `targetCompatibility` and a manual `JavaVersion` check
+in the root build script; the build fails with a clear message if an
+older JDK is detected.
+
+A complete `./gradlew build` also runs every quality gate in one pass —
+unit tests, PMD, SpotBugs, Error Prone, JaCoCo coverage verification, PIT
+mutation testing, the dependency licence allowlist, and (when
+`NVD_API_KEY` is set) OWASP Dependency-Check. The full thresholds are
+documented in the [Quality gates](quality-gates.md) reference.
 
 
 ## Option 3 — Single executable JAR (alternative)
@@ -99,6 +158,11 @@ java -jar build/libs/methodatlas-<version>.jar src/test/java
 !!! note
     This requires you to manage the classpath manually if you add dependencies.
     The distribution archive (Option 1 or 2) is the recommended approach.
+
+The standalone JAR omits the discovery plugins, the AI runtime, and the
+output emitters that the `bin/` scripts wire onto the classpath
+automatically. It is occasionally useful when embedding MethodAtlas
+inside another Java application but is not the canonical end-user path.
 
 
 ## Quick start examples
@@ -194,7 +258,26 @@ if ($actual -eq $expected) { "OK" } else { "MISMATCH" }
 
 **SBOM:** the `methodatlas-<version>-sbom.json` file (CycloneDX 1.4 format) lists all runtime dependency components with their versions, hashes, and licence identifiers. Import it into your software composition analysis (SCA) platform or supply it to your legal / security team for third-party licence review.
 
-In regulated or air-gapped environments, download the archive and SBOM on an internet-connected machine, verify integrity, then transfer to the target environment.
+In regulated or air-gapped environments, download the archive and SBOM on an internet-connected machine, verify integrity, then transfer to the target environment. The SBOM is signed by the release pipeline and listed as a release asset alongside the binary archives; together they form a self-contained provenance bundle suitable for software-supply-chain attestation.
+
+## What gets installed
+
+Whichever route you pick, the resulting installation is a single
+directory containing two start scripts and a `lib/` folder. There is no
+system-wide registration, no daemon, and no background service — the
+binary is invoked on demand by a developer, a CI step, or the desktop
+GUI. Uninstalling is a `rm -rf` (or *Move to Recycle Bin*).
+
+| Path | Purpose |
+|---|---|
+| `bin/methodatlas` / `.bat` | CLI launcher; auto-resolves the classpath from `lib/` |
+| `bin/methodatlas-gui` / `.bat` | Swing desktop GUI launcher; shares the same `lib/` |
+| `lib/*.jar` | Application, plugins, AI runtime, and dependency JARs |
+
+Two start scripts share one `lib/` directory by design: the CLI and the
+GUI ship as a single distribution because both invoke the same scanner
+engine and the same plugin set, and shipping them together keeps the
+versions strictly in sync.
 
 ## Next steps
 

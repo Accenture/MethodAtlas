@@ -2,12 +2,33 @@
 
 The `-diff` flag compares two MethodAtlas scan outputs (CSV files) and reports which test methods were added, removed, or modified between the two runs. It is the primary mechanism for change-tracking, audit evidence, and CI gating on security-test coverage.
 
+A delta report answers the regulator's recurring question: *did the
+security-test surface of this release change relative to the previous
+one, and if so, where?* The CSV emitted by a single scan is a snapshot;
+the delta turns two snapshots into a change log, which is what most
+compliance frameworks actually require for a release-to-release audit.
+
+A delta is also the cheapest way to enforce a non-regression rule in CI.
+Rather than scanning twice from scratch and comparing in some external
+tool, you run a single `methodatlas -diff before.csv after.csv`, post-
+process the textual output with a one-line shell pattern (see [CI gating](#168-ci-gating--detecting-regressions)),
+and either fail the build or annotate the pull request inline.
+
 ## When to use this mode
+
+There are four recurring situations where `-diff` is the right answer:
 
 - You want to prove to an auditor that security-test coverage did not regress between two releases.
 - You want to gate a CI pipeline on whether any security-relevant test was removed or reclassified.
 - You want a change log of which security tests were added during a sprint or on a pull request.
 - You want to detect source edits to existing security tests (requires both scans to use [`-content-hash`](../cli-reference.md#-content-hash)).
+
+For the first three scenarios a regular scan with no extra flags is
+sufficient on both sides. The fourth — detecting whether a test body
+was rewritten while keeping its name and signature — is the only one
+that requires content hashing on both inputs; without it the delta will
+still detect added or removed methods but cannot tell whether an
+existing test was silently weakened.
 
 ## How the comparison works
 
@@ -219,12 +240,37 @@ in the delta.
 
 ## Limitations
 
+The delta engine is deliberately conservative: it reports facts it can
+prove from two CSV files and does not infer intent. Three limits follow
+from that design choice.
+
 - **Rename tracking** — when a class or method is renamed, it appears as one
   `REMOVED` entry and one `ADDED` entry. MethodAtlas does not attempt to infer
-  renames from content-hash similarity.
+  renames from content-hash similarity, because content-similarity inference
+  produces false positives that would weaken the audit signal. If your release
+  process renames classes routinely, post-process the delta with a similarity
+  matcher of your own.
 - **Plain / SARIF inputs** — only CSV files produced by MethodAtlas are accepted.
-  Plain-text and SARIF outputs cannot be diffed.
+  Plain-text and SARIF outputs cannot be diffed, because they omit fields
+  (such as the per-method content hash and the AI taxonomy tag set) that
+  the comparison depends on.
 - **Exit code** — the command always exits with code `0`. Use shell post-processing
-  (see the CI gating example above) to gate on specific change types.
+  (see the [CI gating example](#168-ci-gating--detecting-regressions) above)
+  to gate on specific change types. The reason for the design is that
+  different teams care about different change types: a test-engineering team
+  may treat any `REMOVED` as a regression, while a refactoring team may
+  accept removals provided no `security: true → false` reclassification is
+  present.
+
+## Reproducibility and audit retention
+
+Because the inputs to `-diff` are plain CSV files, a delta is fully
+reproducible: archive the two scan CSVs alongside the delta report and
+any auditor can re-run the comparison years later without needing the
+original codebase or even the MethodAtlas binary that produced them. In
+regulated environments this property — being able to verify a historic
+claim about test coverage from durable artefacts — is the reason the
+delta report exists in the first place. See the [Audit trail](../audit-trail.md)
+chapter for the recommended retention layout.
 
 See [CLI reference — `-diff`](../cli-reference.md#-diff) for the flag description.

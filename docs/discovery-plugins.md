@@ -585,6 +585,176 @@ field has no effect on this plugin and should be left empty.
 The PowerShell plugin does not use the `properties` map. Any keys present are
 silently ignored.
 
+## SAP ABAP / ABAP Unit / ecATT
+
+**Plugin class:** `org.egothor.methodatlas.discovery.abap.ABAPTestDiscovery`
+**Module:** `methodatlas-discovery-abap`
+
+The ABAP plugin discovers tests from two SAP test conventions in a single
+pass — no SAP NetWeaver runtime is required. Parsing is performed entirely
+in Java using two ANTLR4 grammars (`ABAPTest.g4` and `ECATTScript.g4`)
+loaded by the same plugin.
+
+### Conventions detected
+
+| Convention | File extension | What is emitted |
+|---|---|---|
+| **ABAP Unit** | `.abap` | Each method declared `FOR TESTING` inside a class flagged `FOR TESTING` |
+| **ecATT** | `.ecl` | Each `FUNCTION … DONE` block in an exported ecATT script (transaction `SECATT`) |
+
+### File selection
+
+Default suffixes (both are active unless overridden):
+
+| Suffix | Example |
+|---|---|
+| `.abap` | `zcl_auth_test.abap` |
+| `.ecl` | `zecatt_login.ecl` |
+
+Override with `-file-suffix abap:<suffix>` to restrict or extend the
+selection (for example, projects that store ABAP Unit classes under a
+non-default extension produced by an export tool).
+
+### ABAP Unit — detection logic
+
+The plugin walks the lexed token stream rather than a full parse tree. This
+is deliberate: ABAP has an extremely large statement vocabulary and a
+strict structural grammar is brittle inside method bodies. Token scanning
+reacts only to a handful of well-defined markers and ignores everything
+else.
+
+The scanner emits one discovered method when **all three** of these hold:
+
+1. A class is opened with `CLASS … DEFINITION … FOR TESTING.`
+2. A `METHODS:` declaration inside that class names a method with the
+   `FOR TESTING` attribute.
+3. The corresponding `CLASS … IMPLEMENTATION.` block contains a
+   `METHOD <name> … ENDMETHOD.` body for that name.
+
+The FQCN is the ABAP class name as written in the source (for example
+`ZCL_AUTH_TEST`).
+
+### ecATT — detection logic
+
+Each `FUNCTION <name> … DONE` block is emitted as one test case. The
+function name is used as the method name; begin and end lines span from
+the `FUNCTION` keyword to the closing `DONE`. The FQCN is the script file
+stem.
+
+### `testMarkers` — not applicable
+
+ABAP Unit uses the `FOR TESTING` keyword pair (structurally recognised);
+ecATT uses the `FUNCTION` keyword. The `testMarkers` field has no effect
+on either detector and should be left empty.
+
+### The `properties` map (ABAP)
+
+The ABAP plugin does not currently use the `properties` map. Keys present
+are silently ignored, reserved for future SAP-tool-specific options.
+
+### Configuration example
+
+=== "CLI"
+
+    ```bash
+    # Default — auto-detects .abap and .ecl files
+    ./methodatlas src/
+
+    # Restrict to ABAP Unit only (skip ecATT)
+    ./methodatlas -file-suffix abap:.abap src/
+    ```
+
+=== "YAML"
+
+    ```yaml
+    fileSuffixes:
+      - abap:.abap
+      - abap:.ecl
+    ```
+
+## COBOL — MFUnit / COBOL-Check
+
+**Plugin class:** `org.egothor.methodatlas.discovery.cobol.COBOLTestDiscovery`
+**Module:** `methodatlas-discovery-cobol`
+
+The COBOL plugin discovers tests from the two prevailing COBOL unit-test
+conventions in a single pass — no COBOL compiler or mainframe runtime is
+required. Parsing uses an ANTLR4 grammar (`COBOLTest.g4`) and a
+token-stream scanner that is robust to free-format and fixed-format COBOL
+sources alike.
+
+### Conventions detected
+
+| Convention | File extensions | What is emitted |
+|---|---|---|
+| **Micro Focus MFUnit** | `.cbl`, `.cob`, `.cobol` | Each PROCEDURE DIVISION paragraph whose name begins with `MFU-TC-` |
+| **COBOL-Check** | `.cut`, also mixed in `.cbl` | Each `TestCase '<name>'` directive (`TestSuite` directives are recognised but not emitted) |
+
+### File selection
+
+Default suffixes (all four are active unless overridden):
+
+| Suffix | Example |
+|---|---|
+| `.cbl` | `auth-tests.cbl` |
+| `.cob` | `auth-tests.cob` |
+| `.cobol` | `auth-tests.cobol` |
+| `.cut` | `auth.cut` (COBOL-Check) |
+
+### MFUnit — detection logic
+
+When the lexer recognises an `MFU-TC-<rest>` paragraph header, the
+plugin records it as a discovered test paragraph. End-line is the line of
+the next MFU paragraph header (or end-of-file), minus one.
+
+### COBOL-Check — detection logic
+
+When the lexer recognises a `TestCase` keyword followed by a quoted
+string, the value with quotes stripped is recorded as the test name.
+End-line spans to the next `TestCase` / `TestSuite` header or
+end-of-file.
+
+### FQCN computation
+
+The FQCN is derived from the file path relative to the scan root
+(dot-separated, extension stripped). When the `PROGRAM-ID` paragraph can
+be extracted from the source, it is appended as the outermost qualifier;
+otherwise the file stem alone is used.
+
+### `testMarkers` — not applicable
+
+Neither convention uses identifier markers in the JUnit/xUnit sense.
+`MFU-TC-*` and `TestCase` are recognised structurally; `testMarkers` has
+no effect and should be left empty.
+
+### The `properties` map (COBOL)
+
+The COBOL plugin does not currently use the `properties` map. Keys
+present are silently ignored, reserved for future dialect-specific options
+(for example, fixed-format column thresholds).
+
+### Configuration example
+
+=== "CLI"
+
+    ```bash
+    # Default — auto-detects .cbl, .cob, .cobol, and .cut
+    ./methodatlas src/
+
+    # COBOL-Check only — skip mainframe MFUnit suites
+    ./methodatlas -file-suffix cobol:.cut src/
+    ```
+
+=== "YAML"
+
+    ```yaml
+    fileSuffixes:
+      - cobol:.cbl
+      - cobol:.cob
+      - cobol:.cobol
+      - cobol:.cut
+    ```
+
 ## Quick reference
 
 | Language / framework | `fileSuffixes` | `testMarkers` | `properties` |
