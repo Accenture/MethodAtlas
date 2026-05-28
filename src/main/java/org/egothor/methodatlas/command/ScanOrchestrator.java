@@ -80,8 +80,8 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  *
  * <p>
  * This class is thread-safe. The injected {@link PluginLoader} is
- * thread-safe and {@link ServiceLoader} resolution is idempotent; nothing
- * else is shared between calls.
+ * thread-safe and {@link java.util.ServiceLoader} resolution is
+ * idempotent; nothing else is shared between calls.
  * </p>
  *
  * @see PluginLoader

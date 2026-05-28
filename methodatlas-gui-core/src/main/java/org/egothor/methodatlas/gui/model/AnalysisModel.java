@@ -13,7 +13,7 @@ import java.util.Map;
  * Central observable model for the MethodAtlas GUI.
  *
  * <p>All mutating methods must be called on the Swing Event Dispatch Thread
- * (EDT).  {@link org.egothor.methodatlas.gui.service.AnalysisService}
+ * (EDT).  {@code AnalysisService} (in {@code methodatlas-gui})
  * publishes every update through
  * {@link javax.swing.SwingWorker#process SwingWorker.process}, which
  * already runs on the EDT, so callers outside the EDT must use
@@ -44,7 +44,6 @@ import java.util.Map;
  *       was started; old value is {@code false}, new value is {@code true}</li>
  * </ul>
  *
- * @see org.egothor.methodatlas.gui.service.AnalysisService
  */
 public final class AnalysisModel {
 

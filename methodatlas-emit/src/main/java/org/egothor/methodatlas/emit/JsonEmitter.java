@@ -43,8 +43,8 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
  * the orchestration layer. The {@link TestMethodSink#record} implementation
  * calls {@link #record(String, String, int, int, String, List, String, AiMethodSuggestion, String)}
  * with a {@code null} source root; callers that know the scan root (such as
- * {@link org.egothor.methodatlas.command.JsonCommand}) should call the
- * extended method directly.
+ * {@code JsonCommand} in the application layer) should call the extended
+ * method directly.
  * </p>
  *
  * @see OutputEmitter

@@ -38,7 +38,7 @@
  *       {@code ServiceLoader} and validates plugin-ID uniqueness.</li>
  *   <li>{@link org.egothor.methodatlas.command.OverrideLoader} — loads
  *       classification override YAML files into
- *       {@link org.egothor.methodatlas.ClassificationOverride} instances.</li>
+ *       {@link org.egothor.methodatlas.emit.ClassificationOverride} instances.</li>
  *   <li>{@link org.egothor.methodatlas.command.ContentHasher} — produces
  *       SHA-256 class fingerprints and forward-slashed scan-root file
  *       prefixes; pure static helpers.</li>

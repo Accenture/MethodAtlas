@@ -79,12 +79,14 @@ jobs:
             texlive-fonts-recommended \
             texlive-fonts-extra \
             texlive-latex-extra \
-            fonts-libertinus \
             fonts-dejavu
-          # fonts-libertinus exposes Libertinus Serif / Sans to fontconfig
-          # so xelatex's fontspec can locate it by family name (matches the
-          # MikTeX libertinus-fonts package used on Windows developer hosts).
-          fc-cache -f -v >/dev/null 2>&1 || true
+          # texlive-fonts-extra ships Libertinus Serif / Sans under
+          # /usr/share/texlive/texmf-dist/fonts/opentype/public/libertinus-fonts/.
+          # On Ubuntu the texlive package installs a fontconfig snippet that
+          # exposes this path; refresh the fontconfig cache so xelatex's
+          # fontspec can locate Libertinus by family name.
+          sudo fc-cache -f >/dev/null 2>&1 || true
+          fc-list | grep -i libertinus | head -3 || echo "WARNING: Libertinus not visible to fontconfig"
 
       - name: Install Mermaid CLI
         run: npm install --global @mermaid-js/mermaid-cli

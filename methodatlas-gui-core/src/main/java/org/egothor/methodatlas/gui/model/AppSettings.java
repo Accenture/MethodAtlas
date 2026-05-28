@@ -12,11 +12,11 @@ import java.util.Map;
  * Serialisable application settings that are persisted between sessions.
  *
  * <p>The settings object is loaded from a JSON file at startup by
- * {@link org.egothor.methodatlas.gui.service.SettingsManager#load()}, mutated
- * in response to user actions, and written back to disk by
- * {@link org.egothor.methodatlas.gui.service.SettingsManager#save(AppSettings)}.
- * All fields are initialised to safe defaults that allow the application to
- * function without any prior configuration.</p>
+ * {@code SettingsManager#load()} (in {@code methodatlas-gui}), mutated in
+ * response to user actions, and written back to disk by
+ * {@code SettingsManager#save(AppSettings)}. All fields are initialised
+ * to safe defaults that allow the application to function without any
+ * prior configuration.</p>
  *
  * <p>All fields follow mutable JavaBean conventions so that Jackson can
  * deserialise them without constructor arguments.  The
@@ -24,7 +24,6 @@ import java.util.Map;
  * annotation ensures that settings files written by newer versions of the
  * application can be read by older versions without errors.</p>
  *
- * @see org.egothor.methodatlas.gui.service.SettingsManager
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("PMD.DataClass")

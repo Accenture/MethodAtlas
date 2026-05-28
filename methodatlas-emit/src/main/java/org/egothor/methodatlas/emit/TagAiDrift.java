@@ -27,7 +27,6 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  * {@link AiMethodSuggestion} is available (AI disabled, class too large, etc.)
  * {@link #compute} returns {@code null}.</p>
  *
- * @see MethodAtlasApp
  * @see org.egothor.methodatlas.emit.OutputEmitter
  * @see org.egothor.methodatlas.emit.SarifEmitter
  */

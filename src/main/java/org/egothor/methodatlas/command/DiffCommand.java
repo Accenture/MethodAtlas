@@ -15,7 +15,7 @@ import org.egothor.methodatlas.emit.DeltaEmitter;
  * added, removed, and modified test methods.
  * </p>
  *
- * @see org.egothor.methodatlas.DeltaReport
+ * @see org.egothor.methodatlas.emit.DeltaReport
  * @see org.egothor.methodatlas.emit.DeltaEmitter
  */
 public final class DiffCommand implements Command {

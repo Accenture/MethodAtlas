@@ -8,8 +8,8 @@ import java.util.List;
  *
  * <p>
  * This interface defines the provider-agnostic entry point used by
- * {@link org.egothor.methodatlas.MethodAtlasApp} to request AI-generated
- * security tagging suggestions for a single parsed JUnit test class.
+ * {@code MethodAtlasApp} to request AI-generated security tagging
+ * suggestions for a single parsed JUnit test class.
  * Implementations coordinate taxonomy selection, provider resolution, request
  * submission, response normalization, and conversion into the application's
  * internal result model.
@@ -34,7 +34,6 @@ import java.util.List;
  *
  * @see AiClassSuggestion
  * @see AiProviderClient
- * @see org.egothor.methodatlas.MethodAtlasApp
  */
 @SuppressWarnings("PMD.ImplicitFunctionalInterface")
 public interface AiSuggestionEngine {

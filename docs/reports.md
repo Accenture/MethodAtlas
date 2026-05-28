@@ -118,7 +118,11 @@ The PDF is **not** part of the standard `./gradlew build` lifecycle — it is bu
     sudo apt-get install -y \
         pandoc texlive-xetex texlive-fonts-recommended \
         texlive-fonts-extra texlive-latex-extra \
-        fonts-libertinus fonts-dejavu
+        fonts-dejavu
+
+    # texlive-fonts-extra ships Libertinus; refresh fontconfig so xelatex
+    # can find it via fontspec.
+    sudo fc-cache -f
 
     npm install -g @mermaid-js/mermaid-cli
 

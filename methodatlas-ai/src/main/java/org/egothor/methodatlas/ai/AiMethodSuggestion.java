@@ -66,7 +66,6 @@ import java.util.List;
  *                          verify actual results; applies regardless of the
  *                          mocking framework in use
  *
- * @see org.egothor.methodatlas.MethodAtlasApp
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  * @see org.egothor.methodatlas.ai.SuggestionLookup
  */

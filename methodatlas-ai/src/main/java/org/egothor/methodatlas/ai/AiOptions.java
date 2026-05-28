@@ -6,7 +6,7 @@ import java.util.Objects;
 
 /**
  * Immutable configuration describing how AI-based enrichment should be
- * performed during a {@link org.egothor.methodatlas.MethodAtlasApp} execution.
+ * performed during a {@code MethodAtlasApp} execution.
  *
  * <p>
  * This record aggregates all runtime parameters required by the AI integration
