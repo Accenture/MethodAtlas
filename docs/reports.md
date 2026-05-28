@@ -116,13 +116,17 @@ The PDF is **not** part of the standard `./gradlew build` lifecycle — it is bu
 
     ```bash
     sudo apt-get install -y \
-        pandoc texlive-xetex texlive-fonts-recommended \
-        texlive-fonts-extra texlive-latex-extra \
+        pandoc \
+        texlive-xetex \
+        texlive-fonts-recommended texlive-fonts-extra \
+        texlive-latex-recommended texlive-latex-extra \
+        texlive-plain-generic texlive-pictures \
         lmodern fonts-dejavu
 
     # texlive-fonts-extra ships Libertinus; refresh fontconfig so xelatex
-    # can find it via fontspec. lmodern is required by pandoc's default
-    # LaTeX template even when a fontspec mainfont is configured.
+    # can find it via fontspec. lmodern is loaded unconditionally by
+    # pandoc's default LaTeX template. texlive-pictures provides the
+    # TikZ libraries that tcolorbox[most] pulls in for admonition boxes.
     sudo fc-cache -f
 
     npm install -g @mermaid-js/mermaid-cli

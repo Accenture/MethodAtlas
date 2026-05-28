@@ -78,7 +78,10 @@ jobs:
             texlive-xetex \
             texlive-fonts-recommended \
             texlive-fonts-extra \
+            texlive-latex-recommended \
             texlive-latex-extra \
+            texlive-plain-generic \
+            texlive-pictures \
             lmodern \
             fonts-dejavu
           # texlive-fonts-extra ships Libertinus Serif / Sans under
@@ -86,14 +89,68 @@ jobs:
           # On Ubuntu the texlive package installs a fontconfig snippet that
           # exposes this path; refresh the fontconfig cache so xelatex's
           # fontspec can locate Libertinus by family name.
-          #
-          # lmodern is also installed explicitly: pandoc's default LaTeX
-          # template loads \usepackage{lmodern} unconditionally even when a
-          # fontspec mainfont is set, and lmodern is not pulled in as a
-          # dependency of texlive-fonts-recommended on every Ubuntu release.
           sudo fc-cache -f >/dev/null 2>&1 || true
-          fc-list | grep -i libertinus | head -3 || echo "WARNING: Libertinus not visible to fontconfig"
-          kpsewhich lmodern.sty || echo "WARNING: lmodern.sty not found in TeX path"
+
+      # ----------------------------------------------------------------------
+      # Pre-flight verification — every .sty referenced by the LaTeX header,
+      # back-matter, or pandoc's default xelatex template must be findable on
+      # the TeX search path. If any is missing the workflow fails here with
+      # an explicit diagnostic instead of producing a confusing pandoc error.
+      # Keep this list in sync with methodatlas-docs/src/docs/latex-header.tex
+      # and back-matter.tex.
+      # ----------------------------------------------------------------------
+      - name: Verify required LaTeX packages and fonts
+        run: |
+          set -e
+          missing=0
+          for sty in \
+              lmodern.sty \
+              fontspec.sty \
+              xcolor.sty \
+              newunicodechar.sty \
+              microtype.sty \
+              fvextra.sty \
+              fancyvrb.sty \
+              booktabs.sty \
+              longtable.sty \
+              array.sty \
+              tabularx.sty \
+              titlesec.sty \
+              fancyhdr.sty \
+              emptypage.sty \
+              tcolorbox.sty \
+              etoolbox.sty \
+              needspace.sty \
+              upquote.sty \
+              parskip.sty \
+              xurl.sty \
+              bookmark.sty \
+              hyperref.sty \
+              graphicx.sty \
+              geometry.sty \
+              unicode-math.sty; do
+            if ! kpsewhich "$sty" > /dev/null; then
+              echo "MISSING: $sty"
+              missing=$((missing + 1))
+            fi
+          done
+          if [ "$missing" -gt 0 ]; then
+            echo "ERROR: $missing required LaTeX style file(s) not found on the TeX path."
+            echo "Add the providing apt package to the 'Install pandoc and XeLaTeX' step."
+            exit 1
+          fi
+          # Fonts: verify fontconfig sees what fontspec will ask for.
+          for family in "Libertinus Serif" "Libertinus Sans" "DejaVu Sans Mono"; do
+            if ! fc-list | grep -qi "${family}"; then
+              echo "MISSING font: ${family}"
+              missing=$((missing + 1))
+            fi
+          done
+          if [ "$missing" -gt 0 ]; then
+            echo "ERROR: required font not visible to fontconfig."
+            exit 1
+          fi
+          echo "All required LaTeX packages and fonts are present."
 
       - name: Install Mermaid CLI
         run: npm install --global @mermaid-js/mermaid-cli
