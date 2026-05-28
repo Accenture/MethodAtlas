@@ -387,11 +387,12 @@
       <pre class="qs-pre">./methodatlas -sarif src/test/java \
   &gt; results.sarif</pre>
 
-      <p class="qs-label">4 &mdash; Cloud AI with API key</p>
-      <pre class="qs-pre">export OPENROUTER_API_KEY=sk-...
+      <p class="qs-label">4 &mdash; GitHub Models (free for OSS on GitHub)</p>
+      <pre class="qs-pre">export GITHUB_TOKEN=ghp_...
 ./methodatlas -ai \
-  -ai-provider openrouter \
-  -ai-api-key-env OPENROUTER_API_KEY \
+  -ai-provider github_models \
+  -ai-model gpt-4o-mini \
+  -ai-api-key-env GITHUB_TOKEN \
   src/test/java</pre>
 
       <p class="qs-links">

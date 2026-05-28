@@ -189,6 +189,42 @@ function Table(tbl)
       return set_widths(tbl, {0.15, 0.5, 0.35})
     end
 
+    -- README "Source-derived fields" / "AI enrichment fields":
+    --   Field | Present when | Description
+    -- Field and Present when are short; description is the main column.
+    if contains(headers[1], "field")
+        and contains(headers[2], "present when") then
+      return set_widths(tbl, {0.24, 0.20, 0.56})
+    end
+
+    -- Audit-trail "Field | Always present | Notes" — same shape as field tables.
+    if contains(headers[1], "field")
+        and contains(headers[2], "always present") then
+      return set_widths(tbl, {0.20, 0.18, 0.62})
+    end
+
+    -- CLI reference framework auto-detection:
+    --   Detected framework | Imports matched | Annotation set used
+    if contains(headers[1], "detected framework")
+        and contains(headers[2], "imports matched") then
+      return set_widths(tbl, {0.18, 0.30, 0.52})
+    end
+
+    -- Detection table after the split:
+    --   Language | Plugin module | Test frameworks
+    if contains(headers[1], "language")
+        and contains(headers[2], "plugin module")
+        and contains(headers[3], "test framework") then
+      return set_widths(tbl, {0.18, 0.30, 0.52})
+    end
+
+    -- Per-provider 3-column tables built from short keys:
+    --   Provider value | AI product / platform | Deployment
+    if contains(headers[1], "provider value")
+        and contains(headers[2], "ai product") then
+      return set_widths(tbl, {0.22, 0.40, 0.38})
+    end
+
     if contains(headers[1], "priority")
         and contains(headers[2], "condition")
         and contains(headers[3], "action") then
@@ -301,10 +337,41 @@ function Table(tbl)
       return set_widths(tbl, {0.25, 0.1, 0.15, 0.50})
     end
 
+    -- Discovery plugins source-write-back support:
+    --   Plugin | Discovery | SourcePatcher | What -apply-tags does
+    -- First three columns are short identifiers; last column carries prose.
+    if contains(headers[1], "plugin")
+        and contains(headers[2], "discovery")
+        and (contains(headers[3], "sourcepatcher") or contains(headers[3], "source-patcher")) then
+      return set_widths(tbl, {0.13, 0.13, 0.24, 0.50})
+    end
+
+    -- Audit-trail artefact table:
+    --   Artefact | Producer | Location | Schema
+    if contains(headers[1], "artefact")
+        and contains(headers[2], "producer")
+        and contains(headers[3], "location") then
+      return set_widths(tbl, {0.18, 0.30, 0.32, 0.20})
+    end
+
+    -- AI provider mapping table (README + providers.md):
+    --   AI assistant / product | Underlying platform | MethodAtlas provider | Free tier
+    if contains(headers[1], "ai assistant")
+        or (contains(headers[1], "assistant") and contains(headers[2], "platform")) then
+      return set_widths(tbl, {0.30, 0.30, 0.22, 0.18})
+    end
+
     return set_widths(tbl, {0.25, 0.25, 0.25, 0.25})
   end
 
   if column_count == 5 then
+    -- Annotation-support table (post-split):
+    --   Language | Tag attribute | Display-name support | Source write-back | Requires
+    if contains(headers[1], "language")
+        and contains(headers[2], "tag attribute") then
+      return set_widths(tbl, {0.16, 0.30, 0.24, 0.16, 0.14})
+    end
+
     return set_widths(tbl, {0.20, 0.20, 0.20, 0.20, 0.20})
   end
 

@@ -199,6 +199,10 @@ tasks.register('generatePdf') {
     inputs.dir   processedDir
     inputs.file  latexHeaderFile
     inputs.file  backMatterFile
+    // Lua filters change PDF output but are not part of the processed source set;
+    // declare them explicitly so up-to-date checks invalidate when they change.
+    inputs.file  new File(srcDocsDir, 'pandoc_admonitions.lua')
+    inputs.file  new File(srcDocsDir, 'pandoc_table_widths.lua')
     outputs.file outputPdf
 
     doLast {

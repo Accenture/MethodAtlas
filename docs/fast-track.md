@@ -70,6 +70,15 @@ The AST scan gives you method names and existing tags. AI enrichment adds
 a security relevance label, a suggested taxonomy tag set, and a
 human-readable rationale per method.
 
+There are three sensible starting points. Pick whichever matches what
+you have on hand — they all produce the same enriched CSV/SARIF.
+
+| Option | When it fits | Cost |
+|---|---|---|
+| **A. Local Ollama** | Laptop or dev box with ≥ 8&nbsp;GB free RAM; you want to stay offline | Free, no account |
+| **B. GitHub Models** | The code lives in a GitHub repository (especially an OSS one) | Free under the GitHub Models limits |
+| **C. Paid cloud provider** | Any other case; very large scans or a model not on the other two | Paid (per-token billing) |
+
 ### Option A — local model (no API key, fully offline-capable)
 
 Run [Ollama](https://ollama.com) on your machine, pull a small code model,
@@ -84,7 +93,63 @@ ollama pull qwen2.5-coder:7b
   src/test/java
 ```
 
-### Option B — a cloud provider
+### Option B — GitHub Models (free, ideal for OSS on GitHub)
+
+If your project is hosted on GitHub — particularly a public open-source
+repository — you do not need to install a local model or pay for a
+cloud API. [GitHub Models](https://github.com/marketplace/models) is a
+free inference service available to every GitHub account holder, uses
+an OpenAI-compatible endpoint, and authenticates with a token your
+GitHub account already has.
+
+This is the path most OSS contributors should start with: zero install,
+zero cost, no credit card, and the same enriched output as Option A or C.
+
+**From inside a GitHub Actions workflow** the token is injected
+automatically as `GITHUB_TOKEN`, so no secret needs to be configured:
+
+```yaml
+- name: Run MethodAtlas with GitHub Models
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  run: |
+    ./methodatlas -ai \
+      -ai-provider github_models \
+      -ai-model gpt-4o-mini \
+      -ai-api-key-env GITHUB_TOKEN \
+      src/test/java
+```
+
+**From your local machine**, generate a GitHub Personal Access Token
+([github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens)) — the **fine-grained** variety with
+the **Models** read scope is sufficient, no repository permissions are
+required — export it, and use the same flag set:
+
+```bash
+export GITHUB_TOKEN=ghp_...   # or a fine-grained PAT with Models access
+./methodatlas -ai \
+  -ai-provider github_models \
+  -ai-model gpt-4o-mini \
+  -ai-api-key-env GITHUB_TOKEN \
+  src/test/java
+```
+
+!!! info "Conditions for the free GitHub Models tier"
+    GitHub Models is free for any GitHub account in good standing,
+    subject to per-account, per-model rate limits — daily and
+    per-minute caps published at [docs.github.com — Prototyping with
+    AI models](https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models#rate-limits)
+    that vary by model tier (low / high / embedding). The free quota
+    is comfortably enough for a typical OSS project's test suite,
+    including incremental re-runs once `-ai-cache` is enabled. For very
+    large monorepos or daily PR-gated scans you may want a paid
+    provider (Option&nbsp;C) instead. Source code submitted to GitHub
+    Models is processed on Microsoft Azure infrastructure on behalf of
+    GitHub; do not use it for proprietary or classified code without
+    your security team's approval. The full data-handling contract is
+    in [Data governance](concepts/data-governance.md).
+
+### Option C — a paid cloud provider
 
 Any of the supported cloud providers works the same way. Export the API
 key, then point `-ai-provider` at it:

@@ -136,16 +136,31 @@ on Linux and macOS.
 
 ## Supported languages and frameworks
 
-| Language | Plugin module | Test frameworks | Tag attribute | Display-name support | Source write-back (`-apply-tags`) | Requires |
-| --- | --- | --- | --- | --- | --- | --- |
-| Java | `methodatlas-discovery-jvm` | JUnit 5, JUnit 4, TestNG (auto-detected from imports) | `@Tag("value")` | `@DisplayName("text")` | **Yes** | — |
-| C# (.NET) | `methodatlas-discovery-dotnet` | xUnit, NUnit, MSTest (auto-detected from `using` directives) | `[Category]` / `[Trait]` / `[TestCategory]` | xUnit `DisplayName=` only | **Yes** | — |
-| TypeScript / JavaScript | `methodatlas-discovery-typescript` | Jest, Vitest, Mocha (identified by function call names) | — | — | No | Node.js 18+ on PATH |
-| Go | `methodatlas-discovery-go` | Go testing package (`func Test…(t *testing.T)`) | — | — | No | — |
-| Python | `methodatlas-discovery-python` | pytest (`test_*` functions / `Test*` classes) | — | — | No | — |
-| PowerShell | `methodatlas-discovery-powershell` | Pester (`It "..."` blocks in `*.Tests.ps1`) | `-Tag "value"` on `It` line | — | No | — |
-| SAP ABAP | `methodatlas-discovery-abap` | ABAP Unit (`FOR TESTING` methods); ecATT (`FUNCTION` blocks in `.ecl` exports) | — | — | No | — |
-| COBOL | `methodatlas-discovery-cobol` | Micro Focus MFUnit (`MFU-TC-*` paragraphs); COBOL-Check (`TestCase '...'` directives) | — | — | No | — |
+### Detection — which framework MethodAtlas recognises per language
+
+| Language | Plugin module | Test frameworks |
+| --- | --- | --- |
+| Java | `methodatlas-discovery-jvm` | JUnit 5, JUnit 4, TestNG (auto-detected from imports) |
+| C# (.NET) | `methodatlas-discovery-dotnet` | xUnit, NUnit, MSTest (auto-detected from `using` directives) |
+| TypeScript / JavaScript | `methodatlas-discovery-typescript` | Jest, Vitest, Mocha (identified by function call names) |
+| Go | `methodatlas-discovery-go` | Go testing package (`func Test…(t *testing.T)`) |
+| Python | `methodatlas-discovery-python` | pytest (`test_*` functions / `Test*` classes) |
+| PowerShell | `methodatlas-discovery-powershell` | Pester (`It "..."` blocks in `*.Tests.ps1`) |
+| SAP ABAP | `methodatlas-discovery-abap` | ABAP Unit (`FOR TESTING` methods); ecATT (`FUNCTION` blocks in `.ecl` exports) |
+| COBOL | `methodatlas-discovery-cobol` | Micro Focus MFUnit (`MFU-TC-*` paragraphs); COBOL-Check (`TestCase '...'` directives) |
+
+### Annotation support and runtime requirements
+
+| Language | Tag attribute | Display-name support | Source write-back | Requires |
+| --- | --- | --- | --- | --- |
+| Java | `@Tag("value")` | `@DisplayName("text")` | **Yes** | — |
+| C# (.NET) | `[Category]` / `[Trait]` / `[TestCategory]` | xUnit `DisplayName=` only | **Yes** | — |
+| TypeScript / JavaScript | — | — | No | Node.js 18+ on PATH |
+| Go | — | — | No | — |
+| Python | — | — | No | — |
+| PowerShell | `-Tag "value"` on `It` line | — | No | — |
+| SAP ABAP | — | — | No | — |
+| COBOL | — | — | No | — |
 
 The **Source write-back** column lists which languages support `-apply-tags` and `-apply-tags-from-csv` writing AI/CSV decisions back into source. Currently only languages whose discovery plugin ships a `SourcePatcher` SPI implementation (Java and C#) support write-back. Discovered tests in other languages are still reported in CSV/SARIF/plain output, but the apply-tags flow leaves their source files untouched and prints a per-file skip notice — see [Source Write-back — Language support](docs/usage-modes/apply-tags.md#language-support) for the full diagnostic format.
 
