@@ -109,11 +109,53 @@ function Table(tbl)
       return set_widths(tbl, {0.1, 0.9})
     end
 
+    -- Short-token left column paired with prose right column.
+    -- Values like 'none', 'auto', '1.0', '-1', or single-flag identifiers
+    -- only need 18 %; the explanation column gets the rest. Matching is
+    -- on the header word in column 1.
+    if contains(headers[1], "value")
+        or contains(headers[1], "setting")
+        or contains(headers[1], "code")
+        or contains(headers[1], "token")
+        or contains(headers[1], "level")
+        or contains(headers[1], "property")
+        or contains(headers[1], "command")
+        or contains(headers[1], "limit") then
+      return set_widths(tbl, {0.20, 0.80})
+    end
+
+    -- Module / extension / aspect / area / element / framework / convention /
+    -- imports — slightly longer identifiers in column 1, but the prose still
+    -- dominates.
+    if contains(headers[1], "module")
+        or contains(headers[1], "extension")
+        or contains(headers[1], "aspect")
+        or contains(headers[1], "area")
+        or contains(headers[1], "element")
+        or contains(headers[1], "framework")
+        or contains(headers[1], "convention")
+        or contains(headers[1], "imports")
+        or contains(headers[1], "source")
+        or contains(headers[1], "icon")
+        or contains(headers[1], "challenge")
+        or contains(headers[1], "document")
+        or contains(headers[1], "series")
+        or contains(headers[1], "key") then
+      return set_widths(tbl, {0.25, 0.75})
+    end
+
     if contains(headers[2], "details")
         or contains(headers[2], "meaning")
         or contains(headers[2], "description")
-        or contains(headers[2], "explanation") then
-      return set_widths(tbl, {0.30, 0.70})
+        or contains(headers[2], "explanation")
+        or contains(headers[2], "behaviour")
+        or contains(headers[2], "behavior")
+        or contains(headers[2], "condition")
+        or contains(headers[2], "responsibility")
+        or contains(headers[2], "contents")
+        or contains(headers[2], "notes")
+        or contains(headers[2], "purpose") then
+      return set_widths(tbl, {0.25, 0.75})
     end
 
     return set_widths(tbl, {0.35, 0.65})
@@ -225,6 +267,126 @@ function Table(tbl)
       return set_widths(tbl, {0.22, 0.40, 0.38})
     end
 
+    -- Installation Requirements table:
+    --   Requirement | Version | Required for
+    if contains(headers[1], "requirement")
+        and contains(headers[2], "version") then
+      return set_widths(tbl, {0.22, 0.30, 0.48})
+    end
+
+    -- Fast Track option picker:
+    --   Option | When it fits | Cost
+    if contains(headers[1], "option")
+        and contains(headers[2], "when it fits")
+        and contains(headers[3], "cost") then
+      return set_widths(tbl, {0.22, 0.55, 0.23})
+    end
+
+    -- C# / .NET attribute mapping:
+    --   Framework | Attribute read | Argument used
+    if contains(headers[1], "framework")
+        and contains(headers[2], "attribute read") then
+      return set_widths(tbl, {0.18, 0.42, 0.40})
+    end
+
+    -- C# / .NET tag + display name:
+    --   Framework | Tag written as | Display name
+    if contains(headers[1], "framework")
+        and contains(headers[2], "tag written") then
+      return set_widths(tbl, {0.18, 0.42, 0.40})
+    end
+
+    -- C# / .NET detection:
+    --   Framework | Detected by | Default markers
+    if contains(headers[1], "framework")
+        and contains(headers[2], "detected by") then
+      return set_widths(tbl, {0.18, 0.42, 0.40})
+    end
+
+    -- Parser-internals element / detected / notes:
+    --   Element | Detected | Notes
+    if contains(headers[1], "element")
+        and contains(headers[2], "detected") then
+      return set_widths(tbl, {0.42, 0.13, 0.45})
+    end
+
+    -- Architecture extension / SPI / module:
+    --   Extension | SPI | Module
+    if contains(headers[1], "extension")
+        and contains(headers[2], "spi")
+        and contains(headers[3], "module") then
+      return set_widths(tbl, {0.22, 0.55, 0.23})
+    end
+
+    -- Architecture per-module gates:
+    --   Module | JaCoCo floor | PIT floor | Notes (handled in column_count==4)
+    -- CI-setup secret table:
+    --   Secret | Feature unlocked | How to obtain
+    if contains(headers[1], "secret")
+        and contains(headers[2], "feature unlocked") then
+      return set_widths(tbl, {0.22, 0.38, 0.40})
+    end
+
+    -- CI-setup workflow table:
+    --   Workflow | Platform | Trigger (also covered below for variations)
+    -- Compliance mapping tables (3-col):
+    --   <Standard> requirement | MethodAtlas feature | Evidence produced
+    if (contains(headers[1], "activity") or contains(headers[1], "task")
+            or contains(headers[1], "objective") or contains(headers[1], "requirement")
+            or contains(headers[1], "control"))
+        and (contains(headers[2], "methodatlas feature") or contains(headers[2], "feature")) then
+      return set_widths(tbl, {0.30, 0.40, 0.30})
+    end
+
+    -- Discovery plugins "Property key | Meaning | Default" / "Default values":
+    if contains(headers[1], "property key")
+        and contains(headers[2], "meaning") then
+      return set_widths(tbl, {0.28, 0.50, 0.22})
+    end
+
+    -- Discovery plugins COBOL/ABAP "Convention | File extension(s) | What is emitted"
+    -- already handled. Add: "Convention | Example | Active when"
+    if contains(headers[1], "convention")
+        and contains(headers[2], "example")
+        and contains(headers[3], "active when") then
+      return set_widths(tbl, {0.22, 0.38, 0.40})
+    end
+
+    -- Migration "Area | What changed | Action required":
+    if contains(headers[1], "area")
+        and contains(headers[2], "what changed")
+        and contains(headers[3], "action") then
+      return set_widths(tbl, {0.18, 0.46, 0.36})
+    end
+
+    -- Output formats CSV vs JSON aspect comparison:
+    --   Aspect | CSV | JSON
+    if contains(headers[1], "aspect")
+        and contains(headers[2], "csv")
+        and contains(headers[3], "json") then
+      return set_widths(tbl, {0.30, 0.35, 0.35})
+    end
+
+    -- Output formats field-reference type table:
+    --   Field | Type | When present
+    if contains(headers[1], "field")
+        and contains(headers[2], "type")
+        and contains(headers[3], "when present") then
+      return set_widths(tbl, {0.30, 0.20, 0.50})
+    end
+
+    -- SARIF rule table:
+    --   Rule ID | Level | Meaning
+    if contains(headers[1], "rule id")
+        and contains(headers[2], "level")
+        and contains(headers[3], "meaning") then
+      return set_widths(tbl, {0.32, 0.14, 0.54})
+    end
+
+    -- CLI-reference "Argument | Meaning | Default" — already covered earlier.
+    -- CLI-reference 3-col "Detected framework | Imports matched | Annotation set used"
+    -- — already covered earlier.
+
     if contains(headers[1], "priority")
         and contains(headers[2], "condition")
         and contains(headers[3], "action") then
@@ -335,6 +497,33 @@ function Table(tbl)
         and contains(headers[3], "type")
         and contains(headers[4], "meaning") then
       return set_widths(tbl, {0.25, 0.1, 0.15, 0.50})
+    end
+
+    -- Architecture per-module gates:
+    --   Module | JaCoCo floor | PIT floor | Notes
+    if contains(headers[1], "module")
+        and contains(headers[2], "jacoco")
+        and contains(headers[3], "pit") then
+      return set_widths(tbl, {0.28, 0.14, 0.14, 0.44})
+    end
+
+    -- Discovery plugin knob table:
+    --   Config knob | CLI flag | YAML key | What it does
+    if contains(headers[1], "config knob")
+        and contains(headers[2], "cli flag")
+        and contains(headers[3], "yaml key") then
+      return set_widths(tbl, {0.18, 0.22, 0.18, 0.42})
+    end
+
+    -- Migration "Area | What changed | Action required" (only three columns
+    -- but listed here for completeness; rule lives in column_count==3 branch).
+
+    -- Quality-gate per-module table:
+    --   Gate | Tool | Threshold | Scope
+    if contains(headers[1], "gate")
+        and contains(headers[2], "tool")
+        and contains(headers[3], "threshold") then
+      return set_widths(tbl, {0.30, 0.15, 0.25, 0.30})
     end
 
     -- Discovery plugins source-write-back support:
