@@ -109,26 +109,49 @@ function Table(tbl)
       return set_widths(tbl, {0.1, 0.9})
     end
 
+    -- Specific shape "Command | Condition" — Command holds full GitHub
+    -- Actions workflow-command syntax like
+    --   ::warning file=…,line=…,title=…::…
+    -- which is much wider than a single-token value. Must come BEFORE the
+    -- short-token rule below so the generic 'command' match does not fire.
+    if contains(headers[1], "command")
+        and contains(headers[2], "condition") then
+      return set_widths(tbl, {0.42, 0.58})
+    end
+
     -- Short-token left column paired with prose right column.
     -- Values like 'none', 'auto', '1.0', '-1', or single-flag identifiers
-    -- only need 18 %; the explanation column gets the rest. Matching is
+    -- only need 20 %; the explanation column gets the rest. Matching is
     -- on the header word in column 1.
     if contains(headers[1], "value")
         or contains(headers[1], "setting")
         or contains(headers[1], "code")
         or contains(headers[1], "token")
         or contains(headers[1], "level")
-        or contains(headers[1], "property")
-        or contains(headers[1], "command")
         or contains(headers[1], "limit") then
       return set_widths(tbl, {0.20, 0.80})
     end
 
-    -- Module / extension / aspect / area / element / framework / convention /
-    -- imports — slightly longer identifiers in column 1, but the prose still
+    -- Property | Description — property keys in the docs are camelCase
+    -- identifiers up to ~22 chars (aiInteractionScore). Give them 28 %
+    -- so they never collide with the description column.
+    if contains(headers[1], "property")
+        and (contains(headers[2], "description")
+             or contains(headers[2], "meaning")
+             or contains(headers[2], "details")) then
+      return set_widths(tbl, {0.28, 0.72})
+    end
+
+    -- Module names in this project are monospace dotted/hyphenated paths
+    -- up to 23+ chars (methodatlas-discovery-typescript). Give them more
+    -- room than the generic medium-identifier rule.
+    if contains(headers[1], "module") then
+      return set_widths(tbl, {0.30, 0.70})
+    end
+
+    -- Slightly longer identifiers in column 1, but the prose still
     -- dominates.
-    if contains(headers[1], "module")
-        or contains(headers[1], "extension")
+    if contains(headers[1], "extension")
         or contains(headers[1], "aspect")
         or contains(headers[1], "area")
         or contains(headers[1], "element")
@@ -339,9 +362,12 @@ function Table(tbl)
     end
 
     -- Discovery plugins "Property key | Meaning | Default" / "Default values":
+    -- Property-key column holds long dotted paths (python.maxConsecutiveRestarts,
+    -- typescript.workerTimeoutSec) in monospace; needs enough room for the
+    -- widest identifier on a single line.
     if contains(headers[1], "property key")
         and contains(headers[2], "meaning") then
-      return set_widths(tbl, {0.28, 0.50, 0.22})
+      return set_widths(tbl, {0.40, 0.42, 0.18})
     end
 
     -- Discovery plugins COBOL/ABAP "Convention | File extension(s) | What is emitted"
@@ -489,7 +515,12 @@ function Table(tbl)
         and contains(headers[2], "type")
         and contains(headers[3], "default")
         and contains(headers[4], "description") then
-      return set_widths(tbl, {0.3, 0.2, 0.2, 0.3})
+      -- Keys are full dotted property paths up to ~32 chars in monospace
+      -- (typescript.maxConsecutiveRestarts) with no internal break
+      -- opportunity, so the column must fit them on one line. Type and
+      -- Default columns still need enough room for List<String> and
+      -- common literal values; Description wraps freely.
+      return set_widths(tbl, {0.44, 0.16, 0.13, 0.27})
     end
 
     if contains(headers[1], "field")
