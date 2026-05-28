@@ -107,7 +107,7 @@ public record OllamaClient(AiOptions options, HttpJsonExecutor executor) impleme
             HttpRequest request = HttpRequest.newBuilder(uri).GET().timeout(options.timeout()).build();
             executor.httpSupport().httpClient().send(request, HttpResponse.BodyHandlers.discarding());
             return true;
-        } catch (Exception e) { // NOPMD - any probe failure means "unavailable"
+        } catch (Exception e) {
             return false;
         }
     }
@@ -124,7 +124,7 @@ public record OllamaClient(AiOptions options, HttpJsonExecutor executor) impleme
             String requestBody = executor.httpSupport().objectMapper().writeValueAsString(payload);
             URI uri = URI.create(options.baseUrl() + "/api/chat");
             request = executor.httpSupport().jsonPost(uri, requestBody, options.timeout()).build();
-        } catch (Exception e) { // NOPMD - payload serialisation failure
+        } catch (Exception e) {
             throw new AiSuggestionException("Ollama suggestion failed for " + fqcn, e);
         }
         return executor.execute("Ollama", fqcn, request, ChatResponse.class, response -> {

@@ -120,9 +120,10 @@ public final class HttpJsonExecutor {
             AiClassSuggestion suggestion = httpSupport.objectMapper().readValue(json, AiClassSuggestion.class);
             return AiProviderClient.normalize(suggestion);
 
-        } catch (Exception e) { // NOPMD - the original per-provider code wrapped every failure including
-                                // AiSuggestionException into a single user-facing "Provider suggestion
-                                // failed for X" message; preserve that contract here
+        } catch (Exception e) {
+            // The original per-provider code wrapped every failure (including an already-typed
+            // AiSuggestionException) into a single user-facing "<Provider> suggestion failed for X"
+            // message; the catch is intentionally broad to preserve that contract here.
             throw new AiSuggestionException(providerName + " suggestion failed for " + fqcn, e);
         }
     }

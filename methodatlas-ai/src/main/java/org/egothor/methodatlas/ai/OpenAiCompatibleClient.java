@@ -112,7 +112,7 @@ public record OpenAiCompatibleClient(AiOptions options, HttpJsonExecutor executo
             }
 
             request = requestBuilder.build();
-        } catch (Exception e) { // NOPMD - payload serialisation failure
+        } catch (Exception e) {
             throw new AiSuggestionException("OpenAI-compatible suggestion failed for " + fqcn, e);
         }
 

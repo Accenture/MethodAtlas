@@ -71,6 +71,13 @@ import java.util.logging.LogRecord;
 public final class JsonLineFormatter extends Formatter {
 
     /**
+     * Highest control-code code point that JSON requires to be escaped as a
+     * {@code \\u00XX} sequence. Characters strictly below {@code U+0020}
+     * (space) are not valid unescaped inside a JSON string per RFC 8259.
+     */
+    private static final char JSON_CONTROL_BOUNDARY = 0x20;
+
+    /**
      * Creates a new formatter. The class carries no instance state and is
      * safe to share across handlers.
      */
@@ -86,6 +93,7 @@ public final class JsonLineFormatter extends Formatter {
      * @return JSON-encoded log entry followed by a newline
      */
     @Override
+    @SuppressWarnings("PMD.DoNotUseThreads") // MethodAtlas is a CLI tool, not a J2EE webapp; current-thread name is metadata, not concurrency
     public String format(LogRecord record) {
         StringBuilder buf = new StringBuilder(256);
         buf.append('{');
@@ -142,7 +150,7 @@ public final class JsonLineFormatter extends Formatter {
                 case '\b' -> out.append("\\b");
                 case '\f' -> out.append("\\f");
                 default -> {
-                    if (c < 0x20) {
+                    if (c < JSON_CONTROL_BOUNDARY) {
                         out.append(String.format("\\u%04x", (int) c));
                     } else {
                         out.append(c);

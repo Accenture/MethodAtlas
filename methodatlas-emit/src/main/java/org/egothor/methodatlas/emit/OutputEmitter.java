@@ -3,8 +3,6 @@ package org.egothor.methodatlas.emit;
 import java.io.PrintWriter;
 import java.util.List;
 
-import org.egothor.methodatlas.emit.OutputMode;
-import org.egothor.methodatlas.emit.TagAiDrift;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
 /**

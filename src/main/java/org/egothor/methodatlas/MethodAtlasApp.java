@@ -271,7 +271,6 @@ public final class MethodAtlasApp {
         }
     }
 
-    @SuppressWarnings({"PMD.NPathComplexity", "PMD.CyclomaticComplexity"}) // dispatch over CLI modes
     private static int runWithScanRun(PrintWriter out, CliConfig cliConfig) throws IOException {
         AiRuntimeBuilder aiRuntimeBuilder = new AiRuntimeBuilder();
         ClassificationOverride override = new OverrideLoader().load(cliConfig.overrideFile());

@@ -6,8 +6,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.egothor.methodatlas.emit.TagAiDrift;
-import org.egothor.methodatlas.emit.TestMethodSink;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
 import com.fasterxml.jackson.annotation.JsonInclude;

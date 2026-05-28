@@ -101,7 +101,7 @@ public record AnthropicClient(AiOptions options, HttpJsonExecutor executor) impl
                     .header("x-api-key", options.resolvedApiKey())
                     .header("anthropic-version", "2023-06-01")
                     .build();
-        } catch (Exception e) { // NOPMD - payload serialisation failure
+        } catch (Exception e) {
             throw new AiSuggestionException("Anthropic suggestion failed for " + fqcn, e);
         }
 

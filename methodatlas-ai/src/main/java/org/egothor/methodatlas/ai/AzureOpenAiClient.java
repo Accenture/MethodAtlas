@@ -125,7 +125,7 @@ public record AzureOpenAiClient(AiOptions options, HttpJsonExecutor executor) im
             request = executor.httpSupport().jsonPost(uri, requestBody, options.timeout())
                     .header("api-key", options.resolvedApiKey())
                     .build();
-        } catch (Exception e) { // NOPMD - payload serialisation failure
+        } catch (Exception e) {
             throw new AiSuggestionException("Azure OpenAI suggestion failed for " + fqcn, e);
         }
 
