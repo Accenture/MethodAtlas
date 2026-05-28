@@ -9,8 +9,24 @@ local function lower(text)
   return string.lower(text or "")
 end
 
+-- Stringify a header cell across pandoc Lua API versions.
+--
+-- Pandoc < 2.10 represented a header cell directly as a list of blocks,
+-- which `pandoc.utils.stringify` accepts. Pandoc 2.10+ introduced the
+-- row-based table model where each entry is a `Cell` object; on
+-- versions before 2.17 `stringify` cannot accept a `Cell` directly and
+-- raises "table expected, got pandoc Cell". Reaching into `.contents`
+-- works on every version in the 2.10–2.17 range and is the canonical
+-- accessor in the new model.
 local function cell_text(cell)
-  return lower(pandoc.utils.stringify(cell))
+  if cell == nil then
+    return ""
+  end
+  local target = cell
+  if cell.contents ~= nil then
+    target = cell.contents
+  end
+  return lower(pandoc.utils.stringify(target))
 end
 
 local function header_texts(tbl)
