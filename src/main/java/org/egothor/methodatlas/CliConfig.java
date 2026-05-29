@@ -112,11 +112,22 @@ import org.egothor.methodatlas.emit.OutputMode;
  *                             {@code methodatlas-receipt.json} in the current
  *                             working directory is used; only honoured when
  *                             {@code emitReceipt} is {@code true}
+ * @param emitCoverage         when {@code true}, a control-coverage matrix is
+ *                             produced after the scan from the mapping supplied
+ *                             via {@code coverageMappingFile}
+ * @param coverageFile         target path for the coverage matrix JSON; when
+ *                             {@code null}, the default
+ *                             {@code controls-coverage.json} in the current
+ *                             working directory is used; only honoured when
+ *                             {@code emitCoverage} is {@code true}
+ * @param coverageMappingFile  user-authored tag→control mapping JSON file;
+ *                             required when {@code emitCoverage} is {@code true}
  */
 public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testMarkers, Map<String, List<String>> properties, boolean emitMetadata,
         ManualMode manualMode, boolean applyTags, boolean contentHash, Path overrideFile,
         boolean securityOnly, Path aiCacheFile, boolean driftDetect, Path applyTagsFromCsvFile,
         int mismatchLimit, boolean emitSourceRoot, boolean sarifOmitScores, double minConfidence,
-        boolean emitReceipt, Path receiptFile) {
+        boolean emitReceipt, Path receiptFile,
+        boolean emitCoverage, Path coverageFile, Path coverageMappingFile) {
 }

@@ -55,6 +55,9 @@ final class CliArgs {
     private static final String FLAG_MIN_CONFIDENCE = "-min-confidence";
     private static final String FLAG_EMIT_RECEIPT = "-emit-receipt";
     private static final String FLAG_RECEIPT_FILE = "-receipt-file";
+    private static final String FLAG_EMIT_COVERAGE = "-emit-coverage";
+    private static final String FLAG_COVERAGE_FILE = "-coverage-file";
+    private static final String FLAG_COVERAGE_MAPPING = "-coverage-mapping";
 
     /**
      * Prevents instantiation of this utility class.
@@ -92,7 +95,8 @@ final class CliArgs {
      *                                  or unsupported, or if the config file
      *                                  cannot be read
      */
-    @SuppressWarnings({"PMD.AvoidReassigningLoopVariables", "PMD.CyclomaticComplexity", "PMD.NPathComplexity", "PMD.NcssCount"})
+    @SuppressWarnings({"PMD.AvoidReassigningLoopVariables", "PMD.CyclomaticComplexity",
+            "PMD.NPathComplexity", "PMD.NcssCount", "PMD.CognitiveComplexity"})
     /* default */ static CliConfig parse(String... args) {
         // Pre-scan for -config to load YAML defaults before processing other flags.
         YamlConfig.YamlConfigFile yamlConfig = loadYamlConfigFromArgs(args);
@@ -133,6 +137,9 @@ final class CliArgs {
         int mismatchLimit = -1;
         boolean emitReceipt = false;
         Path receiptFile = null;
+        boolean emitCoverage = false;
+        Path coverageFile = null;
+        Path coverageMappingFile = null;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -193,6 +200,23 @@ final class CliArgs {
                     }
                     receiptFile = Paths.get(value);
                 }
+                case FLAG_EMIT_COVERAGE -> emitCoverage = true;
+                case FLAG_COVERAGE_FILE -> {
+                    String value = nextArg(args, ++i, arg);
+                    if (value.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "-coverage-file path must not be blank");
+                    }
+                    coverageFile = Paths.get(value);
+                }
+                case FLAG_COVERAGE_MAPPING -> {
+                    String value = nextArg(args, ++i, arg);
+                    if (value.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "-coverage-mapping path must not be blank");
+                    }
+                    coverageMappingFile = Paths.get(value);
+                }
                 case "-manual-prepare" -> {
                     manualWorkDir = nextArg(args, ++i, arg);
                     manualResponseDir = nextArg(args, ++i, arg);
@@ -228,12 +252,25 @@ final class CliArgs {
             securityOnly = true;
         }
 
+        // Coverage mode requires a user-authored mapping file; the tool ships no
+        // built-in mapping. Reject the request with a structured stderr message
+        // pointing at the reference template; the caller (MethodAtlasApp) maps
+        // the null return value to exit code 2.
+        if (emitCoverage && coverageMappingFile == null) {
+            System.err.println("Error: -emit-coverage requires -coverage-mapping <path>.");
+            System.err.println("A reference template and authoring guide are available at:");
+            System.err.println("  docs/examples/asvs4-mapping.json");
+            System.err.println("  docs/usage-modes/control-coverage.md");
+            return null;
+        }
+
         List<String> resolvedSuffixes = fileSuffixes.isEmpty() ? List.of(DEFAULT_FILE_SUFFIX) : fileSuffixes;
         Set<String> resolvedMarkers = testMarkers.isEmpty() ? Set.of() : testMarkers;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedMarkers,
                 Map.copyOf(properties), emitMetadata, manualMode, applyTags, contentHash, overrideFilePath,
                 securityOnly, aiCacheFile, driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot,
-                sarifOmitScores, minConfidence, emitReceipt, receiptFile);
+                sarifOmitScores, minConfidence, emitReceipt, receiptFile,
+                emitCoverage, coverageFile, coverageMappingFile);
     }
 
     // -------------------------------------------------------------------------

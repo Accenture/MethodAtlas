@@ -298,6 +298,32 @@ SARIF (OASIS Static Analysis Results Interchange Format) gives each finding a ph
 
 For the full result schema, rule IDs, and platform-specific integration notes, see [docs/output-formats.md](docs/output-formats.md#sarif-mode). For regulated-environment deployment guidance (PCI-DSS, ISO 27001, air-gapped), see [docs/deployment/](docs/deployment/index.md).
 
+## Control-coverage matrix
+
+`-emit-coverage` produces a JSON file that maps every requirement ID in a user-authored compliance mapping to the test methods that provide evidence for it. The mapping itself is data: the team authors it, the team owns it, and the auditor reviews it. MethodAtlas records what the mapping says — it ships no built-in interpretation of any compliance framework.
+
+The flag always requires `-coverage-mapping <path>`. Without it the tool exits with code `2` and prints a stderr message pointing at the reference template:
+
+```bash
+methodatlas -sarif -ai -ai-cache cache.csv \
+  -emit-coverage -coverage-mapping my-mapping.json \
+  src/
+```
+
+A reference template that maps the MethodAtlas built-in taxonomy onto ASVS 4.0 is checked in at [`docs/examples/asvs4-mapping.json`](docs/examples/asvs4-mapping.json). Copy it and adapt it to your project's compliance scope.
+
+The primary GRC deliverable is the `gaps` array — every control declared in the mapping that has zero covering tests. For tools that prefer a flat tabular import (one test per row, control denormalised), derive it with `jq`:
+
+```bash
+jq '[.coverage | to_entries[]
+     | .key as $ctrl | .value.tests[]
+     | {control: $ctrl, fqcn: .fqcn, method: .method,
+        displayName: .displayName, tagSource: .tagSource,
+        confidence: .confidence}]' controls-coverage.json
+```
+
+For the full field reference, authoring guide, and GRC platform notes, see [docs/usage-modes/control-coverage.md](docs/usage-modes/control-coverage.md).
+
 ## Reproducibility receipts
 
 `-emit-receipt` writes a small JSON sidecar after a scan that records the SHA-256 of every input that influenced the result: tool version, taxonomy source, override file, AI cache file, AI provider + model, and the static prompt template. An auditor can answer *"would a re-run today produce the same SARIF?"* by comparing two receipts instead of repeating the scan.

@@ -28,6 +28,7 @@ import org.egothor.methodatlas.command.PluginLoader;
 import org.egothor.methodatlas.command.SarifCommand;
 import org.egothor.methodatlas.command.ScanCommand;
 import org.egothor.methodatlas.command.ScanOrchestrator;
+import org.egothor.methodatlas.coverage.CoverageFacade;
 import org.egothor.methodatlas.receipt.ReceiptFacade;
 
 /**
@@ -186,6 +187,9 @@ public final class MethodAtlasApp {
     /** Tool version fallback when the JAR manifest carries no Implementation-Version. */
     private static final String DEV_VERSION = "dev";
 
+    /** Exit code returned when CLI validation rejects the requested invocation. */
+    private static final int EXIT_BAD_ARGS = 2;
+
     /**
      * Prevents instantiation of this utility class.
      */
@@ -263,6 +267,21 @@ public final class MethodAtlasApp {
         }
 
         CliConfig cliConfig = CliArgs.parse(args);
+        if (cliConfig == null) {
+            // CliArgs already printed an actionable stderr message; signal
+            // bad-args via the conventional exit code 2.
+            return EXIT_BAD_ARGS;
+        }
+
+        // Load the coverage mapping up-front so a malformed file aborts the run
+        // before the scan starts, avoiding wasted work and ambiguous errors.
+        CoverageFacade.Handle coverageHandle;
+        try {
+            coverageHandle = prepareCoverageHandle(cliConfig);
+        } catch (IOException | IllegalArgumentException e) {
+            System.err.println("Error loading coverage mapping: " + e.getMessage());
+            return EXIT_BAD_ARGS;
+        }
 
         // Establish the run identity once and place it in the thread-local
         // context so the JUL formatter (Item 20) can prepend the correlation
@@ -274,13 +293,56 @@ public final class MethodAtlasApp {
         ScanRun scanRun = ScanRun.create(version, cliConfig.toString());
         ScanRunContext.set(scanRun);
         try {
-            int exit = runWithScanRun(out, cliConfig);
+            int exit = runWithScanRun(out, cliConfig, coverageHandle);
             if (cliConfig.emitReceipt()) {
                 emitReceipt(cliConfig, version);
+            }
+            if (coverageHandle != null) {
+                writeCoverage(cliConfig, version, coverageHandle);
             }
             return exit;
         } finally {
             ScanRunContext.clear();
+        }
+    }
+
+    /**
+     * Loads the coverage mapping when {@code -emit-coverage} is active.
+     *
+     * @param cliConfig parsed CLI configuration
+     * @return prepared handle or {@code null} when coverage mode is not active
+     * @throws IOException              if the mapping file cannot be read
+     * @throws IllegalArgumentException if the mapping file fails validation
+     */
+    private static CoverageFacade.Handle prepareCoverageHandle(CliConfig cliConfig)
+            throws IOException {
+        if (!cliConfig.emitCoverage()) {
+            return null;
+        }
+        return CoverageFacade.prepare(cliConfig.coverageMappingFile(), cliConfig.minConfidence());
+    }
+
+    /**
+     * Writes the coverage report. Errors are logged and swallowed so a
+     * coverage-write failure never demotes a successful scan.
+     *
+     * @param cliConfig parsed CLI configuration
+     * @param version   resolved tool version
+     * @param handle    prepared coverage handle; never {@code null}
+     */
+    private static void writeCoverage(CliConfig cliConfig, String version,
+            CoverageFacade.Handle handle) {
+        String toolVersion = version != null ? version : DEV_VERSION;
+        Path target = cliConfig.coverageFile() != null
+                ? cliConfig.coverageFile()
+                : Path.of(CoverageFacade.DEFAULT_COVERAGE_FILENAME);
+        try {
+            handle.write(toolVersion, target);
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Could not write coverage report: {0}", e.getMessage());
+            }
         }
     }
 
@@ -311,7 +373,8 @@ public final class MethodAtlasApp {
         }
     }
 
-    private static int runWithScanRun(PrintWriter out, CliConfig cliConfig) throws IOException {
+    private static int runWithScanRun(PrintWriter out, CliConfig cliConfig,
+            CoverageFacade.Handle coverageHandle) throws IOException {
         AiRuntimeBuilder aiRuntimeBuilder = new AiRuntimeBuilder();
         ClassificationOverride override = new OverrideLoader().load(cliConfig.overrideFile());
         AiResultCache aiCache = aiRuntimeBuilder.buildCache(cliConfig.aiCacheFile());
@@ -321,9 +384,15 @@ public final class MethodAtlasApp {
 
         // One PluginLoader + one ScanOrchestrator are shared by every command in
         // this run; both are stateless and the providers they resolve are owned
-        // (and closed) by the command that requested them.
+        // (and closed) by the command that requested them. When -emit-coverage
+        // is active the orchestrator carries the coverage sink as an extra
+        // fan-out — every command mode sees the same fan-out automatically.
         PluginLoader pluginLoader = new PluginLoader();
-        ScanOrchestrator scanOrchestrator = new ScanOrchestrator(pluginLoader);
+        java.util.Optional<org.egothor.methodatlas.emit.TestMethodSink> extraSink =
+                coverageHandle == null
+                        ? java.util.Optional.empty()
+                        : java.util.Optional.of(coverageHandle.asSink());
+        ScanOrchestrator scanOrchestrator = new ScanOrchestrator(pluginLoader, extraSink);
 
         // Manual prepare phase: write AI prompt work files; no CSV output.
         if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {

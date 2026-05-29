@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 import org.egothor.methodatlas.AiResultCache;
 import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.egothor.methodatlas.CliConfig;
+import org.egothor.methodatlas.emit.CompositeTestMethodSink;
 import org.egothor.methodatlas.emit.TestMethodSink;
 import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
@@ -96,15 +98,44 @@ public final class ScanOrchestrator {
     private final PluginLoader pluginLoader;
 
     /**
-     * Creates a new orchestrator that will resolve providers through
-     * {@code pluginLoader}.
+     * Optional secondary sink that observes every record alongside the
+     * command's primary sink. {@code null} means no fan-out.
+     */
+    private final TestMethodSink extraSink;
+
+    /**
+     * Creates a new orchestrator with no extra sink.
      *
      * @param pluginLoader plugin loader used by {@link #scan} and
      *                     {@link #collectMethodsByFile}; must not be
      *                     {@code null}
      */
     public ScanOrchestrator(PluginLoader pluginLoader) {
+        this(pluginLoader, Optional.empty());
+    }
+
+    /**
+     * Creates a new orchestrator that fans out every record to {@code extraSink}
+     * in addition to the command's primary sink.
+     *
+     * <p>
+     * The extra sink, when present, is composed with the primary sink at the
+     * {@link #runDiscovery} boundary so every command mode (SARIF, JSON, CSV,
+     * GitHub annotations) sees the same fan-out automatically. When
+     * {@code extraSink} is {@link Optional#empty()} the orchestrator behaves
+     * identically to the legacy single-sink constructor.
+     * </p>
+     *
+     * @param pluginLoader plugin loader used by {@link #scan} and
+     *                     {@link #collectMethodsByFile}; must not be
+     *                     {@code null}
+     * @param extraSink    optional secondary sink invoked in addition to the
+     *                     command-supplied primary sink; must not be
+     *                     {@code null} (use {@link Optional#empty()})
+     */
+    public ScanOrchestrator(PluginLoader pluginLoader, Optional<TestMethodSink> extraSink) {
         this.pluginLoader = pluginLoader;
+        this.extraSink = extraSink.orElse(null);
     }
 
     /**
@@ -174,6 +205,7 @@ public final class ScanOrchestrator {
             boolean contentHashEnabled, ClassificationOverride override,
             AiResultCache aiCache) throws IOException {
 
+        TestMethodSink effectiveSink = wrapWithExtraSink(sink);
         List<DiscoveredMethod> methods = new ArrayList<>();
         boolean hadErrors = false;
         for (TestDiscovery provider : providers) {
@@ -209,13 +241,28 @@ public final class ScanOrchestrator {
                     fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash);
 
             for (DiscoveredMethod m : classMethods) {
-                sink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
+                effectiveSink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
                         m.tags(), m.displayName(),
                         suggestions.find(m.method()).orElse(null));
             }
         }
 
         return hadErrors;
+    }
+
+    /**
+     * Wraps {@code primary} with {@link CompositeTestMethodSink} when an
+     * extra sink was supplied to the constructor; returns {@code primary}
+     * unchanged otherwise.
+     *
+     * @param primary command-supplied primary sink
+     * @return effective sink to feed during this discovery pass
+     */
+    private TestMethodSink wrapWithExtraSink(TestMethodSink primary) {
+        if (extraSink == null) {
+            return primary;
+        }
+        return new CompositeTestMethodSink(primary, extraSink);
     }
 
     /**

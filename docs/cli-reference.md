@@ -34,6 +34,9 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-diff <before.csv> <after.csv>` | Compare two MethodAtlas scan outputs and emit a delta report; all other flags are ignored | — |
 | `-emit-receipt` | Write a reproducibility receipt JSON sidecar after the scan capturing the SHA-256 of every input that influenced the result | Off |
 | `-receipt-file <path>` | Override the receipt output path | `methodatlas-receipt.json` in CWD |
+| `-emit-coverage` | Write a control-coverage matrix mapping compliance requirement IDs to covering test methods; requires `-coverage-mapping` | Off |
+| `-coverage-mapping <path>` | User-authored tag → control mapping JSON; required when `-emit-coverage` is present | — |
+| `-coverage-file <path>` | Override the coverage matrix output path | `controls-coverage.json` in CWD |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
 ## AI options
@@ -799,6 +802,20 @@ A receipt-write failure logs a `WARNING` via `java.util.logging` and never affec
 
 Overrides the default receipt output path (`methodatlas-receipt.json` in the current working directory). Only honoured when `-emit-receipt` is also supplied. The value must not be blank.
 
+### `-emit-coverage`
+
+After the scan, writes a JSON control-coverage matrix that maps every requirement ID in the mapping supplied via `-coverage-mapping` to the test methods that provide evidence for it. The flag is opt-in and the mapping file is required — see the next entry. The output also includes a sorted `gaps` array enumerating every uncovered control and a `statistics` block with the coverage percentage. See [Control-Coverage Matrix](usage-modes/control-coverage.md) for the full schema and authoring guidance.
+
+A coverage-write failure logs a `WARNING` and never affects the scan's exit code. A mapping-load failure is fatal — exit code `2`.
+
+### `-coverage-mapping <path>`
+
+User-authored JSON file mapping taxonomy tags to compliance requirement IDs. **Required when `-emit-coverage` is present.** Without it the tool exits with code `2` and prints a stderr message pointing at the reference template at [`docs/examples/asvs4-mapping.json`](usage-modes/control-coverage.md). The value must not be blank.
+
+### `-coverage-file <path>`
+
+Overrides the default coverage matrix output path (`controls-coverage.json` in the current working directory). Only honoured when `-emit-coverage` is also supplied. The value must not be blank.
+
 For practical examples grouped by use case, see [CLI Examples](cli-examples.md).
 
 ## Exit codes
@@ -809,5 +826,6 @@ For practical examples grouped by use case, see [CLI Examples](cli-examples.md).
 | `1` | `-apply-tags-from-csv` aborted because the mismatch count reached or exceeded `-mismatch-limit` |
 | `1` | A source file could not be read or written during `-apply-tags-from-csv` |
 | `1` | A required argument value is missing or malformed (printed to stderr before exit) |
+| `2` | `-emit-coverage` was used without `-coverage-mapping`, or the supplied mapping file is missing or fails schema validation |
 
-Note: AI classification failures for individual classes (provider timeout, parse error in the AI response) do not cause a non-zero exit. The affected rows are emitted with blank AI columns and the scan continues. Only structural errors — bad arguments, mismatch-limit violations, and I/O failures during source write-back — produce exit code `1`. A failure to write the optional reproducibility receipt (`-emit-receipt`) is also non-fatal: a `WARNING` is logged and the scan keeps its original exit code.
+Note: AI classification failures for individual classes (provider timeout, parse error in the AI response) do not cause a non-zero exit. The affected rows are emitted with blank AI columns and the scan continues. Only structural errors — bad arguments, mismatch-limit violations, and I/O failures during source write-back — produce exit code `1`. Failures to write the optional reproducibility receipt (`-emit-receipt`) or the optional coverage matrix (`-emit-coverage`) are also non-fatal: a `WARNING` is logged and the scan keeps its original exit code. The exception is mapping-file validation for `-emit-coverage`, which runs before the scan and fails fast with exit code `2`.

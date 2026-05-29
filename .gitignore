@@ -119,3 +119,9 @@ gradle-app.setting
 # Ignore Gradle build output directory
 build
 
+# Default sidecar artefacts produced by optional CLI flags. Tests
+# occasionally land them at the repo root when pitest mutates the
+# output-path branch; ignore so they never get committed.
+methodatlas-receipt.json
+controls-coverage.json
+

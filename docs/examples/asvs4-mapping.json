@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1",
+  "framework": "ASVS",
+  "frameworkVersion": "4.0",
+  "_comment": "Reference template only — not loaded automatically. Review and adapt to your project's compliance scope before use. See docs/usage-modes/control-coverage.md for authoring guidance.",
+  "_sourceDocument": "docs/concepts/asvs-mapping.md",
+  "notes": [
+    "The 'security' tag is an umbrella marker; it has no specific control mapping.",
+    "The 'owasp' tag signals multi-chapter coverage; use specific tags for GRC output."
+  ],
+  "tagToControls": {
+    "auth": [
+      { "id": "2.1.1", "chapter": "V2", "chapterTitle": "Authentication Verification Requirements" },
+      { "id": "2.1.7", "chapter": "V2", "chapterTitle": "Authentication Verification Requirements" },
+      { "id": "2.2.1", "chapter": "V2", "chapterTitle": "Authentication Verification Requirements" },
+      { "id": "2.4.1", "chapter": "V2", "chapterTitle": "Authentication Verification Requirements" },
+      { "id": "2.6.1", "chapter": "V2", "chapterTitle": "Authentication Verification Requirements" },
+      { "id": "3.2.1", "chapter": "V3", "chapterTitle": "Session Management Verification Requirements" },
+      { "id": "3.3.1", "chapter": "V3", "chapterTitle": "Session Management Verification Requirements" },
+      { "id": "3.3.2", "chapter": "V3", "chapterTitle": "Session Management Verification Requirements" },
+      { "id": "3.4.1", "chapter": "V3", "chapterTitle": "Session Management Verification Requirements" },
+      { "id": "3.7.1", "chapter": "V3", "chapterTitle": "Session Management Verification Requirements" }
+    ],
+    "access-control": [
+      { "id": "4.1.1", "chapter": "V4", "chapterTitle": "Access Control Verification Requirements" },
+      { "id": "4.1.2", "chapter": "V4", "chapterTitle": "Access Control Verification Requirements" },
+      { "id": "4.1.3", "chapter": "V4", "chapterTitle": "Access Control Verification Requirements" },
+      { "id": "4.2.1", "chapter": "V4", "chapterTitle": "Access Control Verification Requirements" },
+      { "id": "4.3.1", "chapter": "V4", "chapterTitle": "Access Control Verification Requirements" }
+    ],
+    "input-validation": [
+      { "id": "5.1.1", "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" },
+      { "id": "5.1.2", "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" },
+      { "id": "5.1.3", "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" },
+      { "id": "5.2.1", "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" },
+      { "id": "5.3.1", "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" }
+    ],
+    "injection": [
+      { "id": "5.3.4",  "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" },
+      { "id": "5.3.5",  "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" },
+      { "id": "5.3.8",  "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" },
+      { "id": "5.3.10", "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" },
+      { "id": "5.3.14", "chapter": "V5", "chapterTitle": "Validation, Sanitization and Encoding" }
+    ],
+    "crypto": [
+      { "id": "6.2.1", "chapter": "V6", "chapterTitle": "Stored Cryptography Verification Requirements" },
+      { "id": "6.2.2", "chapter": "V6", "chapterTitle": "Stored Cryptography Verification Requirements" },
+      { "id": "6.2.3", "chapter": "V6", "chapterTitle": "Stored Cryptography Verification Requirements" },
+      { "id": "6.3.1", "chapter": "V6", "chapterTitle": "Stored Cryptography Verification Requirements" },
+      { "id": "6.4.1", "chapter": "V6", "chapterTitle": "Stored Cryptography Verification Requirements" },
+      { "id": "9.1.1", "chapter": "V9", "chapterTitle": "Communications Verification Requirements" },
+      { "id": "9.1.2", "chapter": "V9", "chapterTitle": "Communications Verification Requirements" },
+      { "id": "9.1.3", "chapter": "V9", "chapterTitle": "Communications Verification Requirements" },
+      { "id": "9.2.1", "chapter": "V9", "chapterTitle": "Communications Verification Requirements" },
+      { "id": "9.3.1", "chapter": "V9", "chapterTitle": "Communications Verification Requirements" }
+    ],
+    "logging": [
+      { "id": "7.1.1", "chapter": "V7", "chapterTitle": "Error Handling and Logging Verification Requirements" },
+      { "id": "7.1.2", "chapter": "V7", "chapterTitle": "Error Handling and Logging Verification Requirements" },
+      { "id": "7.2.1", "chapter": "V7", "chapterTitle": "Error Handling and Logging Verification Requirements" },
+      { "id": "7.2.2", "chapter": "V7", "chapterTitle": "Error Handling and Logging Verification Requirements" },
+      { "id": "7.3.1", "chapter": "V7", "chapterTitle": "Error Handling and Logging Verification Requirements" }
+    ],
+    "error-handling": [
+      { "id": "7.4.1", "chapter": "V7", "chapterTitle": "Error Handling and Logging Verification Requirements" },
+      { "id": "7.4.2", "chapter": "V7", "chapterTitle": "Error Handling and Logging Verification Requirements" }
+    ],
+    "data-protection": [
+      { "id": "8.1.1", "chapter": "V8", "chapterTitle": "Data Protection Verification Requirements" },
+      { "id": "8.2.1", "chapter": "V8", "chapterTitle": "Data Protection Verification Requirements" },
+      { "id": "8.2.2", "chapter": "V8", "chapterTitle": "Data Protection Verification Requirements" },
+      { "id": "8.3.1", "chapter": "V8", "chapterTitle": "Data Protection Verification Requirements" },
+      { "id": "8.3.4", "chapter": "V8", "chapterTitle": "Data Protection Verification Requirements" }
+    ]
+  }
+}

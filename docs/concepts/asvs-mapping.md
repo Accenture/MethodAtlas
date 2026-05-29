@@ -9,6 +9,12 @@ This page maps each MethodAtlas security taxonomy tag to the corresponding
 ASVS chapter and describes how to use the mapping to plan test coverage
 against specific ASVS verification levels.
 
+The machine-readable form of this table used as input to `-emit-coverage`
+is provided as a reference template at
+[`docs/examples/asvs4-mapping.json`](../examples/asvs4-mapping.json); see
+[`docs/usage-modes/control-coverage.md`](../usage-modes/control-coverage.md)
+for authoring guidance.
+
 ## Mapping table
 
 The table below maps each MethodAtlas security taxonomy tag to the corresponding ASVS 4.0 chapter and to representative specific requirement identifiers within that chapter. The requirement identifiers (e.g. `2.1.1`) are taken directly from the ASVS 4.0 standard.

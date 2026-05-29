@@ -11,6 +11,7 @@ can be layered on top of any mode that produces AI output or a reviewed CSV.
 | [Source write-back (AI)](apply-tags.md) | Combined with above | Depends | — |
 | [Source write-back (CSV)](apply-tags-from-csv.md) | No | No | — |
 | [Reproducibility receipts](reproducibility-receipts.md) | Optional | No | JSON sidecar pinning input fingerprints |
+| [Control-coverage matrix](control-coverage.md) | Optional | No | JSON map from compliance controls to covering tests |
 
 Choose the mode that fits your infrastructure constraints:
 
