@@ -10,6 +10,7 @@ can be layered on top of any mode that produces AI output or a reviewed CSV.
 | [Manual AI workflow](manual.md) | Yes — via chat | No | CSV, plain text, SARIF, JSON |
 | [Source write-back (AI)](apply-tags.md) | Combined with above | Depends | — |
 | [Source write-back (CSV)](apply-tags-from-csv.md) | No | No | — |
+| [Reproducibility receipts](reproducibility-receipts.md) | Optional | No | JSON sidecar pinning input fingerprints |
 
 Choose the mode that fits your infrastructure constraints:
 

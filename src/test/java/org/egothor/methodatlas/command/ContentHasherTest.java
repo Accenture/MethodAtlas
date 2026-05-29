@@ -6,8 +6,12 @@ package org.egothor.methodatlas.command;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -89,5 +93,40 @@ class ContentHasherTest {
         String prefix = ContentHasher.filePrefix(List.of(tempDir));
         assertFalse(prefix.contains("\\"),
                 "Prefix must use forward slashes regardless of host OS");
+    }
+
+    // ── hashFile ─────────────────────────────────────────────────────────────
+
+    @Test
+    void hashFile_matchesHashClassForSameUtf8Content(@TempDir Path tempDir) throws IOException {
+        String content = "MethodAtlas reproducibility content\n";
+        Path file = tempDir.resolve("input.txt");
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+        assertEquals(ContentHasher.hashClass(content), ContentHasher.hashFile(file),
+                "hashFile and hashClass must agree for identical UTF-8 byte sequences");
+    }
+
+    @Test
+    void hashFile_isDeterministicAcrossCalls(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("stable.txt");
+        Files.writeString(file, "alpha-beta-gamma", StandardCharsets.UTF_8);
+        assertEquals(ContentHasher.hashFile(file), ContentHasher.hashFile(file),
+                "Two calls on the same file must return equal digests");
+    }
+
+    @Test
+    void hashFile_throwsIoExceptionOnMissingFile(@TempDir Path tempDir) {
+        Path absent = tempDir.resolve("does-not-exist.txt");
+        assertThrows(IOException.class, () -> ContentHasher.hashFile(absent),
+                "Missing files must surface as IOException, not silently succeed");
+    }
+
+    @Test
+    void hashFile_emptyFileMatchesPublishedShaOfEmptyInput(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("empty.txt");
+        Files.writeString(file, "", StandardCharsets.UTF_8);
+        assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                ContentHasher.hashFile(file),
+                "Empty file must match the canonical SHA-256 of an empty byte string");
     }
 }

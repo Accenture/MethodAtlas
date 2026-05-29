@@ -3,7 +3,9 @@
 // Copyright 2026 Accenture
 package org.egothor.methodatlas.command;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -82,6 +84,39 @@ public final class ContentHasher {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] bytes = digest.digest(classSource.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(bytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    /**
+     * Computes a SHA-256 content fingerprint of the raw bytes of a file.
+     *
+     * <p>
+     * The algorithm and output format are identical to
+     * {@link #hashClass(String)} — SHA-256 (FIPS 180-4) followed by lowercase
+     * hexadecimal encoding via {@link HexFormat#of()}. The only difference is
+     * the input source: this overload reads bytes from disk verbatim rather
+     * than taking an in-memory canonical class source string. Use it to
+     * fingerprint configuration artefacts such as override YAML files,
+     * taxonomy files, and AI cache CSVs whose semantic identity is the
+     * entire file contents, not a parsed/normalised view.
+     * </p>
+     *
+     * @param file path to the file to fingerprint; must not be {@code null}
+     *             and must point to a readable regular file
+     * @return 64-character lowercase hexadecimal SHA-256 digest; never
+     *         {@code null}, never empty
+     * @throws IOException           if {@code file} cannot be read
+     * @throws IllegalStateException if SHA-256 is unavailable — never in
+     *                               practice, because SHA-256 is mandated by
+     *                               the Java SE specification
+     */
+    public static String hashFile(Path file) throws IOException {
+        byte[] bytes = Files.readAllBytes(file);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(bytes));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);
         }

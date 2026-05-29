@@ -53,6 +53,8 @@ final class CliArgs {
     private static final String FLAG_APPLY_TAGS_FROM_CSV = "-apply-tags-from-csv";
     private static final String FLAG_MISMATCH_LIMIT = "-mismatch-limit";
     private static final String FLAG_MIN_CONFIDENCE = "-min-confidence";
+    private static final String FLAG_EMIT_RECEIPT = "-emit-receipt";
+    private static final String FLAG_RECEIPT_FILE = "-receipt-file";
 
     /**
      * Prevents instantiation of this utility class.
@@ -129,6 +131,8 @@ final class CliArgs {
         Path aiCacheFile = null;
         Path applyTagsFromCsvFile = null;
         int mismatchLimit = -1;
+        boolean emitReceipt = false;
+        Path receiptFile = null;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -180,6 +184,15 @@ final class CliArgs {
                 case FLAG_EMIT_SOURCE_ROOT -> emitSourceRoot = true;
                 case FLAG_MIN_CONFIDENCE -> minConfidence = parseConfidenceThreshold(nextArg(args, ++i, arg));
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_EMIT_RECEIPT -> emitReceipt = true;
+                case FLAG_RECEIPT_FILE -> {
+                    String value = nextArg(args, ++i, arg);
+                    if (value.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "-receipt-file path must not be blank");
+                    }
+                    receiptFile = Paths.get(value);
+                }
                 case "-manual-prepare" -> {
                     manualWorkDir = nextArg(args, ++i, arg);
                     manualResponseDir = nextArg(args, ++i, arg);
@@ -220,7 +233,7 @@ final class CliArgs {
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedMarkers,
                 Map.copyOf(properties), emitMetadata, manualMode, applyTags, contentHash, overrideFilePath,
                 securityOnly, aiCacheFile, driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot,
-                sarifOmitScores, minConfidence);
+                sarifOmitScores, minConfidence, emitReceipt, receiptFile);
     }
 
     // -------------------------------------------------------------------------

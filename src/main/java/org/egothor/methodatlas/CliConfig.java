@@ -103,10 +103,20 @@ import org.egothor.methodatlas.emit.OutputMode;
  *                             {@code 0.0} and filtering on it would incorrectly
  *                             drop all methods; the default {@code 0.0} disables
  *                             the filter entirely
+ * @param emitReceipt          when {@code true}, a reproducibility receipt
+ *                             JSON file is written after a successful scan
+ *                             capturing the SHA-256 of every input that
+ *                             influenced the result
+ * @param receiptFile          target path for the reproducibility receipt; when
+ *                             {@code null}, the default
+ *                             {@code methodatlas-receipt.json} in the current
+ *                             working directory is used; only honoured when
+ *                             {@code emitReceipt} is {@code true}
  */
 public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testMarkers, Map<String, List<String>> properties, boolean emitMetadata,
         ManualMode manualMode, boolean applyTags, boolean contentHash, Path overrideFile,
         boolean securityOnly, Path aiCacheFile, boolean driftDetect, Path applyTagsFromCsvFile,
-        int mismatchLimit, boolean emitSourceRoot, boolean sarifOmitScores, double minConfidence) {
+        int mismatchLimit, boolean emitSourceRoot, boolean sarifOmitScores, double minConfidence,
+        boolean emitReceipt, Path receiptFile) {
 }

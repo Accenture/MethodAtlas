@@ -1,5 +1,9 @@
 package org.egothor.methodatlas.ai;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -51,6 +55,106 @@ import java.util.stream.Collectors;
 public final class PromptBuilder {
 
     /**
+     * Static skeleton of the prompt with every variable slot replaced by a
+     * named placeholder ({@code {taxonomy}}, {@code {methods}},
+     * {@code {expectedMethodNames}}, {@code {fqcn}}, {@code {classSource}}).
+     *
+     * <p>
+     * Hashing this constant via {@link #templateHash()} produces a stable
+     * fingerprint of the prompt-engineering strategy itself. Any change to
+     * the surrounding instructions — but not to the data filled into the
+     * slots — changes the fingerprint and tells an auditor that AI cache
+     * entries produced under the previous tool version may no longer be
+     * directly comparable.
+     * </p>
+     *
+     * <p>
+     * Package-private so {@link #templateHash()} can hash it without
+     * exposing the multi-kilobyte string on the public API surface; tests
+     * inside the same package can still inspect it directly.
+     * </p>
+     */
+    /* default */ static final String PROMPT_TEMPLATE_SKELETON = """
+            You are analyzing a single JUnit 5 test class and suggesting security tags.
+
+            TASK
+            - Analyze the WHOLE class for context.
+            - Classify ONLY the methods explicitly listed in TARGET TEST METHODS.
+            - Do not invent methods that do not exist.
+            - Do not classify helper methods, lifecycle methods, nested classes, or any method not listed.
+            - Be conservative.
+            - If uncertain, classify the method as securityRelevant=false.
+            - Ignore pure functional / performance / UX tests unless they explicitly validate a security property.
+
+            CONTROLLED TAXONOMY
+            {taxonomy}
+
+            TARGET TEST METHODS
+            The following methods were extracted deterministically by the parser and are the ONLY methods
+            you are allowed to classify. Use the full class source only as context for understanding them.
+
+            {methods}
+
+            OUTPUT RULES
+            - Return JSON only.
+            - No markdown.
+            - No prose outside JSON.
+            - Return exactly one result for each target method.
+            - methodName values in the output must exactly match one of:
+              [{expectedMethodNames}]
+            - Do not omit any listed method.
+            - Do not include any additional methods.
+            - Tags must come only from this closed set:
+              security, auth, access-control, crypto, input-validation, injection, data-protection, logging, error-handling, owasp
+            - If securityRelevant=true, tags MUST include "security".
+            - Add 1-3 tags total per method.
+            - If securityRelevant=false, displayName must be null.
+            - If securityRelevant=false, tags must be [].
+            - If securityRelevant=true, displayName must match:
+              SECURITY: <control/property> - <scenario>
+            - reason should be short and specific.
+            - interactionScore must be a decimal between 0.0 and 1.0 (one decimal place is sufficient).
+              It measures what fraction of this test's assertions only verify *interactions* (that
+              methods were called, in what order, with what arguments) rather than *outcomes* (return
+              values, computed state, thrown exceptions, or observable side effects).
+              Use these anchor points:
+                1.0 — EVERY assertion is an interaction check (e.g. verify() only); NO assertion
+                      verifies any return value, output field, database row, or observable outcome.
+                0.0 — ALL assertions verify actual outputs or state; no interaction-only checks.
+                0.5 — mixed: some real-output assertions alongside interaction checks.
+              Score 1.0 only when there is NO assertion on any return value, state change, or
+              observable outcome. A test that has even one meaningful output assertion scores ≤ 0.5.
+              This applies regardless of testing framework (Mockito, EasyMock, WireMock, etc.).
+
+            JSON SHAPE
+            {
+              "className": "string",
+              "classSecurityRelevant": true,
+              "classTags": ["security", "crypto"],
+              "classReason": "string",
+              "methods": [
+                {
+                  "methodName": "string",
+                  "securityRelevant": true,
+                  "displayName": "SECURITY: ...",
+                  "tags": ["security", "crypto"],
+                  "reason": "string",
+                  "interactionScore": 0.0
+                }
+              ]
+            }
+
+            CLASS
+            FQCN: {fqcn}
+
+            SOURCE
+            {classSource}
+            """;
+
+    /** SHA-256 algorithm identifier; mandated by the Java SE specification. */
+    private static final String SHA256_ALGO = "SHA-256";
+
+    /**
      * Deterministically extracted test method descriptor supplied to the prompt.
      *
      * @param methodName name of the JUnit test method
@@ -70,6 +174,37 @@ public final class PromptBuilder {
      * Prevents instantiation of this utility class.
      */
     private PromptBuilder() {
+    }
+
+    /**
+     * Returns the SHA-256 hex digest of the static prompt template structure.
+     *
+     * <p>
+     * The hashed input is the fixed skeleton stored in
+     * {@link #PROMPT_TEMPLATE_SKELETON} — i.e. the prompt with every per-class
+     * variable slot replaced by a literal placeholder. Per-class inputs (class
+     * source, taxonomy text, target methods, FQCN) deliberately do <b>not</b>
+     * influence this hash; only the prompt-engineering structure does.
+     * </p>
+     *
+     * <p>
+     * Changes to this value between tool versions indicate that the AI
+     * prompting strategy changed and prior AI cache entries may not transfer
+     * cleanly. Reproducibility receipts include it as part of the
+     * {@code configHash} canonical input.
+     * </p>
+     *
+     * @return 64-character lowercase hexadecimal SHA-256 digest of the static
+     *         template skeleton; never {@code null}, never empty
+     */
+    public static String templateHash() {
+        try {
+            MessageDigest digest = MessageDigest.getInstance(SHA256_ALGO);
+            return HexFormat.of().formatHex(
+                    digest.digest(PROMPT_TEMPLATE_SKELETON.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 
     /**

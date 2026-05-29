@@ -298,6 +298,20 @@ SARIF (OASIS Static Analysis Results Interchange Format) gives each finding a ph
 
 For the full result schema, rule IDs, and platform-specific integration notes, see [docs/output-formats.md](docs/output-formats.md#sarif-mode). For regulated-environment deployment guidance (PCI-DSS, ISO 27001, air-gapped), see [docs/deployment/](docs/deployment/index.md).
 
+## Reproducibility receipts
+
+`-emit-receipt` writes a small JSON sidecar after a scan that records the SHA-256 of every input that influenced the result: tool version, taxonomy source, override file, AI cache file, AI provider + model, and the static prompt template. An auditor can answer *"would a re-run today produce the same SARIF?"* by comparing two receipts instead of repeating the scan.
+
+Pair the flag with [`-ai-cache`](docs/cli-reference.md#-ai-cache) for a formal bit-exact replay guarantee — every AI classification served from cache sets the receipt's `deterministicReplay` field to `true`:
+
+```bash
+methodatlas -sarif -ai -ai-cache cache.csv -emit-receipt src/
+```
+
+The receipt is written to `methodatlas-receipt.json` in the working directory by default; use `-receipt-file <path>` to redirect it. A `configHash` field carries a 64-character SHA-256 fingerprint computed from the input set so two receipts can be compared by hash alone. Failures to write the receipt log a `WARNING` and do not affect the scan's exit code.
+
+For the complete field reference, the `configHash` re-derivation algorithm, and worked-example comparisons, see [docs/usage-modes/reproducibility-receipts.md](docs/usage-modes/reproducibility-receipts.md).
+
 ## AI security classification
 
 When `-ai` is enabled, MethodAtlas submits each parsed test class to a configured AI provider for security classification. The model receives:

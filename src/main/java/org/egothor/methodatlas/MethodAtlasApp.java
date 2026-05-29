@@ -7,6 +7,8 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.egothor.methodatlas.ai.ManualConsumeEngine;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
@@ -26,6 +28,7 @@ import org.egothor.methodatlas.command.PluginLoader;
 import org.egothor.methodatlas.command.SarifCommand;
 import org.egothor.methodatlas.command.ScanCommand;
 import org.egothor.methodatlas.command.ScanOrchestrator;
+import org.egothor.methodatlas.receipt.ReceiptFacade;
 
 /**
  * Command-line application for scanning Java test sources, extracting JUnit
@@ -177,6 +180,12 @@ public final class MethodAtlasApp {
 
     private static final String FLAG_DIFF = "-diff";
 
+    /** Logger for receipt-emission warnings; receipt failures never abort the scan. */
+    private static final Logger LOG = Logger.getLogger(MethodAtlasApp.class.getName());
+
+    /** Tool version fallback when the JAR manifest carries no Implementation-Version. */
+    private static final String DEV_VERSION = "dev";
+
     /**
      * Prevents instantiation of this utility class.
      */
@@ -265,9 +274,40 @@ public final class MethodAtlasApp {
         ScanRun scanRun = ScanRun.create(version, cliConfig.toString());
         ScanRunContext.set(scanRun);
         try {
-            return runWithScanRun(out, cliConfig);
+            int exit = runWithScanRun(out, cliConfig);
+            if (cliConfig.emitReceipt()) {
+                emitReceipt(cliConfig, version);
+            }
+            return exit;
         } finally {
             ScanRunContext.clear();
+        }
+    }
+
+    /**
+     * Writes a reproducibility receipt for the just-completed scan.
+     *
+     * <p>
+     * Failures are logged at WARNING level and swallowed so a receipt-write
+     * error never turns a successful scan into a non-zero exit code.
+     * </p>
+     *
+     * @param cliConfig parsed CLI configuration whose
+     *                  {@link CliConfig#emitReceipt()} is already known to be
+     *                  {@code true}
+     * @param version   tool version resolved from the JAR manifest; {@code null}
+     *                  resolves to {@code "dev"}
+     */
+    private static void emitReceipt(CliConfig cliConfig, String version) {
+        String toolVersion = version != null ? version : DEV_VERSION;
+        String modeName = cliConfig.outputMode().name();
+        try {
+            ReceiptFacade.emit(cliConfig, toolVersion, modeName);
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Could not write reproducibility receipt: {0}", e.getMessage());
+            }
         }
     }
 

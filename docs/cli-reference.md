@@ -32,6 +32,8 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-emit-source-root` | Append a `source_root` column to CSV output (and a `SRCROOT=` token to plain-text output) identifying which scan root each record originated from; essential when the same FQCN can appear under multiple source trees | Off |
 | `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
 | `-diff <before.csv> <after.csv>` | Compare two MethodAtlas scan outputs and emit a delta report; all other flags are ignored | — |
+| `-emit-receipt` | Write a reproducibility receipt JSON sidecar after the scan capturing the SHA-256 of every input that influenced the result | Off |
+| `-receipt-file <path>` | Override the receipt output path | `methodatlas-receipt.json` in CWD |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
 ## AI options
@@ -787,6 +789,16 @@ Runs the prepare phase of the manual AI workflow. For each test class MethodAtla
 
 Runs the consume phase. MethodAtlas reads operator-filled response files and merges the AI JSON into the output CSV. Missing or empty response files are treated as absent AI data; the scan continues.
 
+### `-emit-receipt`
+
+After the scan, writes a JSON reproducibility receipt that records the SHA-256 fingerprint of every input that influenced the result: tool version, taxonomy source, override file, AI cache file, AI provider + model, and the static prompt template. The receipt also carries a `configHash` that is a deterministic function of those inputs and a `deterministicReplay` boolean that is `true` only when a re-run is guaranteed to produce identical output (AI disabled, or AI enabled with `-ai-cache`). See [Reproducibility Receipts](usage-modes/reproducibility-receipts.md) for the full schema and the `configHash` re-derivation algorithm.
+
+A receipt-write failure logs a `WARNING` via `java.util.logging` and never affects the scan's exit code.
+
+### `-receipt-file <path>`
+
+Overrides the default receipt output path (`methodatlas-receipt.json` in the current working directory). Only honoured when `-emit-receipt` is also supplied. The value must not be blank.
+
 For practical examples grouped by use case, see [CLI Examples](cli-examples.md).
 
 ## Exit codes
@@ -798,4 +810,4 @@ For practical examples grouped by use case, see [CLI Examples](cli-examples.md).
 | `1` | A source file could not be read or written during `-apply-tags-from-csv` |
 | `1` | A required argument value is missing or malformed (printed to stderr before exit) |
 
-Note: AI classification failures for individual classes (provider timeout, parse error in the AI response) do not cause a non-zero exit. The affected rows are emitted with blank AI columns and the scan continues. Only structural errors — bad arguments, mismatch-limit violations, and I/O failures during source write-back — produce exit code `1`.
+Note: AI classification failures for individual classes (provider timeout, parse error in the AI response) do not cause a non-zero exit. The affected rows are emitted with blank AI columns and the scan continues. Only structural errors — bad arguments, mismatch-limit violations, and I/O failures during source write-back — produce exit code `1`. A failure to write the optional reproducibility receipt (`-emit-receipt`) is also non-fatal: a `WARNING` is logged and the scan keeps its original exit code.
