@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -84,8 +85,12 @@ final class TypeScriptWorkerPool implements Closeable {
     /** Guards {@link #nextWorkerIndex} during worker creation. */
     private final ReentrantLock workerCreationLock = new ReentrantLock();
 
-    /** Guarded by {@link #workerCreationLock}: number of workers ever created (for index assignment). */
-    private int nextWorkerIndex;
+    /**
+     * Number of workers ever created (for index assignment). An {@link AtomicInteger}
+     * so the lock-free fast-path read in {@link #startWorkerOnDemand(Path)} observes a
+     * coherent value; the increment runs under {@link #workerCreationLock}.
+     */
+    private final AtomicInteger nextWorkerIndex = new AtomicInteger();
 
     /**
      * Creates a worker pool.
@@ -204,7 +209,7 @@ final class TypeScriptWorkerPool implements Closeable {
      * <p><b>Caller must hold {@link #workerCreationLock}.</b></p>
      */
     private TypeScriptWorker createWorkerUnderLock(Path allowedRoot) throws IOException {
-        int index = nextWorkerIndex++;
+        int index = nextWorkerIndex.getAndIncrement();
         TypeScriptWorker worker = new TypeScriptWorker(bundlePath, nodeEnv,
                 workerTimeoutMillis, index);
         worker.start(allowedRoot);
@@ -236,12 +241,12 @@ final class TypeScriptWorkerPool implements Closeable {
      * condition is rechecked inside the lock to avoid starting duplicate workers.
      */
     private void startWorkerOnDemand(Path allowedRoot) {
-        if (!idleWorkers.isEmpty() || nextWorkerIndex >= poolSize) {
+        if (!idleWorkers.isEmpty() || nextWorkerIndex.get() >= poolSize) {
             return; // fast path: worker already available or pool is full
         }
         workerCreationLock.lock();
         try {
-            if (!idleWorkers.isEmpty() || nextWorkerIndex >= poolSize) {
+            if (!idleWorkers.isEmpty() || nextWorkerIndex.get() >= poolSize) {
                 return; // another thread already started one
             }
             TypeScriptWorker worker = createWorkerUnderLock(allowedRoot);
@@ -249,7 +254,7 @@ final class TypeScriptWorkerPool implements Closeable {
         } catch (IOException e) {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING,
-                        "Failed to start TypeScript worker on demand (index " + nextWorkerIndex + ")", e);
+                        "Failed to start TypeScript worker on demand (index " + nextWorkerIndex.get() + ")", e);
             }
         } finally {
             workerCreationLock.unlock();

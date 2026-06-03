@@ -71,8 +71,11 @@ public final class GitHubAnnotationsCommand implements Command {
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
         String filePrefix = ContentHasher.filePrefix(roots);
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
-        return scanOrchestrator.scan(roots, cliConfig, discoveryConfig, aiEngine,
+        int result = scanOrchestrator.scan(roots, cliConfig, discoveryConfig, aiEngine,
                 scanOrchestrator.filterSink(emitter, false, cliConfig.minConfidence(), confidenceEnabled),
                 override, aiCache);
+        // Surface any write error the streaming PrintWriter swallowed.
+        emitter.finish();
+        return result;
     }
 }

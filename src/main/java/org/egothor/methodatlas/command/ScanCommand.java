@@ -122,6 +122,10 @@ public final class ScanCommand implements Command {
             pluginLoader.closeAll(providers);
         }
 
+        // Surface any write error the streaming PrintWriter swallowed, so a
+        // truncated report (broken pipe, full disk) is never reported as success.
+        emitter.finish();
+
         if (aiCache.isActive() && LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO, "AI cache: {0} hit(s), {1} miss(es)",
                     new Object[] { aiCache.hits(), aiCache.misses() });

@@ -60,10 +60,15 @@ class AiSuggestionEngineImplTest {
 
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).build();
 
+        // The engine renders the prompt once (with the selected taxonomy) and threads it to the
+        // provider. Stubbing on the rendered prompt proves the DefaultSecurityTaxonomy text was used:
+        // a different taxonomy would produce a non-matching prompt and the stub would return null.
+        String expectedPrompt = PromptBuilder.build("com.acme.security.AccessControlServiceTest",
+                "class AccessControlServiceTest {}", DefaultSecurityTaxonomy.text(), targetMethods, false);
+
         try (MockedStatic<AiProviderFactory> factory = mockStatic(AiProviderFactory.class)) {
             factory.when(() -> AiProviderFactory.create(options)).thenReturn(client);
-            when(client.suggestForClass(eq("com.acme.security.AccessControlServiceTest"),
-                    eq("class AccessControlServiceTest {}"), eq(DefaultSecurityTaxonomy.text()), eq(targetMethods)))
+            when(client.suggestForClass(eq("com.acme.security.AccessControlServiceTest"), eq(expectedPrompt)))
                     .thenReturn(expected);
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
@@ -73,8 +78,7 @@ class AiSuggestionEngineImplTest {
             assertSame(expected, actual);
 
             factory.verify(() -> AiProviderFactory.create(options));
-            verify(client).suggestForClass("com.acme.security.AccessControlServiceTest",
-                    "class AccessControlServiceTest {}", DefaultSecurityTaxonomy.text(), targetMethods);
+            verify(client).suggestForClass("com.acme.security.AccessControlServiceTest", expectedPrompt);
             verifyNoMoreInteractions(client);
         }
     }
@@ -100,11 +104,14 @@ class AiSuggestionEngineImplTest {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OLLAMA)
                 .taxonomyMode(AiOptions.TaxonomyMode.OPTIMIZED).build();
 
+        // Stubbing on the rendered prompt proves the OptimizedSecurityTaxonomy text was used.
+        String expectedPrompt = PromptBuilder.build("com.acme.storage.PathTraversalValidationTest",
+                "class PathTraversalValidationTest {}", OptimizedSecurityTaxonomy.text(), targetMethods, false);
+
         try (MockedStatic<AiProviderFactory> factory = mockStatic(AiProviderFactory.class)) {
             factory.when(() -> AiProviderFactory.create(options)).thenReturn(client);
-            when(client.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"),
-                    eq("class PathTraversalValidationTest {}"), eq(OptimizedSecurityTaxonomy.text()),
-                    eq(targetMethods))).thenReturn(expected);
+            when(client.suggestForClass(eq("com.acme.storage.PathTraversalValidationTest"), eq(expectedPrompt)))
+                    .thenReturn(expected);
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
             AiClassSuggestion actual = engine.suggestForClass("com.acme.storage.PathTraversalValidationTest",
@@ -114,8 +121,7 @@ class AiSuggestionEngineImplTest {
             assertSame(expected, actual);
 
             factory.verify(() -> AiProviderFactory.create(options));
-            verify(client).suggestForClass("com.acme.storage.PathTraversalValidationTest",
-                    "class PathTraversalValidationTest {}", OptimizedSecurityTaxonomy.text(), targetMethods);
+            verify(client).suggestForClass("com.acme.storage.PathTraversalValidationTest", expectedPrompt);
             verifyNoMoreInteractions(client);
         }
     }
@@ -149,10 +155,14 @@ class AiSuggestionEngineImplTest {
         AiOptions options = AiOptions.builder().enabled(true).provider(AiProvider.OPENROUTER).taxonomyFile(taxonomyFile)
                 .build();
 
+        // Stubbing on the rendered prompt proves the external taxonomy file content was used.
+        String expectedPrompt = PromptBuilder.build("com.acme.audit.AuditLoggingTest",
+                "class AuditLoggingTest {}", taxonomyText, targetMethods, false);
+
         try (MockedStatic<AiProviderFactory> factory = mockStatic(AiProviderFactory.class)) {
             factory.when(() -> AiProviderFactory.create(options)).thenReturn(client);
-            when(client.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), eq("class AuditLoggingTest {}"),
-                    eq(taxonomyText), eq(targetMethods))).thenReturn(expected);
+            when(client.suggestForClass(eq("com.acme.audit.AuditLoggingTest"), eq(expectedPrompt)))
+                    .thenReturn(expected);
 
             AiSuggestionEngineImpl engine = new AiSuggestionEngineImpl(options);
             AiClassSuggestion actual = engine.suggestForClass("com.acme.audit.AuditLoggingTest",
@@ -161,8 +171,7 @@ class AiSuggestionEngineImplTest {
             assertSame(expected, actual);
 
             factory.verify(() -> AiProviderFactory.create(options));
-            verify(client).suggestForClass("com.acme.audit.AuditLoggingTest", "class AuditLoggingTest {}", taxonomyText,
-                    targetMethods);
+            verify(client).suggestForClass("com.acme.audit.AuditLoggingTest", expectedPrompt);
             verifyNoMoreInteractions(client);
         }
     }

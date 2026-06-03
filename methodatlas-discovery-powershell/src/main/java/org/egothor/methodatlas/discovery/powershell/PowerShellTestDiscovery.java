@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -216,13 +215,7 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
     }
 
     private static SourceContent buildSourceContent(Path file) {
-        return () -> {
-            try {
-                return Optional.of(Files.readString(file));
-            } catch (IOException e) {
-                return Optional.empty();
-            }
-        };
+        return SourceContent.ofFile(file);
     }
 
     // ── Package-private static helpers (accessible from tests) ────────────

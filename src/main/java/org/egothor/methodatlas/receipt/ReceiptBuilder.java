@@ -38,6 +38,7 @@ final class ReceiptBuilder {
     private static final String SHA256_ALGO = "SHA-256";
 
     /** Sentinel for "no value" in the canonical key=value serialisation. */
+    @SuppressWarnings("InlineTrivialConstant")
     private static final String EMPTY = "";
 
     // Canonical key=value separator characters: kept as constants so the
@@ -218,7 +219,7 @@ final class ReceiptBuilder {
             FileArtifact taxonomyArtifact, String builtInTaxonomy, String promptTemplateHash) {
         Map<String, String> keys = new TreeMap<>();
         keys.put(KEY_AI_CACHE_FILE_SHA, shaOrEmpty(aiCacheArtifact));
-        keys.put(KEY_AI_MODEL, ai.enabled() ? ai.modelName() : EMPTY);
+        keys.put(KEY_AI_MODEL, ai.enabled() && ai.modelName() != null ? ai.modelName() : EMPTY);
         keys.put(KEY_AI_PROVIDER, ai.enabled() ? ai.provider().name() : EMPTY);
         keys.put(KEY_BUILT_IN_TAXONOMY, builtInTaxonomy == null ? EMPTY : builtInTaxonomy);
         keys.put(KEY_METHOD_ATLAS_VERSION, toolVersion);

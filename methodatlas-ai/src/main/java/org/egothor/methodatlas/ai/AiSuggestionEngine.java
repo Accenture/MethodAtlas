@@ -122,4 +122,24 @@ public interface AiSuggestionEngine {
      */
     AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException;
+
+    /**
+     * Registers an optional callback that the engine will notify after each
+     * successful AI round-trip.
+     *
+     * <p>
+     * The default implementation is a no-op so that engines that have no
+     * meaningful response data to surface (for example the manual-consume
+     * engine, which receives operator-saved files rather than live API
+     * responses) silently ignore the registration. Engines that do back live
+     * provider calls override this method to forward each call to the
+     * registered listener.
+     * </p>
+     *
+     * @param listener listener to notify after each successful AI round-trip,
+     *                 or {@code null} to clear a previously registered listener
+     */
+    default void setResponseListener(AiResponseListener listener) {
+        // no-op by default
+    }
 }

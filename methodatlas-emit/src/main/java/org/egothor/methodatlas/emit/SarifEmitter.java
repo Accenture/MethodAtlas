@@ -215,6 +215,11 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialize SARIF output", e);
         }
+        // PrintWriter swallows write errors; surface them so a truncated SARIF
+        // file (e.g. on a full disk) is never reported as a successful run.
+        if (out.checkError()) {
+            throw new IllegalStateException("Failed to write SARIF output: the underlying stream reported an error");
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -419,7 +424,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
 
         if (!aiEnabled || s == null) {
             return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
-                    null, null, null, null, null, null, null, securitySeverity);
+                    null, null, null, null, null, null, null, null, null, securitySeverity);
         }
 
         String aiTags = s.tags() == null || s.tags().isEmpty() ? null : String.join(";", s.tags());
@@ -428,9 +433,11 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
         Double aiConfidence = confidenceEnabled ? s.confidence() : null;
         TagAiDrift drift = TagAiDrift.compute(rec.tags(), s);
         String tagAiDrift = drift != null ? drift.toValue() : null;
+        String tagsAdded = TagAiDrift.tagDifference(rec.tags(), s.tags());
+        String tagsRemoved = TagAiDrift.tagDifference(s.tags(), rec.tags());
         return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
                 s.securityRelevant(), aiDisplayName, aiTags, aiReason, s.interactionScore(), aiConfidence,
-                tagAiDrift, securitySeverity);
+                tagAiDrift, tagsAdded, tagsRemoved, securitySeverity);
     }
 
     private SarifResult buildEmptyDisplayNameResult(ResultRecord rec) {
@@ -447,7 +454,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
                 + "@DisplayName(\"Verifies that ...\").";
         String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
         SarifProperties properties = new SarifProperties(rec.loc(), null, sourceTags,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         return new SarifResult(RULE_EMPTY_DISPLAY_NAME, LEVEL_NOTE,
                 new SarifMessage(message), List.of(location), properties);
     }
@@ -478,7 +485,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
 
         String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
         SarifProperties properties = new SarifProperties(rec.loc(), null, sourceTags,
-                null, null, null, null, s.interactionScore(), null, null, SEVERITY_PLACEBO);
+                null, null, null, null, s.interactionScore(), null, null, null, null, SEVERITY_PLACEBO);
         return new SarifResult(RULE_SECURITY_PLACEBO, LEVEL_WARNING,
                 new SarifMessage(message), List.of(location), properties);
     }
@@ -579,6 +586,8 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
             Double aiInteractionScore,
             Double aiConfidence,
             String tagAiDrift,
+            String tagsAdded,
+            String tagsRemoved,
             @JsonProperty("security-severity") String securitySeverity) {
     }
 }

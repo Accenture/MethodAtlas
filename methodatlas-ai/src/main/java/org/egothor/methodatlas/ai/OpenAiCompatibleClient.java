@@ -93,11 +93,9 @@ public record OpenAiCompatibleClient(AiOptions options, HttpJsonExecutor executo
     }
 
     @Override
-    public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
-            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
+    public AiClassSuggestion suggestForClass(String fqcn, String prompt) throws AiSuggestionException {
         HttpRequest request;
         try {
-            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
             ChatRequest payload = new ChatRequest(options.modelName(),
                     List.of(new Message("system", SYSTEM_PROMPT), new Message("user", prompt)), 0.0);
             String requestBody = executor.httpSupport().objectMapper().writeValueAsString(payload);

@@ -40,7 +40,7 @@ import org.egothor.methodatlas.ai.AiProvider;
  * @see CliConfig
  * @see MethodAtlasApp
  */
-@SuppressWarnings("PMD.CyclomaticComplexity")
+@SuppressWarnings({"PMD.CyclomaticComplexity", "PMD.LongVariable"})
 final class CliArgs {
 
     private static final String DEFAULT_FILE_SUFFIX = "java:Test.java";
@@ -58,6 +58,13 @@ final class CliArgs {
     private static final String FLAG_EMIT_COVERAGE = "-emit-coverage";
     private static final String FLAG_COVERAGE_FILE = "-coverage-file";
     private static final String FLAG_COVERAGE_MAPPING = "-coverage-mapping";
+    private static final String FLAG_EVIDENCE_PACK = "-evidence-pack";
+    private static final String FLAG_EVIDENCE_PACK_DIR = "-evidence-pack-dir";
+    private static final String FLAG_EVIDENCE_PACK_OVERWRITE = "-evidence-pack-overwrite";
+    private static final String FLAG_EVIDENCE_PACK_KEYRING = "-evidence-pack-keyring";
+    private static final String FLAG_EVIDENCE_PACK_KEYRING_ENV = "-evidence-pack-keyring-env";
+    private static final String FLAG_EVIDENCE_PACK_KEY_ALIAS = "-evidence-pack-key-alias";
+    private static final String FLAG_EVIDENCE_PACK_SIGN_ALGO = "-evidence-pack-sign-algo";
 
     /**
      * Prevents instantiation of this utility class.
@@ -90,7 +97,10 @@ final class CliArgs {
      * </p>
      *
      * @param args raw command-line arguments
-     * @return parsed command-line configuration
+     * @return parsed command-line configuration, or {@code null} when a
+     *         validation error (for example {@code -emit-coverage} without
+     *         {@code -coverage-mapping}) has already been reported to
+     *         {@code stderr} and the caller should exit with a bad-arguments code
      * @throws IllegalArgumentException if an option value is missing, malformed,
      *                                  or unsupported, or if the config file
      *                                  cannot be read
@@ -140,6 +150,13 @@ final class CliArgs {
         boolean emitCoverage = false;
         Path coverageFile = null;
         Path coverageMappingFile = null;
+        String evidencePackFramework = null;
+        Path evidencePackDir = null;
+        boolean evidencePackOverwrite = false;
+        Path evidencePackKeyringFile = null;
+        String evidencePackKeyringEnv = null;
+        String evidencePackKeyAlias = null;
+        String evidencePackSignAlgo = null;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -217,6 +234,14 @@ final class CliArgs {
                     }
                     coverageMappingFile = Paths.get(value);
                 }
+                case FLAG_EVIDENCE_PACK -> evidencePackFramework = nextArg(args, ++i, arg);
+                case FLAG_EVIDENCE_PACK_DIR -> evidencePackDir = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_EVIDENCE_PACK_OVERWRITE -> evidencePackOverwrite = true;
+                case FLAG_EVIDENCE_PACK_KEYRING ->
+                    evidencePackKeyringFile = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_EVIDENCE_PACK_KEYRING_ENV -> evidencePackKeyringEnv = nextArg(args, ++i, arg);
+                case FLAG_EVIDENCE_PACK_KEY_ALIAS -> evidencePackKeyAlias = nextArg(args, ++i, arg);
+                case FLAG_EVIDENCE_PACK_SIGN_ALGO -> evidencePackSignAlgo = nextArg(args, ++i, arg);
                 case "-manual-prepare" -> {
                     manualWorkDir = nextArg(args, ++i, arg);
                     manualResponseDir = nextArg(args, ++i, arg);
@@ -270,7 +295,10 @@ final class CliArgs {
                 Map.copyOf(properties), emitMetadata, manualMode, applyTags, contentHash, overrideFilePath,
                 securityOnly, aiCacheFile, driftDetect, applyTagsFromCsvFile, mismatchLimit, emitSourceRoot,
                 sarifOmitScores, minConfidence, emitReceipt, receiptFile,
-                emitCoverage, coverageFile, coverageMappingFile);
+                emitCoverage, coverageFile, coverageMappingFile,
+                evidencePackFramework, evidencePackDir,
+                evidencePackOverwrite, evidencePackKeyringFile, evidencePackKeyringEnv,
+                evidencePackKeyAlias, evidencePackSignAlgo);
     }
 
     // -------------------------------------------------------------------------

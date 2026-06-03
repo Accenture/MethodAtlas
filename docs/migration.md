@@ -13,10 +13,32 @@ commit history, see the project
 |---|---|
 | **2.x.x** | Single built-in Java scanner; configuration tightly coupled to JVM annotation names |
 | **3.x.x** | Plugin-based discovery via `ServiceLoader`; configuration generalised to support multiple languages and platforms |
+| **4.x.x** | Evidence packs and post-quantum-capable manifest signing; the GUI evidence CSV aligned to the CLI drift definition and extended with reviewer tag-delta columns |
 
 MethodAtlas follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 A major version increment means at least one breaking change that requires
 action from the operator.
+
+## Upgrading from 3.x to 4.x
+
+### Summary of breaking changes
+
+| Area | What changed | Action required |
+|---|---|---|
+| Audit CSV | The GUI evidence CSV `tag_ai_drift` column now uses the **same definition as the CLI** — agreement between a source `@Tag("security")` marker and the AI security-relevance verdict — instead of comparing the whole applied and AI tag sets | Update any tooling that reads the GUI evidence CSV `tag_ai_drift` by its old set-comparison meaning |
+| Audit CSV | Two columns, `tags_added` and `tags_removed`, are appended to the drift output of both the CLI (`-ai -drift-detect`) and the GUI evidence CSV | None for name-based consumers (`DeltaReport` resolves columns by name); positional parsers must account for the two new trailing columns |
+
+### `tag_ai_drift` is now security-classification drift everywhere
+
+Before 4.0.0 the desktop GUI's evidence CSV computed `tag_ai_drift` by comparing the reviewer's full set of applied tags against the full set of AI-suggested tags, while the CLI compared only the `@Tag("security")` marker against the AI security-relevance flag. The two producers therefore wrote different values into the same column.
+
+From 4.0.0 both use the CLI definition (see [Tag vs AI Drift](ai/drift-detection.md)):
+
+- `none` — the security tag and the AI verdict agree;
+- `tag-only` — `@Tag("security")` is present but the AI says not security-relevant;
+- `ai-only` — the AI says security-relevant but no `@Tag("security")` is present.
+
+The reviewer's broader tag changes — which the old GUI definition tried to fold into `tag_ai_drift` — are now reported precisely and losslessly by the new `tags_added` (applied tags the AI did not suggest) and `tags_removed` (AI tags the reviewer did not apply) fields, each a sorted, semicolon-joined list. Both are blank when no AI suggestion is available. For consistency, `tags_added` and `tags_removed` are emitted in every enrichment-bearing format — CSV, the flat JSON output, and the SARIF result `properties` bag — alongside `tag_ai_drift`.
 
 ## Upgrading from 2.x to 3.x
 

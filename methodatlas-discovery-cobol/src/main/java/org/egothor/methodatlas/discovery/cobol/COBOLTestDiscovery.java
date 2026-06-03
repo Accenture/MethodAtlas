@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -38,8 +37,9 @@ import org.egothor.methodatlas.discovery.cobol.parser.COBOLTestLexer;
  *
  * <h2>FQCN computation</h2>
  * <p>The FQCN is derived from the file path relative to the scan root
- * (dot-separated, extension stripped).  When the PROGRAM-ID can be
- * extracted, it is appended as the outermost qualifier.</p>
+ * (dot-separated, extension stripped).  The COBOL PROGRAM-ID is typically
+ * embedded in the file stem, so the stem is used as-is and the PROGRAM-ID is
+ * not appended as a separate qualifier.</p>
  *
  * <h2>ServiceLoader registration</h2>
  * <p>Registered via
@@ -112,6 +112,9 @@ public final class COBOLTestDiscovery implements TestDiscovery {
         return results.stream();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hadErrors() {
         return errors.get();
@@ -146,24 +149,19 @@ public final class COBOLTestDiscovery implements TestDiscovery {
         }
         String stem = buildFileStem(file, root);
         SourceContent content = lazyContent(file);
+        // The COBOL FQCN is the file-path stem: the PROGRAM-ID is embedded in the
+        // stem and is not appended as a separate qualifier (see class Javadoc).
         for (MethodInfo m : methods) {
-            String fqcn = buildFqcn(stem, m.programId());
             int loc = m.endLine() - m.beginLine() + 1;
             results.add(new DiscoveredMethod(
-                    fqcn, m.name(),
+                    stem, m.name(),
                     m.beginLine(), m.endLine(), loc,
                     List.of(), null, file, stem, content));
         }
     }
 
     private static SourceContent lazyContent(Path file) {
-        return () -> {
-            try {
-                return Optional.of(Files.readString(file));
-            } catch (IOException e) {
-                return Optional.empty();
-            }
-        };
+        return SourceContent.ofFile(file);
     }
 
     // ── Package-private static helpers (testable) ─────────────────────
@@ -193,23 +191,5 @@ public final class COBOLTestDiscovery implements TestDiscovery {
             sb.append(part);
         }
         return sb.toString();
-    }
-
-    /**
-     * Builds the FQCN from the file stem and program ID.
-     *
-     * <p>When {@code programId} is {@code "unknown"} or blank, the stem
-     * alone is returned.  Otherwise the stem is used as-is (the program ID
-     * is typically embedded in the file stem).</p>
-     *
-     * @param stem      dot-separated file stem
-     * @param programId PROGRAM-ID from the source file
-     * @return FQCN string; never {@code null}
-     */
-    /* default */ static String buildFqcn(String stem, String programId) {
-        if (programId == null || programId.isBlank() || "unknown".equalsIgnoreCase(programId)) {
-            return stem;
-        }
-        return stem;
     }
 }

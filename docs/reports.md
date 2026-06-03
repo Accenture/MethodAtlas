@@ -102,6 +102,12 @@ Produced on demand by passing `-emit-receipt` to a normal scan. The receipt is a
 
 To access: invoke MethodAtlas with `-emit-receipt` (default destination `methodatlas-receipt.json`) or `-emit-receipt -receipt-file <path>`. See [Reproducibility Receipts](usage-modes/reproducibility-receipts.md) for the full schema and the `configHash` re-derivation algorithm.
 
+### Evidence packs
+
+The `-evidence-pack <framework>` mode bundles the SARIF report, CSV report, optional override copy, AI prompt/response provenance, SHA-256 manifest, and `pack-meta.json` provenance file into a tamper-evident directory anchored by an optional ZeroEcho signature. Evidence packs are produced on demand (typically at release time or before a compliance milestone) rather than on every CI run, so they are published as build artefacts of the workflow that generated them rather than to GitHub Pages.
+
+To access: pass `-evidence-pack <framework>` plus the keyring flags (`-evidence-pack-keyring` for CLI, or `-evidence-pack-keyring-env` for a CI secret) during your release pipeline and publish the resulting directory as a workflow artifact or release asset. See [usage-modes/evidence-packs.md](usage-modes/evidence-packs.md) for the full directory layout, signing options, and verification steps.
+
 ## CI quality gates
 
 | Gate | Tool | Threshold | Scope |

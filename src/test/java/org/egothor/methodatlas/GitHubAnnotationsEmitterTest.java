@@ -1,7 +1,9 @@
 package org.egothor.methodatlas;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -9,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -502,8 +505,67 @@ class GitHubAnnotationsEmitterTest {
     }
 
     // -------------------------------------------------------------------------
+    // finish() – streaming write-error surfacing
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("finish throws IllegalStateException when the underlying writer reported a write error")
+    @Tag("negative")
+    @Tag("security")
+    void finish_throwsWhenWriterReportedError() {
+        // A PrintWriter never propagates IOException; it sets an internal error flag.
+        // finish() converts that swallowed failure into an explicit exception so a
+        // truncated set of annotations is never reported as a successful run.
+        PrintWriter failing = new PrintWriter(new FailingWriter());
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(failing, "");
+
+        AiMethodSuggestion suggestion =
+                new AiMethodSuggestion("testLogin", true, "Login", List.of("auth"), null, 0.0, 0.0);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null, suggestion);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, emitter::finish);
+        assertTrue(ex.getMessage().contains("underlying stream reported an error"), ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("finish does not throw when the underlying writer is healthy")
+    @Tag("positive")
+    void finish_doesNotThrowOnHealthyWriter() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, "");
+
+        AiMethodSuggestion suggestion =
+                new AiMethodSuggestion("testLogin", true, "Login", List.of("auth"), null, 0.0, 0.0);
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 3, null, List.of(), null, suggestion);
+
+        assertDoesNotThrow(emitter::finish);
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * A {@link Writer} that fails every write and flush, used to drive a
+     * {@link PrintWriter} into its silent error state.
+     */
+    private static final class FailingWriter extends Writer {
+        @Override
+        public void write(char[] cbuf, int off, int len) throws IOException {
+            throw new IOException("simulated write failure");
+        }
+
+        @Override
+        public void flush() throws IOException {
+            throw new IOException("simulated flush failure");
+        }
+
+        @Override
+        public void close() {
+            // Nothing to release; the writer is purely a failure stub.
+        }
+    }
 
     private static String recordSecurityMethod(double interactionScore, String displayName,
             List<String> tags, String filePrefix) {

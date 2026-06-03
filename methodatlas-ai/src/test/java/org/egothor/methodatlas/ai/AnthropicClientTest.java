@@ -128,7 +128,8 @@ class AnthropicClientTest {
                     .build();
 
             AnthropicClient client = new AnthropicClient(options);
-            AiClassSuggestion suggestion = client.suggestForClass(fqcn, classSource, taxonomyText, targetMethods);
+            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, false);
+            AiClassSuggestion suggestion = client.suggestForClass(fqcn, prompt);
 
             // Verify the normalized suggestion fields.
             assertEquals(fqcn, suggestion.className());
@@ -199,8 +200,8 @@ class AnthropicClientTest {
             AnthropicClient client = new AnthropicClient(options);
 
             AiSuggestionException ex = assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
-                            targetMethods));
+                    () -> client.suggestForClass(fqcn, PromptBuilder.build(fqcn, "class AuditLoggingTest {}",
+                            "security, logging", targetMethods, false)));
 
             assertEquals("Anthropic suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());
@@ -229,8 +230,8 @@ class AnthropicClientTest {
             AnthropicClient client = new AnthropicClient(options);
 
             AiSuggestionException ex = assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
-                            targetMethods));
+                    () -> client.suggestForClass(fqcn, PromptBuilder.build(fqcn, "class AuditLoggingTest {}",
+                            "security, logging", targetMethods, false)));
 
             assertEquals("Anthropic suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());
@@ -268,8 +269,8 @@ class AnthropicClientTest {
             AnthropicClient client = new AnthropicClient(options);
 
             AiSuggestionException ex = assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
-                            targetMethods));
+                    () -> client.suggestForClass(fqcn, PromptBuilder.build(fqcn, "class AuditLoggingTest {}",
+                            "security, logging", targetMethods, false)));
 
             assertEquals("Anthropic suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());
@@ -306,8 +307,8 @@ class AnthropicClientTest {
             AnthropicClient client = new AnthropicClient(options);
 
             AiSuggestionException ex = assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
-                            targetMethods));
+                    () -> client.suggestForClass(fqcn, PromptBuilder.build(fqcn, "class AuditLoggingTest {}",
+                            "security, logging", targetMethods, false)));
 
             assertEquals("Anthropic suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());

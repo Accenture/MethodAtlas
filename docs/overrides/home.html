@@ -366,6 +366,17 @@
                EU&nbsp;DORA, and SOC&nbsp;2.</p>
           </div>
         </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>Post-quantum-ready signing</strong>
+            <p>Tamper-evident evidence packs, signed with classical (Ed25519,
+               RSA, ECDSA), post-quantum (SPHINCS+, ML-DSA, SLH-DSA), or
+               <em>hybrid</em> classical&nbsp;+&nbsp;post-quantum signatures &mdash; so an
+               audit trail stays verifiable as cryptography moves on.</p>
+            <span class="feature-scope">Verifiable with ZeroEcho or, for classical keys, standard tools such as openssl.</span>
+          </div>
+        </li>
       </ul>
     </div>
 
@@ -393,6 +404,13 @@
   -ai-provider github_models \
   -ai-model gpt-4o-mini \
   -ai-api-key-env GITHUB_TOKEN \
+  src/test/java</pre>
+
+      <p class="qs-label">5 &mdash; Signed evidence pack (PCI / ISO / NIST / ASVS)</p>
+      <pre class="qs-pre">./methodatlas -gen-signing-key audit.keyring -key-alias audit
+./methodatlas -evidence-pack PCI-6.4.1 \
+  -evidence-pack-keyring audit.keyring \
+  -evidence-pack-key-alias audit \
   src/test/java</pre>
 
       <p class="qs-links">

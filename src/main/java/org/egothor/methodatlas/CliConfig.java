@@ -122,6 +122,34 @@ import org.egothor.methodatlas.emit.OutputMode;
  *                             {@code emitCoverage} is {@code true}
  * @param coverageMappingFile  user-authored tag→control mapping JSON file;
  *                             required when {@code emitCoverage} is {@code true}
+ * @param evidencePackFramework target compliance framework token supplied to
+ *                              {@code -evidence-pack}; {@code null} when the
+ *                              evidence-pack mode is not active
+ * @param evidencePackDir       output directory for the evidence pack; {@code null}
+ *                              means use the default (under the first scan root)
+ * @param evidencePackOverwrite when {@code true}, an existing evidence-pack
+ *                              directory is reused; when {@code false}, a
+ *                              pre-existing directory is treated as an error
+ * @param evidencePackKeyringFile   ZeroEcho keyring file providing the manifest
+ *                                  signing key (a plaintext {@code KeyringStore},
+ *                                  not a JDK PKCS12 keystore); {@code null}
+ *                                  produces an unsigned pack with a stderr warning;
+ *                                  intended for CLI use with a permission-protected
+ *                                  file
+ * @param evidencePackKeyringEnv    name of an environment variable holding the
+ *                                  full keyring content, or {@code null}; intended
+ *                                  for CI/CD where the keyring is delivered through
+ *                                  a platform secret and parsed in memory so the
+ *                                  private key never touches the runner's disk;
+ *                                  takes precedence over {@code evidencePackKeyringFile}
+ * @param evidencePackKeyAlias  keyring alias of the signing key; {@code null}
+ *                              uses the first alias; for hybrid signing the
+ *                              format is {@code "classic/pqc"}
+ * @param evidencePackSignAlgo  ZeroEcho signature algorithm identifier;
+ *                              {@code null} derives the algorithm from the keyring
+ *                              entry (Ed25519 when MethodAtlas-generated); a
+ *                              {@code "classic+pqc"} value triggers hybrid mode
+ * @since 3.0.0
  */
 public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
         Set<String> testMarkers, Map<String, List<String>> properties, boolean emitMetadata,
@@ -129,5 +157,8 @@ public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> p
         boolean securityOnly, Path aiCacheFile, boolean driftDetect, Path applyTagsFromCsvFile,
         int mismatchLimit, boolean emitSourceRoot, boolean sarifOmitScores, double minConfidence,
         boolean emitReceipt, Path receiptFile,
-        boolean emitCoverage, Path coverageFile, Path coverageMappingFile) {
+        boolean emitCoverage, Path coverageFile, Path coverageMappingFile,
+        String evidencePackFramework, Path evidencePackDir, boolean evidencePackOverwrite,
+        Path evidencePackKeyringFile, String evidencePackKeyringEnv, String evidencePackKeyAlias,
+        String evidencePackSignAlgo) {
 }

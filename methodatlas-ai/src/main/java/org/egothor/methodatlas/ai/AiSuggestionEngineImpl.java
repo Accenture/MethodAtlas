@@ -3,6 +3,11 @@ package org.egothor.methodatlas.ai;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 /**
  * Default implementation of {@link AiSuggestionEngine} that coordinates
@@ -40,8 +45,21 @@ import java.util.List;
  */
 public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
 
+    private static final Logger LOG = Logger.getLogger(AiSuggestionEngineImpl.class.getName());
+
+    /** Sentinel token count used when the provider does not report token usage. */
+    private static final int UNKNOWN_TOKEN_COUNT = -1;
+
     private final AiProviderClient client;
     private final String taxonomyText;
+    private final AiOptions options;
+    /**
+     * Optional callback invoked after each successful provider call so observers
+     * (e.g. the evidence-pack archive) can record provenance. Set via
+     * {@link #setResponseListener(AiResponseListener)}; {@code null} when no
+     * listener has been registered.
+     */
+    private AiResponseListener responseListener;
 
     /**
      * Creates a new AI suggestion engine using the supplied runtime options.
@@ -68,6 +86,7 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
     public AiSuggestionEngineImpl(AiOptions options) throws AiSuggestionException {
         this.client = AiProviderFactory.create(options);
         this.taxonomyText = loadTaxonomy(options);
+        this.options = options;
     }
 
     /**
@@ -95,6 +114,19 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
             throws AiSuggestionException {
         this.client = AiProviderFactory.create(options, rateLimitListener);
         this.taxonomyText = loadTaxonomy(options);
+        this.options = options;
+    }
+
+    /**
+     * Registers a listener that the engine will notify after each successful
+     * AI round-trip. Replaces any previously registered listener.
+     *
+     * @param listener listener to invoke; may be {@code null} to clear a
+     *                 previously registered listener
+     */
+    @Override
+    public void setResponseListener(AiResponseListener listener) {
+        this.responseListener = listener;
     }
 
     /**
@@ -106,6 +138,15 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      * taxonomy text loaded at engine initialization time.
      * </p>
      *
+     * <p>
+     * On success, any listener registered via
+     * {@link #setResponseListener(AiResponseListener)} is notified with the
+     * rendered prompt and the AI result.
+     * </p>
+     *
+     * @param fileStem      file stem of the source file; forwarded for
+     *                      provenance (e.g. manual-workflow work-file naming),
+     *                      not used in classification
      * @param fqcn          fully qualified class name of the analyzed test class
      * @param classSource   complete source code of the class to analyze
      * @param targetMethods deterministically extracted JUnit test methods that must
@@ -116,12 +157,48 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      *                               returns an invalid response
      *
      * @see AiClassSuggestion
-     * @see AiProviderClient#suggestForClass(String, String, String, List)
+     * @see AiProviderClient#suggestForClass(String, String)
      */
     @Override
     public AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
-        return client.suggestForClass(fqcn, classSource, taxonomyText, targetMethods);
+        String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
+        AiClassSuggestion result = client.suggestForClass(fqcn, prompt);
+        notifyResponseListener(fqcn, prompt, result);
+        return result;
+    }
+
+    /**
+     * Forwards the rendered prompt and a JSON serialisation of the AI result
+     * to the registered listener, if any.
+     *
+     * <p>
+     * The prompt is the exact string already submitted to the provider by
+     * {@link #suggestForClass(String, String, String, List)}; it is threaded
+     * in rather than rebuilt so the listener records ground truth and the
+     * prompt is assembled only once per call.
+     * </p>
+     *
+     * @param fqcn   fully qualified class name passed to the provider
+     * @param prompt rendered prompt that was submitted to the provider
+     * @param result normalised classification result returned by the provider
+     */
+    private void notifyResponseListener(String fqcn, String prompt, AiClassSuggestion result) {
+        AiResponseListener listener = this.responseListener;
+        if (listener == null) {
+            return;
+        }
+        String response;
+        try {
+            response = JsonMapper.builder().build().writeValueAsString(result);
+        } catch (JsonProcessingException e) {
+            if (LOG.isLoggable(Level.FINE)) {
+                LOG.log(Level.FINE, "Failed to serialize AI response for archive", e);
+            }
+            response = "";
+        }
+        listener.onResponse(null, fqcn, prompt, response,
+                options.modelName(), UNKNOWN_TOKEN_COUNT, UNKNOWN_TOKEN_COUNT);
     }
 
     /**

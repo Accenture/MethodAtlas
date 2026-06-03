@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -30,18 +31,24 @@ import org.egothor.methodatlas.command.ScanCommand;
 import org.egothor.methodatlas.command.ScanOrchestrator;
 import org.egothor.methodatlas.coverage.CoverageFacade;
 import org.egothor.methodatlas.receipt.ReceiptFacade;
+import org.egothor.methodatlas.evidence.EvidenceFramework;
+import org.egothor.methodatlas.evidence.EvidencePackCommand;
+import org.egothor.methodatlas.evidence.EvidencePackOptions;
+import org.egothor.methodatlas.evidence.GenSigningKeyCommand;
 
 /**
- * Command-line application for scanning Java test sources, extracting JUnit
- * test metadata, and optionally enriching the emitted results with AI-generated
- * security tagging suggestions.
+ * Command-line entry point that parses the arguments and routes the invocation
+ * to the matching {@link org.egothor.methodatlas.command.Command} or utility
+ * mode.
  *
  * <p>
- * The application traverses one or more directory roots, parses matching source
- * files using JavaParser, identifies supported JUnit Jupiter test methods, and
- * emits one output record per discovered test method. File selection matches
- * source files whose names end with the configured suffix (default:
- * {@code Test.java}).
+ * This class owns no discovery or parsing logic of its own. It parses arguments
+ * into a {@link CliConfig} (via {@link CliArgs}), selects the operating mode,
+ * builds the collaborators that mode needs, and delegates execution. Test
+ * discovery is performed by the language plugins on the classpath (loaded
+ * through {@link java.util.ServiceLoader}); AI enrichment, output emission, and
+ * the evidence-pack, coverage, and receipt features are each handled by their
+ * own command or facade.
  * </p>
  *
  * <h2>Source-Derived Metadata</h2>
@@ -189,6 +196,8 @@ public final class MethodAtlasApp {
 
     /** Exit code returned when CLI validation rejects the requested invocation. */
     private static final int EXIT_BAD_ARGS = 2;
+    /** Exit code used when an evidence-pack framework token cannot be parsed. */
+    private static final int EXIT_BAD_FRAMEWORK = 2;
 
     /**
      * Prevents instantiation of this utility class.
@@ -255,7 +264,9 @@ public final class MethodAtlasApp {
      */
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops") // DiffCommand is created inside the loop but returned immediately
     /* default */ static int run(String[] args, PrintWriter out) throws IOException {
-        // -diff is handled before full argument parsing; all other flags are ignored.
+        // -diff and -gen-signing-key are utility modes handled before full
+        // argument parsing; each owns its own small set of flags and never
+        // participates in the scan pipeline, so all other flags are ignored.
         for (int i = 0; i < args.length; i++) {
             if (FLAG_DIFF.equals(args[i])) {
                 if (i + 2 >= args.length) {
@@ -263,6 +274,9 @@ public final class MethodAtlasApp {
                             "-diff requires two arguments: -diff <before.csv> <after.csv>");
                 }
                 return new DiffCommand(Path.of(args[i + 1]), Path.of(args[i + 2])).execute(out);
+            }
+            if (GenSigningKeyCommand.FLAG_GEN_SIGNING_KEY.equals(args[i])) {
+                return GenSigningKeyCommand.run(args, out);
             }
         }
 
@@ -418,6 +432,15 @@ public final class MethodAtlasApp {
                     pluginLoader, scanOrchestrator).execute(out);
         }
 
+        // Evidence-pack mode: produces a tamper-evident self-contained directory
+        // (SARIF + CSV + manifest + optional ZeroEcho signature). Must precede the
+        // SARIF/JSON/GitHub-annotation branches because those formats are
+        // re-used internally; the dispatch decision is owned by this command.
+        if (cliConfig.evidencePackFramework() != null) {
+            return dispatchEvidencePack(cliConfig, discoveryConfig, aiEngine, override, aiCache,
+                    scanOrchestrator);
+        }
+
         // SARIF mode: buffer all records; write JSON once after the scan completes.
         if (cliConfig.outputMode() == OutputMode.SARIF) {
             return new SarifCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache,
@@ -439,5 +462,74 @@ public final class MethodAtlasApp {
         // CSV / PLAIN mode: emit incrementally (default).
         return new ScanCommand(cliConfig, discoveryConfig, aiEngine, override, aiCache,
                 pluginLoader, scanOrchestrator).execute(out);
+    }
+
+    /**
+     * Parses the {@code -evidence-pack} framework token, assembles
+     * {@link EvidencePackOptions}, runs the {@link EvidencePackCommand}, and
+     * prints a one-line summary to {@code stderr}. The signing key is read from
+     * a ZeroEcho keyring file (a plaintext {@code KeyringStore}); ZeroEcho
+     * keyrings are not password-protected, so no password is collected.
+     *
+     * @param cliConfig         parsed CLI configuration
+     * @param discoveryConfig   discovery configuration forwarded to providers
+     * @param aiEngine          AI engine, or {@code null}
+     * @param override          classification override
+     * @param aiCache           AI result cache
+     * @param scanOrchestrator  shared scan orchestrator
+     * @return exit code propagated from {@link EvidencePackCommand#execute()}
+     *         or {@value #EXIT_BAD_FRAMEWORK} when the framework token is invalid
+     * @throws IOException if the underlying scan or I/O fails
+     */
+    private static int dispatchEvidencePack(CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
+            AiSuggestionEngine aiEngine, ClassificationOverride override, AiResultCache aiCache,
+            ScanOrchestrator scanOrchestrator) throws IOException {
+        EvidenceFramework framework;
+        try {
+            framework = EvidenceFramework.parse(cliConfig.evidencePackFramework());
+        } catch (IllegalArgumentException e) {
+            System.err.println(e.getMessage());
+            return EXIT_BAD_FRAMEWORK;
+        }
+        EvidencePackOptions packOptions = new EvidencePackOptions(
+                framework,
+                cliConfig.evidencePackDir(),
+                cliConfig.evidencePackOverwrite(),
+                cliConfig.evidencePackKeyringFile(),
+                cliConfig.evidencePackKeyringEnv(),
+                cliConfig.evidencePackKeyAlias(),
+                cliConfig.evidencePackSignAlgo());
+        EvidencePackCommand command = new EvidencePackCommand(cliConfig, packOptions, discoveryConfig,
+                aiEngine, override, aiCache, scanOrchestrator);
+        int exit = command.execute();
+        announcePack(command, packOptions);
+        return exit;
+    }
+
+    /**
+     * Prints the one-line outcome banner that documents how the pack was
+     * produced. Always written to {@code System.err} so the stdout stream
+     * remains usable for piping.
+     *
+     * @param command     executed command, used to retrieve the absolute path
+     * @param packOptions options driving the command
+     */
+    private static void announcePack(EvidencePackCommand command, EvidencePackOptions packOptions) {
+        String absolute = command.outputDir().toString();
+        if (packOptions.keyringFile() == null && packOptions.keyringEnv() == null) {
+            System.err.println("evidence pack written to " + absolute
+                    + " (unsigned — no keyring supplied)");
+            return;
+        }
+        String algo = packOptions.signatureAlgorithm() != null
+                ? packOptions.signatureAlgorithm() : "Ed25519 (from keyring)";
+        Path signed = command.outputDir().resolve("manifest.sha256.signed");
+        if (Files.exists(signed)) {
+            System.err.println("evidence pack written to " + absolute
+                    + " (signed: " + algo + ")");
+        } else {
+            System.err.println("evidence pack written to " + absolute
+                    + " (WARNING: signing failed — check log)");
+        }
     }
 }

@@ -178,6 +178,55 @@ for row in r:
 ./methodatlas -manual-consume ./work ./responses /path/to/tests
 ```
 
+## Evidence packs and signing
+
+```bash
+# One-time: generate a ZeroEcho signing keyring (Ed25519) plus its public PEM
+./methodatlas -gen-signing-key keys/audit-keyring.txt -key-alias audit
+
+# Signed, tamper-evident evidence pack for a compliance framework
+./methodatlas -evidence-pack PCI-6.4.1 \
+  -evidence-pack-dir build/audit \
+  -evidence-pack-keyring keys/audit-keyring.txt \
+  -evidence-pack-key-alias audit \
+  src/test/java
+
+# Hybrid (classical + post-quantum) signing
+./methodatlas -gen-signing-key keys/ring.txt -key-alias classic -key-algo Ed25519
+./methodatlas -gen-signing-key keys/ring.txt -key-alias pqc     -key-algo SPHINCS+
+./methodatlas -evidence-pack ISO-27001-8.29 \
+  -evidence-pack-keyring keys/ring.txt \
+  -evidence-pack-key-alias classic/pqc \
+  -evidence-pack-sign-algo Ed25519+SPHINCS+ \
+  src/test/java
+
+# CI/CD: keyring content from a secret environment variable (never touches disk)
+ZEROECHO_KEYRING="$KEYRING_SECRET" ./methodatlas -evidence-pack ASVS \
+  -evidence-pack-keyring-env ZEROECHO_KEYRING \
+  -evidence-pack-key-alias audit \
+  src/test/java
+```
+
+See [Evidence Packs](usage-modes/evidence-packs.md).
+
+## Control-coverage matrix, receipts, and drift
+
+```bash
+# Map tests to controls and report the gaps (the GRC deliverable)
+./methodatlas -ai -emit-coverage \
+  -coverage-mapping controls.json \
+  -coverage-file build/controls-coverage.json \
+  src/test/java
+
+# Reproducibility receipt — SHA-256 of every input that influenced the scan
+./methodatlas -ai -emit-receipt -receipt-file build/methodatlas-receipt.json src/test/java
+
+# Tag-vs-AI drift columns: tag_ai_drift, tags_added, tags_removed
+./methodatlas -ai -drift-detect src/test/java > drift.csv
+```
+
+See [Control-Coverage Matrix](usage-modes/control-coverage.md) and [Reproducibility Receipts](usage-modes/reproducibility-receipts.md).
+
 ## Real-world output example
 
 Running against a mix of functional and cryptographic test classes:

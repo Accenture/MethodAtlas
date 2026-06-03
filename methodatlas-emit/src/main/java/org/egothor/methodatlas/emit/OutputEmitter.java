@@ -48,9 +48,10 @@ public final class OutputEmitter implements RecordEmitter {
      *                           {@code true}
      * @param contentHashEnabled whether the {@code content_hash} column should be
      *                           included
-     * @param driftDetect        whether the {@code tag_ai_drift} column should be
-     *                           included; only meaningful when {@code aiEnabled} is
-     *                           {@code true}
+     * @param driftDetect        whether the {@code tag_ai_drift},
+     *                           {@code tags_added}, and {@code tags_removed}
+     *                           columns should be included; only meaningful when
+     *                           {@code aiEnabled} is {@code true}
      * @param emitSourceRoot     whether a {@code source_root} column (CSV) or
      *                           {@code SRCROOT=} token (plain) should be included;
      *                           enable with {@code -emit-source-root} when scanning
@@ -106,7 +107,7 @@ public final class OutputEmitter implements RecordEmitter {
                 header.append(",ai_confidence");
             }
             if (driftDetect) {
-                header.append(",tag_ai_drift");
+                header.append(",tag_ai_drift,tags_added,tags_removed");
             }
         }
         out.println(header.toString());
@@ -136,6 +137,33 @@ public final class OutputEmitter implements RecordEmitter {
             emitPlain(fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
         } else {
             emitCsv(fqcn, method, loc, contentHash, tags, displayName, suggestion, sourceRoot);
+        }
+    }
+
+    /**
+     * Flushes the underlying writer and surfaces any write error it silently
+     * absorbed while records were being streamed.
+     *
+     * <p>
+     * A {@link PrintWriter} never throws {@link java.io.IOException}: it records
+     * the failure in an internal flag and keeps accepting calls. A streaming
+     * emit loop therefore has no way to learn that records were lost — for
+     * example when standard output is a broken pipe or the target disk is full.
+     * Calling this method once, after the final record has been emitted,
+     * converts that swallowed failure into an explicit exception so a truncated
+     * CSV or plain-text report is never reported as a successful run. It mirrors
+     * the error check that the buffering emitters perform inside their
+     * {@code flush(PrintWriter)} methods.
+     * </p>
+     *
+     * @throws IllegalStateException if the underlying writer reported a write
+     *                               error at any point during emission
+     * @since 4.0.0
+     */
+    public void finish() {
+        if (out.checkError()) {
+            throw new IllegalStateException(
+                    "Failed to write output: the underlying stream reported an error");
         }
     }
 
@@ -212,14 +240,15 @@ public final class OutputEmitter implements RecordEmitter {
 
         if (aiEnabled) {
             TagAiDrift drift = driftDetect ? TagAiDrift.compute(tags, suggestion) : null;
-            appendAiCsvFields(line, suggestion, drift);
+            appendAiCsvFields(line, tags, suggestion, drift);
         }
 
         out.println(line.toString());
     }
 
     @SuppressWarnings("PMD.NPathComplexity")
-    private void appendAiCsvFields(StringBuilder line, AiMethodSuggestion suggestion, TagAiDrift drift) {
+    private void appendAiCsvFields(StringBuilder line, List<String> tags, AiMethodSuggestion suggestion,
+            TagAiDrift drift) {
         String aiSecurity = suggestion == null ? CSV_ABSENT : Boolean.toString(suggestion.securityRelevant());
         String aiDisplayName = suggestion == null || suggestion.displayName() == null
                 ? CSV_ABSENT : suggestion.displayName();
@@ -244,6 +273,14 @@ public final class OutputEmitter implements RecordEmitter {
         }
         if (driftDetect) {
             line.append(',').append(drift != null ? drift.toValue() : CSV_ABSENT);
+            // tags_added / tags_removed: the reviewer's (source) tag changes
+            // relative to the AI suggestion. Blank when there is no suggestion,
+            // matching the tag_ai_drift column. Shares TagAiDrift.tagDifference
+            // with the GUI audit writer so both emit identical values.
+            String tagsAdded = suggestion == null ? CSV_ABSENT : TagAiDrift.tagDifference(tags, suggestion.tags());
+            String tagsRemoved = suggestion == null ? CSV_ABSENT : TagAiDrift.tagDifference(suggestion.tags(), tags);
+            line.append(',').append(csvEscape(tagsAdded))
+                    .append(',').append(csvEscape(tagsRemoved));
         }
     }
 

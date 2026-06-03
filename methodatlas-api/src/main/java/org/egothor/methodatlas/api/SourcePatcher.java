@@ -42,6 +42,8 @@ import java.util.Map;
  *
  * @see TestDiscovery
  * @see TestDiscoveryConfig
+ *
+ * @since 3.0.0
  */
 public interface SourcePatcher {
 

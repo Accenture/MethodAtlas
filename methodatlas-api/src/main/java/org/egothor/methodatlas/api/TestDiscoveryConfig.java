@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
  *
  * @see TestDiscovery#configure
  * @see TestDiscovery
+ * @since 3.0.0
  */
 public record TestDiscoveryConfig(
         List<String> fileSuffixes,

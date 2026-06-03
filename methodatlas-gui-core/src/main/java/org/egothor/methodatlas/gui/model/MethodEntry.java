@@ -54,10 +54,18 @@ public final class MethodEntry {
         this.suggestion = suggestion;
     }
 
-    /** @return the immutable discovery record */
+    /**
+     * Returns the immutable discovery record.
+     *
+     * @return the immutable discovery record
+     */
     public DiscoveredMethod discovered() { return discovered; }
 
-    /** @return AI suggestion, or {@code null} if not yet available */
+    /**
+     * Returns the AI suggestion, or {@code null} if not yet available.
+     *
+     * @return the AI suggestion, or {@code null} if not yet available
+     */
     public AiMethodSuggestion suggestion() { return suggestion; }
 
     /** Updates the AI suggestion (called from the AI enrichment phase). */
@@ -160,7 +168,11 @@ public final class MethodEntry {
         return TagStatus.OK;
     }
 
-    /** @return suggested display name from AI, or {@code null} */
+    /**
+     * Returns the suggested display name from AI, or {@code null} if none.
+     *
+     * @return the suggested display name from AI, or {@code null}
+     */
     public String suggestedDisplayName() {
         return suggestion != null ? suggestion.displayName() : null;
     }

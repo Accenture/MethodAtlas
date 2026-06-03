@@ -16,7 +16,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 | --- | --- |
 | "Show us your security test coverage" | AI-classified inventory with rationale per method |
 | "Prove the tests haven't changed since last audit" | Per-class SHA-256 content fingerprints (`-content-hash`) |
-| "Integrate this into our SAST pipeline" | Native **SARIF 2.1.0** output, compatible with GitHub Advanced Security, VS Code, Azure DevOps, and SonarQube |
+| "Integrate this into our SAST (Static Application Security Testing) pipeline" | Native **SARIF 2.1.0** (Static Analysis Results Interchange Format) output, compatible with GitHub Advanced Security, VS Code, Azure DevOps, and SonarQube |
 | "We can't send source code to external AI APIs" | Local inference via **Ollama**, or a two-phase **manual AI workflow** for air-gapped environments |
 | "Classification must be consistent and auditable" | Closed, versioned **security taxonomy** with optional custom taxonomy aligned to your controls framework |
 | "We need confidence scores, not just yes/no" | Per-method AI **confidence scores** (`0.0–1.0`) for threshold-based filtering and human-review queues |
@@ -33,7 +33,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **Content hash fingerprints** — SHA-256 of the class AST text (`-content-hash`); all methods in the same class share the same hash; enables incremental scanning and change detection
 - **AI result cache** — reuse previous AI classifications by hash (`-ai-cache`); unchanged classes cost zero API calls
 - **Tag vs AI drift detection** — `-drift-detect` flags methods where `@Tag("security")` in source disagrees with the AI classification
-- **Multi-root and monorepo scanning** — `-emit-source-root` appends a `source_root` column to CSV/plain output, disambiguating records when the same FQCN appears under different modules
+- **Multi-root and monorepo scanning** — `-emit-source-root` appends a `source_root` column to CSV/plain output, disambiguating records when the same fully qualified class name (FQCN) appears under different modules
 - **Classification overrides** — `-override-file` records human-reviewed corrections; overrides persist across re-runs and set confidence to `1.0` or `0.0`
 - **Delta report** — `-diff` compares two CSV scans and emits a change report: methods added, removed, or modified between runs; useful for CI regression gates
 - **Security-only filter** — `-security-only` suppresses non-security methods from CSV/plain output; applied automatically in SARIF mode
@@ -46,6 +46,9 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **YAML configuration** — share scan settings across a team or CI pipeline without repeating CLI flags
 - **Custom taxonomy** — supply an external taxonomy file aligned to ISO 27001, NIST SP 800-53, PCI DSS, or your own controls framework
 - **Scan provenance** — `-emit-metadata` prepends tool version and timestamp to CSV; embed in evidence packages
+- **Evidence packs** — `-evidence-pack <framework>` bundles a scan into a tamper-evident directory whose SHA-256 manifest is optionally signed with classical, post-quantum, or hybrid signatures; generate the signing keyring with `-gen-signing-key`
+- **Control-coverage matrix** — `-emit-coverage` maps your tests against a user-supplied tag→control mapping and reports the gaps, the primary GRC (Governance, Risk, and Compliance) deliverable
+- **Reproducibility receipts** — `-emit-receipt` records the SHA-256 of every input that influenced a scan, so an auditor can confirm a re-run would produce the same result
 - **Multiple output modes** — CSV (default), plain text, SARIF, GitHub Actions annotations, and JSON (`-json`) with native array/number/boolean types
 
 ## Quick start
@@ -103,7 +106,7 @@ without touching the command line.
 - **Staged workflow** — "Apply to Source" stages changes in memory without writing to disk; a **Save All Changes** toolbar button batches all staged patches per file into a single write, eliminating line-number drift when multiple methods in the same class are modified; staged methods are shown with an orange pencil `✎` icon in the tree; the application asks to save on exit if staged changes are present
 - **Audit trail** — every **Save All Changes** operation writes two artefacts into a hidden `.methodatlas/` directory inside the scanned project root:
   - a timestamped **evidence CSV** (`methodatlas-YYYYMMDD-HHmmss.csv`) using the same column schema as the CLI `DeltaReport` CSV, recording the AI suggestion and the user's final decision for each patched method — never overwritten, accumulates per save operation
-  - a cumulative **override YAML** (`overrides.yaml`) in the `ClassificationOverride` format consumed by the CLI `--override` flag, enabling future analysis runs to reproduce the same decisions without re-invoking AI; entries include an ISO-8601 timestamp and, when configured, the reviewer's identity in the `note` field
+  - a cumulative **override YAML** (`overrides.yaml`) in the `ClassificationOverride` format consumed by the CLI `-override-file` flag, enabling future analysis runs to reproduce the same decisions without re-invoking AI; entries include an ISO-8601 timestamp and, when configured, the reviewer's identity in the `note` field
 - **Activity panel** — collapsible panel above the status bar that appears whenever analysis is running; shows the class currently being sent to AI, deterministic progress counter (`X / Y classes`), elapsed time, and a scrollable log of completed classes with per-class timing and method counts; makes it immediately visible if a long AI request has stalled
 - **AI profiles** — multiple named provider configurations (e.g. "Fast Ollama", "GPT-4o", "Java-only") coexist side by side; the active profile is selected from a toolbar combo box without opening Settings; switching profiles takes effect on the next run
 - **Plugin selection** — the Settings dialog lists all discovery plugins detected on the classpath; unchecking a plugin excludes it from the next scan, useful when only one language needs to be processed
@@ -275,7 +278,7 @@ The file is never overwritten.  Files accumulate over time, giving an ordered hi
 
 ### Override YAML
 
-`overrides.yaml` is updated (or created) on every save.  It uses the `ClassificationOverride` format accepted by the CLI `--override` flag:
+`overrides.yaml` is updated (or created) on every save.  It uses the `ClassificationOverride` format accepted by the CLI `-override-file` flag:
 
 ```yaml
 overrides:
@@ -290,7 +293,7 @@ overrides:
 
 The `note` field is populated automatically with the ISO-8601 review timestamp.  When the **Operator name** field is set in Settings → Audit, it is appended as `by <name>`, providing a clear reviewer identity for regulated environments.  Existing entries are updated in place; new entries are appended.
 
-Passing `--override .methodatlas/overrides.yaml` to a subsequent CLI run reproduces the same tag decisions without re-invoking the AI, which is essential for reproducible CI pipelines and regulated release processes.
+Passing `-override-file .methodatlas/overrides.yaml` to a subsequent CLI run reproduces the same tag decisions without re-invoking the AI, which is essential for reproducible CI pipelines and regulated release processes.
 
 ## SARIF for regulated environments
 
@@ -312,7 +315,7 @@ methodatlas -sarif -ai -ai-cache cache.csv \
 
 A reference template that maps the MethodAtlas built-in taxonomy onto ASVS 4.0 is checked in at [`docs/examples/asvs4-mapping.json`](docs/examples/asvs4-mapping.json). Copy it and adapt it to your project's compliance scope.
 
-The primary GRC deliverable is the `gaps` array — every control declared in the mapping that has zero covering tests. For tools that prefer a flat tabular import (one test per row, control denormalised), derive it with `jq`:
+The primary GRC (Governance, Risk, and Compliance) deliverable is the `gaps` array — every control declared in the mapping that has zero covering tests. For tools that prefer a flat tabular import (one test per row, control denormalised), derive it with `jq`:
 
 ```bash
 jq '[.coverage | to_entries[]
@@ -338,6 +341,55 @@ The receipt is written to `methodatlas-receipt.json` in the working directory by
 
 For the complete field reference, the `configHash` re-derivation algorithm, and worked-example comparisons, see [docs/usage-modes/reproducibility-receipts.md](docs/usage-modes/reproducibility-receipts.md).
 
+## Evidence packs
+
+`-evidence-pack <framework>` runs a full scan and bundles the results into a tamper-evident, self-contained directory that an auditor can verify years later without trusting the original build environment. The pack contains the SARIF and CSV reports, an optional copy of the override file, the AI prompt/response provenance (when `-ai` is used), a SHA-256 manifest of every file in the directory, and machine-readable provenance (`pack-meta.json`).
+
+```bash
+# One-time: generate a ZeroEcho signing keyring (Ed25519 by default)
+./methodatlas -gen-signing-key keys/audit-keyring.txt -key-alias audit
+
+# Produce a signed evidence pack
+./methodatlas -evidence-pack PCI-6.4.1 \
+              -evidence-pack-dir build/audit-q2 \
+              -evidence-pack-keyring keys/audit-keyring.txt \
+              -evidence-pack-key-alias audit \
+              src/test/java
+```
+
+### Supported framework tokens
+
+Tokens are case-insensitive on input; the canonical form is what lands in `pack-meta.json` and the default output directory.
+
+- `ASVS` — OWASP Application Security Verification Standard
+- `PCI-6.4.1` — PCI DSS requirement 6.4.1
+- `NIST-SSDF-PW.8` — NIST Secure Software Development Framework, practice PW.8
+- `ISO-27001-8.29` — ISO/IEC 27001:2022 control 8.29
+
+### Signing
+
+Manifest signing is performed by the [ZeroEcho](https://gitea.egothor.org/Egothor/ZeroEcho) cryptographic toolkit (1.1.0). The resulting `manifest.sha256.signed` file is `manifest.sha256` followed by a ZeroEcho signature trailer. When no keyring is supplied the pack is produced unsigned with a clear warning on stderr; the tool still exits 0.
+
+The signing key lives in a ZeroEcho **keyring** — a plaintext `KeyringStore` file, not a JDK PKCS12/JKS keystore and not produced by `keytool`. Create one with `-gen-signing-key`. Supported algorithms are `Ed25519` (default), `RSA`, `ECDSA`, and the post-quantum `SPHINCS+`/`ML-DSA`/`SLH-DSA`, plus hybrid classical + post-quantum combinations such as `Ed25519+SPHINCS+`. When `-evidence-pack-sign-algo` is omitted the algorithm is read from the keyring entry.
+
+The keyring holds the private key in clear text. For interactive CLI use, protect the file with permissions (the generator sets `0600`). For CI/CD, do not place the file on the runner: store the keyring content in a platform secret and pass the variable name with `-evidence-pack-keyring-env`, so the key is parsed in memory and never touches disk.
+
+### Verification
+
+Auditors verify a signed pack with the public half of the keyring and ZeroEcho's `Tag` tool:
+
+```bash
+ZeroEcho -T --type signature --mode verify --alg Ed25519 \
+         --ks audit-keyring.txt --pub audit \
+         --in manifest.sha256.signed --out manifest.sha256
+```
+
+The signed envelope is a plain detached signature — the manifest bytes followed by a fixed-length signature trailer — so auditors who do not run ZeroEcho can verify it with standard tooling instead. `-gen-signing-key` exports the public key as X.509 PEM (`<alias>-public.pem`); for an Ed25519 key, `openssl pkeyutl -verify -pubin -inkey <alias>-public.pem -rawin -in <manifest-body> -sigfile <signature>` validates it. See [Verifying with standard tools](docs/usage-modes/evidence-packs.md#verifying-with-standard-tools-openssl).
+
+Once the manifest signature validates, every file listed in the manifest is anchored through its SHA-256 column, so any tampering with `findings.sarif`, `findings.csv`, or `pack-meta.json` breaks the chain.
+
+For the full directory layout, framework-to-control mapping table, and known limitations, see [docs/usage-modes/evidence-packs.md](docs/usage-modes/evidence-packs.md).
+
 ## AI security classification
 
 When `-ai` is enabled, MethodAtlas submits each parsed test class to a configured AI provider for security classification. The model receives:
@@ -357,7 +409,7 @@ Because discovery is AST-based and AI classification is constrained by a fixed t
 | `openai` | ChatGPT / OpenAI API | Cloud | No |
 | `anthropic` | Claude / Anthropic API | Cloud | No |
 | `xai` | Grok / xAI API | Cloud | Limited |
-| `groq` | Groq (fast LPU inference) | Cloud | Yes |
+| `groq` | Groq (fast Language Processing Unit (LPU) inference) | Cloud | Yes |
 | `github_models` | GitHub Models | Cloud | Yes (GitHub account) |
 | `mistral` | Mistral AI | Cloud (EU) | Limited |
 | `openrouter` | Many models via OpenRouter | Cloud | Yes (free models) |
@@ -514,8 +566,11 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 | [docs/output-formats.md](docs/output-formats.md) | CSV, plain text, SARIF, GitHub Annotations, and JSON format descriptions |
 | [docs/migration.md](docs/migration.md) | Breaking-change notes and upgrade steps for each major version boundary |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Diagnosis and remedies for common problems |
-| [docs/discovery-plugins.md](docs/discovery-plugins.md) | Per-language plugin configuration: Java, C#, TypeScript/JavaScript |
-| [docs/usage-modes/](docs/usage-modes/index.md) | All operating modes: static inventory, API AI, manual workflow, apply-tags, apply-tags-from-csv, delta, security-only |
+| [docs/discovery-plugins.md](docs/discovery-plugins.md) | Per-language plugin configuration for all eight languages: Java/Kotlin, C#, TypeScript/JavaScript, Go, Python, PowerShell, SAP ABAP, COBOL |
+| [docs/usage-modes/](docs/usage-modes/index.md) | All operating modes: static inventory, API AI, manual workflow, apply-tags, apply-tags-from-csv, delta, security-only, multi-root |
+| [docs/usage-modes/evidence-packs.md](docs/usage-modes/evidence-packs.md) | Tamper-evident evidence packs: `-evidence-pack`, `-gen-signing-key`, classical/PQC/hybrid signing, CI secret keyrings, verification |
+| [docs/usage-modes/control-coverage.md](docs/usage-modes/control-coverage.md) | Control-coverage matrix: `-emit-coverage`, tag-to-control mapping, GRC gap reporting |
+| [docs/usage-modes/reproducibility-receipts.md](docs/usage-modes/reproducibility-receipts.md) | Reproducibility receipts: `-emit-receipt`, input fingerprints for audit replay |
 | [docs/ai/providers.md](docs/ai/providers.md) | Per-provider setup: Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, OpenRouter |
 | [docs/ai/overrides.md](docs/ai/overrides.md) | Classification override file: format, governance, and CI integration |
 | [docs/ai/confidence.md](docs/ai/confidence.md) | Confidence scoring: interpretation and threshold guidance |

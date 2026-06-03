@@ -154,6 +154,7 @@ public final class ScanOrchestrator {
      * @return {@code 0} if all files were processed successfully, {@code 1}
      *         if any file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
+     * @since 1.0.0
      */
     public int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, TestMethodSink sink,
@@ -198,6 +199,7 @@ public final class ScanOrchestrator {
      * @return {@code true} if any provider encountered a parse or processing
      *         error
      * @throws IOException if traversing the file tree fails
+     * @since 1.0.0
      */
     @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
     public boolean runDiscovery(Path root, List<TestDiscovery> providers,
@@ -225,13 +227,17 @@ public final class ScanOrchestrator {
             String fqcn = entry.getKey();
             List<DiscoveredMethod> classMethods = entry.getValue();
 
-            String classSource = classMethods.get(0).sourceContent().get().orElse(null);
+            // groupingBy never produces an empty value list, so the first method is
+            // always present; it is the representative carrying the class-level fields
+            // (source content and file stem are identical across a class's methods).
+            DiscoveredMethod representative = classMethods.get(0);
+            String classSource = representative.sourceContent().get().orElse(null);
 
             String lookupHash = (contentHashEnabled || aiCache.isActive()) && classSource != null
                     ? ContentHasher.hashClass(classSource) : null;
             String outputHash = contentHashEnabled ? lookupHash : null;
 
-            String fileStem = classMethods.get(0).fileStem();
+            String fileStem = representative.fileStem();
             List<String> methodNames = classMethods.stream().map(DiscoveredMethod::method).toList();
             List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
                     .map(ScanOrchestrator::toTargetMethod)
@@ -319,6 +325,7 @@ public final class ScanOrchestrator {
      * @param aiCache      AI result cache used to compute the content-hash lookup key
      * @param tagsToApply  output accumulator: method name to tag values to write
      * @param displayNames output accumulator: method name to display name to write
+     * @since 1.0.0
      */
     public void gatherAiSuggestionsForFile(Map<String, List<DiscoveredMethod>> byClass,
             AiRuntime ai, AiResultCache aiCache,
@@ -327,10 +334,14 @@ public final class ScanOrchestrator {
             String fqcn = classEntry.getKey();
             List<DiscoveredMethod> classMethods = classEntry.getValue();
 
-            String classSource = classMethods.get(0).sourceContent().get().orElse(null);
+            // groupingBy never produces an empty value list; the first method is the
+            // representative carrying the class-level fields (source content and file
+            // stem are identical across a class's methods).
+            DiscoveredMethod representative = classMethods.get(0);
+            String classSource = representative.sourceContent().get().orElse(null);
             String lookupHash = aiCache.isActive() && classSource != null
                     ? ContentHasher.hashClass(classSource) : null;
-            String fileStem = classMethods.get(0).fileStem();
+            String fileStem = representative.fileStem();
             List<String> methodNames = classMethods.stream().map(DiscoveredMethod::method).toList();
             List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
                     .map(ScanOrchestrator::toTargetMethod).toList();
@@ -390,6 +401,7 @@ public final class ScanOrchestrator {
      *                          filter to activate
      * @return filtered sink, or {@code delegate} unchanged when all filters
      *         are off
+     * @since 1.0.0
      */
     public TestMethodSink filterSink(TestMethodSink delegate, boolean securityOnly,
             double minConfidence, boolean confidenceEnabled) {

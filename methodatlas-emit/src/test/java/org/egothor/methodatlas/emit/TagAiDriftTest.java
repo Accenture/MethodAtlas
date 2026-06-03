@@ -120,6 +120,39 @@ class TagAiDriftTest {
     }
 
     // -------------------------------------------------------------------------
+    // tagDifference
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("tagDifference returns the sorted tags present in 'have' but not in 'without'")
+    @Tag("positive")
+    void tagDifference_returnsSortedDifference() {
+        assertEquals("a;c", TagAiDrift.tagDifference(List.of("c", "a", "b"), List.of("b")));
+    }
+
+    @Test
+    @DisplayName("tagDifference returns an empty string when every tag is excluded")
+    @Tag("positive")
+    void tagDifference_allExcluded_returnsEmpty() {
+        assertEquals("", TagAiDrift.tagDifference(List.of("a", "b"), List.of("a", "b")));
+    }
+
+    @Test
+    @DisplayName("tagDifference treats a null or empty 'have' as no difference")
+    @Tag("edge-case")
+    void tagDifference_nullOrEmptyHave_returnsEmpty() {
+        assertEquals("", TagAiDrift.tagDifference(null, List.of("a")));
+        assertEquals("", TagAiDrift.tagDifference(List.of(), List.of("a")));
+    }
+
+    @Test
+    @DisplayName("tagDifference treats a null 'without' as excluding nothing")
+    @Tag("edge-case")
+    void tagDifference_nullWithout_keepsAllSorted() {
+        assertEquals("a;b", TagAiDrift.tagDifference(List.of("b", "a"), null));
+    }
+
+    // -------------------------------------------------------------------------
     // Helper
     // -------------------------------------------------------------------------
 

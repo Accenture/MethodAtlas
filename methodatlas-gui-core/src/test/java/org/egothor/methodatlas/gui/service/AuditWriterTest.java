@@ -93,9 +93,9 @@ class AuditWriterTest {
         assertEquals(
                 "fqcn,method,loc,tags,display_name,content_hash,"
                         + "ai_security_relevant,ai_display_name,ai_tags,ai_reason,"
-                        + "ai_confidence,ai_interaction_score,tag_ai_drift",
+                        + "ai_interaction_score,ai_confidence,tag_ai_drift,tags_added,tags_removed",
                 firstLine,
-                "Header must match the documented DeltaReport CSV schema");
+                "Header must be the DeltaReport schema plus the tags_added/tags_removed columns");
     }
 
     @Test
@@ -160,55 +160,71 @@ class AuditWriterTest {
                 "Filename must follow methodatlas-YYYYMMDD-HHmmss.csv: " + name);
     }
 
-    @Test
-    void evidenceCsv_driftAllAppliedTagsInAi_isNone(@TempDir Path tempDir) throws IOException {
-        AuditWriter.write(tempDir, List.of(entry("c", "m", 1,
-                List.of("security", "auth"), null,
-                suggestion(true, List.of("security", "auth"), null, 0.0))), "");
-
+    private static String[] dataFields(Path tempDir) throws IOException {
         String csv = Files.readString(findEvidenceCsv(tempDir.resolve(".methodatlas")),
                 StandardCharsets.UTF_8);
         String dataLine = csv.lines().skip(1).findFirst().orElseThrow();
-        assertTrue(dataLine.endsWith(",none"),
-                "Drift column must be 'none' when applied == AI tags");
+        return dataLine.split(",", -1);
     }
 
-    @Test
-    void evidenceCsv_driftUserAddedExtra_isTagOnly(@TempDir Path tempDir) throws IOException {
-        AuditWriter.write(tempDir, List.of(entry("c", "m", 1,
-                List.of("security", "extra-tag"), null,
-                suggestion(true, List.of("security"), null, 0.0))), "");
-
-        String csv = Files.readString(findEvidenceCsv(tempDir.resolve(".methodatlas")),
-                StandardCharsets.UTF_8);
-        String dataLine = csv.lines().skip(1).findFirst().orElseThrow();
-        assertTrue(dataLine.endsWith(",tag-only"),
-                "Drift must be 'tag-only' when applied tags include something not in AI");
-    }
+    // Column indices in the evidence CSV (see header schema).
+    private static final int COL_TAG_AI_DRIFT = 12;
+    private static final int COL_TAGS_ADDED = 13;
+    private static final int COL_TAGS_REMOVED = 14;
 
     @Test
-    void evidenceCsv_driftAiHasUnapplied_isAiOnly(@TempDir Path tempDir) throws IOException {
+    void evidenceCsv_driftBothAgreeSecurity_isNone(@TempDir Path tempDir) throws IOException {
         AuditWriter.write(tempDir, List.of(entry("c", "m", 1,
                 List.of("security"), null,
-                suggestion(true, List.of("security", "missing-ai-tag"), null, 0.0))), "");
+                suggestion(true, List.of("security"), null, 0.0))), "");
 
-        String csv = Files.readString(findEvidenceCsv(tempDir.resolve(".methodatlas")),
-                StandardCharsets.UTF_8);
-        String dataLine = csv.lines().skip(1).findFirst().orElseThrow();
-        assertTrue(dataLine.endsWith(",ai-only"),
-                "Drift must be 'ai-only' when AI suggests tags the user did not apply");
+        assertEquals("none", dataFields(tempDir)[COL_TAG_AI_DRIFT],
+                "Drift is 'none' when the security tag and AI verdict agree");
     }
 
     @Test
-    void evidenceCsv_driftNullAppliedTags_isBlank(@TempDir Path tempDir) throws IOException {
-        AuditWriter.write(tempDir, List.of(entry("c", "m", 1, null, null,
-                suggestion(true, List.of("security"), null, 0.0))), "");
+    void evidenceCsv_driftSecurityTagButAiSaysNo_isTagOnly(@TempDir Path tempDir) throws IOException {
+        AuditWriter.write(tempDir, List.of(entry("c", "m", 1,
+                List.of("security"), null,
+                suggestion(false, List.of(), null, 0.0))), "");
 
-        String csv = Files.readString(findEvidenceCsv(tempDir.resolve(".methodatlas")),
-                StandardCharsets.UTF_8);
-        String dataLine = csv.lines().skip(1).findFirst().orElseThrow();
-        assertTrue(dataLine.endsWith(","),
-                "Drift column must be blank when no tags were applied");
+        assertEquals("tag-only", dataFields(tempDir)[COL_TAG_AI_DRIFT],
+                "Drift is 'tag-only' when a security tag is present but AI says not security-relevant");
+    }
+
+    @Test
+    void evidenceCsv_driftAiSaysSecurityButNoTag_isAiOnly(@TempDir Path tempDir) throws IOException {
+        AuditWriter.write(tempDir, List.of(entry("c", "m", 1,
+                List.of("auth"), null,
+                suggestion(true, List.of("auth"), null, 0.0))), "");
+
+        assertEquals("ai-only", dataFields(tempDir)[COL_TAG_AI_DRIFT],
+                "Drift is 'ai-only' when AI says security-relevant but no @Tag(\"security\") is applied");
+    }
+
+    @Test
+    void evidenceCsv_driftBlankWhenNoSuggestion(@TempDir Path tempDir) throws IOException {
+        AuditWriter.write(tempDir, List.of(entry("c", "m", 1, List.of("security"), null, null)), "");
+
+        String[] fields = dataFields(tempDir);
+        assertEquals("", fields[COL_TAG_AI_DRIFT], "Drift is blank when there is no AI suggestion");
+        assertEquals("", fields[COL_TAGS_ADDED], "tags_added is blank when there is no AI suggestion");
+        assertEquals("", fields[COL_TAGS_REMOVED], "tags_removed is blank when there is no AI suggestion");
+    }
+
+    @Test
+    void evidenceCsv_tagsAddedAndRemovedRecordTheReviewerDelta(@TempDir Path tempDir) throws IOException {
+        AuditWriter.write(tempDir, List.of(entry("c", "m", 1,
+                List.of("security", "perf"), null,
+                suggestion(true, List.of("security", "crypto"), null, 0.0))), "");
+
+        String[] fields = dataFields(tempDir);
+        assertEquals("perf", fields[COL_TAGS_ADDED],
+                "tags_added lists applied tags the AI did not suggest");
+        assertEquals("crypto", fields[COL_TAGS_REMOVED],
+                "tags_removed lists AI-suggested tags the reviewer did not apply");
+        assertEquals("none", fields[COL_TAG_AI_DRIFT],
+                "Security classification still agrees, so tag_ai_drift is 'none' despite the tag-set delta");
     }
 
     // ── Override YAML ────────────────────────────────────────────────────────

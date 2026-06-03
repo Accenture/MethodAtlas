@@ -82,6 +82,14 @@ public final class JavaSourcePatcher implements SourcePatcher {
 
     /**
      * {@inheritDoc}
+     */
+    @Override
+    public String pluginId() {
+        return "java";
+    }
+
+    /**
+     * {@inheritDoc}
      *
      * <p>
      * Stores the configured file suffixes used by {@link #supports(Path)}.
@@ -92,11 +100,6 @@ public final class JavaSourcePatcher implements SourcePatcher {
      * suffix {@code "Test.java"} is used.
      * </p>
      */
-    @Override
-    public String pluginId() {
-        return "java";
-    }
-
     @Override
     public void configure(TestDiscoveryConfig config) {
         List<String> suffixes = config.fileSuffixesFor(pluginId());

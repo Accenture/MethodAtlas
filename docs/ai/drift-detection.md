@@ -87,7 +87,7 @@ Add `-drift-detect` to any scan that also uses `-ai`:
 ./methodatlas -ai -drift-detect src/test/java
 ```
 
-A `tag_ai_drift` column is appended to the end of every CSV row (after `ai_confidence` when that flag is also set). In plain-text output the field appears as `TAG_AI_DRIFT=`. The column is absent when `-drift-detect` is omitted so that scripts not expecting it are unaffected.
+Three columns — `tag_ai_drift`, `tags_added`, and `tags_removed` — are appended to the end of every CSV row (after `ai_confidence` when that flag is also set). `tag_ai_drift` is the security-relevance agreement described above; `tags_added` and `tags_removed` are the sorted, semicolon-joined tag-set difference between the source tags and the AI suggestion (tags in source but not suggested, and tags suggested but not in source, respectively). In plain-text output only the `TAG_AI_DRIFT=` field appears. The columns are absent when `-drift-detect` is omitted so that scripts not expecting them are unaffected. The desktop GUI's evidence CSV uses the same three columns and the same `tag_ai_drift` definition.
 
 Or via YAML:
 
@@ -97,7 +97,7 @@ driftDetect: true
 
 ### SARIF output
 
-Drift is **always included** in SARIF output when AI is enabled — no additional flag is needed. It appears as `properties.tagAiDrift` in each result. SARIF consumers (GitHub Code Scanning, SonarQube, Defect Dojo) handle unknown properties gracefully, so adding this field does not break existing integrations.
+Drift is **always included** in SARIF output when AI is enabled — no additional flag is needed. It appears as `properties.tagAiDrift` in each result, alongside `properties.tagsAdded` and `properties.tagsRemoved` (the source-vs-AI tag-set difference). SARIF consumers (GitHub Code Scanning, SonarQube, Defect Dojo) handle unknown properties gracefully, so adding these fields does not break existing integrations.
 
 ```bash
 ./methodatlas -ai -sarif src/test/java > scan.sarif
@@ -117,10 +117,10 @@ When two scans both include the `tag_ai_drift` column (i.e., both were run with 
 ## Reading a drift-enriched CSV
 
 ```text
-fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift
-com.acme.AuthTest,testLoginSuccess,12,security,true,Login success path,auth;session,,0.1,none
-com.acme.AuthTest,testLoginRateLimiting,18,,true,Rate limiting enforcement,auth;rate-limit,,0.0,ai-only
-com.acme.AuthTest,testAuditLog,9,security,false,Audit log format check,,,0.0,tag-only
+fqcn,method,loc,tags,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift,tags_added,tags_removed
+com.acme.AuthTest,testLoginSuccess,12,security,true,Login success path,auth;session,,0.1,none,security,auth;session
+com.acme.AuthTest,testLoginRateLimiting,18,,true,Rate limiting enforcement,auth;rate-limit,,0.0,ai-only,,auth;rate-limit
+com.acme.AuthTest,testAuditLog,9,security,false,Audit log format check,,,0.0,tag-only,security,
 ```
 
 In this example:

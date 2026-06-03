@@ -62,6 +62,10 @@ import org.egothor.methodatlas.api.ScanRecord;
  *     non-{@code null} value (both scans used {@code -ai})</li>
  * <li>{@code ai_tags} — compared only when both records carry a non-{@code null}
  *     value; comparison is order-independent</li>
+ * <li>{@code ai_interaction_score} — compared only when both records carry a
+ *     non-{@code null} value (both scans used {@code -ai})</li>
+ * <li>{@code tag_ai_drift} — compared only when both records carry a
+ *     non-{@code null} value (both scans used {@code -ai -drift-detect})</li>
  * </ul>
  *
  * <p>

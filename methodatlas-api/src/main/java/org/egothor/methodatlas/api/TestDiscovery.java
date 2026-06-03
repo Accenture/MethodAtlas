@@ -22,11 +22,33 @@ import java.util.stream.Stream;
  * Each platform has its own implementation in a dedicated sub-package:
  * </p>
  * <ul>
- * <li>{@code discovery.jvm} — Java source files with JUnit, TestNG, …</li>
+ * <li>{@code discovery.jvm} — Java/Kotlin source files with JUnit, TestNG, …</li>
  * <li>{@code discovery.dotnet} — C# source files with xUnit, NUnit, MSTest</li>
  * <li>{@code discovery.typescript} — TypeScript/JavaScript source files with
  *     Jest, Vitest, Mocha, …</li>
+ * <li>{@code discovery.go} — Go source files with the {@code testing} package</li>
+ * <li>{@code discovery.python} — Python source files with pytest/unittest</li>
+ * <li>{@code discovery.powershell} — PowerShell scripts with Pester</li>
+ * <li>{@code discovery.abap} — ABAP source with ABAP Unit / ecATT</li>
+ * <li>{@code discovery.cobol} — COBOL source test paragraphs</li>
  * </ul>
+ *
+ * <p>
+ * The list above reflects the platforms that ship today; the canonical,
+ * up-to-date matrix is maintained in the project README. Adding a language
+ * means implementing this interface in a new module — the core needs no change.
+ * </p>
+ *
+ * <h2>Thread safety</h2>
+ *
+ * <p>
+ * Implementations are <strong>not</strong> required to be thread-safe. The
+ * orchestration layer calls {@link #configure(TestDiscoveryConfig)} once and
+ * then {@link #discover(Path)} from a single thread, and calls
+ * {@link #close()} only after discovery has finished; integrators writing their
+ * own orchestrator must observe the same single-threaded lifecycle unless an
+ * implementation documents otherwise.
+ * </p>
  *
  * <p>
  * {@link TestDiscoveryConfig} is deliberately language-neutral: it carries
@@ -73,6 +95,8 @@ import java.util.stream.Stream;
  *
  * @see DiscoveredMethod
  * @see TestDiscoveryConfig
+ *
+ * @since 3.0.0
  */
 public interface TestDiscovery extends Closeable {
 

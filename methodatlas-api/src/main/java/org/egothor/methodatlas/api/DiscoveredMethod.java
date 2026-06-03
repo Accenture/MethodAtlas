@@ -37,6 +37,7 @@ import java.util.List;
  *                      in the manual AI workflow
  * @param sourceContent lazy provider of the enclosing class source text;
  *                      shared by all methods of the same class
+ * @since 3.0.0
  */
 public record DiscoveredMethod(
         String fqcn,

@@ -86,11 +86,9 @@ public record AnthropicClient(AiOptions options, HttpJsonExecutor executor) impl
     }
 
     @Override
-    public AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
-            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
+    public AiClassSuggestion suggestForClass(String fqcn, String prompt) throws AiSuggestionException {
         HttpRequest request;
         try {
-            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
             MessageRequest payload = new MessageRequest(options.modelName(), SYSTEM_PROMPT,
                     List.of(new ContentMessage("user", List.of(new ContentBlock("text", prompt)))),
                     0.0, 2_000);

@@ -136,7 +136,8 @@ class OllamaClientTest {
                     .modelName("qwen2.5-coder:7b").baseUrl("http://localhost:11434").build();
 
             OllamaClient client = new OllamaClient(options);
-            AiClassSuggestion suggestion = client.suggestForClass(fqcn, classSource, taxonomyText, targetMethods);
+            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, false);
+            AiClassSuggestion suggestion = client.suggestForClass(fqcn, prompt);
 
             assertEquals(fqcn, suggestion.className());
             assertEquals(Boolean.TRUE, suggestion.classSecurityRelevant());
@@ -208,9 +209,10 @@ class OllamaClientTest {
 
             OllamaClient client = new OllamaClient(options);
 
+            String prompt = PromptBuilder.build(fqcn, "class AuditLoggingTest {}", "security, logging",
+                    targetMethods, false);
             AiSuggestionException ex = org.junit.jupiter.api.Assertions.assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
-                            targetMethods));
+                    () -> client.suggestForClass(fqcn, prompt));
 
             assertEquals("Ollama suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());

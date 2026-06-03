@@ -40,6 +40,8 @@ public final class GitHubAnnotationsEmitter implements TestMethodSink, RecordEmi
     private final String filePrefix;
 
     /**
+     * Creates a new GitHub Actions annotations emitter.
+     *
      * @param out        writer that receives the annotation lines
      * @param filePrefix prefix prepended to the FQCN-derived file path,
      *                   including a trailing slash (e.g. {@code "src/test/java/"});
@@ -80,6 +82,29 @@ public final class GitHubAnnotationsEmitter implements TestMethodSink, RecordEmi
         String message = buildMessage(suggestion, isPlacebo, drift);
 
         out.println(formatCommand(level, filePath, beginLine, title, message));
+    }
+
+    /**
+     * Flushes the underlying writer and surfaces any write error it silently
+     * absorbed while annotation commands were being streamed.
+     *
+     * <p>
+     * A {@link PrintWriter} never throws {@link java.io.IOException}; it records
+     * the failure internally and keeps accepting calls. Calling this method once,
+     * after the scan has emitted every annotation, converts that swallowed
+     * failure into an explicit exception so a truncated set of workflow commands
+     * (for example on a broken pipe) is never reported as a successful run.
+     * </p>
+     *
+     * @throws IllegalStateException if the underlying writer reported a write
+     *                               error at any point during emission
+     * @since 4.0.0
+     */
+    public void finish() {
+        if (out.checkError()) {
+            throw new IllegalStateException(
+                    "Failed to write GitHub annotations: the underlying stream reported an error");
+        }
     }
 
     @SuppressWarnings("PMD.NPathComplexity")

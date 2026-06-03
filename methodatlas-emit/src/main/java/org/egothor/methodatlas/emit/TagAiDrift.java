@@ -1,7 +1,10 @@
 package org.egothor.methodatlas.emit;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
@@ -78,5 +81,34 @@ public enum TagAiDrift {
      */
     public String toValue() {
         return name().toLowerCase(Locale.ROOT).replace('_', '-');
+    }
+
+    /**
+     * Returns the tag values present in {@code have} but absent from
+     * {@code without}, sorted and joined with {@code ;}.
+     *
+     * <p>This is the canonical computation behind the {@code tags_added} and
+     * {@code tags_removed} output columns, shared by the CLI emitter and the GUI
+     * audit writer so both produce identical values. With {@code have} = the
+     * applied (source) tags and {@code without} = the AI-suggested tags the
+     * result is {@code tags_added}; swapping the arguments yields
+     * {@code tags_removed}. Sorting makes the output deterministic and
+     * diff-friendly for audit comparison.</p>
+     *
+     * @param have    tags to keep when not present in {@code without}; may be
+     *                {@code null} or empty
+     * @param without tags to exclude from the result; may be {@code null} or empty
+     * @return sorted, semicolon-joined difference; empty string when the
+     *         difference is empty
+     */
+    public static String tagDifference(List<String> have, List<String> without) {
+        if (have == null || have.isEmpty()) {
+            return "";
+        }
+        Set<String> exclude = without != null ? new HashSet<>(without) : Set.of();
+        return have.stream()
+                .filter(tag -> !exclude.contains(tag))
+                .sorted()
+                .collect(Collectors.joining(";"));
     }
 }

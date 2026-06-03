@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -86,6 +85,12 @@ public final class ABAPTestDiscovery implements TestDiscovery {
      * {@code fileSuffixesFor("ecatt")} for ecATT files.  Falls back to
      * {@code .abap} and {@code .ecl} respectively when not configured.</p>
      *
+     * <p><b>Note:</b> {@code "ecatt"} is a configuration-only namespace — no
+     * {@link TestDiscovery#pluginId()} returns {@code "ecatt"}. To override
+     * ecATT suffixes separately from ABAP Unit suffixes, use the literal
+     * {@code ecatt:} prefix on a {@code -file-suffix} entry (for example
+     * {@code -file-suffix ecatt:.txt}).</p>
+     *
      * @param config runtime configuration; never {@code null}
      */
     @Override
@@ -129,6 +134,9 @@ public final class ABAPTestDiscovery implements TestDiscovery {
         return results.stream();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hadErrors() {
         return errors.get();
@@ -230,13 +238,7 @@ public final class ABAPTestDiscovery implements TestDiscovery {
     }
 
     private static SourceContent lazyContent(Path file) {
-        return () -> {
-            try {
-                return Optional.of(Files.readString(file));
-            } catch (IOException e) {
-                return Optional.empty();
-            }
-        };
+        return SourceContent.ofFile(file);
     }
 
     // ── Package-private static helpers (testable) ─────────────────────

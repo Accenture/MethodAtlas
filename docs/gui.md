@@ -50,8 +50,8 @@ Three buttons appear in the bottom-right of the tag editor panel.  Understanding
 
 Every **Save All Changes** writes two artefacts into `.methodatlas/` inside the scanned directory:
 
-- **`methodatlas-YYYYMMDD-HHmmss.csv`** — immutable timestamped record of every patched method: AI suggestion, user decision, drift category.  Compatible with the CLI `DeltaReport` schema.
-- **`overrides.yaml`** — cumulative `ClassificationOverride` YAML; pass it to a future CLI run via `--override .methodatlas/overrides.yaml` to reproduce the same decisions without re-invoking the AI.
+- **`methodatlas-YYYYMMDD-HHmmss.csv`** — immutable timestamped record of every patched method: AI suggestion, user decision, the `tag_ai_drift` security-classification drift (the same definition as the CLI), and `tags_added`/`tags_removed` recording the reviewer's tag changes relative to the AI suggestion.  Uses the CLI `DeltaReport` column schema extended with the two delta columns; `DeltaReport` resolves columns by name and reads it unchanged.
+- **`overrides.yaml`** — cumulative `ClassificationOverride` YAML; pass it to a future CLI run via `-override-file .methodatlas/overrides.yaml` to reproduce the same decisions without re-invoking the AI.
 
 The `note` field in each YAML entry carries `"Reviewed <ISO-8601> by <operator>"` when an operator name is configured in **Settings → Audit**.
 

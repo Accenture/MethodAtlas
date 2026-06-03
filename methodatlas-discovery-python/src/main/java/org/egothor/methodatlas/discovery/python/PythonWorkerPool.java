@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -59,7 +60,9 @@ final class PythonWorkerPool implements Closeable {
     private final Thread shutdownHook;
 
     private final ReentrantLock workerCreationLock = new ReentrantLock();
-    private int nextWorkerIndex;
+    // AtomicInteger so the lock-free fast-path read in startWorkerOnDemand observes a
+    // coherent value; the increment runs under workerCreationLock.
+    private final AtomicInteger nextWorkerIndex = new AtomicInteger();
 
     /**
      * Creates a worker pool.  No workers are started at construction time.
@@ -144,7 +147,7 @@ final class PythonWorkerPool implements Closeable {
     // ── Private helpers ───────────────────────────────────────────────
 
     private PythonWorker createWorkerUnderLock() throws IOException {
-        int index = nextWorkerIndex++;
+        int index = nextWorkerIndex.getAndIncrement();
         PythonWorker worker = new PythonWorker(scriptPath, pythonEnv, workerTimeoutMillis, index);
         worker.start();
         return worker;
@@ -162,12 +165,12 @@ final class PythonWorkerPool implements Closeable {
     }
 
     private void startWorkerOnDemand() {
-        if (!idleWorkers.isEmpty() || nextWorkerIndex >= poolSize) {
+        if (!idleWorkers.isEmpty() || nextWorkerIndex.get() >= poolSize) {
             return;
         }
         workerCreationLock.lock();
         try {
-            if (!idleWorkers.isEmpty() || nextWorkerIndex >= poolSize) {
+            if (!idleWorkers.isEmpty() || nextWorkerIndex.get() >= poolSize) {
                 return;
             }
             PythonWorker worker = createWorkerUnderLock();
@@ -180,7 +183,7 @@ final class PythonWorkerPool implements Closeable {
         } catch (IOException e) {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING,
-                        "Failed to start Python worker on demand (index " + nextWorkerIndex + ")", e);
+                        "Failed to start Python worker on demand (index " + nextWorkerIndex.get() + ")", e);
             }
         } finally {
             workerCreationLock.unlock();

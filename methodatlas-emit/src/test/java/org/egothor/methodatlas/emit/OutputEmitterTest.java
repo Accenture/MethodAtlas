@@ -1,12 +1,16 @@
 package org.egothor.methodatlas.emit;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -196,13 +200,13 @@ class OutputEmitterTest {
     }
 
     @Test
-    @DisplayName("emitCsvHeader in CSV mode with drift-detect appends tag_ai_drift as last column")
+    @DisplayName("emitCsvHeader in CSV mode with drift-detect appends tag_ai_drift, tags_added, tags_removed")
     @Tag("positive")
     void emitCsvHeader_csvMode_withDriftDetect_appendsTagAiDriftColumn() {
         String header = captureOutput(emitter -> emitter.emitCsvHeader(OutputMode.CSV),
                 true, false, false, true).trim();
-        assertTrue(header.endsWith(",tag_ai_drift"),
-                "tag_ai_drift should be the last column: " + header);
+        assertTrue(header.endsWith(",tag_ai_drift,tags_added,tags_removed"),
+                "drift detection appends tag_ai_drift then tags_added and tags_removed: " + header);
     }
 
     @Test
@@ -330,6 +334,13 @@ class OutputEmitterTest {
     // emit() – CSV mode with drift detection
     // -------------------------------------------------------------------------
 
+    // Helper: drift-detect rows end with ...,tag_ai_drift,tags_added,tags_removed.
+    // Tag values here contain no commas, so a plain split is safe.
+    private static String[] tailThree(String csvRow) {
+        String[] f = csvRow.split(",", -1);
+        return new String[] { f[f.length - 3], f[f.length - 2], f[f.length - 1] };
+    }
+
     @Test
     @DisplayName("emit CSV with drift-detect: 'none' when source tag and AI both agree security-relevant")
     @Tag("positive")
@@ -340,7 +351,10 @@ class OutputEmitterTest {
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.AuthTest", "testLogin", 5, null,
                         List.of("security"), "", suggestion, null),
                 true, false, false, true).trim();
-        assertTrue(output.endsWith(",none"), "Last CSV field should be 'none' when both agree: " + output);
+        String[] tail = tailThree(output);
+        assertEquals("none", tail[0], "tag_ai_drift should be 'none' when both agree: " + output);
+        assertEquals("security", tail[1], "tags_added should list the source-only tag: " + output);
+        assertEquals("auth", tail[2], "tags_removed should list the AI-only tag: " + output);
     }
 
     @Test
@@ -353,7 +367,10 @@ class OutputEmitterTest {
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.AuthTest", "testLogin", 5, null,
                         List.of(), "", suggestion, null),
                 true, false, false, true).trim();
-        assertTrue(output.endsWith(",ai-only"), "Last CSV field should be 'ai-only': " + output);
+        String[] tail = tailThree(output);
+        assertEquals("ai-only", tail[0], "tag_ai_drift should be 'ai-only': " + output);
+        assertEquals("", tail[1], "tags_added should be empty: " + output);
+        assertEquals("auth", tail[2], "tags_removed should list the unapplied AI tag: " + output);
     }
 
     @Test
@@ -366,18 +383,24 @@ class OutputEmitterTest {
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 4, null,
                         List.of("security"), "", suggestion, null),
                 true, false, false, true).trim();
-        assertTrue(output.endsWith(",tag-only"), "Last CSV field should be 'tag-only': " + output);
+        String[] tail = tailThree(output);
+        assertEquals("tag-only", tail[0], "tag_ai_drift should be 'tag-only': " + output);
+        assertEquals("security", tail[1], "tags_added should list the source-only tag: " + output);
+        assertEquals("", tail[2], "tags_removed should be empty: " + output);
     }
 
     @Test
-    @DisplayName("emit CSV with drift-detect: empty drift cell when suggestion is null")
+    @DisplayName("emit CSV with drift-detect: empty drift and delta cells when suggestion is null")
     @Tag("edge-case")
     void emit_csvMode_driftEmpty_whenSuggestionNull() {
         String output = captureOutput(
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 4, null,
                         List.of("security"), "", null, null),
                 true, false, false, true).trim();
-        assertTrue(output.endsWith(","), "Drift cell should be empty when suggestion is null: " + output);
+        String[] tail = tailThree(output);
+        assertEquals("", tail[0], "tag_ai_drift should be empty when suggestion is null: " + output);
+        assertEquals("", tail[1], "tags_added should be empty when suggestion is null: " + output);
+        assertEquals("", tail[2], "tags_removed should be empty when suggestion is null: " + output);
     }
 
     // -------------------------------------------------------------------------
@@ -647,12 +670,66 @@ class OutputEmitterTest {
     }
 
     // -------------------------------------------------------------------------
+    // finish() – streaming write-error surfacing
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("finish throws IllegalStateException when the underlying writer reported a write error")
+    @Tag("negative")
+    @Tag("security")
+    void finish_throwsWhenWriterReportedError() {
+        // A PrintWriter never propagates IOException; it sets an internal error flag.
+        // finish() must convert that swallowed failure into an explicit exception so a
+        // truncated report is never mistaken for a successful run.
+        PrintWriter failing = new PrintWriter(new FailingWriter());
+        OutputEmitter emitter = new OutputEmitter(failing, false, false, false, false, false);
+
+        emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null, List.of(), "", null, null);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, emitter::finish);
+        assertTrue(ex.getMessage().contains("underlying stream reported an error"), ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("finish does not throw when the underlying writer is healthy")
+    @Tag("positive")
+    void finish_doesNotThrowOnHealthyWriter() {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
+            OutputEmitter emitter = new OutputEmitter(pw, false, false, false, false, false);
+            emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null, List.of(), "", null, null);
+            assertDoesNotThrow(emitter::finish);
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
     @FunctionalInterface
     private interface EmitterConsumer {
         void accept(OutputEmitter emitter) throws Exception;
+    }
+
+    /**
+     * A {@link Writer} that fails every write and flush, used to drive a
+     * {@link PrintWriter} into its silent error state.
+     */
+    private static final class FailingWriter extends Writer {
+        @Override
+        public void write(char[] cbuf, int off, int len) throws IOException {
+            throw new IOException("simulated write failure");
+        }
+
+        @Override
+        public void flush() throws IOException {
+            throw new IOException("simulated flush failure");
+        }
+
+        @Override
+        public void close() {
+            // Nothing to release; the writer is purely a failure stub.
+        }
     }
 
     private static String captureOutput(EmitterConsumer consumer) {

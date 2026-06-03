@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
@@ -92,6 +91,9 @@ public final class DotNetTestDiscovery implements TestDiscovery {
         return "dotnet";
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void configure(TestDiscoveryConfig config) {
         List<String> suffixes = config.fileSuffixesFor(pluginId());
@@ -122,6 +124,9 @@ public final class DotNetTestDiscovery implements TestDiscovery {
         return results.stream();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hadErrors() {
         return errors.get();
@@ -259,12 +264,6 @@ public final class DotNetTestDiscovery implements TestDiscovery {
     }
 
     private static SourceContent buildSourceContent(Path file) {
-        return () -> {
-            try {
-                return Optional.of(Files.readString(file));
-            } catch (IOException e) {
-                return Optional.empty();
-            }
-        };
+        return SourceContent.ofFile(file);
     }
 }

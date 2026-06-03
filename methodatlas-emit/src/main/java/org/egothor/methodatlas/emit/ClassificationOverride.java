@@ -150,7 +150,12 @@ public final class ClassificationOverride {
     private final Map<String, List<Entry>> byClass;
 
     private ClassificationOverride(Map<String, List<Entry>> byClass) {
-        this.byClass = byClass;
+        // Defensive deep copy so the documented immutability holds: each value
+        // list and the outer map are made unmodifiable independently of the
+        // caller's references.
+        Map<String, List<Entry>> copy = new HashMap<>(byClass.size() * 2);
+        byClass.forEach((fqcn, entries) -> copy.put(fqcn, List.copyOf(entries)));
+        this.byClass = Map.copyOf(copy);
     }
 
     /**

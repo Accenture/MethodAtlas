@@ -3,11 +3,14 @@ package org.egothor.methodatlas.emit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -539,6 +542,47 @@ class SarifEmitterTest {
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
         assertEquals("tag-only", props.path("tagAiDrift").asText());
+    }
+
+    @Test
+    @DisplayName("tagsAdded and tagsRemoved record the source-vs-AI tag-set difference in properties")
+    @Tag("positive")
+    void flush_tagsAddedAndRemoved_recordTagSetDifference() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "testLogin", true, "Login security", List.of("security", "crypto"), "Tests auth", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "");
+        emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of("security", "perf"), null, suggestion);
+
+        JsonNode props = getFirstResult(flush(emitter)).path("properties");
+        assertEquals("perf", props.path("tagsAdded").asText(),
+                "tagsAdded lists source tags the AI did not suggest");
+        assertEquals("crypto", props.path("tagsRemoved").asText(),
+                "tagsRemoved lists AI tags absent from source");
+    }
+
+    @Test
+    @DisplayName("flush surfaces a stream write error instead of silently truncating")
+    @Tag("edge-case")
+    void flush_surfacesWriteError() {
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
+        PrintWriter failing = new PrintWriter(new Writer() {
+            @Override
+            public void write(char[] cbuf, int off, int len) throws IOException {
+                throw new IOException("disk full");
+            }
+
+            @Override
+            public void flush() {
+                // no-op
+            }
+
+            @Override
+            public void close() {
+                // no-op
+            }
+        });
+        assertThrows(IllegalStateException.class, () -> emitter.flush(failing),
+                "a stream write error must surface, not be swallowed");
     }
 
     @Test

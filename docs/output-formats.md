@@ -60,14 +60,16 @@ com.acme.tests.SampleOneTest,beta,6,param,,false,,,,0.2,0.0
 
 ### With drift detection (`-ai -drift-detect`)
 
-Pass `-drift-detect` alongside `-ai` to append a `tag_ai_drift` column at the end of each row:
+Pass `-drift-detect` alongside `-ai` to append three columns — `tag_ai_drift`, `tags_added`, and `tags_removed` — to the end of each row:
 
 ```text
-fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift
-com.acme.tests.SampleOneTest,alpha,8,security;crypto,,true,"SECURITY: crypto - ...",security;crypto,The test exercises...,0.0,none
-com.acme.tests.SampleOneTest,beta,6,,,true,"SECURITY: auth - ...",security;auth,Verifies auth...,0.1,ai-only
-com.acme.tests.SampleOneTest,gamma,4,security,,,,,0.0,tag-only
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift,tags_added,tags_removed
+com.acme.tests.SampleOneTest,alpha,8,security;crypto,,true,"SECURITY: crypto - ...",security;crypto,The test exercises...,0.0,none,,
+com.acme.tests.SampleOneTest,beta,6,,,true,"SECURITY: auth - ...",security;auth,Verifies auth...,0.1,ai-only,,auth;security
+com.acme.tests.SampleOneTest,gamma,4,security,,,,,0.0,tag-only,security,
 ```
+
+`tag_ai_drift` reports whether the source `@Tag("security")` marker agrees with the AI security-relevance verdict:
 
 | `tag_ai_drift` value | Meaning |
 |---|---|
@@ -75,7 +77,14 @@ com.acme.tests.SampleOneTest,gamma,4,security,,,,,0.0,tag-only
 | `ai-only` | AI classifies as security-relevant; no `@Tag("security")` in source |
 | `tag-only` | `@Tag("security")` present in source; AI does not classify as security-relevant |
 
-When `-ai-confidence` is also set, `ai_confidence` appears between `ai_interaction_score` and `tag_ai_drift`.
+`tags_added` and `tags_removed` report the *whole* tag-set difference between the source tags and the AI suggestion, as sorted, semicolon-joined lists (a separate signal from the security-only `tag_ai_drift`):
+
+| Column | Meaning |
+|---|---|
+| `tags_added` | Tags present in source but **not** suggested by the AI |
+| `tags_removed` | Tags suggested by the AI but **not** present in source |
+
+All three columns are blank when no AI suggestion is available. When `-ai-confidence` is also set, `ai_confidence` appears between `ai_interaction_score` and `tag_ai_drift`. The same three fields appear in every output that carries enrichment — the CSV (CLI scan and the GUI evidence CSV, which shares this schema), the flat JSON output, and the SARIF result `properties` bag — so a downstream tool sees the same drift information by name regardless of format.
 
 ### With source root (`-emit-source-root`)
 
@@ -277,6 +286,9 @@ AI enrichment fields are stored in the result `properties` object when AI is ena
 | `aiReason` | Explanatory rationale from the AI, or omitted |
 | `aiInteractionScore` | Interaction score `0.0–1.0`; present whenever AI is enabled |
 | `aiConfidence` | Confidence score `0.0–1.0`, or omitted when `-ai-confidence` was not passed |
+| `tagAiDrift` | Tag-vs-AI security-classification drift (`none`, `tag-only`, or `ai-only`); present whenever AI is enabled |
+| `tagsAdded` | Source tags the AI did not suggest (sorted, `;`-joined); present whenever AI is enabled |
+| `tagsRemoved` | AI tags absent from source (sorted, `;`-joined); present whenever AI is enabled |
 
 Properties with `null` or absent values are omitted from the JSON output entirely.
 
@@ -522,8 +534,10 @@ Adding `-ai-confidence` appends an `ai_confidence` field to each record:
 | `ai_interaction_score` | number | When `-ai` is enabled |
 | `ai_confidence` | number | When `-ai-confidence` is passed |
 | `tag_ai_drift` | string | When `-drift-detect` is passed |
+| `tags_added` | string | When `-drift-detect` is passed; source tags the AI did not suggest (sorted, `;`-joined) |
+| `tags_removed` | string | When `-drift-detect` is passed; AI tags absent from source (sorted, `;`-joined) |
 
-All filtering flags apply in JSON mode: `-security-only` drops non-security records, `-min-confidence` drops records below the confidence threshold, and `-drift-detect` adds the `tag_ai_drift` field.
+All filtering flags apply in JSON mode: `-security-only` drops non-security records, `-min-confidence` drops records below the confidence threshold, and `-drift-detect` adds the `tag_ai_drift`, `tags_added`, and `tags_removed` fields.
 
 ## Apply-tags mode
 

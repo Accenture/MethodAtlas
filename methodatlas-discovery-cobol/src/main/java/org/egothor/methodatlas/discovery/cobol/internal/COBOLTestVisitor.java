@@ -38,14 +38,6 @@ import org.egothor.methodatlas.discovery.cobol.parser.COBOLTestLexer;
  */
 public final class COBOLTestVisitor {
 
-    /**
-     * Placeholder program identifier used in {@link MethodInfo#programId()}
-     * because the scanner does not currently extract {@code PROGRAM-ID}
-     * from the COBOL source. The {@link org.egothor.methodatlas.discovery.cobol.COBOLTestDiscovery}
-     * derives the FQCN from the file-path stem regardless of this value.
-     */
-    public static final String UNKNOWN_PROGRAM = "unknown";
-
     private final List<MethodInfo> discoveredMethods = new ArrayList<>();
 
     /**
@@ -81,26 +73,17 @@ public final class COBOLTestVisitor {
             if (tt == COBOLTestLexer.MFU_TC_ID) {
                 String name = t.getText().toUpperCase(java.util.Locale.ROOT);
                 int endLine = computeEndLine(boundaryLines, t.getLine());
-                discoveredMethods.add(new MethodInfo(UNKNOWN_PROGRAM, name, t.getLine(), endLine));
+                discoveredMethods.add(new MethodInfo(name, t.getLine(), endLine));
             } else if (tt == COBOLTestLexer.TESTCASE && i + 1 < n) {
                 Token next = tokens.get(i + 1);
                 String name = unquote(next.getText());
                 if (!name.isEmpty()) {
                     int endLine = computeEndLine(boundaryLines, t.getLine());
-                    discoveredMethods.add(new MethodInfo(UNKNOWN_PROGRAM, name, t.getLine(), endLine));
+                    discoveredMethods.add(new MethodInfo(name, t.getLine(), endLine));
                 }
             }
             // TESTSUITE is recognised as a boundary but is never emitted.
         }
-    }
-
-    /**
-     * Returns the PROGRAM-ID extracted from the source, or {@code "unknown"}.
-     *
-     * @return program identifier; never {@code null}
-     */
-    public String getProgramId() {
-        return UNKNOWN_PROGRAM;
     }
 
     /**

@@ -78,6 +78,15 @@ function Table(tbl)
   --
   -- The second column should normally dominate.
   if column_count == 2 then
+    -- Evidence-pack / gen-signing-key flag tables: "Flag | Purpose" and
+    -- "Sub-flag | Purpose". Option names in column 1 run long
+    -- (-evidence-pack-keyring-env <name>), so the left column needs real
+    -- room. Must precede the generic "purpose" rule below.
+    if contains(headers[1], "flag")
+        and contains(headers[2], "purpose") then
+      return set_widths(tbl, {0.45, 0.55})
+    end
+
     if contains(headers[1], "situation")
         and contains(headers[2], "mode") then
       return set_widths(tbl, {0.60, 0.40})
@@ -204,6 +213,22 @@ function Table(tbl)
   --
   -- Platform is usually short; trigger text needs more room.
   if column_count == 3 then
+    -- Evidence-pack signing-algorithm table:
+    --   -evidence-pack-sign-algo value | Kind | Backed by
+    -- Column 1 holds algorithm tokens (Ed25519+SPHINCS+), Kind is one short
+    -- word, "Backed by" carries the widest code expression.
+    if contains(headers[2], "kind")
+        and contains(headers[3], "backed") then
+      return set_widths(tbl, {0.34, 0.16, 0.50})
+    end
+
+    -- Evidence-pack supported-frameworks table:
+    --   Token (CLI input) | Canonical form | What it maps to
+    if contains(headers[1], "token")
+        and contains(headers[3], "maps") then
+      return set_widths(tbl, {0.24, 0.22, 0.54})
+    end
+
     if contains(headers[1], "workflow")
         and contains(headers[2], "platform")
         and contains(headers[3], "trigger") then

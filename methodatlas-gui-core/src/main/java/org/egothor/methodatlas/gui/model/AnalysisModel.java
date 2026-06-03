@@ -20,6 +20,10 @@ import java.util.Map;
  * {@link javax.swing.SwingUtilities#invokeLater invokeLater}.
  * Observers attach via {@link #addPropertyChangeListener}.</p>
  *
+ * <p>Read accessors must also be called on the EDT: the model is backed by
+ * non-thread-safe collections and holds no internal synchronisation, so it is
+ * not safe to read from a background thread while the EDT mutates it.</p>
+ *
  * <h2>Fired property names</h2>
  * <ul>
  *   <li>{@code "entries"} — one or more {@link MethodEntry} objects were

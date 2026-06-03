@@ -10,6 +10,11 @@ java {
 
 repositories {
     mavenCentral()
+    // Required because this module's runtime classpath transitively includes
+    // ZeroEcho-lib via project(':') (needed by the evidence-pack feature).
+    maven {
+        url "https://gitea.egothor.org/api/packages/Egothor/maven"
+    }
 }
 
 dependencies {

@@ -17,8 +17,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 
 /**
@@ -26,7 +28,12 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
  */
 class ReceiptWriterTest {
 
-    private final ObjectMapper mapper = JsonMapper.builder().build();
+    // ReceiptWriter requires a pre-configured mapper (it no longer mutates one);
+    // configure it the same way ReceiptFacade does.
+    private final ObjectMapper mapper = JsonMapper.builder()
+            .enable(SerializationFeature.INDENT_OUTPUT)
+            .serializationInclusion(JsonInclude.Include.NON_NULL)
+            .build();
 
     @Test
     void writtenJsonRoundTripsThroughObjectMapper(@TempDir Path tempDir) throws IOException {

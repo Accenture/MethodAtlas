@@ -38,12 +38,15 @@ package org.egothor.methodatlas.emit;
  *       ({@link OutputEmitter} for CSV/plain output;
  *       {@link GitHubAnnotationsEmitter} for {@code ::notice} /
  *       {@code ::warning} workflow commands). The output writer must
- *       be ready before the first record arrives.</li>
+ *       be ready before the first record arrives. Callers must call
+ *       {@code finish()} after the final record so that any write
+ *       error the {@link java.io.PrintWriter} silently absorbed is
+ *       surfaced rather than reported as a successful run.</li>
  *   <li><b>Buffering</b> — accumulates records during the scan and
  *       writes the whole document at the end ({@link SarifEmitter} for
  *       SARIF 2.1.0; {@link JsonEmitter} for the flat JSON array).
  *       Callers must call {@code flush(PrintWriter)} after the scan
- *       completes.</li>
+ *       completes, which performs the same write-error check.</li>
  * </ul>
  *
  * <p>

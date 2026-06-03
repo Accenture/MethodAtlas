@@ -68,9 +68,10 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
      *                           {@code true}
      * @param contentHashEnabled whether the {@code content_hash} field should be
      *                           included
-     * @param driftDetect        whether the {@code tag_ai_drift} field should be
-     *                           included; only meaningful when {@code aiEnabled} is
-     *                           {@code true}
+     * @param driftDetect        whether the {@code tag_ai_drift},
+     *                           {@code tags_added}, and {@code tags_removed}
+     *                           fields should be included; only meaningful when
+     *                           {@code aiEnabled} is {@code true}
      * @param emitSourceRoot     whether the {@code source_root} field should be
      *                           included
      */
@@ -131,6 +132,8 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
         Double aiInteractionScore = null;
         Double aiConfidence = null;
         String tagAiDrift = null;
+        String tagsAdded = null;
+        String tagsRemoved = null;
 
         if (aiEnabled) {
             if (suggestion != null) {
@@ -140,9 +143,10 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
                 aiReason = suggestion.reason();
                 aiInteractionScore = suggestion.interactionScore();
                 aiConfidence = confidenceEnabled ? suggestion.confidence() : null;
-                tagAiDrift = driftDetect
-                        ? TagAiDrift.compute(tags != null ? tags : List.of(), suggestion).toValue()
-                        : null;
+                DriftFields drift = driftFields(tags, suggestion);
+                tagAiDrift = drift.drift();
+                tagsAdded = drift.added();
+                tagsRemoved = drift.removed();
             } else {
                 aiTags = List.of();
             }
@@ -162,7 +166,39 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
                 aiReason,
                 aiInteractionScore,
                 aiConfidence,
-                tagAiDrift));
+                tagAiDrift,
+                tagsAdded,
+                tagsRemoved));
+    }
+
+    /**
+     * Computes the drift-detection fields ({@code tag_ai_drift}, {@code tags_added},
+     * {@code tags_removed}) for a method with an AI suggestion.
+     *
+     * <p>
+     * Extracted from {@link #record} to keep that method's branching complexity
+     * within the project's PMD limits. Returns {@link DriftFields#EMPTY} (all
+     * {@code null}, so the fields are omitted from the JSON) when drift detection
+     * is disabled.
+     * </p>
+     *
+     * @param tags       source-level tags of the method, may be {@code null}
+     * @param suggestion non-null AI suggestion for the method
+     * @return the three drift fields, or {@link DriftFields#EMPTY} when disabled
+     */
+    private DriftFields driftFields(List<String> tags, AiMethodSuggestion suggestion) {
+        if (!driftDetect) {
+            return DriftFields.EMPTY;
+        }
+        String drift = TagAiDrift.compute(tags != null ? tags : List.of(), suggestion).toValue();
+        return new DriftFields(drift,
+                TagAiDrift.tagDifference(tags, suggestion.tags()),
+                TagAiDrift.tagDifference(suggestion.tags(), tags));
+    }
+
+    /** Triple of the drift-detection fields, or all {@code null} when disabled. */
+    private record DriftFields(String drift, String added, String removed) {
+        private static final DriftFields EMPTY = new DriftFields(null, null, null);
     }
 
     /**
@@ -179,6 +215,12 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
             out.println(mapper.writeValueAsString(records));
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to serialize JSON output", e);
+        }
+        // PrintWriter swallows write errors; surface them so a truncated JSON
+        // file (e.g. on a full disk) is never reported as a successful run.
+        if (out.checkError()) {
+            throw new UncheckedIOException(new IOException(
+                    "Failed to write JSON output: the underlying stream reported an error"));
         }
     }
 
@@ -206,6 +248,8 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
             @JsonProperty("ai_reason") String aiReason,
             @JsonProperty("ai_interaction_score") Double aiInteractionScore,
             @JsonProperty("ai_confidence") Double aiConfidence,
-            @JsonProperty("tag_ai_drift") String tagAiDrift) {
+            @JsonProperty("tag_ai_drift") String tagAiDrift,
+            @JsonProperty("tags_added") String tagsAdded,
+            @JsonProperty("tags_removed") String tagsRemoved) {
     }
 }

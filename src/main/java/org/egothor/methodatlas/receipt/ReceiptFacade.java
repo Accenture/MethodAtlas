@@ -6,7 +6,9 @@ package org.egothor.methodatlas.receipt;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import org.egothor.methodatlas.CliConfig;
@@ -45,8 +47,15 @@ public final class ReceiptFacade {
      * without {@code volatile} or {@code synchronized}.
      */
     private static final class MapperHolder {
-        /** Shared mapper instance; safe to reuse across calls. */
-        /* default */ static final ObjectMapper INSTANCE = JsonMapper.builder().build();
+        /**
+         * Shared, fully configured mapper instance; safe to reuse across calls.
+         * It is built once with indented output and {@code NON_NULL} inclusion so
+         * that callers never reconfigure it (which would not be thread-safe).
+         */
+        /* default */ static final ObjectMapper INSTANCE = JsonMapper.builder()
+                .enable(SerializationFeature.INDENT_OUTPUT)
+                .serializationInclusion(JsonInclude.Include.NON_NULL)
+                .build();
     }
 
     /**

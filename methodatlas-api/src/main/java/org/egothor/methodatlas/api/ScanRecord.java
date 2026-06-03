@@ -19,6 +19,11 @@ import java.util.List;
  * on the fields they share.
  * </p>
  *
+ * <p>
+ * Consumed by {@code DeltaReport} and {@code DeltaEntry} in the scanner core
+ * for baseline-comparison workflows.
+ * </p>
+ *
  * @param fqcn               fully qualified class name; always present
  * @param method             test method name; always present
  * @param loc                lines of code for the method declaration; always present
@@ -49,10 +54,7 @@ import java.util.List;
  *                           or {@code ai-only}), or {@code null} when the
  *                           {@code tag_ai_drift} column was absent
  *
- * <p>
- * Consumed by {@code DeltaReport} and {@code DeltaEntry} in the scanner core
- * for baseline-comparison workflows.
- * </p>
+ * @since 3.0.0
  */
 public record ScanRecord(
         String fqcn,

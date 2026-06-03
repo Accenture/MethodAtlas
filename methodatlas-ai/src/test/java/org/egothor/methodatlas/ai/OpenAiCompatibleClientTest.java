@@ -102,7 +102,8 @@ class OpenAiCompatibleClientTest {
                     .baseUrl("https://api.openai.com").apiKey("sk-test-value").build();
 
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
-            AiClassSuggestion suggestion = client.suggestForClass(fqcn, classSource, taxonomyText, targetMethods);
+            String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, false);
+            AiClassSuggestion suggestion = client.suggestForClass(fqcn, prompt);
 
             assertEquals(fqcn, suggestion.className());
             assertEquals(Boolean.TRUE, suggestion.classSecurityRelevant());
@@ -169,8 +170,9 @@ class OpenAiCompatibleClientTest {
                     .modelName("openai/gpt-4o-mini").baseUrl("https://openrouter.ai/api").apiKey("or-test-key").build();
 
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
-            AiClassSuggestion suggestion = client.suggestForClass("com.acme.audit.AuditLoggingTest",
-                    "class AuditLoggingTest {}", "security, logging", targetMethods);
+            String prompt = PromptBuilder.build("com.acme.audit.AuditLoggingTest",
+                    "class AuditLoggingTest {}", "security, logging", targetMethods, false);
+            AiClassSuggestion suggestion = client.suggestForClass("com.acme.audit.AuditLoggingTest", prompt);
 
             assertEquals("com.acme.audit.AuditLoggingTest", suggestion.className());
 
@@ -211,8 +213,9 @@ class OpenAiCompatibleClientTest {
                     .apiKey("ghp-test-token").build();
 
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
-            client.suggestForClass("com.acme.audit.AuditLoggingTest",
-                    "class AuditLoggingTest {}", "security, logging", targetMethods);
+            String prompt = PromptBuilder.build("com.acme.audit.AuditLoggingTest",
+                    "class AuditLoggingTest {}", "security, logging", targetMethods, false);
+            client.suggestForClass("com.acme.audit.AuditLoggingTest", prompt);
 
             HttpSupport httpSupport = mocked.constructed().get(0);
             verify(httpSupport).postJson(
@@ -248,8 +251,8 @@ class OpenAiCompatibleClientTest {
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
 
             AiSuggestionException ex = org.junit.jupiter.api.Assertions.assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
-                            targetMethods));
+                    () -> client.suggestForClass(fqcn, PromptBuilder.build(fqcn, "class AuditLoggingTest {}",
+                            "security, logging", targetMethods, false)));
 
             assertEquals("OpenAI-compatible suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());
@@ -290,8 +293,8 @@ class OpenAiCompatibleClientTest {
             OpenAiCompatibleClient client = new OpenAiCompatibleClient(options);
 
             AiSuggestionException ex = org.junit.jupiter.api.Assertions.assertThrows(AiSuggestionException.class,
-                    () -> client.suggestForClass(fqcn, "class AuditLoggingTest {}", "security, logging",
-                            targetMethods));
+                    () -> client.suggestForClass(fqcn, PromptBuilder.build(fqcn, "class AuditLoggingTest {}",
+                            "security, logging", targetMethods, false)));
 
             assertEquals("OpenAI-compatible suggestion failed for " + fqcn, ex.getMessage());
             assertInstanceOf(AiSuggestionException.class, ex.getCause());

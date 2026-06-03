@@ -103,10 +103,19 @@ public sealed interface AiProviderClient
      * Requests AI-based security classification for a parsed test class.
      *
      * <p>
-     * The implementation submits the provided class source code together with the
-     * taxonomy specification to the underlying AI provider. The provider analyzes
-     * the class and produces structured classification results for the class itself
-     * and for each test method contained within the class.
+     * The caller renders the complete user prompt — class source, security
+     * taxonomy, and the deterministically discovered target methods — through
+     * {@link PromptBuilder#build}. The implementation submits that prompt
+     * verbatim to the underlying AI provider, wrapping it only in the
+     * provider's native request envelope (system message, model identifier,
+     * and sampling parameters), and analyzes the structured response.
+     * </p>
+     *
+     * <p>
+     * Centralising prompt assembly in the caller guarantees that every
+     * provider sends an identical prompt and that observers (such as the
+     * evidence-pack archive) record the exact text submitted rather than a
+     * reconstruction of it.
      * </p>
      *
      * <p>
@@ -115,12 +124,10 @@ public sealed interface AiProviderClient
      * objects describing individual test methods.
      * </p>
      *
-     * @param fqcn          fully qualified name of the analyzed class
-     * @param classSource   complete source code of the class being analyzed
-     * @param taxonomyText  security taxonomy definition guiding the AI
-     *                      classification
-     * @param targetMethods deterministically extracted JUnit test methods that must
-     *                      be classified
+     * @param fqcn   fully qualified name of the analyzed class; used only to
+     *               produce diagnostic messages
+     * @param prompt fully rendered user prompt produced by
+     *               {@link PromptBuilder#build}; must not be {@code null}
      * @return normalized AI classification result
      *
      * @throws AiSuggestionException if the request fails due to provider errors,
@@ -128,7 +135,7 @@ public sealed interface AiProviderClient
      *
      * @see AiClassSuggestion
      * @see AiMethodSuggestion
+     * @see PromptBuilder#build(String, String, String, List, boolean)
      */
-    AiClassSuggestion suggestForClass(String fqcn, String classSource, String taxonomyText,
-            List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException;
+    AiClassSuggestion suggestForClass(String fqcn, String prompt) throws AiSuggestionException;
 }
