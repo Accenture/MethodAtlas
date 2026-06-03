@@ -25,6 +25,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
 | `-apply-tags-from-csv <file>` | Apply reviewed annotation decisions from a MethodAtlas CSV back to the scanned source files; the CSV is the complete desired state for every test method's `@Tag` set and `@DisplayName` | Off |
 | `-mismatch-limit <n>` | Used with `-apply-tags-from-csv`: abort without making any changes if the number of mismatches between the CSV and the current source tree reaches or exceeds `n`; `-1` means warn and proceed | `-1` |
+| `-verbose` | Emit detailed diagnostics to standard output. Currently consumed by `-apply-tags-from-csv`, where it prints the CSV desired-state keys, the keys discovered in the source tree, and the key-by-key match result, so a run that reports zero updates can be diagnosed | Off |
 | `-security-only` | Suppress non-security methods from CSV and plain-text output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect; in SARIF mode this filter is already applied by default | Off |
 | `-include-non-security` | Opt-in to include all test methods in SARIF output, disabling the automatic security-only filter; has no effect in CSV or plain-text modes | Off |
 | `-sarif-omit-scores` | Opt-out: suppress the interaction score and confidence percentage from SARIF result message text; use this when the consuming system already renders the `properties` bag and the extra text is unwanted; scores are always embedded by default so they are visible in GitHub Code Scanning | Off |
@@ -572,6 +573,44 @@ Apply-tags-from-csv aborted: 1 mismatch(es) >= limit 1. No source files were mod
 # Abort if there is even a single mismatch
 ./methodatlas -apply-tags-from-csv reviewed.csv -mismatch-limit 1 src/test/java
 ```
+
+### `-verbose`
+
+Emits detailed diagnostics to standard output. It is currently consumed by `-apply-tags-from-csv`, where it explains *why* a run applied the number of changes it did — most usefully, why a run reported **zero updates**.
+
+When the apply step matches no methods, the cause is almost always that the lookup key built from the CSV (`<fqcn>::<method>`) does not equal the key discovered in the source tree. `-verbose` prints both sides and the match result so the discrepancy is visible:
+
+```bash
+./methodatlas -apply-tags-from-csv reviewed.csv -verbose src/test/java
+```
+
+```text
+[verbose] working directory: /home/ci/project
+[verbose] CSV file: /home/ci/project/reviewed.csv
+[verbose] scan root: /home/ci/project/src/test/java
+[verbose] CSV desired-state keys (2); lookup format is <fqcn>::<method>:
+[verbose]   CSV  com.wrong.LoginTest::testLogin
+[verbose]   CSV  com.wrong.LoginTest::testLogout
+[verbose] source files with discoverable test methods: 1
+[verbose] source keys (2):
+[verbose]   SRC  com.example.LoginTest::testLogin
+[verbose]   SRC  com.example.LoginTest::testLogout
+[verbose] matched keys (present in both CSV and source): 0
+[verbose] in CSV but NOT found in source (2):
+[verbose]   CSV-only  com.wrong.LoginTest::testLogin
+[verbose]   CSV-only  com.wrong.LoginTest::testLogout
+[verbose] in source but NOT present in CSV (2):
+[verbose]   SRC-only  com.example.LoginTest::testLogin
+[verbose]   SRC-only  com.example.LoginTest::testLogout
+```
+
+In the example above the CSV was produced for a class under package `com.wrong`, but the scanned source declares `com.example` — so nothing matches and no file is changed. Common causes the output makes obvious:
+
+- **Working-directory mismatch** — the scan root resolves to a tree that does not contain the expected files (the printed absolute `scan root` and an empty source-key list reveal this).
+- **Fully qualified class name mismatch** — the CSV's `fqcn` column differs from the package the source actually declares.
+- **Method-name mismatch** — for example a parameterized test whose CSV row records a display name rather than the method identifier.
+
+Even without `-verbose`, a run that changes nothing prints a hint pointing here. The flag has no effect on the source files or the exit code; it only adds output.
 
 ### `-ai`
 

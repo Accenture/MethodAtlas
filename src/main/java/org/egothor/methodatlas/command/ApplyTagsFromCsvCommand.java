@@ -62,6 +62,7 @@ public final class ApplyTagsFromCsvCommand implements Command {
                 roots,
                 cliConfig.mismatchLimit(),
                 patchers,
-                out);
+                out,
+                cliConfig.verbose());
     }
 }

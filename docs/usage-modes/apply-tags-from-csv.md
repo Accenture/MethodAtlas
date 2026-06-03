@@ -210,6 +210,24 @@ No CSV is produced. Standard output is consumed entirely by the summary.
     `-apply-tags-from-csv` edits `.java` files directly. There is no dry-run
     mode. Commit or back up your work before running.
 
+## Troubleshooting: nothing was applied
+
+If a run completes with `0 change(s) in 0 file(s)`, the CSV rows did not line up with any method discovered in the source tree. The engine matches on a lookup key of the form `<fqcn>::<method>`, built independently from the CSV's `fqcn`/`method` columns and from the source the patcher parses. When the two keys differ, the row is silently treated as a mismatch.
+
+Re-run with `-verbose` to see exactly what was compared:
+
+```bash
+./methodatlas -apply-tags-from-csv review.csv -verbose src/test/java
+```
+
+The output prints the working directory and resolved scan roots, every CSV key, every source key, and the key-by-key match result (`CSV-only` / `SRC-only`). Common causes it exposes:
+
+- **Wrong working directory** — the scan root resolves to a tree without the expected files; the printed absolute scan root and an empty source-key list make this obvious.
+- **Fully qualified class name mismatch** — the CSV's `fqcn` differs from the package the source declares (for example the CSV was generated against a different module or a relocated package).
+- **Method-name mismatch** — the CSV `method` column holds something other than the method identifier the patcher discovers.
+
+See the [`-verbose`](../cli-reference.md#-verbose) reference for an annotated example of the diagnostic output.
+
 ## Reviewing changes
 
 After write-back, inspect the diff before committing:

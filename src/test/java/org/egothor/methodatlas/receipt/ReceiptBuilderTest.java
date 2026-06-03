@@ -207,6 +207,6 @@ class ReceiptBuilderTest {
                 false, aiCacheFile, false, null, -1, false, false, 0.0,
                 false, null,
                 false, null, null,
-                null, null, false, null, null, null, null);
+                null, null, false, null, null, null, null, false);
     }
 }

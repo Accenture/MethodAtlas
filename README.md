@@ -38,6 +38,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **Delta report** — `-diff` compares two CSV scans and emits a change report: methods added, removed, or modified between runs; useful for CI regression gates
 - **Security-only filter** — `-security-only` suppresses non-security methods from CSV/plain output; applied automatically in SARIF mode
 - **Mismatch limit** — `-mismatch-limit` safety gate for `-apply-tags-from-csv`; aborts without touching source files when the CSV diverges from the current codebase
+- **Verbose diagnostics** — `-verbose` explains an `-apply-tags-from-csv` run that updates nothing: it prints the CSV keys, the keys discovered in the source, and the key-by-key match result, surfacing fully-qualified-name or working-directory mismatches
 - **GitHub Actions annotations** — `-github-annotations` emits inline PR annotations for security-relevant methods without requiring a GitHub Advanced Security licence
 - **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent. **Supported languages:** Java (`.java`) and C# (`.cs`). Files in any other discovered language are recognised but skipped during write-back with a clear per-file notice and an aggregate skip count in the summary line.
 - **Apply-tags-from-csv** — applies human-reviewed annotation decisions from a CSV back to source; separates the review step from the write-back. Same Java/C# language scope as `-apply-tags`.

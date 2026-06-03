@@ -157,6 +157,7 @@ final class CliArgs {
         String evidencePackKeyringEnv = null;
         String evidencePackKeyAlias = null;
         String evidencePackSignAlgo = null;
+        boolean verbose = false;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -206,6 +207,7 @@ final class CliArgs {
                 case FLAG_SARIF_OMIT_SCORES -> sarifOmitScores = true;
                 case FLAG_DRIFT_DETECT -> driftDetect = true;
                 case FLAG_EMIT_SOURCE_ROOT -> emitSourceRoot = true;
+                case "-verbose" -> verbose = true;
                 case FLAG_MIN_CONFIDENCE -> minConfidence = parseConfidenceThreshold(nextArg(args, ++i, arg));
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
                 case FLAG_EMIT_RECEIPT -> emitReceipt = true;
@@ -298,7 +300,7 @@ final class CliArgs {
                 emitCoverage, coverageFile, coverageMappingFile,
                 evidencePackFramework, evidencePackDir,
                 evidencePackOverwrite, evidencePackKeyringFile, evidencePackKeyringEnv,
-                evidencePackKeyAlias, evidencePackSignAlgo);
+                evidencePackKeyAlias, evidencePackSignAlgo, verbose);
     }
 
     // -------------------------------------------------------------------------

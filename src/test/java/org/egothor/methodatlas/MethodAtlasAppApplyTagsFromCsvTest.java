@@ -344,6 +344,46 @@ class MethodAtlasAppApplyTagsFromCsvTest {
         assertTrue(output.contains("aborted"), output);
     }
 
+    // ── Verbose diagnostics ───────────────────────────────────────────────────
+
+    @Test
+    void applyTagsFromCsv_verbose_revealsFqcnMismatch(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "LoginTest.java", LOGIN_TEST_SOURCE); // package com.example
+        // CSV uses the WRONG package — the classic cause of a zero-update run.
+        writeCsv(tempDir, "scan.csv", """
+                fqcn,method,loc,tags,display_name
+                com.wrong.LoginTest,testLogin,1,security,
+                com.wrong.LoginTest,testLogout,1,,
+                """);
+
+        String output = runApp(tempDir, "scan.csv", "-verbose");
+
+        assertTrue(output.contains("[verbose] CSV desired-state keys"), output);
+        assertTrue(output.contains("[verbose] source keys"), output);
+        // Both sides are printed with the exact key, exposing the package mismatch.
+        assertTrue(output.contains("com.wrong.LoginTest::testLogin"), output);
+        assertTrue(output.contains("com.example.LoginTest::testLogin"), output);
+        assertTrue(output.contains("CSV-only"), output);
+        assertTrue(output.contains("SRC-only"), output);
+        // Nothing matched, so no source file is modified.
+        assertEquals(LOGIN_TEST_SOURCE, readSource(tempDir, "LoginTest.java"));
+    }
+
+    @Test
+    void applyTagsFromCsv_zeroUpdates_printsVerboseHintWhenNotVerbose(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "LoginTest.java", LOGIN_TEST_SOURCE);
+        writeCsv(tempDir, "scan.csv", """
+                fqcn,method,loc,tags,display_name
+                com.wrong.LoginTest,testLogin,1,security,
+                com.wrong.LoginTest,testLogout,1,,
+                """);
+
+        String output = runApp(tempDir, "scan.csv");
+
+        assertTrue(output.contains("0 change(s) in 0 file(s)"), output);
+        assertTrue(output.contains("Re-run with -verbose"), output);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static void writeSource(Path dir, String filename, String source) throws IOException {

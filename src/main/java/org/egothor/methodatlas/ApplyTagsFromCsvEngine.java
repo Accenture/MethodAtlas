@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -109,13 +110,19 @@ public final class ApplyTagsFromCsvEngine {
      *                        {@code -1} means no limit (warn and proceed)
      * @param patchers        list of configured {@link SourcePatcher} implementations
      * @param log             writer for progress and summary output
+     * @param verbose         when {@code true}, print the CSV desired-state keys,
+     *                        the keys discovered in the source tree, and the
+     *                        key-by-key match result to {@code log}, so a run that
+     *                        reports zero updates can be diagnosed (for example a
+     *                        fully qualified class name or working-directory
+     *                        mismatch between the CSV and the scanned source)
      * @return {@code 0} on success, {@code 1} when the mismatch limit is
      *         exceeded or a fatal error occurs
      * @throws IOException if the CSV file or source files cannot be read or
      *                     written
      */
     public static int apply(Path csvFile, List<Path> roots,
-            int mismatchLimit, List<SourcePatcher> patchers, PrintWriter log)
+            int mismatchLimit, List<SourcePatcher> patchers, PrintWriter log, boolean verbose)
             throws IOException {
 
         // ── Step 1: load the desired-state CSV ────────────────────────────────
@@ -128,6 +135,10 @@ public final class ApplyTagsFromCsvEngine {
         Map<String, ScanRecord> desiredState = new HashMap<>(records.size() * 2);
         for (ScanRecord r : records) {
             desiredState.put(key(r.fqcn(), r.method()), r);
+        }
+
+        if (verbose) {
+            logVerboseHeader(log, csvFile, roots, desiredState);
         }
 
         // ── Step 2: scan source to build current method inventory ─────────────
@@ -143,6 +154,10 @@ public final class ApplyTagsFromCsvEngine {
             }
         }
 
+        if (verbose) {
+            logVerboseSource(log, sourceIndex, sourceKeys);
+        }
+
         // ── Step 3: compute mismatches (symmetric difference) ─────────────────
         Set<String> inCsvNotSource = new LinkedHashSet<>(desiredState.keySet());
         inCsvNotSource.removeAll(sourceKeys);
@@ -151,6 +166,10 @@ public final class ApplyTagsFromCsvEngine {
         inSourceNotCsv.removeAll(desiredState.keySet());
 
         int mismatchCount = inCsvNotSource.size() + inSourceNotCsv.size();
+
+        if (verbose) {
+            logVerboseMatch(log, desiredState.size(), inCsvNotSource, inSourceNotCsv);
+        }
 
         // ── Step 4: enforce mismatch limit ────────────────────────────────────
         if (mismatchLimit >= 0 && mismatchCount >= mismatchLimit) {
@@ -161,7 +180,7 @@ public final class ApplyTagsFromCsvEngine {
         warnMismatches(inCsvNotSource, inSourceNotCsv);
 
         // ── Step 6: apply changes file by file ────────────────────────────────
-        return applyFilesLoop(sourceIndex, desiredState, patchers, mismatchCount, log);
+        return applyFilesLoop(sourceIndex, desiredState, patchers, mismatchCount, log, verbose);
     }
 
     private static int reportMismatchesAndAbort(Set<String> inCsvNotSource, Set<String> inSourceNotCsv,
@@ -188,67 +207,25 @@ public final class ApplyTagsFromCsvEngine {
         }
     }
 
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private static int applyFilesLoop(Map<Path, List<MethodKey>> sourceIndex,
             Map<String, ScanRecord> desiredState, List<SourcePatcher> patchers,
-            int mismatchCount, PrintWriter log) {
+            int mismatchCount, PrintWriter log, boolean verbose) {
         int modifiedFiles = 0;
         int totalChanges = 0;
         int skippedFiles = 0;
         boolean hadErrors = false;
 
         for (Map.Entry<Path, List<MethodKey>> entry : sourceIndex.entrySet()) {
-            Path path = entry.getKey();
-            if (!hasRelevantMethod(entry.getValue(), desiredState)) {
-                continue;
+            FileOutcome outcome = processFile(entry.getKey(), entry.getValue(),
+                    desiredState, patchers, log, verbose);
+            totalChanges += outcome.changes();
+            if (outcome.changes() > 0) {
+                modifiedFiles++;
             }
-
-            SourcePatcher patcher = patchers.stream()
-                    .filter(p -> p.supports(path))
-                    .findFirst().orElse(null);
-            if (patcher == null) {
+            if (outcome.skipped()) {
                 skippedFiles++;
-                if (LOG.isLoggable(Level.INFO)) {
-                    LOG.log(Level.INFO,
-                            "Skipping {0}: no SourcePatcher available for this language",
-                            path);
-                }
-                log.println("Apply-tags-from-csv: skipped " + path
-                        + " — source write-back is not supported for this language "
-                        + "(currently Java and C# only)");
-                continue;
             }
-
-            // Build per-method desired state maps for this file
-            Map<String, List<String>> tagsToApply = new LinkedHashMap<>();
-            Map<String, String> displayNames = new LinkedHashMap<>();
-
-            for (MethodKey mk : entry.getValue()) {
-                String k = key(mk.fqcn(), mk.method());
-                ScanRecord desired = desiredState.get(k);
-                if (desired == null) {
-                    continue;
-                }
-                if (desired.tags() != null) {
-                    tagsToApply.put(mk.method(), desired.tags());
-                }
-                // null means the column was absent from the CSV (old format) — leave @DisplayName untouched.
-                // "" means the column was present but empty — remove @DisplayName.
-                if (desired.displayName() != null) {
-                    displayNames.put(mk.method(), desired.displayName());
-                }
-            }
-
-            try {
-                int changes = patcher.patch(path, tagsToApply, displayNames, log);
-                if (changes > 0) {
-                    modifiedFiles++;
-                    totalChanges += changes;
-                }
-            } catch (IOException e) {
-                if (LOG.isLoggable(Level.WARNING)) {
-                    LOG.log(Level.WARNING, "Cannot process: " + path, e);
-                }
+            if (outcome.error()) {
                 hadErrors = true;
             }
         }
@@ -268,7 +245,107 @@ public final class ApplyTagsFromCsvEngine {
                     .append(" file(s) skipped (no source write-back support for the language).");
         }
         log.println(summary.toString());
+        if (totalChanges == 0 && !verbose) {
+            log.println("Hint: no methods were updated. Re-run with -verbose to print the CSV keys, "
+                    + "the keys discovered in the source, and the key-by-key match result — the "
+                    + "usual cause is a fully qualified class name or working-directory mismatch.");
+        }
         return hadErrors ? 1 : 0;
+    }
+
+    /**
+     * Applies the desired state to a single source file and reports the outcome.
+     *
+     * @param path         source file to patch
+     * @param methods      methods discovered in {@code path}
+     * @param desiredState CSV desired state keyed by {@code <fqcn>::<method>}
+     * @param patchers     configured source patchers
+     * @param log          progress writer
+     * @param verbose      whether to print per-file diagnostics
+     * @return the outcome (change count, language-skip flag, error flag)
+     */
+    private static FileOutcome processFile(Path path, List<MethodKey> methods,
+            Map<String, ScanRecord> desiredState, List<SourcePatcher> patchers,
+            PrintWriter log, boolean verbose) {
+        if (!hasRelevantMethod(methods, desiredState)) {
+            if (verbose) {
+                log.println("[verbose] no CSV row matches any method in " + path + " — skipping");
+            }
+            return FileOutcome.NONE;
+        }
+
+        SourcePatcher patcher = patchers.stream()
+                .filter(p -> p.supports(path))
+                .findFirst().orElse(null);
+        if (patcher == null) {
+            if (LOG.isLoggable(Level.INFO)) {
+                LOG.log(Level.INFO, "Skipping {0}: no SourcePatcher available for this language", path);
+            }
+            log.println("Apply-tags-from-csv: skipped " + path
+                    + " — source write-back is not supported for this language "
+                    + "(currently Java and C# only)");
+            return FileOutcome.forSkip();
+        }
+
+        Map<String, List<String>> tagsToApply = new LinkedHashMap<>();
+        Map<String, String> displayNames = new LinkedHashMap<>();
+        for (MethodKey mk : methods) {
+            ScanRecord desired = desiredState.get(key(mk.fqcn(), mk.method()));
+            if (desired == null) {
+                continue;
+            }
+            if (desired.tags() != null) {
+                tagsToApply.put(mk.method(), desired.tags());
+            }
+            // null means the column was absent from the CSV (old format) — leave @DisplayName untouched.
+            // "" means the column was present but empty — remove @DisplayName.
+            if (desired.displayName() != null) {
+                displayNames.put(mk.method(), desired.displayName());
+            }
+        }
+
+        if (verbose) {
+            log.println("[verbose] applying to " + path + ": " + tagsToApply.size()
+                    + " method(s) with a desired tag-set, " + displayNames.size()
+                    + " with a desired display-name");
+        }
+        try {
+            int changes = patcher.patch(path, tagsToApply, displayNames, log);
+            if (verbose) {
+                log.println("[verbose]   -> " + changes + " change(s) written to " + path);
+            }
+            return FileOutcome.forChanges(changes);
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Cannot process: " + path, e);
+            }
+            return FileOutcome.forError();
+        }
+    }
+
+    /**
+     * Outcome of patching one source file: the number of changes written, and
+     * whether the file was skipped for lack of a {@link SourcePatcher} or failed
+     * with an I/O error.
+     *
+     * @param changes number of annotation changes written (zero when none applied)
+     * @param skipped {@code true} when skipped because no patcher supports the language
+     * @param error   {@code true} when patching threw an {@link IOException}
+     */
+    private record FileOutcome(int changes, boolean skipped, boolean error) {
+        private static final FileOutcome NONE = new FileOutcome(0, false, false);
+
+        private static FileOutcome forSkip() {
+            return new FileOutcome(0, true, false);
+        }
+
+        private static FileOutcome forError() {
+            return new FileOutcome(0, false, true);
+        }
+
+        private static FileOutcome forChanges(int changes) {
+            return new FileOutcome(changes, false, false);
+        }
     }
 
     private static boolean hasRelevantMethod(List<MethodKey> methods, Map<String, ScanRecord> desiredState) {
@@ -337,6 +414,68 @@ public final class ApplyTagsFromCsvEngine {
         }
 
         return index;
+    }
+
+    /**
+     * Prints, under {@code -verbose}, the run context and the complete set of
+     * desired-state keys loaded from the CSV.
+     *
+     * @param log          progress writer
+     * @param csvFile      reviewed CSV path
+     * @param roots        configured scan roots
+     * @param desiredState CSV-derived desired state keyed by {@code <fqcn>::<method>}
+     */
+    private static void logVerboseHeader(PrintWriter log, Path csvFile, List<Path> roots,
+            Map<String, ScanRecord> desiredState) {
+        log.println("[verbose] working directory: " + Paths.get("").toAbsolutePath());
+        log.println("[verbose] CSV file: " + csvFile.toAbsolutePath());
+        for (Path root : roots) {
+            String note = Files.isDirectory(root) ? "" : "  (NOT an existing directory)";
+            log.println("[verbose] scan root: " + root.toAbsolutePath() + note);
+        }
+        log.println("[verbose] CSV desired-state keys (" + desiredState.size()
+                + "); lookup format is <fqcn>::<method>:");
+        desiredState.keySet().stream().sorted()
+                .forEach(k -> log.println("[verbose]   CSV  " + k));
+    }
+
+    /**
+     * Prints, under {@code -verbose}, the keys discovered in the scanned source
+     * tree (the right-hand side of the lookup).
+     *
+     * @param log         progress writer
+     * @param sourceIndex source file to discovered methods
+     * @param sourceKeys  flattened {@code <fqcn>::<method>} keys discovered in source
+     */
+    private static void logVerboseSource(PrintWriter log, Map<Path, List<MethodKey>> sourceIndex,
+            Set<String> sourceKeys) {
+        log.println("[verbose] source files with discoverable test methods: " + sourceIndex.size());
+        log.println("[verbose] source keys (" + sourceKeys.size() + "):");
+        sourceKeys.stream().sorted().forEach(k -> log.println("[verbose]   SRC  " + k));
+        if (sourceKeys.isEmpty()) {
+            log.println("[verbose] No test methods were discovered under the scan root(s). "
+                    + "Confirm the command is run from the correct directory and that the files "
+                    + "use a language with source write-back support (Java, C#).");
+        }
+    }
+
+    /**
+     * Prints, under {@code -verbose}, the key-by-key match result so an operator
+     * can see exactly which CSV rows failed to line up with a source method.
+     *
+     * @param log             progress writer
+     * @param desiredCount    number of CSV desired-state keys
+     * @param inCsvNotSource  keys present in the CSV but absent from source
+     * @param inSourceNotCsv  keys present in source but absent from the CSV
+     */
+    private static void logVerboseMatch(PrintWriter log, int desiredCount,
+            Set<String> inCsvNotSource, Set<String> inSourceNotCsv) {
+        log.println("[verbose] matched keys (present in both CSV and source): "
+                + (desiredCount - inCsvNotSource.size()));
+        log.println("[verbose] in CSV but NOT found in source (" + inCsvNotSource.size() + "):");
+        inCsvNotSource.stream().sorted().forEach(k -> log.println("[verbose]   CSV-only  " + k));
+        log.println("[verbose] in source but NOT present in CSV (" + inSourceNotCsv.size() + "):");
+        inSourceNotCsv.stream().sorted().forEach(k -> log.println("[verbose]   SRC-only  " + k));
     }
 
     private static String key(String fqcn, String method) {
