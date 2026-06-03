@@ -16,13 +16,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
-import org.egothor.methodatlas.emit.SarifEmitter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Unit tests for {@link SarifEmitter}.

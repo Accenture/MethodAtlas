@@ -1,8 +1,8 @@
 package org.egothor.methodatlas.gui.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import tools.jackson.dataformat.yaml.YAMLWriteFeature;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.emit.TagAiDrift;
 
@@ -167,9 +167,9 @@ public final class AuditWriter {
             String operatorName, LocalDateTime timestamp) throws IOException {
         Path yamlFile = dir.resolve("overrides.yaml");
 
-        YAMLFactory yf = new YAMLFactory()
-                .configure(YAMLGenerator.Feature.WRITE_DOC_START_MARKER, false);
-        ObjectMapper mapper = new ObjectMapper(yf);
+        ObjectMapper mapper = YAMLMapper.builder()
+                .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
+                .build();
 
         // Load existing overrides (if any) into a mutable list
         List<Map<String, Object>> existing = loadExistingOverrides(yamlFile, mapper);

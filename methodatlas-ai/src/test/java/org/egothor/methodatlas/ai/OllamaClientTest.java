@@ -25,8 +25,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Unit tests for {@link OllamaClient}.
@@ -93,7 +94,7 @@ class OllamaClientTest {
     @DisplayName("suggestForClass parses wrapped JSON, normalizes invalid entries, and builds expected request body")
     @Tag("positive")
     void suggestForClass_parsesWrappedJson_normalizesInvalidEntries_andBuildsExpectedRequestBody() throws Exception {
-        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = JsonMapper.builder().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false).build();
 
         String fqcn = "com.acme.storage.PathTraversalValidationTest";
         String classSource = """
@@ -177,7 +178,7 @@ class OllamaClientTest {
     @DisplayName("suggestForClass throws AiSuggestionException when model returns text without a JSON object")
     @Tag("negative")
     void suggestForClass_throwsWhenModelReturnsTextWithoutJsonObject() throws Exception {
-        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = JsonMapper.builder().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false).build();
 
         String fqcn = "com.acme.audit.AuditLoggingTest";
         List<PromptBuilder.TargetMethod> targetMethods = List.of(

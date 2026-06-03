@@ -7,12 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.junit.jupiter.api.DisplayName;
@@ -81,7 +80,7 @@ class JsonEmitterTest {
                 // no-op
             }
         });
-        assertThrows(UncheckedIOException.class, () -> emitter.flush(failing),
+        assertThrows(IllegalStateException.class, () -> emitter.flush(failing),
                 "a stream write error must surface, not be swallowed");
     }
 

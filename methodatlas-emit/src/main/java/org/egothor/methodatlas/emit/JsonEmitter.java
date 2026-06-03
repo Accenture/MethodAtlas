@@ -1,8 +1,6 @@
 package org.egothor.methodatlas.emit;
 
-import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,8 +9,9 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Buffers test method records and serializes them as a flat JSON array when
@@ -206,6 +205,8 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
      * {@code out}.
      *
      * @param out writer that receives the JSON output
+     * @throws IllegalStateException if JSON serialization fails or the
+     *                               underlying stream reports a write error
      */
     public void flush(PrintWriter out) {
         JsonMapper mapper = JsonMapper.builder()
@@ -213,14 +214,14 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
                 .build();
         try {
             out.println(mapper.writeValueAsString(records));
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to serialize JSON output", e);
+        } catch (JacksonException e) {
+            throw new IllegalStateException("Failed to serialize JSON output", e);
         }
         // PrintWriter swallows write errors; surface them so a truncated JSON
         // file (e.g. on a full disk) is never reported as a successful run.
         if (out.checkError()) {
-            throw new UncheckedIOException(new IOException(
-                    "Failed to write JSON output: the underlying stream reported an error"));
+            throw new IllegalStateException(
+                    "Failed to write JSON output: the underlying stream reported an error");
         }
     }
 

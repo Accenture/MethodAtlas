@@ -11,9 +11,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * User-authored mapping from taxonomy tags to compliance-control requirement
@@ -89,9 +91,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
      * @throws IllegalArgumentException if any validation rule fails
      */
     /* default */ static ControlMapping load(Path file) throws IOException {
-        ObjectMapper mapper = new ObjectMapper()
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        JsonNode root = mapper.readTree(file.toFile());
+        ObjectMapper mapper = JsonMapper.builder()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).build();
+        JsonNode root;
+        try {
+            root = mapper.readTree(file.toFile());
+        } catch (JacksonException e) {
+            throw new IOException("Cannot read or parse control mapping file '" + file + "'", e);
+        }
 
         validateSchemaVersion(root, file);
         String framework = requireString(root, "framework", file);
@@ -149,7 +156,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
                     + "' must contain a non-empty 'tagToControls' object");
         }
         Map<String, List<ControlEntry>> result = new LinkedHashMap<>();
-        tagNode.fields().forEachRemaining(entry ->
+        tagNode.properties().forEach(entry ->
                 result.put(entry.getKey(), parseControlList(entry.getKey(), entry.getValue(), file)));
         return result;
     }

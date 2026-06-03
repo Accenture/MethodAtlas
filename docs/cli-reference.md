@@ -130,7 +130,7 @@ Switches output to a single [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sari
 
 Security-relevant methods receive SARIF level `note` and a `security-severity` property derived from the AI taxonomy tag (used by GitHub Code Scanning to display Critical / High / Medium / Low). Rule objects carry a `properties.tags` array that populates the tag filter in the GitHub Code Scanning UI.
 
-**Security-only by default:** selecting SARIF mode automatically applies the security-only filter. Only methods classified as security-relevant are emitted; ordinary test methods are excluded. This default exists because SARIF is consumed by GitHub Code Scanning and equivalent security tooling that expects actionable findings, not an inventory of every test method. To include all methods, pass [`-include-non-security`](#-include-non-security).
+**Security-only by default:** selecting SARIF mode automatically applies the security-only filter. Only methods classified as security-relevant are emitted; ordinary test methods are excluded. This default exists because SARIF is consumed by GitHub Code Scanning and equivalent security tooling that expects actionable findings, not an inventory of every test method. To include all methods, pass the `-include-non-security` flag.
 
 See [output-formats.md](output-formats.md#sarif-mode) for the full schema description and an example document.
 
@@ -368,7 +368,7 @@ are emitted; all others are silently dropped.
 ```
 
 In **SARIF mode** this filter is applied automatically without this flag. Use
-[`-include-non-security`](#-include-non-security) if you need the full inventory
+the `-include-non-security` flag if you need the full inventory
 in SARIF format.
 
 The filter requires a source of security classifications. Without `-ai` or
@@ -383,7 +383,7 @@ See [Security-Only Filter](usage-modes/security-only.md) for SDLC integration
 examples including CI count gates, audit CSV exports, and combining with the
 delta report.
 
-### `-include-non-security` {#-include-non-security}
+### `-include-non-security`
 
 Opts in to including all test methods in **SARIF output**, disabling the
 automatic security-only filter that SARIF mode applies by default. Has no effect
@@ -581,7 +581,7 @@ Enables AI enrichment. Without this flag, MethodAtlas behaves as a pure static s
 
 Instructs the model to include a confidence score for each classification. The score appears as `ai_confidence` in CSV output (or `AI_CONFIDENCE=` in plain mode). Scores range from `0.0` (not security-relevant) to `1.0` (explicitly and unambiguously tests a named security property). See [Confidence scoring](ai/confidence.md) for the full interpretation table.
 
-In SARIF output the confidence percentage is also embedded in the result message text (e.g. `Confidence: 88%.`) so it is visible in tooling such as GitHub Code Scanning that does not render the `properties` bag. See [`-sarif-omit-scores`](#-sarif-omit-scores) for an explanation of why this is the default and how to disable it when the consuming tool already surfaces the properties bag.
+In SARIF output the confidence percentage is also embedded in the result message text (e.g. `Confidence: 88%.`) so it is visible in tooling such as GitHub Code Scanning that does not render the `properties` bag. See the `-sarif-omit-scores` flag for an explanation of why this is the default and how to disable it when the consuming tool already surfaces the properties bag.
 
 ### `-min-confidence <threshold>`
 
@@ -625,9 +625,9 @@ When AI enrichment is enabled, every record carries an `ai_interaction_score` re
 
 A score of `1.0` on a security-relevant test is a strong signal of a **placebo test**: CI passes, coverage tools see the lines as covered, but no output or state is ever verified. Standard tooling (JaCoCo, PIT, PMD, SpotBugs) cannot detect this because they do not distinguish semantically between `verify(mock).call()` and `assertEquals(expected, actual)`. The AI can because it reads the test body and understands what each assertion checks. See [Interaction Score](ai/interaction-score.md) for a full explanation and CI usage examples.
 
-In CSV output the column is named `ai_interaction_score` and appears immediately after `ai_reason` (before `ai_confidence` when that flag is enabled). In plain-text output it appears as `AI_INTERACTION_SCORE=`. In SARIF the value is stored in `properties.aiInteractionScore` and is also embedded in the result message text (e.g. `Interaction score: 0.90.`) so that operators using tooling such as GitHub Code Scanning — which does not render the `properties` bag — can see the value in the inline annotation. See [`-sarif-omit-scores`](#-sarif-omit-scores) for details and for how to suppress the inline embedding when it is not needed.
+In CSV output the column is named `ai_interaction_score` and appears immediately after `ai_reason` (before `ai_confidence` when that flag is enabled). In plain-text output it appears as `AI_INTERACTION_SCORE=`. In SARIF the value is stored in `properties.aiInteractionScore` and is also embedded in the result message text (e.g. `Interaction score: 0.90.`) so that operators using tooling such as GitHub Code Scanning — which does not render the `properties` bag — can see the value in the inline annotation. See the `-sarif-omit-scores` flag for details and for how to suppress the inline embedding when it is not needed.
 
-### `-sarif-omit-scores` {#-sarif-omit-scores}
+### `-sarif-omit-scores`
 
 Controls whether the interaction score and confidence percentage are embedded in SARIF result message text. Understanding this flag requires a brief explanation of how SARIF viewers work.
 
@@ -832,7 +832,7 @@ Allows the command to reuse an existing output directory. Without this flag a pr
 
 ### `-evidence-pack-keyring <path>`
 
-ZeroEcho keyring file providing the manifest signing key. This is a plaintext ZeroEcho `KeyringStore` file — **not** a JDK PKCS12/JKS keystore and not produced by `keytool`. Generate one with [`-gen-signing-key`](#-gen-signing-key-keyring-file). When neither this flag nor `-evidence-pack-keyring-env` is supplied the pack is produced unsigned with a clear stderr warning; the tool still exits 0. Intended for interactive CLI use, where the file is protected by file-system permissions or ACLs.
+ZeroEcho keyring file providing the manifest signing key. This is a plaintext ZeroEcho `KeyringStore` file — **not** a JDK PKCS12/JKS keystore and not produced by `keytool`. Generate one with the `-gen-signing-key` command. When neither this flag nor `-evidence-pack-keyring-env` is supplied the pack is produced unsigned with a clear stderr warning; the tool still exits 0. Intended for interactive CLI use, where the file is protected by file-system permissions or ACLs.
 
 ### `-evidence-pack-keyring-env <env-var-name>`
 

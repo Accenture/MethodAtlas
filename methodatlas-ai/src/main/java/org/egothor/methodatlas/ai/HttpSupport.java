@@ -11,8 +11,9 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Small HTTP utility component used by AI provider clients for outbound network
@@ -109,7 +110,13 @@ public final class HttpSupport {
      */
     public HttpSupport(Duration timeout, int maxRetries, RateLimitListener rateLimitListener) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(timeout).build();
-        this.objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        // Jackson 3 enables FAIL_ON_NULL_FOR_PRIMITIVES by default; AI responses
+        // routinely omit numeric fields (confidence, interactionScore), so keep the
+        // lenient behaviour of defaulting absent/null primitives to zero.
+        this.objectMapper = JsonMapper.builder()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
+                .build();
         this.maxRetries = maxRetries;
         this.rateLimitListener = rateLimitListener;
     }

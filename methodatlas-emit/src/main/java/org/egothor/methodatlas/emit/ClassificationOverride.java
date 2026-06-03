@@ -14,9 +14,10 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
  * Applies human-authored classification overrides to AI-generated (or absent)
@@ -187,9 +188,15 @@ public final class ClassificationOverride {
      */
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     public static ClassificationOverride load(Path path) throws IOException {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        OverrideFile file = mapper.readValue(path.toFile(), OverrideFile.class);
+        ObjectMapper mapper = YAMLMapper.builder()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .build();
+        OverrideFile file;
+        try {
+            file = mapper.readValue(path.toFile(), OverrideFile.class);
+        } catch (JacksonException e) {
+            throw new IOException("Cannot read or parse override file '" + path + "'", e);
+        }
 
         if (file.overrides == null || file.overrides.isEmpty()) {
             return EMPTY;

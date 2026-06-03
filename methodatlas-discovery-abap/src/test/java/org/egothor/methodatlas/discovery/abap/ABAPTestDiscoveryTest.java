@@ -37,9 +37,11 @@ class ABAPTestDiscoveryTest {
     void discover_abapUnit_findsForTestingMethods(@TempDir Path tempDir) throws IOException {
         copyFixture("zcl_auth_test.abap.txt", tempDir, "zcl_auth_test.abap");
 
-        ABAPTestDiscovery discovery = new ABAPTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (ABAPTestDiscovery discovery = new ABAPTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertEquals(3, methods.size(), "expected exactly 3 FOR TESTING methods");
 
@@ -62,9 +64,11 @@ class ABAPTestDiscoveryTest {
     void discover_abapUnit_ignoresNonTestMethods(@TempDir Path tempDir) throws IOException {
         copyFixture("zcl_auth_test.abap.txt", tempDir, "zcl_auth_test.abap");
 
-        ABAPTestDiscovery discovery = new ABAPTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (ABAPTestDiscovery discovery = new ABAPTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         boolean hasSetup = methods.stream().anyMatch(m -> "SETUP".equals(m.method()));
         assertFalse(hasSetup, "setup method must not be discovered as a test");
@@ -81,9 +85,11 @@ class ABAPTestDiscoveryTest {
     void discover_abapUnit_fqcnIsClassName(@TempDir Path tempDir) throws IOException {
         copyFixture("zcl_auth_test.abap.txt", tempDir, "zcl_auth_test.abap");
 
-        ABAPTestDiscovery discovery = new ABAPTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (ABAPTestDiscovery discovery = new ABAPTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertFalse(methods.isEmpty());
         for (DiscoveredMethod m : methods) {
@@ -102,9 +108,11 @@ class ABAPTestDiscoveryTest {
     void discover_abapUnit_locIsMultiLine(@TempDir Path tempDir) throws IOException {
         copyFixture("zcl_auth_test.abap.txt", tempDir, "zcl_auth_test.abap");
 
-        ABAPTestDiscovery discovery = new ABAPTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (ABAPTestDiscovery discovery = new ABAPTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         for (DiscoveredMethod m : methods) {
             assertTrue(m.loc() > 1,
@@ -124,9 +132,11 @@ class ABAPTestDiscoveryTest {
     void discover_ecatt_findsFunctionBlocks(@TempDir Path tempDir) throws IOException {
         copyFixture("auth_login.ecl.txt", tempDir, "auth_login.ecl");
 
-        ABAPTestDiscovery discovery = new ABAPTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (ABAPTestDiscovery discovery = new ABAPTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertEquals(3, methods.size(), "expected exactly 3 FUNCTION blocks");
 
@@ -148,9 +158,11 @@ class ABAPTestDiscoveryTest {
      */
     @Test
     void discover_returnsEmptyForEmptyDir(@TempDir Path tempDir) throws IOException {
-        ABAPTestDiscovery discovery = new ABAPTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (ABAPTestDiscovery discovery = new ABAPTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertTrue(methods.isEmpty(), "expected no methods for empty directory");
     }

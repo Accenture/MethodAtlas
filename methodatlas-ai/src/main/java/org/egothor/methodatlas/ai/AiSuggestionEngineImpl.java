@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Default implementation of {@link AiSuggestionEngine} that coordinates
@@ -191,7 +191,7 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
         String response;
         try {
             response = JsonMapper.builder().build().writeValueAsString(result);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             if (LOG.isLoggable(Level.FINE)) {
                 LOG.log(Level.FINE, "Failed to serialize AI response for archive", e);
             }

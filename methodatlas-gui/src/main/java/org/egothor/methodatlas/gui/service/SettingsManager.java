@@ -1,6 +1,7 @@
 package org.egothor.methodatlas.gui.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.egothor.methodatlas.gui.model.AppSettings;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public final class SettingsManager {
         if (Files.exists(SETTINGS_FILE)) {
             try {
                 return MAPPER.readValue(SETTINGS_FILE.toFile(), AppSettings.class);
-            } catch (IOException e) {
+            } catch (JacksonException e) {
                 if (LOG.isLoggable(Level.WARNING)) {
                     LOG.log(Level.WARNING, "Cannot read settings from " + SETTINGS_FILE + "; using defaults", e);
                 }
@@ -105,7 +106,7 @@ public final class SettingsManager {
         try {
             Files.createDirectories(SETTINGS_FILE.getParent());
             MAPPER.writerWithDefaultPrettyPrinter().writeValue(SETTINGS_FILE.toFile(), settings);
-        } catch (IOException e) {
+        } catch (IOException | JacksonException e) {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING, "Cannot save settings to " + SETTINGS_FILE, e);
             }

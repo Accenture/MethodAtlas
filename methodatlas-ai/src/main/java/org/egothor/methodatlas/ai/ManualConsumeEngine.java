@@ -6,8 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Handles the consume phase of the manual AI workflow.
@@ -57,7 +58,13 @@ public final class ManualConsumeEngine implements AiSuggestionEngine {
      */
     public ManualConsumeEngine(Path responseDir) {
         this.responseDir = responseDir;
-        this.mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        // Jackson 3 enables FAIL_ON_NULL_FOR_PRIMITIVES by default; operator-saved
+        // response files may omit numeric fields, so keep absent/null primitives
+        // defaulting to zero (the Jackson 2 behaviour this engine was written for).
+        this.mapper = JsonMapper.builder()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)
+                .build();
     }
 
     /**

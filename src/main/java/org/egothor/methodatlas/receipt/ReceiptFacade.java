@@ -7,9 +7,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 import org.egothor.methodatlas.CliConfig;
 
@@ -54,7 +54,8 @@ public final class ReceiptFacade {
          */
         /* default */ static final ObjectMapper INSTANCE = JsonMapper.builder()
                 .enable(SerializationFeature.INDENT_OUTPUT)
-                .serializationInclusion(JsonInclude.Include.NON_NULL)
+                .changeDefaultPropertyInclusion(
+                        v -> JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.NON_NULL))
                 .build();
     }
 

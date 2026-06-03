@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Set;
 
 import org.egothor.methodatlas.api.ScanRecord;
-import org.egothor.methodatlas.emit.DeltaEmitter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

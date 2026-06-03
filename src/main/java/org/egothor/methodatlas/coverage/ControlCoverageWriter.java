@@ -7,8 +7,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Serialises a {@link ControlCoverageReport} to disk as pretty-printed JSON.
@@ -37,9 +39,15 @@ final class ControlCoverageWriter {
      * @throws IOException if the target file cannot be created or written
      */
     /* default */ static void write(ControlCoverageReport report, Path outputFile) throws IOException {
-        ObjectMapper mapper = new ObjectMapper()
+        ObjectMapper mapper = JsonMapper.builder()
                 .enable(SerializationFeature.INDENT_OUTPUT)
-                .setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        mapper.writeValue(outputFile.toFile(), report);
+                .changeDefaultPropertyInclusion(
+                        v -> JsonInclude.Value.construct(JsonInclude.Include.NON_NULL, JsonInclude.Include.NON_NULL))
+                .build();
+        try {
+            mapper.writeValue(outputFile.toFile(), report);
+        } catch (JacksonException e) {
+            throw new IOException("Cannot write control-coverage report to '" + outputFile + "'", e);
+        }
     }
 }

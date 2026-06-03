@@ -7,10 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
@@ -42,7 +43,7 @@ class JsonLineFormatterTest {
     private static LogRecord record(Level level, String message) {
         LogRecord r = new LogRecord(level, message);
         r.setLoggerName("org.example.Test");
-        r.setMillis(1_700_000_000_000L); // fixed timestamp for determinism
+        r.setInstant(Instant.ofEpochMilli(1_700_000_000_000L)); // fixed timestamp for determinism
         return r;
     }
 
@@ -154,7 +155,7 @@ class JsonLineFormatterTest {
     @Test
     void output_handlesNullLoggerNameAsEmpty() throws IOException {
         LogRecord r = new LogRecord(Level.INFO, "no logger");
-        r.setMillis(1_700_000_000_000L);
+        r.setInstant(Instant.ofEpochMilli(1_700_000_000_000L));
         // Leave loggerName as null intentionally.
 
         String json = formatter.format(r).trim();

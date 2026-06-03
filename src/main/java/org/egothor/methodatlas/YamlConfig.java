@@ -7,9 +7,10 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
  * Loads a YAML configuration file that provides default values for
@@ -82,9 +83,14 @@ final class YamlConfig {
      * @throws IllegalArgumentException if the file cannot be parsed as valid YAML
      */
     /* default */ static YamlConfigFile load(Path configFile) throws IOException {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        return mapper.readValue(configFile.toFile(), YamlConfigFile.class);
+        ObjectMapper mapper = YAMLMapper.builder()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .build();
+        try {
+            return mapper.readValue(configFile.toFile(), YamlConfigFile.class);
+        } catch (JacksonException e) {
+            throw new IOException("Cannot read or parse configuration file '" + configFile + "'", e);
+        }
     }
 
     // -------------------------------------------------------------------------

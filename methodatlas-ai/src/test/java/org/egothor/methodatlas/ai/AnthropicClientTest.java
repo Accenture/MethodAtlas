@@ -23,8 +23,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Unit tests for {@link AnthropicClient}.
@@ -77,7 +78,7 @@ class AnthropicClientTest {
     @DisplayName("suggestForClass parses wrapped JSON, normalizes invalid entries, and builds correct request")
     @Tag("positive")
     void suggestForClass_parsesWrappedJson_normalizesInvalidEntries_andBuildsExpectedRequest() throws Exception {
-        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = JsonMapper.builder().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false).build();
 
         String fqcn = "com.acme.security.AccessControlServiceTest";
         String classSource = """
@@ -181,7 +182,7 @@ class AnthropicClientTest {
     @Tag("negative")
     @Tag("security")
     void suggestForClass_throwsWhenContentListIsEmpty() throws Exception {
-        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = JsonMapper.builder().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false).build();
 
         String fqcn = "com.acme.audit.AuditLoggingTest";
         String responseBody = """
@@ -214,7 +215,7 @@ class AnthropicClientTest {
     @Tag("edge-case")
     @Tag("security")
     void suggestForClass_throwsWhenContentFieldIsAbsentFromResponse() throws Exception {
-        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = JsonMapper.builder().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false).build();
 
         String fqcn = "com.acme.audit.AuditLoggingTest";
         // Empty JSON object: Jackson leaves MessageResponse.content as null.
@@ -244,7 +245,7 @@ class AnthropicClientTest {
     @Tag("negative")
     @Tag("security")
     void suggestForClass_throwsWhenNoTextBlockIsPresent() throws Exception {
-        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = JsonMapper.builder().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false).build();
 
         String fqcn = "com.acme.audit.AuditLoggingTest";
         // Content has a "thinking" block only – the text-type filter finds nothing.
@@ -283,7 +284,7 @@ class AnthropicClientTest {
     @Tag("negative")
     @Tag("security")
     void suggestForClass_throwsWhenTextBlockContainsNoJsonObject() throws Exception {
-        ObjectMapper mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        ObjectMapper mapper = JsonMapper.builder().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false).build();
 
         String fqcn = "com.acme.audit.AuditLoggingTest";
         String responseBody = """

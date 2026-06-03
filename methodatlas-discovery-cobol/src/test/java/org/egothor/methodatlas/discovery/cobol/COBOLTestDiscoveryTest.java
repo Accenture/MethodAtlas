@@ -35,9 +35,11 @@ class COBOLTestDiscoveryTest {
     void discover_mfunit_findsMfuTcParagraphs(@TempDir Path tempDir) throws IOException {
         copyFixture("auth_test.cbl.txt", tempDir, "auth_test.cbl");
 
-        COBOLTestDiscovery discovery = new COBOLTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (COBOLTestDiscovery discovery = new COBOLTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertEquals(3, methods.size(), "expected exactly 3 MFU-TC paragraphs");
 
@@ -59,9 +61,11 @@ class COBOLTestDiscoveryTest {
     void discover_mfunit_locIsPositive(@TempDir Path tempDir) throws IOException {
         copyFixture("auth_test.cbl.txt", tempDir, "auth_test.cbl");
 
-        COBOLTestDiscovery discovery = new COBOLTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (COBOLTestDiscovery discovery = new COBOLTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         for (DiscoveredMethod m : methods) {
             assertTrue(m.loc() >= 1,
@@ -81,9 +85,11 @@ class COBOLTestDiscoveryTest {
     void discover_cobolCheck_findsTestCases(@TempDir Path tempDir) throws IOException {
         copyFixture("auth.cut.txt", tempDir, "auth.cut");
 
-        COBOLTestDiscovery discovery = new COBOLTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (COBOLTestDiscovery discovery = new COBOLTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertEquals(3, methods.size(), "expected exactly 3 TestCase declarations");
 
@@ -105,9 +111,11 @@ class COBOLTestDiscoveryTest {
      */
     @Test
     void discover_returnsEmptyForEmptyDir(@TempDir Path tempDir) throws IOException {
-        COBOLTestDiscovery discovery = new COBOLTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (COBOLTestDiscovery discovery = new COBOLTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertTrue(methods.isEmpty(), "expected no methods for empty directory");
     }
@@ -128,9 +136,11 @@ class COBOLTestDiscoveryTest {
                 + "       MAIN-PARA.\n"
                 + "           STOP RUN.\n");
 
-        COBOLTestDiscovery discovery = new COBOLTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (COBOLTestDiscovery discovery = new COBOLTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertTrue(methods.isEmpty(), "expected no methods for non-test COBOL file");
     }

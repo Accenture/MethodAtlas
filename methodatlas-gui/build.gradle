@@ -44,8 +44,8 @@ dependencies {
     implementation 'com.fifesoft:rsyntaxtextarea:3.4.0'
 
     // Jackson — settings serialisation and YAML audit output
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.1'
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.1'
+    implementation 'tools.jackson.core:jackson-databind:3.1.4'
+    implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.4'
 
     // Unit tests for non-UI GUI helpers (SourceWriteBackSupport et al.)
     testImplementation(platform("org.junit:junit-bom:5.14.2"))

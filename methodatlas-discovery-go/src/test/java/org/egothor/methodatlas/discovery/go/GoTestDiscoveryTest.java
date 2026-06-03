@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.junit.jupiter.api.Tag;
@@ -37,9 +36,11 @@ class GoTestDiscoveryTest {
     void discover_findsTestFunctions(@TempDir Path tempDir) throws IOException {
         copyFixture("auth_test.go.txt", tempDir, "auth_test.go");
 
-        GoTestDiscovery discovery = new GoTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (GoTestDiscovery discovery = new GoTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertEquals(3, methods.size(), "expected exactly 3 test methods");
 
@@ -71,9 +72,11 @@ class GoTestDiscoveryTest {
     void discover_ignoresBenchmarks(@TempDir Path tempDir) throws IOException {
         copyFixture("auth_test.go.txt", tempDir, "auth_test.go");
 
-        GoTestDiscovery discovery = new GoTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (GoTestDiscovery discovery = new GoTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         boolean hasBenchmark = methods.stream()
                 .anyMatch(m -> "BenchmarkLogin".equals(m.method()));
@@ -91,9 +94,11 @@ class GoTestDiscoveryTest {
         Files.writeString(tempDir.resolve("main.go"),
                 "package main\n\nfunc main() {}\n");
 
-        GoTestDiscovery discovery = new GoTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (GoTestDiscovery discovery = new GoTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertTrue(methods.isEmpty(), "expected no methods for non-test file");
     }
@@ -106,9 +111,11 @@ class GoTestDiscoveryTest {
      */
     @Test
     void discover_returnsEmptyForEmptyDir(@TempDir Path tempDir) throws IOException {
-        GoTestDiscovery discovery = new GoTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (GoTestDiscovery discovery = new GoTestDiscovery()) {
+            methods = discovery.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertTrue(methods.isEmpty(), "expected no methods for empty directory");
     }
@@ -130,8 +137,10 @@ class GoTestDiscoveryTest {
                 + "}\n";                                    // line 8
         Files.writeString(tempDir.resolve("multi_test.go"), source);
 
-        GoTestDiscovery discovery = new GoTestDiscovery();
-        List<DiscoveredMethod> methods = discovery.discover(tempDir).collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (GoTestDiscovery discovery = new GoTestDiscovery()) {
+            methods = discovery.discover(tempDir).collect(Collectors.toList());
+        }
 
         assertEquals(1, methods.size(), "expected exactly 1 test method");
         DiscoveredMethod m = methods.get(0);

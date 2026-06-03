@@ -1,6 +1,5 @@
 package org.egothor.methodatlas.emit;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -14,8 +13,9 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Buffers test method records and serializes them as a single SARIF 2.1.0 JSON
@@ -212,7 +212,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
 
         try {
             out.print(mapper.writeValueAsString(doc));
-        } catch (IOException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize SARIF output", e);
         }
         // PrintWriter swallows write errors; surface them so a truncated SARIF

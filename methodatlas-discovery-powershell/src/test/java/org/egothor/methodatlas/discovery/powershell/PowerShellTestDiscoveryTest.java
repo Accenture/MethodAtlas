@@ -38,8 +38,10 @@ class PowerShellTestDiscoveryTest {
     void discover_findsItBlocks() throws IOException {
         copyFixture("Auth.Tests.ps1");
 
-        PowerShellTestDiscovery sut = new PowerShellTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir).collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PowerShellTestDiscovery sut = new PowerShellTestDiscovery()) {
+            methods = sut.discover(tempDir).collect(Collectors.toList());
+        }
 
         assertEquals(4, methods.size(), "Expected exactly 4 It blocks");
     }
@@ -52,10 +54,12 @@ class PowerShellTestDiscoveryTest {
     void discover_extractsMethodNames() throws IOException {
         copyFixture("Auth.Tests.ps1");
 
-        PowerShellTestDiscovery sut = new PowerShellTestDiscovery();
-        List<String> names = sut.discover(tempDir)
-                .map(DiscoveredMethod::method)
-                .collect(Collectors.toList());
+        List<String> names;
+        try (PowerShellTestDiscovery sut = new PowerShellTestDiscovery()) {
+            names = sut.discover(tempDir)
+                    .map(DiscoveredMethod::method)
+                    .collect(Collectors.toList());
+        }
 
         assertTrue(names.contains("accepts valid credentials"),
                 "Expected 'accepts valid credentials' in names: " + names);
@@ -80,8 +84,10 @@ class PowerShellTestDiscoveryTest {
     void discover_extractsTagsFromItLine() throws IOException {
         copyFixture("Auth.Tests.ps1");
 
-        PowerShellTestDiscovery sut = new PowerShellTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir).collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PowerShellTestDiscovery sut = new PowerShellTestDiscovery()) {
+            methods = sut.discover(tempDir).collect(Collectors.toList());
+        }
 
         DiscoveredMethod rejectsInvalid = findByName(methods, "rejects invalid password");
         assertEquals(List.of("negative"), rejectsInvalid.tags(),
@@ -100,8 +106,10 @@ class PowerShellTestDiscoveryTest {
     void discover_noTagsForUntaggedIt() throws IOException {
         copyFixture("Auth.Tests.ps1");
 
-        PowerShellTestDiscovery sut = new PowerShellTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir).collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PowerShellTestDiscovery sut = new PowerShellTestDiscovery()) {
+            methods = sut.discover(tempDir).collect(Collectors.toList());
+        }
 
         DiscoveredMethod untagged = findByName(methods, "accepts valid credentials");
         assertTrue(untagged.tags().isEmpty(),
@@ -116,8 +124,10 @@ class PowerShellTestDiscoveryTest {
     void discover_ignoresNonTestFiles() throws IOException {
         Files.writeString(tempDir.resolve("helper.ps1"), "function Get-Helper { }");
 
-        PowerShellTestDiscovery sut = new PowerShellTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir).collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PowerShellTestDiscovery sut = new PowerShellTestDiscovery()) {
+            methods = sut.discover(tempDir).collect(Collectors.toList());
+        }
 
         assertTrue(methods.isEmpty(),
                 "Expected no methods from helper.ps1, got: " + methods.size());
@@ -132,8 +142,10 @@ class PowerShellTestDiscoveryTest {
         Path notADir = tempDir.resolve("not-a-dir.txt");
         Files.writeString(notADir, "");
 
-        PowerShellTestDiscovery sut = new PowerShellTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(notADir).collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PowerShellTestDiscovery sut = new PowerShellTestDiscovery()) {
+            methods = sut.discover(notADir).collect(Collectors.toList());
+        }
 
         assertTrue(methods.isEmpty(), "Expected empty stream for non-directory root");
     }

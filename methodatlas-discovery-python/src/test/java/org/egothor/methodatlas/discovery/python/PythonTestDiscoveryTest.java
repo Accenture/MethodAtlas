@@ -46,9 +46,11 @@ class PythonTestDiscoveryTest {
         assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("test_auth.py.txt", "test_auth.py");
 
-        PythonTestDiscovery sut = new PythonTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PythonTestDiscovery sut = new PythonTestDiscovery()) {
+            methods = sut.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertEquals(4, methods.size(),
                 "Expected 3 class methods + 1 module-level function");
@@ -67,9 +69,11 @@ class PythonTestDiscoveryTest {
         assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("security_test.py.txt", "security_test.py");
 
-        PythonTestDiscovery sut = new PythonTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PythonTestDiscovery sut = new PythonTestDiscovery()) {
+            methods = sut.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertEquals(2, methods.size(),
                 "Expected 2 methods from security_test.py");
@@ -84,9 +88,11 @@ class PythonTestDiscoveryTest {
         assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("test_auth.py.txt", "test_auth.py");
 
-        PythonTestDiscovery sut = new PythonTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PythonTestDiscovery sut = new PythonTestDiscovery()) {
+            methods = sut.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         DiscoveredMethod loginValid = findMethod(methods,
                 "test_login_with_valid_credentials");
@@ -112,9 +118,11 @@ class PythonTestDiscoveryTest {
         assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("test_auth.py.txt", "test_auth.py");
 
-        PythonTestDiscovery sut = new PythonTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PythonTestDiscovery sut = new PythonTestDiscovery()) {
+            methods = sut.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         List<DiscoveredMethod> classMethods = methods.stream()
                 .filter(m -> m.method().equals("test_login_with_valid_credentials")
@@ -140,9 +148,11 @@ class PythonTestDiscoveryTest {
         assumeTrue(PYTHON_AVAILABLE, "Python 3.8+ required for subprocess discovery");
         copyFixture("test_auth.py.txt", "test_auth.py");
 
-        PythonTestDiscovery sut = new PythonTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PythonTestDiscovery sut = new PythonTestDiscovery()) {
+            methods = sut.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         DiscoveredMethod rateLimiting = findMethod(methods,
                 "test_rate_limiting_blocks_brute_force");
@@ -163,9 +173,11 @@ class PythonTestDiscoveryTest {
         Files.writeString(utilsFile,
                 "def create_user(name):\n    return name\n\ndef delete_user(name):\n    pass\n");
 
-        PythonTestDiscovery sut = new PythonTestDiscovery();
-        List<DiscoveredMethod> methods = sut.discover(tempDir)
-                .collect(Collectors.toList());
+        List<DiscoveredMethod> methods;
+        try (PythonTestDiscovery sut = new PythonTestDiscovery()) {
+            methods = sut.discover(tempDir)
+                    .collect(Collectors.toList());
+        }
 
         assertTrue(methods.isEmpty(),
                 "Non-test file utils.py must produce no results");
