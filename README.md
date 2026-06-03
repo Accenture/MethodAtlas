@@ -369,7 +369,7 @@ Tokens are case-insensitive on input; the canonical form is what lands in `pack-
 
 ### Signing
 
-Manifest signing is performed by the [ZeroEcho](https://gitea.egothor.org/Egothor/ZeroEcho) cryptographic toolkit (1.1.0). The resulting `manifest.sha256.signed` file is `manifest.sha256` followed by a ZeroEcho signature trailer. When no keyring is supplied the pack is produced unsigned with a clear warning on stderr; the tool still exits 0.
+Manifest signing is performed by the [ZeroEcho](https://gitea.egothor.org/Egothor/ZeroEcho) cryptographic toolkit (1.1.1). The resulting `manifest.sha256.signed` file is `manifest.sha256` followed by a ZeroEcho signature trailer. When no keyring is supplied the pack is produced unsigned with a clear warning on stderr; the tool still exits 0.
 
 The signing key lives in a ZeroEcho **keyring** — a plaintext `KeyringStore` file, not a JDK PKCS12/JKS keystore and not produced by `keytool`. Create one with `-gen-signing-key`. Supported algorithms are `Ed25519` (default), `RSA`, `ECDSA`, and the post-quantum `SPHINCS+`/`ML-DSA`/`SLH-DSA`, plus hybrid classical + post-quantum combinations such as `Ed25519+SPHINCS+`. When `-evidence-pack-sign-algo` is omitted the algorithm is read from the keyring entry.
 

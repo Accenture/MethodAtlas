@@ -69,7 +69,7 @@ Files that did not apply to the run (e.g. `overrides.yaml` when no override was 
 
 ## Signing
 
-Signing is performed with the [ZeroEcho cryptographic toolkit](https://gitea.egothor.org/Egothor/ZeroEcho) (version 1.1.0). The output of the signing step is `manifest.sha256` followed by a ZeroEcho signature trailer. `pack-meta.json` records the `signatureAlgorithm`, the `keyAlias` used, and `zeroEchoLibVersion`.
+Signing is performed with the [ZeroEcho cryptographic toolkit](https://gitea.egothor.org/Egothor/ZeroEcho) (version 1.1.1). The output of the signing step is `manifest.sha256` followed by a ZeroEcho signature trailer. `pack-meta.json` records the `signatureAlgorithm`, the `keyAlias` used, and `zeroEchoLibVersion`.
 
 ### Available algorithms
 

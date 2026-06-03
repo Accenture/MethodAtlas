@@ -149,15 +149,15 @@ dependencies {
     // combinations (zeroecho.sdk.hybrid.signature). Transitively pulls in
     // org.egothor:conflux and Bouncy Castle (bcpkix-jdk18on); do not declare
     // those explicitly.
-    implementation 'org.egothor:ZeroEcho-lib:1.1.0'
+    implementation 'org.egothor:ZeroEcho-lib:1.1.1'
 
     // Bouncy Castle (bcpkix-jdk18on, transitively bcprov/bcutil) backs ZeroEcho's
     // post-quantum primitives (SPHINCS+, ML-DSA, SLH-DSA) and hybrid signing.
-    // ZeroEcho-lib 1.1.0 declares it as an unversioned `api` dependency, so its
+    // ZeroEcho-lib declares it as an unversioned `api` dependency, so its
     // published POM carries no version and Gradle cannot resolve it transitively;
     // we therefore pin it explicitly (matching the version ZeroEcho builds and
     // tests against). Revisit this pin on every ZeroEcho-lib upgrade.
-    implementation 'org.bouncycastle:bcpkix-jdk18on:1.81'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.84'
 
     // GUI module and its unique transitive runtime deps (FlatLaf, RSTA, …)
     guiRuntime project(':methodatlas-gui')

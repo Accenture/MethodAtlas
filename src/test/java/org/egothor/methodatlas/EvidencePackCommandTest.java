@@ -93,7 +93,7 @@ class EvidencePackCommandTest {
         assertTrue(meta.path("signed").asBoolean(), "signed flag must be true");
         assertEquals("Ed25519", meta.path("signatureAlgorithm").asString(),
                 "algorithm must be derived from the generated Ed25519 key");
-        assertEquals("1.1.0", meta.path("zeroEchoLibVersion").asString());
+        assertEquals("1.1.1", meta.path("zeroEchoLibVersion").asString());
         assertEquals("audit", meta.path("keyAlias").asString());
     }
 
