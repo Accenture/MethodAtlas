@@ -69,10 +69,10 @@ class JsonLineFormatterTest {
         String json = formatter.format(record(Level.INFO, "hello")).trim();
         JsonNode node = mapper.readTree(json);
 
-        assertEquals("INFO", node.get("level").asText());
-        assertEquals("org.example.Test", node.get("logger").asText());
-        assertEquals("hello", node.get("message").asText());
-        assertEquals("2023-11-14T22:13:20Z", node.get("timestamp").asText(),
+        assertEquals("INFO", node.get("level").asString());
+        assertEquals("org.example.Test", node.get("logger").asString());
+        assertEquals("hello", node.get("message").asString());
+        assertEquals("2023-11-14T22:13:20Z", node.get("timestamp").asString(),
                 "Timestamp must be ISO-8601 derived from LogRecord.getMillis()");
         assertTrue(node.has("thread"), "Thread name must always be present");
     }
@@ -93,7 +93,7 @@ class JsonLineFormatterTest {
         String json = formatter.format(record(Level.INFO, "hello")).trim();
         JsonNode node = mapper.readTree(json);
 
-        assertEquals(run.runId(), node.get("runId").asText(),
+        assertEquals(run.runId(), node.get("runId").asString(),
                 "runId must come from ScanRunContext.current()");
     }
 
@@ -106,8 +106,8 @@ class JsonLineFormatterTest {
         JsonNode node = mapper.readTree(json);
 
         assertTrue(node.has("thrown"));
-        assertTrue(node.get("thrown").asText().contains("IllegalStateException"));
-        assertTrue(node.get("thrown").asText().contains("synthetic failure"));
+        assertTrue(node.get("thrown").asString().contains("IllegalStateException"));
+        assertTrue(node.get("thrown").asString().contains("synthetic failure"));
     }
 
     @Test
@@ -124,7 +124,7 @@ class JsonLineFormatterTest {
     void output_escapesDoubleQuotes() throws IOException {
         String json = formatter.format(record(Level.INFO, "he said \"hi\"")).trim();
         JsonNode node = mapper.readTree(json);
-        assertEquals("he said \"hi\"", node.get("message").asText(),
+        assertEquals("he said \"hi\"", node.get("message").asString(),
                 "Embedded double quotes must round-trip through JSON parsing");
     }
 
@@ -132,7 +132,7 @@ class JsonLineFormatterTest {
     void output_escapesNewlinesAsBackslashN() throws IOException {
         String json = formatter.format(record(Level.INFO, "line1\nline2")).trim();
         JsonNode node = mapper.readTree(json);
-        assertEquals("line1\nline2", node.get("message").asText(),
+        assertEquals("line1\nline2", node.get("message").asString(),
                 "Embedded newlines must round-trip as \\n");
     }
 
@@ -140,7 +140,7 @@ class JsonLineFormatterTest {
     void output_escapesBackslash() throws IOException {
         String json = formatter.format(record(Level.INFO, "path\\to\\file")).trim();
         JsonNode node = mapper.readTree(json);
-        assertEquals("path\\to\\file", node.get("message").asText(),
+        assertEquals("path\\to\\file", node.get("message").asString(),
                 "Embedded backslashes must round-trip as \\\\");
     }
 
@@ -148,7 +148,7 @@ class JsonLineFormatterTest {
     void output_escapesControlCharactersAsUnicode() throws IOException {
         String json = formatter.format(record(Level.INFO, "bell:done")).trim();
         JsonNode node = mapper.readTree(json);
-        assertEquals("bell:done", node.get("message").asText(),
+        assertEquals("bell:done", node.get("message").asString(),
                 "Control characters must round-trip via \\uXXXX escapes");
     }
 
@@ -160,7 +160,7 @@ class JsonLineFormatterTest {
 
         String json = formatter.format(r).trim();
         JsonNode node = mapper.readTree(json);
-        assertEquals("", node.get("logger").asText(),
+        assertEquals("", node.get("logger").asString(),
                 "Null logger name must render as an empty string, not 'null'");
     }
 }

@@ -40,8 +40,8 @@ public class MethodAtlasAppSarifTest {
         String output = runApp(new String[] { "-sarif", sourceDir.toString() });
 
         JsonNode doc = new ObjectMapper().readTree(output);
-        assertEquals("2.1.0", doc.path("version").asText());
-        assertTrue(doc.path("$schema").asText().contains("sarif"));
+        assertEquals("2.1.0", doc.path("version").asString());
+        assertTrue(doc.path("$schema").asString().contains("sarif"));
         assertEquals(1, doc.path("runs").size());
     }
 
@@ -71,12 +71,12 @@ public class MethodAtlasAppSarifTest {
                 .path("runs").get(0).path("results").get(0);
 
         JsonNode physLoc = result.path("locations").get(0).path("physicalLocation");
-        assertFalse(physLoc.path("artifactLocation").path("uri").asText().isEmpty(),
+        assertFalse(physLoc.path("artifactLocation").path("uri").asString().isEmpty(),
                 "artifactLocation.uri should not be empty");
 
         JsonNode logLoc = result.path("locations").get(0).path("logicalLocations").get(0);
-        assertTrue(logLoc.path("fullyQualifiedName").asText().contains("shouldAllowOwnerToReadOwnStatement")
-                || logLoc.path("fullyQualifiedName").asText().contains("AccessControlServiceTest"),
+        assertTrue(logLoc.path("fullyQualifiedName").asString().contains("shouldAllowOwnerToReadOwnStatement")
+                || logLoc.path("fullyQualifiedName").asString().contains("AccessControlServiceTest"),
                 "logicalLocation should reference the test method or class");
     }
 
@@ -105,7 +105,7 @@ public class MethodAtlasAppSarifTest {
 
         assertTrue(results.size() > 0, "Expected results to verify level field");
         for (JsonNode result : results) {
-            assertEquals("none", result.path("level").asText(),
+            assertEquals("none", result.path("level").asString(),
                     "Without AI, all results should have level 'none'");
         }
     }
@@ -120,7 +120,7 @@ public class MethodAtlasAppSarifTest {
         JsonNode driver = new ObjectMapper().readTree(output)
                 .path("runs").get(0).path("tool").path("driver");
 
-        assertEquals("MethodAtlas", driver.path("name").asText());
+        assertEquals("MethodAtlas", driver.path("name").asString());
     }
 
     // -------------------------------------------------------------------------

@@ -50,9 +50,9 @@ class SarifEmitterTest {
 
         JsonNode doc = flush(emitter);
 
-        assertEquals("2.1.0", doc.path("version").asText());
-        assertNotNull(doc.path("$schema").asText());
-        assertTrue(doc.path("$schema").asText().contains("sarif-schema-2.1.0"));
+        assertEquals("2.1.0", doc.path("version").asString());
+        assertNotNull(doc.path("$schema").asString());
+        assertTrue(doc.path("$schema").asString().contains("sarif-schema-2.1.0"));
         assertTrue(doc.path("runs").isArray());
         assertEquals(1, doc.path("runs").size());
     }
@@ -77,7 +77,7 @@ class SarifEmitterTest {
         JsonNode doc = flush(emitter);
 
         JsonNode driver = doc.path("runs").get(0).path("tool").path("driver");
-        assertEquals("MethodAtlas", driver.path("name").asText());
+        assertEquals("MethodAtlas", driver.path("name").asString());
     }
 
     // -------------------------------------------------------------------------
@@ -93,8 +93,8 @@ class SarifEmitterTest {
 
         JsonNode result = getFirstResult(flush(emitter));
 
-        assertEquals("test-method", result.path("ruleId").asText());
-        assertEquals("none", result.path("level").asText());
+        assertEquals("test-method", result.path("ruleId").asString());
+        assertEquals("none", result.path("level").asString());
     }
 
     @Test
@@ -105,7 +105,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
 
         JsonNode result = getFirstResult(flush(emitter));
-        assertEquals("com.acme.FooTest.testFoo", result.path("message").path("text").asText());
+        assertEquals("com.acme.FooTest.testFoo", result.path("message").path("text").asString());
     }
 
     // -------------------------------------------------------------------------
@@ -123,8 +123,8 @@ class SarifEmitterTest {
 
         JsonNode result = getFirstResult(flush(emitter));
 
-        assertEquals("security/auth", result.path("ruleId").asText());
-        assertEquals("note", result.path("level").asText());
+        assertEquals("security/auth", result.path("ruleId").asString());
+        assertEquals("note", result.path("level").asString());
     }
 
     @Test
@@ -136,7 +136,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertTrue(messageText.contains("SECURITY: auth - login test"),
                 "message should contain AI displayName");
         assertTrue(messageText.contains("@Tag(\"auth\")"),
@@ -154,7 +154,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertTrue(messageText.contains("Interaction score: 0.35"),
                 "message should always include the interaction score, got: " + messageText);
     }
@@ -168,7 +168,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertTrue(messageText.contains("Interaction score: 0.90"),
                 "message should include the interaction score value, got: " + messageText);
         assertTrue(messageText.contains("method calls"),
@@ -184,7 +184,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, true, ""); // confidenceEnabled=true
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertTrue(messageText.contains("Confidence: 85%"),
                 "message should include the confidence percentage, got: " + messageText);
     }
@@ -198,7 +198,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, false, ""); // confidenceEnabled=false
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertFalse(messageText.contains("Confidence:"),
                 "message should not include confidence when disabled, got: " + messageText);
     }
@@ -212,7 +212,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, false, "", false); // scoresInMessage=false
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertFalse(messageText.contains("Interaction score:"),
                 "interaction score should be absent when scoresInMessage=false, got: " + messageText);
         assertFalse(messageText.contains("method calls"),
@@ -230,7 +230,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, true, "", false); // confidenceEnabled=true, scoresInMessage=false
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertFalse(messageText.contains("Confidence:"),
                 "confidence should be absent when scoresInMessage=false, got: " + messageText);
     }
@@ -246,12 +246,12 @@ class SarifEmitterTest {
 
         JsonNode placeboResult = null;
         for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
-            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+            if ("security-test/placebo".equals(r.path("ruleId").asString())) {
                 placeboResult = r;
             }
         }
         assertNotNull(placeboResult, "placebo result should still be present");
-        String messageText = placeboResult.path("message").path("text").asText();
+        String messageText = placeboResult.path("message").path("text").asString();
         assertTrue(messageText.contains("Interaction score: 0.90"),
                 "placebo message must always contain the score (it is the core content), got: " + messageText);
         assertTrue(messageText.contains("threshold: 0.8"),
@@ -269,12 +269,12 @@ class SarifEmitterTest {
 
         JsonNode placeboResult = null;
         for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
-            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+            if ("security-test/placebo".equals(r.path("ruleId").asString())) {
                 placeboResult = r;
             }
         }
         assertNotNull(placeboResult, "placebo result should be present");
-        String messageText = placeboResult.path("message").path("text").asText();
+        String messageText = placeboResult.path("message").path("text").asString();
         assertFalse(messageText.contains("Confidence:"),
                 "confidence should be absent from placebo message when scoresInMessage=false, got: " + messageText);
     }
@@ -288,7 +288,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertTrue(messageText.contains("AI classifies as security-relevant"),
                 "message should fall back to generic line when displayName is null");
         assertTrue(messageText.contains("@Tag(\"auth\")"), "message should still include tag suggestion");
@@ -304,7 +304,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.SomeTest", "testGeneral", 1, 3, null, List.of(), null, suggestion);
 
         JsonNode result = getFirstResult(flush(emitter));
-        assertEquals("security-test", result.path("ruleId").asText());
+        assertEquals("security-test", result.path("ruleId").asString());
     }
 
     // -------------------------------------------------------------------------
@@ -320,7 +320,7 @@ class SarifEmitterTest {
 
         JsonNode physLoc = getFirstResult(flush(emitter))
                 .path("locations").get(0).path("physicalLocation");
-        assertEquals("com/acme/auth/AuthTest.java", physLoc.path("artifactLocation").path("uri").asText());
+        assertEquals("com/acme/auth/AuthTest.java", physLoc.path("artifactLocation").path("uri").asString());
         assertTrue(physLoc.path("artifactLocation").path("uriBaseId").isMissingNode(),
                 "uriBaseId should be absent when filePrefix is empty — no %SRCROOT% dangling reference");
     }
@@ -335,7 +335,7 @@ class SarifEmitterTest {
         JsonNode physLoc = getFirstResult(flush(emitter))
                 .path("locations").get(0).path("physicalLocation");
         assertEquals("src/test/java/com/acme/auth/AuthTest.java",
-                physLoc.path("artifactLocation").path("uri").asText());
+                physLoc.path("artifactLocation").path("uri").asString());
         assertTrue(physLoc.path("artifactLocation").path("uriBaseId").isMissingNode(),
                 "uriBaseId should be absent when filePrefix is provided");
     }
@@ -373,8 +373,8 @@ class SarifEmitterTest {
 
         JsonNode logLoc = getFirstResult(flush(emitter))
                 .path("locations").get(0).path("logicalLocations").get(0);
-        assertEquals("com.acme.FooTest.testFoo", logLoc.path("fullyQualifiedName").asText());
-        assertEquals("member", logLoc.path("kind").asText());
+        assertEquals("com.acme.FooTest.testFoo", logLoc.path("fullyQualifiedName").asString());
+        assertEquals("member", logLoc.path("kind").asString());
     }
 
     // -------------------------------------------------------------------------
@@ -400,7 +400,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of("security", "auth"), null, null);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
-        assertEquals("security;auth", props.path("sourceTags").asText());
+        assertEquals("security;auth", props.path("sourceTags").asString());
     }
 
     @Test
@@ -425,9 +425,9 @@ class SarifEmitterTest {
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
         assertTrue(props.path("aiSecurityRelevant").asBoolean());
-        assertEquals("SECURITY: auth - login", props.path("aiDisplayName").asText());
-        assertEquals("security;auth", props.path("aiTags").asText());
-        assertEquals("Tests login auth", props.path("aiReason").asText());
+        assertEquals("SECURITY: auth - login", props.path("aiDisplayName").asString());
+        assertEquals("security;auth", props.path("aiTags").asString());
+        assertEquals("Tests login auth", props.path("aiReason").asString());
     }
 
     @Test
@@ -480,7 +480,7 @@ class SarifEmitterTest {
         // Both methods use "security/auth" → only one rule entry
         long authRuleCount = 0;
         for (JsonNode rule : rules) {
-            if ("security/auth".equals(rule.path("id").asText())) {
+            if ("security/auth".equals(rule.path("id").asString())) {
                 authRuleCount++;
             }
         }
@@ -514,7 +514,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of("security"), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
-        assertEquals("none", props.path("tagAiDrift").asText());
+        assertEquals("none", props.path("tagAiDrift").asString());
     }
 
     @Test
@@ -527,7 +527,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
-        assertEquals("ai-only", props.path("tagAiDrift").asText());
+        assertEquals("ai-only", props.path("tagAiDrift").asString());
     }
 
     @Test
@@ -540,7 +540,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of("security"), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
-        assertEquals("tag-only", props.path("tagAiDrift").asText());
+        assertEquals("tag-only", props.path("tagAiDrift").asString());
     }
 
     @Test
@@ -553,9 +553,9 @@ class SarifEmitterTest {
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of("security", "perf"), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
-        assertEquals("perf", props.path("tagsAdded").asText(),
+        assertEquals("perf", props.path("tagsAdded").asString(),
                 "tagsAdded lists source tags the AI did not suggest");
-        assertEquals("crypto", props.path("tagsRemoved").asText(),
+        assertEquals("crypto", props.path("tagsRemoved").asString(),
                 "tagsRemoved lists AI tags absent from source");
     }
 
@@ -633,7 +633,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.FooTest", "testFoo", 10, 5, hash, List.of(), null, null);
 
         JsonNode properties = getFirstResult(flush(emitter)).path("properties");
-        assertEquals(hash, properties.path("contentHash").asText());
+        assertEquals(hash, properties.path("contentHash").asString());
     }
 
     // -------------------------------------------------------------------------
@@ -664,7 +664,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
-        assertEquals("7.5", props.path("security-severity").asText());
+        assertEquals("7.5", props.path("security-severity").asString());
     }
 
     @Test
@@ -678,7 +678,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.SqlTest", "testSqlInjection", 5, 8, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
-        assertEquals("9.0", props.path("security-severity").asText());
+        assertEquals("9.0", props.path("security-severity").asString());
     }
 
     @Test
@@ -692,7 +692,7 @@ class SarifEmitterTest {
         emitter.record("com.acme.SomeTest", "testSomething", 5, 4, null, List.of(), null, suggestion);
 
         JsonNode props = getFirstResult(flush(emitter)).path("properties");
-        assertEquals("5.0", props.path("security-severity").asText());
+        assertEquals("5.0", props.path("security-severity").asString());
     }
 
     @Test
@@ -729,7 +729,7 @@ class SarifEmitterTest {
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
         JsonNode authRule = null;
         for (JsonNode rule : rules) {
-            if ("security/auth".equals(rule.path("id").asText())) {
+            if ("security/auth".equals(rule.path("id").asString())) {
                 authRule = rule;
             }
         }
@@ -738,7 +738,7 @@ class SarifEmitterTest {
         assertTrue(tags.isArray(), "rule properties.tags should be an array");
         List<String> tagValues = new ArrayList<>();
         for (JsonNode t : tags) {
-            tagValues.add(t.asText());
+            tagValues.add(t.asString());
         }
         assertTrue(tagValues.contains("security"), "tags should contain 'security'");
         assertTrue(tagValues.contains("auth"), "tags should contain 'auth'");
@@ -757,12 +757,12 @@ class SarifEmitterTest {
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
         JsonNode authRule = null;
         for (JsonNode rule : rules) {
-            if ("security/auth".equals(rule.path("id").asText())) {
+            if ("security/auth".equals(rule.path("id").asString())) {
                 authRule = rule;
             }
         }
         assertNotNull(authRule, "security/auth rule should exist");
-        String helpText = authRule.path("help").path("text").asText();
+        String helpText = authRule.path("help").path("text").asString();
         assertFalse(helpText.isEmpty(), "rule.help.text should be non-empty");
         assertTrue(helpText.contains("apply-tags"), "help text should mention apply-tags action");
     }
@@ -777,12 +777,12 @@ class SarifEmitterTest {
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
         JsonNode testRule = null;
         for (JsonNode rule : rules) {
-            if ("test-method".equals(rule.path("id").asText())) {
+            if ("test-method".equals(rule.path("id").asString())) {
                 testRule = rule;
             }
         }
         assertNotNull(testRule, "test-method rule should exist");
-        assertFalse(testRule.path("help").path("text").asText().isEmpty(),
+        assertFalse(testRule.path("help").path("text").asString().isEmpty(),
                 "test-method rule.help.text should be non-empty");
     }
 
@@ -796,7 +796,7 @@ class SarifEmitterTest {
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
         JsonNode testRule = null;
         for (JsonNode rule : rules) {
-            if ("test-method".equals(rule.path("id").asText())) {
+            if ("test-method".equals(rule.path("id").asString())) {
                 testRule = rule;
             }
         }
@@ -805,7 +805,7 @@ class SarifEmitterTest {
         assertTrue(tags.isArray(), "rule properties.tags should be an array");
         boolean hasTest = false;
         for (JsonNode t : tags) {
-            if ("test".equals(t.asText())) {
+            if ("test".equals(t.asString())) {
                 hasTest = true;
             }
         }
@@ -828,10 +828,10 @@ class SarifEmitterTest {
 
         boolean hasEmptyDisplayNameRule = false;
         for (JsonNode result : results) {
-            if ("annotation/empty-display-name".equals(result.path("ruleId").asText())) {
+            if ("annotation/empty-display-name".equals(result.path("ruleId").asString())) {
                 hasEmptyDisplayNameRule = true;
-                assertEquals("note", result.path("level").asText());
-                String msg = result.path("message").path("text").asText();
+                assertEquals("note", result.path("level").asString());
+                String msg = result.path("message").path("text").asString();
                 assertTrue(msg.contains("explicitly empty") || msg.contains("empty display name"),
                         "message should describe the empty annotation problem");
                 assertTrue(msg.contains("com.acme.FooTest"), "message should identify the class");
@@ -850,11 +850,11 @@ class SarifEmitterTest {
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
         boolean found = false;
         for (JsonNode rule : rules) {
-            if ("annotation/empty-display-name".equals(rule.path("id").asText())) {
+            if ("annotation/empty-display-name".equals(rule.path("id").asString())) {
                 found = true;
                 JsonNode tags = rule.path("properties").path("tags");
                 List<String> tagList = new ArrayList<>();
-                for (JsonNode t : tags) tagList.add(t.asText());
+                for (JsonNode t : tags) tagList.add(t.asString());
                 assertTrue(tagList.contains("annotation"));
                 assertTrue(tagList.contains("quality"));
             }
@@ -872,14 +872,14 @@ class SarifEmitterTest {
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
         JsonNode emptyDnResult = null;
         for (JsonNode r : results) {
-            if ("annotation/empty-display-name".equals(r.path("ruleId").asText())) {
+            if ("annotation/empty-display-name".equals(r.path("ruleId").asString())) {
                 emptyDnResult = r;
             }
         }
         assertNotNull(emptyDnResult, "annotation/empty-display-name result should be present");
         assertEquals(7, emptyDnResult.path("properties").path("loc").asInt(),
                 "loc should be present in annotation/empty-display-name properties");
-        assertEquals("security", emptyDnResult.path("properties").path("sourceTags").asText(),
+        assertEquals("security", emptyDnResult.path("properties").path("sourceTags").asString(),
                 "sourceTags should be present when method has source tags");
     }
 
@@ -892,7 +892,7 @@ class SarifEmitterTest {
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
         assertEquals(1, results.size(), "only the test-method result should be present");
-        assertEquals("test-method", results.get(0).path("ruleId").asText());
+        assertEquals("test-method", results.get(0).path("ruleId").asString());
     }
 
     @Test
@@ -906,9 +906,9 @@ class SarifEmitterTest {
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
         assertEquals(3, results.size());
-        assertEquals("security/auth", results.get(0).path("ruleId").asText());
-        assertEquals("annotation/empty-display-name", results.get(1).path("ruleId").asText());
-        assertEquals("security-test/placebo", results.get(2).path("ruleId").asText());
+        assertEquals("security/auth", results.get(0).path("ruleId").asString());
+        assertEquals("annotation/empty-display-name", results.get(1).path("ruleId").asString());
+        assertEquals("security-test/placebo", results.get(2).path("ruleId").asString());
     }
 
     // -------------------------------------------------------------------------
@@ -926,8 +926,8 @@ class SarifEmitterTest {
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
         assertEquals(2, results.size());
-        assertEquals("security/auth", results.get(0).path("ruleId").asText());
-        assertEquals("security-test/placebo", results.get(1).path("ruleId").asText());
+        assertEquals("security/auth", results.get(0).path("ruleId").asString());
+        assertEquals("security-test/placebo", results.get(1).path("ruleId").asString());
     }
 
     @Test
@@ -941,7 +941,7 @@ class SarifEmitterTest {
 
         boolean foundPlacebo = false;
         for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
-            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+            if ("security-test/placebo".equals(r.path("ruleId").asString())) {
                 foundPlacebo = true;
             }
         }
@@ -959,7 +959,7 @@ class SarifEmitterTest {
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
         assertEquals(1, results.size(), "only the primary security result should be present");
-        assertFalse("security-test/placebo".equals(results.get(0).path("ruleId").asText()),
+        assertFalse("security-test/placebo".equals(results.get(0).path("ruleId").asString()),
                 "no placebo result should be emitted for low interaction score");
     }
 
@@ -974,7 +974,7 @@ class SarifEmitterTest {
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
         assertEquals(1, results.size(), "non-security method should produce only one result regardless of interaction score");
-        assertEquals("test-method", results.get(0).path("ruleId").asText());
+        assertEquals("test-method", results.get(0).path("ruleId").asString());
     }
 
     @Test
@@ -988,12 +988,12 @@ class SarifEmitterTest {
 
         JsonNode placeboResult = null;
         for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
-            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+            if ("security-test/placebo".equals(r.path("ruleId").asString())) {
                 placeboResult = r;
             }
         }
         assertNotNull(placeboResult, "placebo result should be present");
-        assertEquals("warning", placeboResult.path("level").asText());
+        assertEquals("warning", placeboResult.path("level").asString());
     }
 
     @Test
@@ -1007,7 +1007,7 @@ class SarifEmitterTest {
 
         JsonNode placeboResult = null;
         for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
-            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+            if ("security-test/placebo".equals(r.path("ruleId").asString())) {
                 placeboResult = r;
             }
         }
@@ -1027,12 +1027,12 @@ class SarifEmitterTest {
 
         JsonNode placeboResult = null;
         for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
-            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+            if ("security-test/placebo".equals(r.path("ruleId").asString())) {
                 placeboResult = r;
             }
         }
         assertNotNull(placeboResult, "placebo result should be present");
-        String messageText = placeboResult.path("message").path("text").asText();
+        String messageText = placeboResult.path("message").path("text").asString();
         assertTrue(messageText.contains("Interaction score: 0.90"),
                 "message should contain the exact interaction score, got: " + messageText);
         assertTrue(messageText.contains("threshold: 0.8"),
@@ -1050,12 +1050,12 @@ class SarifEmitterTest {
 
         JsonNode placeboResult = null;
         for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
-            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+            if ("security-test/placebo".equals(r.path("ruleId").asString())) {
                 placeboResult = r;
             }
         }
         assertNotNull(placeboResult, "placebo result should be present");
-        String messageText = placeboResult.path("message").path("text").asText();
+        String messageText = placeboResult.path("message").path("text").asString();
         assertTrue(messageText.contains("Confidence: 85%"),
                 "placebo message should include confidence when enabled, got: " + messageText);
     }
@@ -1072,9 +1072,9 @@ class SarifEmitterTest {
         JsonNode rules = flush(emitter).path("runs").get(0).path("tool").path("driver").path("rules");
         boolean found = false;
         for (JsonNode rule : rules) {
-            if ("security-test/placebo".equals(rule.path("id").asText())) {
+            if ("security-test/placebo".equals(rule.path("id").asString())) {
                 found = true;
-                assertEquals("SecurityTestPlacebo", rule.path("name").asText());
+                assertEquals("SecurityTestPlacebo", rule.path("name").asString());
                 assertTrue(rule.path("properties").path("tags").toString().contains("placebo"),
                         "rule tags should include 'placebo'");
                 assertTrue(rule.path("properties").path("tags").toString().contains("security"),
@@ -1096,14 +1096,14 @@ class SarifEmitterTest {
 
         JsonNode placeboResult = null;
         for (JsonNode r : flush(emitter).path("runs").get(0).path("results")) {
-            if ("security-test/placebo".equals(r.path("ruleId").asText())) {
+            if ("security-test/placebo".equals(r.path("ruleId").asString())) {
                 placeboResult = r;
             }
         }
         assertNotNull(placeboResult, "placebo result should be present");
         JsonNode physLoc = placeboResult.path("locations").get(0).path("physicalLocation");
         assertEquals("src/test/java/com/acme/AuthTest.java",
-                physLoc.path("artifactLocation").path("uri").asText());
+                physLoc.path("artifactLocation").path("uri").asString());
         assertEquals(15, physLoc.path("region").path("startLine").asInt());
     }
 
@@ -1120,7 +1120,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertFalse(messageText.contains("Reason:"),
                 "blank reason should not be appended to message: " + messageText);
     }
@@ -1134,7 +1134,7 @@ class SarifEmitterTest {
         SarifEmitter emitter = new SarifEmitter(true, false, "");
         emitter.record("com.acme.AuthTest", "testLogin", 5, 8, null, List.of(), null, suggestion);
 
-        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asText();
+        String messageText = getFirstResult(flush(emitter)).path("message").path("text").asString();
         assertFalse(messageText.contains("Reason:"),
                 "null reason should not add Reason: line: " + messageText);
     }
@@ -1149,9 +1149,9 @@ class SarifEmitterTest {
         emitter.record("com.acme.FooTest", "testFoo", 5, 4, null, List.of(), null, suggestion);
 
         JsonNode result = getFirstResult(flush(emitter));
-        assertEquals("security-test", result.path("ruleId").asText(),
+        assertEquals("security-test", result.path("ruleId").asString(),
                 "null tags should produce security-test ruleId");
-        assertEquals("note", result.path("level").asText());
+        assertEquals("note", result.path("level").asString());
     }
 
     @Test
@@ -1163,8 +1163,8 @@ class SarifEmitterTest {
 
         JsonNode results = flush(emitter).path("runs").get(0).path("results");
         assertEquals(2, results.size(), "non-security method with empty displayName should produce 2 results");
-        assertEquals("test-method", results.get(0).path("ruleId").asText());
-        assertEquals("annotation/empty-display-name", results.get(1).path("ruleId").asText());
+        assertEquals("test-method", results.get(0).path("ruleId").asString());
+        assertEquals("annotation/empty-display-name", results.get(1).path("ruleId").asString());
     }
 
     @Test

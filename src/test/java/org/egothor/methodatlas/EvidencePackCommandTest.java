@@ -91,10 +91,10 @@ class EvidencePackCommandTest {
 
         JsonNode meta = new ObjectMapper().readTree(packDir.resolve("pack-meta.json").toFile());
         assertTrue(meta.path("signed").asBoolean(), "signed flag must be true");
-        assertEquals("Ed25519", meta.path("signatureAlgorithm").asText(),
+        assertEquals("Ed25519", meta.path("signatureAlgorithm").asString(),
                 "algorithm must be derived from the generated Ed25519 key");
-        assertEquals("1.1.0", meta.path("zeroEchoLibVersion").asText());
-        assertEquals("audit", meta.path("keyAlias").asText());
+        assertEquals("1.1.0", meta.path("zeroEchoLibVersion").asString());
+        assertEquals("audit", meta.path("keyAlias").asString());
     }
 
     @Test
@@ -180,14 +180,14 @@ class EvidencePackCommandTest {
         });
 
         JsonNode meta = new ObjectMapper().readTree(packDir.resolve("pack-meta.json").toFile());
-        assertEquals("NIST-SSDF-PW.8", meta.path("framework").asText());
+        assertEquals("NIST-SSDF-PW.8", meta.path("framework").asString());
         assertFalse(meta.path("signed").asBoolean(), "signed must be false when no keystore was supplied");
         assertTrue(meta.path("signatureAlgorithm").isNull(),
                 "signatureAlgorithm must be null when unsigned");
         assertTrue(meta.path("zeroEchoLibVersion").isNull(),
                 "zeroEchoLibVersion must be null when unsigned");
         assertTrue(meta.path("keyAlias").isNull(), "keyAlias must be null when unsigned");
-        assertFalse(meta.path("generatedUtc").asText().isEmpty(),
+        assertFalse(meta.path("generatedUtc").asString().isEmpty(),
                 "generatedUtc must be populated");
         assertFalse(meta.path("scanRoots").isMissingNode(), "scanRoots must be present");
     }
@@ -220,7 +220,7 @@ class EvidencePackCommandTest {
         });
         assertEquals(0, exit);
         JsonNode meta = new ObjectMapper().readTree(packDir.resolve("pack-meta.json").toFile());
-        assertEquals("ISO-27001-8.29", meta.path("framework").asText());
+        assertEquals("ISO-27001-8.29", meta.path("framework").asString());
     }
 
     @Test

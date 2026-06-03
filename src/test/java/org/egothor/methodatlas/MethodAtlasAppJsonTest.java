@@ -68,8 +68,8 @@ class MethodAtlasAppJsonTest {
 
         JsonNode alpha = findByMethod(root, "alpha");
         assertNotNull(alpha, "Method 'alpha' must be present");
-        assertEquals("com.acme.tests.SampleOneTest", alpha.get("fqcn").asText());
-        assertEquals("alpha", alpha.get("method").asText());
+        assertEquals("com.acme.tests.SampleOneTest", alpha.get("fqcn").asString());
+        assertEquals("alpha", alpha.get("method").asString());
         assertEquals(8, alpha.get("loc").asInt());
         assertTrue(alpha.get("tags").isArray(), "tags must be a JSON array");
         assertTrue(alpha.get("tags").toString().contains("fast"), "tags must include 'fast'");
@@ -222,7 +222,7 @@ class MethodAtlasAppJsonTest {
 
     private static JsonNode findByMethod(JsonNode array, String methodName) {
         for (JsonNode node : array) {
-            if (methodName.equals(node.path("method").asText())) {
+            if (methodName.equals(node.path("method").asString())) {
                 return node;
             }
         }

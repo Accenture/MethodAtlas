@@ -43,11 +43,11 @@ class ReceiptWriterTest {
         ReceiptWriter.write(receipt, mapper, file);
 
         JsonNode root = mapper.readTree(file.toFile());
-        assertEquals("1", root.path("schemaVersion").asText());
-        assertEquals("CSV", root.path("outputMode").asText());
-        assertEquals("dev", root.path("methodAtlasVersion").asText());
+        assertEquals("1", root.path("schemaVersion").asString());
+        assertEquals("CSV", root.path("outputMode").asString());
+        assertEquals("dev", root.path("methodAtlasVersion").asString());
         assertTrue(root.path("deterministicReplay").asBoolean());
-        assertEquals(64, root.path("configHash").asText().length());
+        assertEquals(64, root.path("configHash").asString().length());
     }
 
     @Test

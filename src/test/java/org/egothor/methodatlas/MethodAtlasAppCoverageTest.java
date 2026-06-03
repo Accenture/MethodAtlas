@@ -120,7 +120,7 @@ class MethodAtlasAppCoverageTest {
         assertTrue(Files.isRegularFile(coverageOut),
                 "Coverage report must be written to custom path");
         JsonNode root = new ObjectMapper().readTree(coverageOut.toFile());
-        assertEquals("ASVS", root.path("framework").asText());
+        assertEquals("ASVS", root.path("framework").asString());
     }
 
     @Test
@@ -156,11 +156,11 @@ class MethodAtlasAppCoverageTest {
         JsonNode control = root.path("coverage").path("ASVS-4.1.1");
         assertFalse(control.isMissingNode(),
                 "Annotated method must map to ASVS-4.1.1: coverage=" + root.path("coverage"));
-        assertEquals("V4", control.path("chapter").asText());
+        assertEquals("V4", control.path("chapter").asString());
         JsonNode tests = control.path("tests");
         assertTrue(tests.isArray() && tests.size() >= 1, "Must list at least one covering test");
         JsonNode testNode = tests.get(0);
-        assertEquals("source", testNode.path("tagSource").asText(),
+        assertEquals("source", testNode.path("tagSource").asString(),
                 "Source-derived evidence must yield tagSource = 'source'");
         assertEquals(1.0, testNode.path("confidence").asDouble(),
                 "Source-derived evidence must yield confidence = 1.0");

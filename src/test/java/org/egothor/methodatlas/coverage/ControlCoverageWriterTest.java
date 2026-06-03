@@ -30,9 +30,9 @@ class ControlCoverageWriterTest {
         ControlCoverageWriter.write(sampleReport(), file);
 
         JsonNode root = new ObjectMapper().readTree(file.toFile());
-        assertEquals("1", root.path("schemaVersion").asText());
-        assertEquals("ASVS", root.path("framework").asText());
-        assertEquals("4.0", root.path("frameworkVersion").asText());
+        assertEquals("1", root.path("schemaVersion").asString());
+        assertEquals("ASVS", root.path("framework").asString());
+        assertEquals("4.0", root.path("frameworkVersion").asString());
     }
 
     @Test
@@ -66,9 +66,9 @@ class ControlCoverageWriterTest {
         ControlCoverageWriter.write(reportWithGaps(), file);
         JsonNode gaps = new ObjectMapper().readTree(file.toFile()).path("gaps");
         assertEquals(3, gaps.size());
-        assertEquals("ASVS-1.1.1", gaps.get(0).asText());
-        assertEquals("ASVS-2.2.2", gaps.get(1).asText());
-        assertEquals("ASVS-3.3.3", gaps.get(2).asText());
+        assertEquals("ASVS-1.1.1", gaps.get(0).asString());
+        assertEquals("ASVS-2.2.2", gaps.get(1).asString());
+        assertEquals("ASVS-3.3.3", gaps.get(2).asString());
     }
 
     @Test

@@ -389,7 +389,7 @@ final class TypeScriptWorker {
         JsonNode root = MAPPER.readTree(responseLine);
 
         // Validate request ID to catch out-of-sync responses (protocol error).
-        String responseId = root.path("requestId").asText(null);
+        String responseId = root.path("requestId").asString(null);
         if (!requestId.equals(responseId)) {
             throw new WorkerException(
                     "Response requestId mismatch: expected=" + requestId
@@ -399,7 +399,7 @@ final class TypeScriptWorker {
         // Surface worker-side errors.
         JsonNode errorNode = root.path("error");
         if (!errorNode.isNull() && !errorNode.isMissingNode()) {
-            String errorMsg = errorNode.asText();
+            String errorMsg = errorNode.asString();
             if (errorMsg != null && !errorMsg.isBlank()) {
                 throw new WorkerException("Worker reported error scanning " + filePath
                         + ": " + errorMsg);
@@ -411,13 +411,13 @@ final class TypeScriptWorker {
         JsonNode methodsNode = root.path("methods");
         if (methodsNode.isArray()) {
             for (JsonNode m : methodsNode) {
-                String name = m.path("name").asText("<anonymous>");
+                String name = m.path("name").asString("<anonymous>");
                 List<String> describe = null;
                 JsonNode descNode = m.path("describe");
                 if (descNode.isArray() && !descNode.isEmpty()) {
                     describe = new ArrayList<>();
                     for (JsonNode d : descNode) {
-                        describe.add(d.asText());
+                        describe.add(d.asString());
                     }
                 }
                 int beginLine = m.path("beginLine").asInt(0);

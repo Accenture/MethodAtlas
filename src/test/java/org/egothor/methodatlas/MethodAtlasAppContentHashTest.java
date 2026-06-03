@@ -208,7 +208,7 @@ public class MethodAtlasAppContentHashTest {
             JsonNode hashNode = result.path("properties").path("contentHash");
             assertFalse(hashNode.isMissingNode(),
                     "contentHash must be present in SARIF properties when -content-hash is passed");
-            String hash = hashNode.asText();
+            String hash = hashNode.asString();
             assertEquals(64, hash.length(), "SHA-256 hex must be 64 characters");
             assertTrue(hash.matches("[0-9a-f]{64}"), "Hash must be lowercase hex");
         }
@@ -226,9 +226,9 @@ public class MethodAtlasAppContentHashTest {
         for (JsonNode result : results) {
             String fqn = result.path("locations").get(0)
                     .path("logicalLocations").get(0)
-                    .path("fullyQualifiedName").asText();
+                    .path("fullyQualifiedName").asString();
             if (fqn.contains("SampleOneTest")) {
-                sampleOneHashes.add(result.path("properties").path("contentHash").asText());
+                sampleOneHashes.add(result.path("properties").path("contentHash").asString());
             }
         }
 

@@ -35,11 +35,11 @@ class JsonEmitterTest {
         emitter.record("com.acme.Foo", "m", 1, 5, null, List.of("security", "perf"), "", suggestion, null);
 
         JsonNode record = firstRecord(emitter);
-        assertEquals("none", record.path("tag_ai_drift").asText(),
+        assertEquals("none", record.path("tag_ai_drift").asString(),
                 "security tag and AI verdict agree");
-        assertEquals("perf", record.path("tags_added").asText(),
+        assertEquals("perf", record.path("tags_added").asString(),
                 "tags_added lists source tags the AI did not suggest");
-        assertEquals("crypto", record.path("tags_removed").asText(),
+        assertEquals("crypto", record.path("tags_removed").asString(),
                 "tags_removed lists AI tags absent from source");
     }
 

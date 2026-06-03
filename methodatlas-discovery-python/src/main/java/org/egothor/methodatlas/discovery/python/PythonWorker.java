@@ -222,7 +222,7 @@ final class PythonWorker {
             Path filePath) throws IOException, WorkerException {
         JsonNode root = MAPPER.readTree(responseLine);
 
-        String responseId = root.path("requestId").asText(null);
+        String responseId = root.path("requestId").asString(null);
         if (!requestId.equals(responseId)) {
             throw new WorkerException(
                     "Response requestId mismatch: expected=" + requestId
@@ -231,7 +231,7 @@ final class PythonWorker {
 
         JsonNode errorNode = root.path("error");
         if (!errorNode.isNull() && !errorNode.isMissingNode()) {
-            String errorMsg = errorNode.asText();
+            String errorMsg = errorNode.asString();
             if (errorMsg != null && !errorMsg.isBlank()) {
                 throw new WorkerException("Worker reported error scanning " + filePath
                         + ": " + errorMsg);
@@ -242,11 +242,11 @@ final class PythonWorker {
         JsonNode methodsNode = root.path("methods");
         if (methodsNode.isArray()) {
             for (JsonNode m : methodsNode) {
-                String name = m.path("name").asText("<anonymous>");
+                String name = m.path("name").asString("<anonymous>");
                 String className = null;
                 JsonNode classNode = m.path("className");
                 if (!classNode.isNull() && !classNode.isMissingNode()) {
-                    className = classNode.asText(null);
+                    className = classNode.asString(null);
                 }
                 int beginLine = m.path("beginLine").asInt(0);
                 int endLine   = m.path("endLine").asInt(0);
@@ -255,7 +255,7 @@ final class PythonWorker {
                 JsonNode tagsNode = m.path("tags");
                 if (tagsNode.isArray()) {
                     for (JsonNode t : tagsNode) {
-                        tags.add(t.asText());
+                        tags.add(t.asString());
                     }
                 }
                 methods.add(new MethodDescriptor(name, className, beginLine, endLine, loc,

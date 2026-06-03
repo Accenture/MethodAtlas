@@ -69,8 +69,8 @@ class MethodAtlasAppReceiptTest {
 
         assertTrue(Files.isRegularFile(target), "Receipt file must be created at custom path");
         JsonNode root = new ObjectMapper().readTree(target.toFile());
-        assertEquals("1", root.path("schemaVersion").asText());
-        assertEquals("CSV", root.path("outputMode").asText());
+        assertEquals("1", root.path("schemaVersion").asString());
+        assertEquals("CSV", root.path("outputMode").asString());
     }
 
     @Test
@@ -104,10 +104,10 @@ class MethodAtlasAppReceiptTest {
         JsonNode overrideArtifact = root.path("inputs").path("overrideFile");
         assertFalse(overrideArtifact.isMissingNode(),
                 "overrideFile artefact must be present when -override-file is used");
-        assertEquals(64, overrideArtifact.path("sha256").asText().length(),
+        assertEquals(64, overrideArtifact.path("sha256").asString().length(),
                 "SHA-256 must be 64 hex chars");
         assertEquals(override.toAbsolutePath().toString(),
-                overrideArtifact.path("path").asText(),
+                overrideArtifact.path("path").asString(),
                 "Receipt must record the absolute override path");
     }
 
@@ -141,7 +141,7 @@ class MethodAtlasAppReceiptTest {
         keys.put("aiModel", text(inputs, "aiModel"));
         keys.put("aiProvider", text(inputs, "aiProvider"));
         keys.put("builtInTaxonomy", text(inputs, "builtInTaxonomy"));
-        keys.put("methodAtlasVersion", root.path("methodAtlasVersion").asText());
+        keys.put("methodAtlasVersion", root.path("methodAtlasVersion").asString());
         keys.put("overrideFileSha256", artifactSha(inputs, "overrideFile"));
         keys.put("promptTemplateHash", text(inputs, "promptTemplateHash"));
         keys.put("taxonomyFileSha256", artifactSha(inputs, "taxonomyFile"));
@@ -149,7 +149,7 @@ class MethodAtlasAppReceiptTest {
         StringBuilder buf = new StringBuilder(1024);
         keys.forEach((k, v) -> buf.append(k).append('=').append(v).append('\n'));
         String expected = sha256Hex(buf.toString().getBytes(StandardCharsets.UTF_8));
-        assertEquals(expected, root.path("configHash").asText(),
+        assertEquals(expected, root.path("configHash").asString(),
                 "Re-derived configHash must match the value in the receipt");
     }
 
@@ -184,7 +184,7 @@ class MethodAtlasAppReceiptTest {
 
     private static String text(JsonNode parent, String field) {
         JsonNode node = parent.path(field);
-        return node.isMissingNode() || node.isNull() ? "" : node.asText();
+        return node.isMissingNode() || node.isNull() ? "" : node.asString();
     }
 
     private static String artifactSha(JsonNode parent, String field) {
@@ -192,7 +192,7 @@ class MethodAtlasAppReceiptTest {
         if (node.isMissingNode() || node.isNull()) {
             return "";
         }
-        return node.path("sha256").asText();
+        return node.path("sha256").asString();
     }
 
     private static String sha256Hex(byte[] bytes) {

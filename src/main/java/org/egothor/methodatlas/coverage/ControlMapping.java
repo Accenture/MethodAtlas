@@ -118,7 +118,7 @@ import tools.jackson.databind.json.JsonMapper;
      */
     private static void validateSchemaVersion(JsonNode root, Path file) {
         JsonNode node = root.path("schemaVersion");
-        if (!node.isTextual() || !SCHEMA_VERSION.equals(node.asText())) {
+        if (!node.isString() || !SCHEMA_VERSION.equals(node.asString())) {
             throw new IllegalArgumentException(ERROR_PREFIX + file + ERROR_SUFFIX
                     + "has unsupported schemaVersion; expected \"" + SCHEMA_VERSION + "\"");
         }
@@ -134,11 +134,11 @@ import tools.jackson.databind.json.JsonMapper;
      */
     private static String requireString(JsonNode root, String field, Path file) {
         JsonNode node = root.path(field);
-        if (!node.isTextual() || node.asText().isBlank()) {
+        if (!node.isString() || node.asString().isBlank()) {
             throw new IllegalArgumentException(ERROR_PREFIX + file + ERROR_SUFFIX + "is missing required "
                     + "non-blank field '" + field + "'");
         }
-        return node.asText();
+        return node.asString();
     }
 
     /**
@@ -195,13 +195,13 @@ import tools.jackson.databind.json.JsonMapper;
                     + "' entries must be JSON objects");
         }
         JsonNode idNode = node.path("id");
-        if (!idNode.isTextual() || idNode.asText().isBlank()) {
+        if (!idNode.isString() || idNode.asString().isBlank()) {
             throw new IllegalArgumentException(ERROR_PREFIX + file + ERROR_SUFFIX + "tag '" + tag
                     + "' has an entry with missing or blank 'id'");
         }
         String chapter = optionalString(node, "chapter");
         String chapterTitle = optionalString(node, "chapterTitle");
-        return new ControlEntry(idNode.asText(), chapter, chapterTitle);
+        return new ControlEntry(idNode.asString(), chapter, chapterTitle);
     }
 
     /**
@@ -215,9 +215,9 @@ import tools.jackson.databind.json.JsonMapper;
      */
     private static String optionalString(JsonNode node, String field) {
         JsonNode child = node.get(field);
-        if (child == null || child.isNull() || !child.isTextual()) {
+        if (child == null || child.isNull() || !child.isString()) {
             return null;
         }
-        return child.asText();
+        return child.asString();
     }
 }
