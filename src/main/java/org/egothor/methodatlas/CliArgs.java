@@ -51,6 +51,7 @@ final class CliArgs {
     private static final String FLAG_INCLUDE_NON_SECURITY = "-include-non-security";
     private static final String FLAG_SARIF_OMIT_SCORES = "-sarif-omit-scores";
     private static final String FLAG_APPLY_TAGS_FROM_CSV = "-apply-tags-from-csv";
+    private static final String FLAG_PROMOTE_AI = "-promote-ai";
     private static final String FLAG_MISMATCH_LIMIT = "-mismatch-limit";
     private static final String FLAG_MIN_CONFIDENCE = "-min-confidence";
     private static final String FLAG_EMIT_RECEIPT = "-emit-receipt";
@@ -158,6 +159,10 @@ final class CliArgs {
         String evidencePackKeyAlias = null;
         String evidencePackSignAlgo = null;
         boolean verbose = false;
+        // -promote-ai lets the apply-from-csv engine write unvalidated AI output
+        // into source where curated columns are blank — risky and off by default.
+        // Seeded from YAML (promoteAi:) and overridable by the CLI flag.
+        boolean promoteAi = yamlConfig != null && yamlConfig.promoteAi;
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -179,6 +184,7 @@ final class CliArgs {
                 case "-github-annotations" -> outputMode = OutputMode.GITHUB_ANNOTATIONS;
                 case "-apply-tags" -> applyTags = true;
                 case FLAG_APPLY_TAGS_FROM_CSV -> applyTagsFromCsvFile = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_PROMOTE_AI -> promoteAi = true;
                 case FLAG_MISMATCH_LIMIT -> mismatchLimit = Integer.parseInt(nextArg(args, ++i, arg));
                 case "-content-hash" -> contentHash = true;
                 case FLAG_CONFIG -> i++; // value already consumed in pre-scan; skip here
@@ -300,7 +306,7 @@ final class CliArgs {
                 emitCoverage, coverageFile, coverageMappingFile,
                 evidencePackFramework, evidencePackDir,
                 evidencePackOverwrite, evidencePackKeyringFile, evidencePackKeyringEnv,
-                evidencePackKeyAlias, evidencePackSignAlgo, verbose);
+                evidencePackKeyAlias, evidencePackSignAlgo, verbose, promoteAi);
     }
 
     // -------------------------------------------------------------------------

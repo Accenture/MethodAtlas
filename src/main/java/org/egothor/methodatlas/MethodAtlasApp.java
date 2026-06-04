@@ -163,13 +163,15 @@ import org.egothor.methodatlas.evidence.GenSigningKeyCommand;
  * aborts without modifying any source file if the number of mismatches between
  * the CSV and the current source tree reaches or exceeds {@code n}; {@code -1}
  * (the default) logs mismatches as warnings and proceeds</li>
- * <li>{@code -emit-source-root} — adds a {@code source_root} column to CSV
- * output and a {@code SRCROOT=} token to plain-text output, identifying which
- * scan root each record originated from; essential in multi-root or monorepo
- * projects where the same fully qualified class name can appear under different
- * source trees (e.g. {@code module-a/src/test/java/} and
- * {@code module-b/src/test/java/}); has no effect on SARIF or GitHub Annotations
- * output</li>
+ * <li>{@code -promote-ai} — <strong>risky, not recommended</strong> opt-in for
+ * {@code -apply-tags-from-csv}: fills blank tags/display_name from the AI columns
+ * (unvalidated AI output reaches source); off by default</li>
+ * <li>{@code -help} / {@code --help} / {@code -h} — print usage and exit</li>
+ * <li>{@code -emit-source-root} — adds a {@code source_root} column (CSV) and a
+ * {@code SRCROOT=} token (plain text) identifying which scan root each record
+ * came from; essential in multi-root projects where the same fully qualified
+ * class name can appear under different source trees; no effect on SARIF or
+ * GitHub Annotations output</li>
  * </ul>
  *
  * <p>
@@ -264,6 +266,16 @@ public final class MethodAtlasApp {
      */
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops") // DiffCommand is created inside the loop but returned immediately
     /* default */ static int run(String[] args, PrintWriter out) throws IOException {
+        // -help is handled before argument parsing so it works even with no
+        // other (or otherwise invalid) arguments and never trips the
+        // "Unknown argument" path.
+        for (String arg : args) {
+            if ("-help".equals(arg) || "--help".equals(arg) || "-h".equals(arg)) {
+                Usage.print(out);
+                return 0;
+            }
+        }
+
         // -diff and -gen-signing-key are utility modes handled before full
         // argument parsing; each owns its own small set of flags and never
         // participates in the scan pipeline, so all other flags are ignored.

@@ -172,6 +172,34 @@ class CliArgsTest {
     }
 
     // -------------------------------------------------------------------------
+    // -promote-ai (risky AI-column promotion for apply-tags-from-csv)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("promoteAi defaults to false when the flag is absent")
+    @Tag("positive")
+    void parse_noPromoteAi_defaultsFalse() {
+        assertFalse(CliArgs.parse().promoteAi());
+    }
+
+    @Test
+    @DisplayName("-promote-ai flag sets promoteAi=true")
+    @Tag("positive")
+    void parse_promoteAiFlag_setsTrue() {
+        assertTrue(CliArgs.parse("-promote-ai").promoteAi());
+    }
+
+    @Test
+    @DisplayName("promoteAi from YAML config is applied as default")
+    @Tag("positive")
+    void parse_configWithPromoteAiTrue_setsFlag(@TempDir Path tempDir) throws IOException {
+        Path configFile = tempDir.resolve("config.yaml");
+        Files.writeString(configFile, "promoteAi: true\n", StandardCharsets.UTF_8);
+
+        assertTrue(CliArgs.parse("-config", configFile.toString()).promoteAi());
+    }
+
+    // -------------------------------------------------------------------------
     // File suffixes
     // -------------------------------------------------------------------------
 

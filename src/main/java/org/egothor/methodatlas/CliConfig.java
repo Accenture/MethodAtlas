@@ -149,14 +149,15 @@ import org.egothor.methodatlas.emit.OutputMode;
  *                              {@code null} derives the algorithm from the keyring
  *                              entry (Ed25519 when MethodAtlas-generated); a
  *                              {@code "classic+pqc"} value triggers hybrid mode
- * @param verbose               when {@code true}, emit detailed diagnostic
- *                              output to the progress writer. Currently consumed
- *                              by {@code -apply-tags-from-csv}, where it prints
- *                              the CSV desired-state keys, the keys discovered in
- *                              the source tree, and the key-by-key match result,
- *                              so a run that reports zero updates can be diagnosed
- *                              (for example a fully qualified class name or
- *                              working-directory mismatch)
+ * @param verbose               when {@code true}, emit detailed diagnostics to
+ *                              the progress writer; consumed by
+ *                              {@code -apply-tags-from-csv} to diagnose zero-update runs
+ * @param promoteAi             <strong>risky, not recommended</strong>: when
+ *                              {@code true}, {@code -apply-tags-from-csv} fills a
+ *                              method's blank {@code tags} / {@code display_name}
+ *                              from the AI columns, writing unvalidated AI output
+ *                              into source; off by default (see the engine and
+ *                              YAML docs for the full warning)
  * @since 3.0.0
  */
 public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
@@ -168,5 +169,5 @@ public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> p
         boolean emitCoverage, Path coverageFile, Path coverageMappingFile,
         String evidencePackFramework, Path evidencePackDir, boolean evidencePackOverwrite,
         Path evidencePackKeyringFile, String evidencePackKeyringEnv, String evidencePackKeyAlias,
-        String evidencePackSignAlgo, boolean verbose) {
+        String evidencePackSignAlgo, boolean verbose, boolean promoteAi) {
 }

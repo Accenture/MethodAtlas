@@ -42,6 +42,8 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **GitHub Actions annotations** — `-github-annotations` emits inline PR annotations for security-relevant methods without requiring a GitHub Advanced Security licence
 - **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent. **Supported languages:** Java (`.java`) and C# (`.cs`). Files in any other discovered language are recognised but skipped during write-back with a clear per-file notice and an aggregate skip count in the summary line.
 - **Apply-tags-from-csv** — applies human-reviewed annotation decisions from a CSV back to source; separates the review step from the write-back. Same Java/C# language scope as `-apply-tags`.
+- **AI-column promotion** — `-promote-ai` (also `promoteAi:` in YAML) lets `-apply-tags-from-csv` fall back to the `ai_tags` / `ai_display_name` columns where the curated columns are blank. **⚠️ Risky and not recommended:** it writes unvalidated AI output into source, bypassing the review step; off by default and intended only after the promotion has been rethought and approved.
+- **Help** — `-help` (also `--help` / `-h`) prints a usage summary and the [CLI reference](https://accenture.github.io/MethodAtlas/cli-reference/) URL
 - **Manual AI workflow** — two-phase prepare/consume workflow for environments where API access is blocked
 - **Local inference** — Ollama support keeps source code entirely within your network
 - **YAML configuration** — share scan settings across a team or CI pipeline without repeating CLI flags

@@ -86,6 +86,35 @@ The distinction between an empty string (`""`) and an absent value (empty cell w
 
 For flags and full format documentation, see [CLI reference — `-apply-tags-from-csv`](../cli-reference.md#-apply-tags-from-csv).
 
+## Promoting AI suggestions into the curated columns
+
+A scan run with `-ai` populates the advisory `ai_tags` and `ai_display_name` columns. The apply engine **never** reads those columns by default: it applies only the human-curated `tags` and `display_name` columns. This separation is intentional — it is the human review step, and it keeps unvalidated AI output from reaching source code.
+
+The **recommended** way to act on AI suggestions is therefore to review them and copy the approved values into the curated columns yourself (in a spreadsheet, a script, or by hand), exactly as the [end-to-end scenario](#end-to-end-scenario-human-reviewed-annotation-campaign) below describes. The curated columns are your sign-off.
+
+!!! danger "`-promote-ai` is risky and not recommended"
+    The `-promote-ai` flag short-circuits the review step: where a curated column
+    is blank, it copies the AI suggestion straight into source. This writes
+    **unvalidated AI output into your codebase** and defeats the purpose of the
+    apply-from-csv workflow. Do **not** enable it unless the promotion has been
+    deliberately rethought and approved for your environment.
+
+When `-promote-ai` is supplied (on the command line, or via `promoteAi: true` in a YAML config file), promotion is applied **per field, independently**, and only where the curated value is blank and a non-blank AI value exists:
+
+| Curated value | AI value | Outcome |
+|---|---|---|
+| present | anything | curated value is used (no promotion) |
+| blank | present | AI value is promoted into source |
+| blank | blank/absent | nothing to promote |
+
+Every promoted value is counted on the summary line so the run leaves an audit trail of what came from AI:
+
+```text
+Apply-tags-from-csv complete: 6 change(s) in 1 file(s); 0 mismatch(es) skipped. 6 value(s) promoted from AI columns (unvalidated — used with -promote-ai).
+```
+
+Add `-verbose` to itemise each promotion as a `[promote-ai]` line. See the [CLI reference — `-promote-ai`](../cli-reference.md#-promote-ai) for the full contract.
+
 ## The CSV as desired state
 
 The CSV is a **complete desired-state specification**, not an incremental patch.

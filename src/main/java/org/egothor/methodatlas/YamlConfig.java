@@ -34,6 +34,9 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * sarifOmitScores: false   # opt-out: omit interaction score / confidence from SARIF message text (default: false)
  * minConfidence: 0.0       # drop AI results below this threshold (requires ai.confidence: true; default: 0.0 = off)
  * driftDetect: false       # (default: false)
+ * promoteAi: false         # RISKY, not recommended: -apply-tags-from-csv falls back to ai_tags/ai_display_name
+ *                          # for methods whose curated tags/display_name are blank, writing UNVALIDATED AI
+ *                          # output into source (default: false)
  * overrideFile: .methodatlas-overrides.yaml  # optional
  * fileSuffixes:
  *   - Test.java
@@ -167,6 +170,18 @@ final class YamlConfig {
          */
         @JsonProperty("driftDetect")
         /* default */ boolean driftDetect;
+
+        /**
+         * <strong>Risky, not recommended.</strong> When {@code true}, the
+         * {@code -apply-tags-from-csv} engine falls back to the {@code ai_tags}
+         * and {@code ai_display_name} columns for any method whose curated
+         * {@code tags} / {@code display_name} column is blank, writing the raw,
+         * unvalidated AI suggestion into source. This bypasses the human review
+         * step the apply-from-csv workflow exists to enforce. Default:
+         * {@code false}.
+         */
+        @JsonProperty("promoteAi")
+        /* default */ boolean promoteAi;
 
         /**
          * When {@code true}, the interaction score and confidence percentage are

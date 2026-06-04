@@ -344,6 +344,64 @@ class MethodAtlasAppApplyTagsFromCsvTest {
         assertTrue(output.contains("aborted"), output);
     }
 
+    // ── -promote-ai (risky AI-column promotion) ───────────────────────────────
+
+    @Test
+    void applyTagsFromCsv_aiColumnsIgnoredByDefault(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "LoginTest.java", LOGIN_TEST_SOURCE);
+        // Curated tags/display_name are blank; only the ai_* columns carry data.
+        writeCsv(tempDir, "scan.csv", """
+                fqcn,method,loc,tags,display_name,ai_tags,ai_display_name
+                com.example.LoginTest,testLogin,1,,,security;auth,Verify login
+                com.example.LoginTest,testLogout,1,,,,
+                """);
+
+        String output = runApp(tempDir, "scan.csv");
+
+        String content = readSource(tempDir, "LoginTest.java");
+        assertFalse(content.contains("@Tag("), "AI tags must NOT be applied without -promote-ai");
+        assertFalse(content.contains("@DisplayName"), "AI display name must NOT be applied without -promote-ai");
+        assertTrue(output.contains("0 change(s) in 0 file(s)"), output);
+    }
+
+    @Test
+    void applyTagsFromCsv_promoteAi_fillsBlankColumnsFromAiColumns(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "LoginTest.java", LOGIN_TEST_SOURCE);
+        writeCsv(tempDir, "scan.csv", """
+                fqcn,method,loc,tags,display_name,ai_tags,ai_display_name
+                com.example.LoginTest,testLogin,1,,,security;auth,Verify login
+                com.example.LoginTest,testLogout,1,,,,
+                """);
+
+        String output = runApp(tempDir, "scan.csv", "-promote-ai");
+
+        String content = readSource(tempDir, "LoginTest.java");
+        assertTrue(content.contains("@Tag(\"security\")"), content);
+        assertTrue(content.contains("@Tag(\"auth\")"), content);
+        assertTrue(content.contains("@DisplayName(\"Verify login\")"), content);
+        assertTrue(output.contains("promoted from AI columns"), output);
+    }
+
+    @Test
+    void applyTagsFromCsv_promoteAi_curatedColumnsWinOverAi(@TempDir Path tempDir) throws Exception {
+        writeSource(tempDir, "LoginTest.java", LOGIN_TEST_SOURCE);
+        // testLogin: curated tags present (must win); display_name blank (AI promoted).
+        writeCsv(tempDir, "scan.csv", """
+                fqcn,method,loc,tags,display_name,ai_tags,ai_display_name
+                com.example.LoginTest,testLogin,1,manual,,security;auth,Verify login
+                com.example.LoginTest,testLogout,1,,,,
+                """);
+
+        runApp(tempDir, "scan.csv", "-promote-ai");
+
+        String content = readSource(tempDir, "LoginTest.java");
+        assertTrue(content.contains("@Tag(\"manual\")"), "curated tag must win: " + content);
+        assertFalse(content.contains("@Tag(\"security\")"),
+                "AI tags must not be promoted when curated tags are present: " + content);
+        assertTrue(content.contains("@DisplayName(\"Verify login\")"),
+                "blank curated display_name must be promoted from AI: " + content);
+    }
+
     // ── Verbose diagnostics ───────────────────────────────────────────────────
 
     @Test

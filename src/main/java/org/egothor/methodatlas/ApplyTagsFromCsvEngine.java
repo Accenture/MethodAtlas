@@ -53,6 +53,25 @@ import org.egothor.methodatlas.api.SourcePatcher;
  *       empty means "remove any existing {@code @DisplayName}"</li>
  * </ul>
  *
+ * <h2>AI-column promotion (risky, opt-in)</h2>
+ * <p>
+ * <strong>Not recommended.</strong> When the caller passes {@code promoteAi},
+ * the engine falls back to the AI-suggested {@code ai_tags} /
+ * {@code ai_display_name} columns for any method whose curated {@code tags} /
+ * {@code display_name} column is blank, and writes that raw AI suggestion into
+ * source. Promotion is per-field and independent, and only fires when the
+ * curated value is blank <em>and</em> a non-blank AI value is present.
+ * </p>
+ * <p>
+ * This mode deliberately bypasses the human review step that the
+ * apply-from-csv workflow exists to enforce — AI output reaches source without
+ * validation. It should not be used unless the promotion has been rethought and
+ * approved for the target environment. Every promoted value is counted and
+ * reported on the completion summary line (and itemised under {@code -verbose})
+ * so the run log records exactly which source writes originated from AI rather
+ * than from a reviewed column.
+ * </p>
+ *
  * <h2>Mismatch handling</h2>
  * <p>
  * If {@code mismatchLimit} is {@code -1} (no limit), mismatches are logged as
@@ -116,13 +135,22 @@ public final class ApplyTagsFromCsvEngine {
      *                        reports zero updates can be diagnosed (for example a
      *                        fully qualified class name or working-directory
      *                        mismatch between the CSV and the scanned source)
+     * @param promoteAi       <strong>risky, not recommended</strong>: when
+     *                        {@code true}, the engine falls back to the
+     *                        {@code ai_tags} / {@code ai_display_name} columns for
+     *                        any method whose curated {@code tags} /
+     *                        {@code display_name} column is blank, writing the raw
+     *                        AI suggestion into source without human review;
+     *                        every promoted value is counted on the summary line
+     *                        and itemised under {@code verbose}
      * @return {@code 0} on success, {@code 1} when the mismatch limit is
      *         exceeded or a fatal error occurs
      * @throws IOException if the CSV file or source files cannot be read or
      *                     written
      */
     public static int apply(Path csvFile, List<Path> roots,
-            int mismatchLimit, List<SourcePatcher> patchers, PrintWriter log, boolean verbose)
+            int mismatchLimit, List<SourcePatcher> patchers, PrintWriter log, boolean verbose,
+            boolean promoteAi)
             throws IOException {
 
         // ── Step 1: load the desired-state CSV ────────────────────────────────
@@ -139,6 +167,10 @@ public final class ApplyTagsFromCsvEngine {
 
         if (verbose) {
             logVerboseHeader(log, csvFile, roots, desiredState);
+            if (promoteAi) {
+                log.println("[verbose] -promote-ai: ENABLED — blank tags/display_name "
+                        + "will be filled from ai_tags/ai_display_name (unvalidated AI output)");
+            }
         }
 
         // ── Step 2: scan source to build current method inventory ─────────────
@@ -180,7 +212,7 @@ public final class ApplyTagsFromCsvEngine {
         warnMismatches(inCsvNotSource, inSourceNotCsv);
 
         // ── Step 6: apply changes file by file ────────────────────────────────
-        return applyFilesLoop(sourceIndex, desiredState, patchers, mismatchCount, log, verbose);
+        return applyFilesLoop(sourceIndex, desiredState, patchers, mismatchCount, log, verbose, promoteAi);
     }
 
     private static int reportMismatchesAndAbort(Set<String> inCsvNotSource, Set<String> inSourceNotCsv,
@@ -209,16 +241,18 @@ public final class ApplyTagsFromCsvEngine {
 
     private static int applyFilesLoop(Map<Path, List<MethodKey>> sourceIndex,
             Map<String, ScanRecord> desiredState, List<SourcePatcher> patchers,
-            int mismatchCount, PrintWriter log, boolean verbose) {
+            int mismatchCount, PrintWriter log, boolean verbose, boolean promoteAi) {
         int modifiedFiles = 0;
         int totalChanges = 0;
         int skippedFiles = 0;
+        int totalPromoted = 0;
         boolean hadErrors = false;
 
         for (Map.Entry<Path, List<MethodKey>> entry : sourceIndex.entrySet()) {
             FileOutcome outcome = processFile(entry.getKey(), entry.getValue(),
-                    desiredState, patchers, log, verbose);
+                    desiredState, patchers, log, verbose, promoteAi);
             totalChanges += outcome.changes();
+            totalPromoted += outcome.promoted();
             if (outcome.changes() > 0) {
                 modifiedFiles++;
             }
@@ -230,12 +264,12 @@ public final class ApplyTagsFromCsvEngine {
             }
         }
 
-        // Capacity 224 comfortably covers the worst-case message:
+        // Capacity 320 comfortably covers the worst-case message:
         //   "Apply-tags-from-csv complete: <int> change(s) in <int> file(s);
         //    <int> mismatch(es) skipped. <int> file(s) skipped (no source
-        //    write-back support for the language)."
-        // which is ~165 chars including the integer placeholders.
-        StringBuilder summary = new StringBuilder(224)
+        //    write-back support for the language). <int> value(s) promoted from
+        //    AI columns (unvalidated — used with -promote-ai)."
+        StringBuilder summary = new StringBuilder(320)
                 .append("Apply-tags-from-csv complete: ")
                 .append(totalChanges).append(" change(s) in ")
                 .append(modifiedFiles).append(" file(s); ")
@@ -243,6 +277,10 @@ public final class ApplyTagsFromCsvEngine {
         if (skippedFiles > 0) {
             summary.append(' ').append(skippedFiles)
                     .append(" file(s) skipped (no source write-back support for the language).");
+        }
+        if (promoteAi) {
+            summary.append(' ').append(totalPromoted)
+                    .append(" value(s) promoted from AI columns (unvalidated — used with -promote-ai).");
         }
         log.println(summary.toString());
         if (totalChanges == 0 && !verbose) {
@@ -262,11 +300,14 @@ public final class ApplyTagsFromCsvEngine {
      * @param patchers     configured source patchers
      * @param log          progress writer
      * @param verbose      whether to print per-file diagnostics
-     * @return the outcome (change count, language-skip flag, error flag)
+     * @param promoteAi    whether to fall back to the AI columns for blank
+     *                     curated values (risky; see the class Javadoc)
+     * @return the outcome (change count, promotion count, language-skip flag,
+     *         error flag)
      */
     private static FileOutcome processFile(Path path, List<MethodKey> methods,
             Map<String, ScanRecord> desiredState, List<SourcePatcher> patchers,
-            PrintWriter log, boolean verbose) {
+            PrintWriter log, boolean verbose, boolean promoteAi) {
         if (!hasRelevantMethod(methods, desiredState)) {
             if (verbose) {
                 log.println("[verbose] no CSV row matches any method in " + path + " — skipping");
@@ -289,32 +330,21 @@ public final class ApplyTagsFromCsvEngine {
 
         Map<String, List<String>> tagsToApply = new LinkedHashMap<>();
         Map<String, String> displayNames = new LinkedHashMap<>();
-        for (MethodKey mk : methods) {
-            ScanRecord desired = desiredState.get(key(mk.fqcn(), mk.method()));
-            if (desired == null) {
-                continue;
-            }
-            if (desired.tags() != null) {
-                tagsToApply.put(mk.method(), desired.tags());
-            }
-            // null means the column was absent from the CSV (old format) — leave @DisplayName untouched.
-            // "" means the column was present but empty — remove @DisplayName.
-            if (desired.displayName() != null) {
-                displayNames.put(mk.method(), desired.displayName());
-            }
-        }
+        int promoted = collectDesiredState(path, methods, desiredState, promoteAi,
+                tagsToApply, displayNames, log, verbose);
 
         if (verbose) {
             log.println("[verbose] applying to " + path + ": " + tagsToApply.size()
                     + " method(s) with a desired tag-set, " + displayNames.size()
-                    + " with a desired display-name");
+                    + " with a desired display-name"
+                    + (promoteAi ? "; " + promoted + " value(s) promoted from AI columns" : ""));
         }
         try {
             int changes = patcher.patch(path, tagsToApply, displayNames, log);
             if (verbose) {
                 log.println("[verbose]   -> " + changes + " change(s) written to " + path);
             }
-            return FileOutcome.forChanges(changes);
+            return FileOutcome.forChanges(changes, promoted);
         } catch (IOException e) {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING, "Cannot process: " + path, e);
@@ -324,27 +354,149 @@ public final class ApplyTagsFromCsvEngine {
     }
 
     /**
-     * Outcome of patching one source file: the number of changes written, and
-     * whether the file was skipped for lack of a {@link SourcePatcher} or failed
-     * with an I/O error.
+     * Fills the {@code tagsToApply} and {@code displayNames} maps from the CSV
+     * desired state for every method discovered in {@code path}, applying
+     * AI-column promotion when {@code promoteAi} is set.
      *
-     * @param changes number of annotation changes written (zero when none applied)
-     * @param skipped {@code true} when skipped because no patcher supports the language
-     * @param error   {@code true} when patching threw an {@link IOException}
+     * <p>
+     * The {@code displayNames} value carries the established three-way contract:
+     * {@code null} (column absent) leaves {@code @DisplayName} untouched and is
+     * therefore not put into the map; {@code ""} removes it; non-empty text sets
+     * it. Promotion only substitutes an AI value when the curated value is blank
+     * and a non-blank AI value is present, so the contract is preserved for
+     * every method the operator curated by hand.
+     * </p>
+     *
+     * @param path         source file being processed (used for verbose notices)
+     * @param methods      methods discovered in {@code path}
+     * @param desiredState CSV desired state keyed by {@code <fqcn>::<method>}
+     * @param promoteAi    whether to fall back to the AI columns for blank values
+     * @param tagsToApply  output map from method name to desired tag list
+     * @param displayNames output map from method name to desired display name
+     * @param log          progress writer for verbose per-promotion notices
+     * @param verbose      whether to itemise each promotion
+     * @return the number of values promoted from the AI columns
      */
-    private record FileOutcome(int changes, boolean skipped, boolean error) {
-        private static final FileOutcome NONE = new FileOutcome(0, false, false);
+    private static int collectDesiredState(Path path, List<MethodKey> methods,
+            Map<String, ScanRecord> desiredState, boolean promoteAi,
+            Map<String, List<String>> tagsToApply, Map<String, String> displayNames,
+            PrintWriter log, boolean verbose) {
+        int promoted = 0;
+        for (MethodKey mk : methods) {
+            ScanRecord desired = desiredState.get(key(mk.fqcn(), mk.method()));
+            if (desired == null) {
+                continue;
+            }
+            Resolved<List<String>> tags = resolveTags(desired, promoteAi);
+            if (tags.value() != null) {
+                tagsToApply.put(mk.method(), tags.value());
+            }
+            Resolved<String> name = resolveDisplayName(desired, promoteAi);
+            if (name.value() != null) {
+                displayNames.put(mk.method(), name.value());
+            }
+            if (tags.promoted()) {
+                promoted++;
+                logPromotion(log, verbose, path, mk, "tags <- ai_tags");
+            }
+            if (name.promoted()) {
+                promoted++;
+                logPromotion(log, verbose, path, mk, "display_name <- ai_display_name");
+            }
+        }
+        return promoted;
+    }
+
+    /**
+     * Resolves the desired tag list for a record, optionally promoting the
+     * {@code ai_tags} column when the curated {@code tags} column is blank.
+     *
+     * @param record    CSV record for the method
+     * @param promoteAi whether AI promotion is enabled
+     * @return the resolved tag list and whether it came from the AI column
+     */
+    private static Resolved<List<String>> resolveTags(ScanRecord record, boolean promoteAi) {
+        List<String> curated = record.tags();
+        boolean curatedBlank = curated == null || curated.isEmpty();
+        List<String> ai = record.aiTags();
+        if (promoteAi && curatedBlank && ai != null && !ai.isEmpty()) {
+            return new Resolved<>(ai, true);
+        }
+        return new Resolved<>(curated, false);
+    }
+
+    /**
+     * Resolves the desired display name for a record, optionally promoting the
+     * {@code ai_display_name} column when the curated {@code display_name} column
+     * is blank.
+     *
+     * @param record    CSV record for the method
+     * @param promoteAi whether AI promotion is enabled
+     * @return the resolved display name and whether it came from the AI column
+     */
+    private static Resolved<String> resolveDisplayName(ScanRecord record, boolean promoteAi) {
+        String curated = record.displayName();
+        boolean curatedBlank = curated == null || curated.isBlank();
+        String ai = record.aiDisplayName();
+        if (promoteAi && curatedBlank && ai != null && !ai.isBlank()) {
+            return new Resolved<>(ai, true);
+        }
+        return new Resolved<>(curated, false);
+    }
+
+    /**
+     * Writes a per-promotion audit notice under {@code -verbose}.
+     *
+     * @param log     progress writer
+     * @param verbose whether verbose output is enabled
+     * @param path    source file being processed
+     * @param mk      method whose value was promoted
+     * @param detail  short description of the promoted field
+     */
+    private static void logPromotion(PrintWriter log, boolean verbose, Path path,
+            MethodKey mk, String detail) {
+        if (verbose) {
+            log.println("[verbose]   [promote-ai] " + path + " " + mk.fqcn() + "::"
+                    + mk.method() + " " + detail);
+        }
+    }
+
+    /**
+     * A resolved desired-state value paired with whether it was promoted from an
+     * AI column rather than taken from a curated column.
+     *
+     * @param <T>      the value type ({@code List<String>} for tags,
+     *                 {@code String} for display name)
+     * @param value    the resolved value; may be {@code null} for display name
+     *                 when the column was absent
+     * @param promoted {@code true} when the value came from an AI column
+     */
+    private record Resolved<T>(T value, boolean promoted) {
+    }
+
+    /**
+     * Outcome of patching one source file: the number of changes written, the
+     * number of values promoted from AI columns, and whether the file was
+     * skipped for lack of a {@link SourcePatcher} or failed with an I/O error.
+     *
+     * @param changes  number of annotation changes written (zero when none applied)
+     * @param promoted number of desired-state values sourced from the AI columns
+     * @param skipped  {@code true} when skipped because no patcher supports the language
+     * @param error    {@code true} when patching threw an {@link IOException}
+     */
+    private record FileOutcome(int changes, int promoted, boolean skipped, boolean error) {
+        private static final FileOutcome NONE = new FileOutcome(0, 0, false, false);
 
         private static FileOutcome forSkip() {
-            return new FileOutcome(0, true, false);
+            return new FileOutcome(0, 0, true, false);
         }
 
         private static FileOutcome forError() {
-            return new FileOutcome(0, false, true);
+            return new FileOutcome(0, 0, false, true);
         }
 
-        private static FileOutcome forChanges(int changes) {
-            return new FileOutcome(changes, false, false);
+        private static FileOutcome forChanges(int changes, int promoted) {
+            return new FileOutcome(changes, promoted, false, false);
         }
     }
 

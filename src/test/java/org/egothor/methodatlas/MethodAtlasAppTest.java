@@ -203,6 +203,44 @@ public class MethodAtlasAppTest {
         assertEquals(expectedTagsText, row.tagsText, "Tags mismatch for " + fqcn + "#" + method);
     }
 
+    // -------------------------------------------------------------------------
+    // -help screen
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("-help prints usage and the CLI reference URL and exits 0")
+    @Tag("positive")
+    public void help_printsUsageAndReferenceUrl(@TempDir Path tempDir) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        int code;
+        try (PrintWriter out = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
+            code = MethodAtlasApp.run(new String[] { "-help" }, out);
+        }
+        String output = baos.toString(StandardCharsets.UTF_8);
+
+        assertEquals(0, code, "-help must exit 0");
+        assertTrue(output.contains("Usage:"), output);
+        assertTrue(output.contains(Usage.CLI_REFERENCE_URL), output);
+        assertTrue(output.contains("-promote-ai"), "-help must document -promote-ai: " + output);
+    }
+
+    @Test
+    @DisplayName("--help and -h are accepted as aliases for -help")
+    @Tag("positive")
+    public void help_longAndShortAliasesAccepted() throws Exception {
+        for (String flag : List.of("--help", "-h")) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            int code;
+            try (PrintWriter out = new PrintWriter(
+                    new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
+                code = MethodAtlasApp.run(new String[] { flag }, out);
+            }
+            assertEquals(0, code, flag + " must exit 0");
+            assertTrue(baos.toString(StandardCharsets.UTF_8).contains(Usage.CLI_REFERENCE_URL),
+                    flag + " must print the CLI reference URL");
+        }
+    }
+
     private static void copyFixture(Path destDir, String fixtureFileName) throws IOException {
         String resourcePath = "/fixtures/" + fixtureFileName + ".txt";
         try (InputStream in = MethodAtlasAppTest.class.getResourceAsStream(resourcePath)) {

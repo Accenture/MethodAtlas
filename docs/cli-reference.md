@@ -8,6 +8,8 @@
 
 If no scan path is provided, the current directory is scanned. Multiple root paths are supported.
 
+Run `methodatlas -help` (or `--help` / `-h`) for a terse on-screen summary that points back to this reference.
+
 ## General options
 
 | Argument | Meaning                               | Default |
@@ -25,6 +27,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-apply-tags` | Write AI-generated `@DisplayName` and `@Tag` annotations back to the scanned source files; requires AI to be enabled | Off |
 | `-apply-tags-from-csv <file>` | Apply reviewed annotation decisions from a MethodAtlas CSV back to the scanned source files; the CSV is the complete desired state for every test method's `@Tag` set and `@DisplayName` | Off |
 | `-mismatch-limit <n>` | Used with `-apply-tags-from-csv`: abort without making any changes if the number of mismatches between the CSV and the current source tree reaches or exceeds `n`; `-1` means warn and proceed | `-1` |
+| `-promote-ai` | **⚠️ Risky — not recommended.** Used with `-apply-tags-from-csv`: where the curated `tags` / `display_name` is blank, fall back to `ai_tags` / `ai_display_name`, writing **unvalidated AI output** into source and bypassing the human review step the workflow exists to enforce. Off by default; do not enable unless the promotion has been rethought and approved. See [`-promote-ai`](#-promote-ai) | Off |
 | `-verbose` | Emit detailed diagnostics to standard output. Currently consumed by `-apply-tags-from-csv`, where it prints the CSV desired-state keys, the keys discovered in the source tree, and the key-by-key match result, so a run that reports zero updates can be diagnosed | Off |
 | `-security-only` | Suppress non-security methods from CSV and plain-text output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect; in SARIF mode this filter is already applied by default | Off |
 | `-include-non-security` | Opt-in to include all test methods in SARIF output, disabling the automatic security-only filter; has no effect in CSV or plain-text modes | Off |
@@ -38,6 +41,7 @@ If no scan path is provided, the current directory is scanned. Multiple root pat
 | `-emit-coverage` | Write a control-coverage matrix mapping compliance requirement IDs to covering test methods; requires `-coverage-mapping` | Off |
 | `-coverage-mapping <path>` | User-authored tag → control mapping JSON; required when `-emit-coverage` is present | — |
 | `-coverage-file <path>` | Override the coverage matrix output path | `controls-coverage.json` in CWD |
+| `-help`, `--help`, `-h` | Print a usage summary and the URL of this reference, then exit | — |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
 ## AI options
@@ -573,6 +577,39 @@ Apply-tags-from-csv aborted: 1 mismatch(es) >= limit 1. No source files were mod
 # Abort if there is even a single mismatch
 ./methodatlas -apply-tags-from-csv reviewed.csv -mismatch-limit 1 src/test/java
 ```
+
+### `-promote-ai`
+
+!!! danger "Risky — not recommended"
+    `-promote-ai` writes **unvalidated AI output directly into source code**. It
+    bypasses the human review step that the `-apply-tags-from-csv` workflow exists
+    to enforce. It is **off by default** and should not be enabled unless the
+    promotion has been deliberately rethought and approved for your environment.
+    The safe path is to review the AI suggestions and copy the approved values
+    into the curated `tags` / `display_name` columns yourself — see
+    [Apply Tags from CSV](usage-modes/apply-tags-from-csv.md).
+
+Used with `-apply-tags-from-csv`. By default the engine applies **only** the human-curated `tags` and `display_name` columns; the AI-suggested `ai_tags` and `ai_display_name` columns are advisory and never reach source. `-promote-ai` changes that: for any method whose curated column is **blank**, the engine falls back to the corresponding AI column.
+
+Promotion is **per-field and independent**, and fires only when the curated value is blank *and* a non-blank AI value exists:
+
+| Curated `tags` | `ai_tags` | Result with `-promote-ai` |
+|---|---|---|
+| `security;auth` | anything | `security;auth` (curated wins — no promotion) |
+| *(blank)* | `security` | `security` (promoted from AI) |
+| *(blank)* | *(blank/absent)* | *(blank — nothing to promote)* |
+
+The same rules apply independently to `display_name` / `ai_display_name`.
+
+Every promoted value is counted on the completion summary line so the run log records exactly how much of the write originated from AI rather than from a reviewed column:
+
+```text
+Apply-tags-from-csv complete: 6 change(s) in 1 file(s); 0 mismatch(es) skipped. 6 value(s) promoted from AI columns (unvalidated — used with -promote-ai).
+```
+
+Add `-verbose` to itemise each promotion (`[promote-ai] … tags <- ai_tags`).
+
+The flag can also be set in a YAML config file as `promoteAi: true`; the same warning applies.
 
 ### `-verbose`
 
