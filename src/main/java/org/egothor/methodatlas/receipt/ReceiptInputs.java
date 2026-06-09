@@ -33,9 +33,17 @@ package org.egothor.methodatlas.receipt;
  *                           {@code null} when AI is disabled
  * @param aiModel            provider-specific model identifier, or
  *                           {@code null} when AI is disabled
- * @param promptTemplateHash SHA-256 of the static prompt skeleton via
- *                           {@link org.egothor.methodatlas.ai.PromptBuilder#templateHash()},
+ * @param classificationPromptHash SHA-256 of the effective method-classification
+ *                           prompt template (built-in default, or the operator's
+ *                           override) via
+ *                           {@link org.egothor.methodatlas.ai.PromptTemplateSet#hash(org.egothor.methodatlas.ai.PromptTemplateKind)},
  *                           or {@code null} when AI is disabled
+ * @param triageAppendixPromptHash SHA-256 of the effective folded credential-triage
+ *                           appendix template, or {@code null} when AI is disabled
+ * @param dedicatedTriagePromptHash SHA-256 of the effective standalone
+ *                           credential-triage prompt template, or {@code null} when
+ *                           AI is disabled
+ * @since 4.1.0 (schema v2 — replaces the single {@code promptTemplateHash} of v1)
  */
 /* default */ record ReceiptInputs(
         FileArtifact taxonomyFile,
@@ -44,5 +52,7 @@ package org.egothor.methodatlas.receipt;
         FileArtifact aiCacheFile,
         String aiProvider,
         String aiModel,
-        String promptTemplateHash) {
+        String classificationPromptHash,
+        String triageAppendixPromptHash,
+        String dedicatedTriagePromptHash) {
 }

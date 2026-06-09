@@ -62,6 +62,8 @@ docs/usage-modes/security-only.md
 docs/usage-modes/multi-root.md
 docs/usage-modes/control-coverage.md
 docs/usage-modes/evidence-packs.md
+docs/concepts/credential-detection.md
+docs/usage-modes/reproducibility-receipts.md
 
 # ── Part V — AI enrichment ────────────────────────────────────────────────────
 docs/ai/index.md

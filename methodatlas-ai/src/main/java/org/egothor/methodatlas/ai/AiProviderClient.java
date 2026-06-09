@@ -76,7 +76,7 @@ public sealed interface AiProviderClient
                 .toList();
 
         return new AiClassSuggestion(input.className(), input.classSecurityRelevant(), classTags, input.classReason(),
-                normalizedMethods);
+                normalizedMethods, input.secrets());
     }
 
     /**

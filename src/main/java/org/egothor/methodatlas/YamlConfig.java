@@ -61,6 +61,15 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  *   maxRetries: 3
  *   confidence: false
  *   apiVersion: 2024-02-01 # Azure OpenAI REST API version (azure_openai only)
+ * detectSecrets: false         # enable credential detection (default: false)
+ * secretsInclude: "**&#47;*.java" # glob override for file mask (default: null = use fileSuffixes)
+ * secretsRules: /path/to/rules.yaml  # custom rule catalog (default: null = built-in)
+ * secretsOut: methodatlas-credentials.csv  # output path for secrets CSV (default: methodatlas-credentials.csv)
+ * secretsSeparateLlm: false    # force standalone triage LLM call (default: false)
+ * secretsShowValues: false     # print unmasked values (default: false)
+ * secretsErrorThreshold: 0.8  # SARIF error score floor (default: 0.8)
+ * secretsWarningThreshold: 0.4 # SARIF warning score floor (default: 0.4)
+ * secretsMinScore: 0.0         # suppress findings below this score (default: 0.0 = keep all)
  * </pre>
  *
  * <p>
@@ -201,6 +210,73 @@ final class YamlConfig {
         @JsonProperty("minConfidence")
         /* default */ Double minConfidence;
 
+        /**
+         * When {@code true}, enable credential detection in addition to the normal
+         * test-method scan. Default: {@code false}.
+         */
+        @JsonProperty("detectSecrets")
+        /* default */ boolean detectSecrets;
+
+        /**
+         * Glob pattern overriding the default test-file mask when scanning for
+         * secrets. {@code null} means use the default mask derived from
+         * {@code fileSuffixes}.
+         */
+        @JsonProperty("secretsInclude")
+        /* default */ String secretsInclude;
+
+        /**
+         * Path to a custom rule catalog YAML file. {@code null} uses the built-in
+         * catalog bundled with the detect-secrets module.
+         */
+        @JsonProperty("secretsRules")
+        /* default */ String secretsRules;
+
+        /**
+         * Output path for the secrets CSV. {@code null} causes the default
+         * {@code methodatlas-credentials.csv} in the current working directory to be
+         * used.
+         */
+        @JsonProperty("secretsOut")
+        /* default */ String secretsOut;
+
+        /**
+         * When {@code true}, force a standalone triage LLM call instead of
+         * appending the secret-triage prompt to the normal test-classification
+         * call. Default: {@code false}.
+         */
+        @JsonProperty("secretsSeparateLlm")
+        /* default */ boolean secretsSeparateLlm;
+
+        /**
+         * When {@code true}, print unmasked secret values in CSV and SARIF output.
+         * Default: {@code false} (values are redacted).
+         */
+        @JsonProperty("secretsShowValues")
+        /* default */ boolean secretsShowValues;
+
+        /**
+         * SARIF error score floor. Findings at or above this value are emitted as
+         * {@code error}-level SARIF results. Default: {@code 0.8}.
+         */
+        @JsonProperty("secretsErrorThreshold")
+        /* default */ Double secretsErrorThreshold;
+
+        /**
+         * SARIF warning score floor. Findings at or above this value (but below
+         * {@code secretsErrorThreshold}) are emitted as {@code warning}-level SARIF
+         * results. Default: {@code 0.4}.
+         */
+        @JsonProperty("secretsWarningThreshold")
+        /* default */ Double secretsWarningThreshold;
+
+        /**
+         * Suppress findings whose triage score is below this value. Default:
+         * {@code 0.0} keeps all findings.
+         */
+        @JsonProperty("secretsMinScore")
+        /* default */ Double secretsMinScore;
+
         /** AI enrichment settings. */
         @JsonProperty("ai")
         /* default */ YamlAiConfig ai;
@@ -270,5 +346,17 @@ final class YamlConfig {
          */
         @JsonProperty("apiVersion")
         /* default */ String apiVersion;
+
+        /** Path to a custom method-classification prompt template (default: built-in). */
+        @JsonProperty("classificationPrompt")
+        /* default */ String classificationPrompt;
+
+        /** Path to a custom folded credential-triage appendix template (default: built-in). */
+        @JsonProperty("triagePrompt")
+        /* default */ String triagePrompt;
+
+        /** Path to a custom standalone credential-triage template (default: built-in). */
+        @JsonProperty("dedicatedTriagePrompt")
+        /* default */ String dedicatedTriagePrompt;
     }
 }

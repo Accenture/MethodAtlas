@@ -156,7 +156,7 @@ class AiOptionsTest {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, null, "gpt-4o-mini", "https://api.openai.com", null, null, null,
                         AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
-                        AiOptions.DEFAULT_API_VERSION));
+                        AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("provider", ex.getMessage());
     }
@@ -168,7 +168,7 @@ class AiOptionsTest {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, null, "https://api.openai.com", null, null, null,
                         AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
-                        AiOptions.DEFAULT_API_VERSION));
+                        AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("modelName", ex.getMessage());
     }
@@ -180,7 +180,7 @@ class AiOptionsTest {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
                         AiOptions.TaxonomyMode.DEFAULT, 40_000, null, 1, false,
-                        AiOptions.DEFAULT_API_VERSION));
+                        AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("timeout", ex.getMessage());
     }
@@ -191,7 +191,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullTaxonomyMode() {
         NullPointerException ex = assertThrows(NullPointerException.class, () -> new AiOptions(true, AiProvider.OPENAI,
                 "gpt-4o-mini", "https://api.openai.com", null, null, null, null, 40_000, Duration.ofSeconds(30), 1,
-                false, AiOptions.DEFAULT_API_VERSION));
+                false, AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("taxonomyMode", ex.getMessage());
     }
@@ -204,7 +204,7 @@ class AiOptionsTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "   ", null, null, null,
                         AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
-                        AiOptions.DEFAULT_API_VERSION));
+                        AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("baseUrl must not be blank", ex.getMessage());
     }
@@ -216,7 +216,7 @@ class AiOptionsTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
                         AiOptions.TaxonomyMode.DEFAULT, 0, Duration.ofSeconds(30), 1, false,
-                        AiOptions.DEFAULT_API_VERSION));
+                        AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("maxClassChars must be > 0", ex.getMessage());
     }
@@ -228,7 +228,7 @@ class AiOptionsTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
                         AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), -1, false,
-                        AiOptions.DEFAULT_API_VERSION));
+                        AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("maxRetries must be >= 0", ex.getMessage());
     }
@@ -239,7 +239,7 @@ class AiOptionsTest {
     void canonicalConstructor_acceptsMaxClassCharsOfOne() {
         AiOptions options = new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com",
                 null, null, null, AiOptions.TaxonomyMode.DEFAULT, 1, Duration.ofSeconds(30), 1, false,
-                AiOptions.DEFAULT_API_VERSION);
+                AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults());
 
         assertEquals(1, options.maxClassChars());
     }
@@ -250,7 +250,7 @@ class AiOptionsTest {
     void canonicalConstructor_acceptsMaxRetriesOfZero() {
         AiOptions options = new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com",
                 null, null, null, AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 0, false,
-                AiOptions.DEFAULT_API_VERSION);
+                AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults());
 
         assertEquals(0, options.maxRetries());
     }
@@ -338,7 +338,8 @@ class AiOptionsTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.AZURE_OPENAI, "my-deployment",
                         "https://contoso.openai.azure.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false, ""));
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false, "",
+                        PromptTemplateSet.defaults()));
 
         assertEquals("apiVersion must not be blank", ex.getMessage());
     }

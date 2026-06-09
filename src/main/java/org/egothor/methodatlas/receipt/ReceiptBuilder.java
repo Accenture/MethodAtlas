@@ -16,7 +16,8 @@ import java.util.TreeMap;
 
 import org.egothor.methodatlas.CliConfig;
 import org.egothor.methodatlas.ai.AiOptions;
-import org.egothor.methodatlas.ai.PromptBuilder;
+import org.egothor.methodatlas.ai.PromptTemplateKind;
+import org.egothor.methodatlas.ai.PromptTemplateSet;
 import org.egothor.methodatlas.command.ContentHasher;
 
 /**
@@ -31,8 +32,17 @@ import org.egothor.methodatlas.command.ContentHasher;
  */
 final class ReceiptBuilder {
 
-    /** Schema version of the JSON payload; bumped on any breaking change. */
-    private static final String SCHEMA_VERSION = "1";
+    /**
+     * Schema version of the JSON payload; bumped on any breaking change.
+     *
+     * <p>
+     * v2 (4.1.0) replaced the single {@code inputs.promptTemplateHash} of v1 with
+     * three per-template hashes ({@code classificationPromptHash},
+     * {@code triageAppendixPromptHash}, {@code dedicatedTriagePromptHash}) and folds
+     * all three into {@code configHash}. See {@code docs/usage-modes/reproducibility-receipts.md}.
+     * </p>
+     */
+    private static final String SCHEMA_VERSION = "2";
 
     /** Algorithm string passed to {@link MessageDigest#getInstance(String)}. */
     private static final String SHA256_ALGO = "SHA-256";
@@ -66,14 +76,18 @@ final class ReceiptBuilder {
     private static final String KEY_METHOD_ATLAS_VERSION = "methodAtlasVersion";
     /** TreeMap key for the override file fingerprint. */
     private static final String KEY_OVERRIDE_FILE_SHA = "overrideFileSha256";
-    /** TreeMap key for the static prompt template hash. */
-    private static final String KEY_PROMPT_TEMPLATE_HASH = "promptTemplateHash";
+    /** TreeMap key for the effective method-classification prompt template hash. */
+    private static final String KEY_CLASSIFICATION_PROMPT = "classificationPromptHash";
+    /** TreeMap key for the effective folded credential-triage appendix template hash. */
+    private static final String KEY_TRIAGE_APPENDIX_PROMPT = "triageAppendixPromptHash";
+    /** TreeMap key for the effective standalone credential-triage template hash. */
+    private static final String KEY_DEDICATED_TRIAGE_PROMPT = "dedicatedTriagePromptHash";
     /** TreeMap key for the taxonomy file fingerprint. */
     private static final String KEY_TAXONOMY_FILE_SHA = "taxonomyFileSha256";
 
     /**
-     * Rough capacity estimate for the canonical key=value buffer: eight keys
-     * with combined length ≈ 130 characters plus eight 64-char SHA-256
+     * Rough capacity estimate for the canonical key=value buffer: ten keys
+     * with combined length ≈ 200 characters plus up to ten 64-char SHA-256
      * values plus separators leaves the StringBuilder near its final size
      * without reallocations.
      */
@@ -90,7 +104,7 @@ final class ReceiptBuilder {
      * The {@code configHash} field is computed as follows:
      * </p>
      * <ol>
-     *   <li>A {@link TreeMap} is populated with the eight canonical keys
+     *   <li>A {@link TreeMap} is populated with the ten canonical keys
      *       documented at class scope. Absent inputs map to the empty
      *       string.</li>
      *   <li>The map is serialised as {@code key1=value1\n…keyN=valueN\n}
@@ -128,13 +142,18 @@ final class ReceiptBuilder {
 
         String aiProvider = ai.enabled() ? ai.provider().name() : null;
         String aiModel = ai.enabled() ? ai.modelName() : null;
-        String promptTemplateHash = ai.enabled() ? PromptBuilder.templateHash() : null;
+        PromptTemplateSet templates = ai.promptTemplates();
+        String classificationPromptHash = ai.enabled() ? templates.hash(PromptTemplateKind.CLASSIFICATION) : null;
+        String triageAppendixPromptHash = ai.enabled() ? templates.hash(PromptTemplateKind.TRIAGE_APPENDIX) : null;
+        String dedicatedTriagePromptHash = ai.enabled() ? templates.hash(PromptTemplateKind.DEDICATED_TRIAGE) : null;
 
         ReceiptInputs inputs = new ReceiptInputs(taxonomyArtifact, builtInTaxonomy,
-                overrideArtifact, aiCacheArtifact, aiProvider, aiModel, promptTemplateHash);
+                overrideArtifact, aiCacheArtifact, aiProvider, aiModel,
+                classificationPromptHash, triageAppendixPromptHash, dedicatedTriagePromptHash);
 
         String configHash = computeConfigHash(toolVersion, ai, overrideArtifact, aiCacheArtifact,
-                taxonomyArtifact, builtInTaxonomy, promptTemplateHash);
+                taxonomyArtifact, builtInTaxonomy,
+                classificationPromptHash, triageAppendixPromptHash, dedicatedTriagePromptHash);
 
         return new ReproducibilityReceipt(
                 SCHEMA_VERSION,
@@ -211,21 +230,27 @@ final class ReceiptBuilder {
      * @param aiCacheArtifact    AI cache file artefact, or {@code null}
      * @param taxonomyArtifact   taxonomy file artefact, or {@code null}
      * @param builtInTaxonomy    built-in taxonomy mode name, or {@code null}
-     * @param promptTemplateHash prompt skeleton hash, or {@code null}
+     * @param classificationPromptHash effective classification template hash, or {@code null}
+     * @param triageAppendixPromptHash effective folded triage-appendix template hash, or {@code null}
+     * @param dedicatedTriagePromptHash effective standalone triage template hash, or {@code null}
      * @return 64-character lowercase hex SHA-256
      */
     private static String computeConfigHash(String toolVersion, AiOptions ai,
             FileArtifact overrideArtifact, FileArtifact aiCacheArtifact,
-            FileArtifact taxonomyArtifact, String builtInTaxonomy, String promptTemplateHash) {
+            FileArtifact taxonomyArtifact, String builtInTaxonomy,
+            String classificationPromptHash, String triageAppendixPromptHash,
+            String dedicatedTriagePromptHash) {
         Map<String, String> keys = new TreeMap<>();
         keys.put(KEY_AI_CACHE_FILE_SHA, shaOrEmpty(aiCacheArtifact));
         keys.put(KEY_AI_MODEL, ai.enabled() && ai.modelName() != null ? ai.modelName() : EMPTY);
         keys.put(KEY_AI_PROVIDER, ai.enabled() ? ai.provider().name() : EMPTY);
         keys.put(KEY_BUILT_IN_TAXONOMY, builtInTaxonomy == null ? EMPTY : builtInTaxonomy);
+        keys.put(KEY_CLASSIFICATION_PROMPT, classificationPromptHash == null ? EMPTY : classificationPromptHash);
+        keys.put(KEY_DEDICATED_TRIAGE_PROMPT, dedicatedTriagePromptHash == null ? EMPTY : dedicatedTriagePromptHash);
         keys.put(KEY_METHOD_ATLAS_VERSION, toolVersion);
         keys.put(KEY_OVERRIDE_FILE_SHA, shaOrEmpty(overrideArtifact));
-        keys.put(KEY_PROMPT_TEMPLATE_HASH, promptTemplateHash == null ? EMPTY : promptTemplateHash);
         keys.put(KEY_TAXONOMY_FILE_SHA, shaOrEmpty(taxonomyArtifact));
+        keys.put(KEY_TRIAGE_APPENDIX_PROMPT, triageAppendixPromptHash == null ? EMPTY : triageAppendixPromptHash);
 
         StringBuilder canonical = new StringBuilder(CANONICAL_BUFFER_CAPACITY);
         keys.forEach((k, v) -> canonical.append(k).append(CONFIG_HASH_KV_SEP)

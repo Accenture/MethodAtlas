@@ -568,11 +568,41 @@ Only security-relevant methods are annotated. Existing `@DisplayName` or `@Tag` 
 
 See [Source Write-back](usage-modes/apply-tags.md) for the complete workflow, including how to combine it with the manual AI workflow.
 
+## Secrets report (`-detect-secrets`)
+
+Credential detection writes its findings to a **dedicated CSV**, separate from
+the per-method scan output because the columns differ. The path is
+`-secrets-out <file>` (default `methodatlas-credentials.csv`). This is an
+audit-facing artifact; its column set is **schema version 1**. Renaming or
+reordering columns is a breaking change.
+
+| Column | Meaning |
+| --- | --- |
+| `file` | Forward-slash path of the file the candidate was found in |
+| `fqcn` | Fully qualified class name when the file is a discovered test class; blank otherwise |
+| `method` | Enclosing test method (best-effort); blank when the candidate is outside any method or the file is not a test class |
+| `begin_line`, `begin_column`, `end_line` | One-based position of the matched span |
+| `rule_id` | Catalog rule that matched (e.g. `aws-access-key-id`) |
+| `category` | `PROVIDER_TOKEN`, `PRIVATE_KEY`, `PASSWORD_ASSIGNMENT`, `CONNECTION_STRING`, `HIGH_ENTROPY`, or `OTHER` |
+| `detector_id` | Detector that produced the candidate (`builtin-catalog` for the bundled detector) |
+| `snippet_masked` | The matched value, masked by default (`-secrets-show-values` prints it raw) |
+| `credibility_score` | LLM credibility `0.0–1.0`; blank on no-AI runs |
+| `endpoint` | LLM-attributed endpoint/system; blank on no-AI runs |
+| `rationale` | Short LLM rationale; blank on no-AI runs |
+
+In **SARIF** mode the same findings are added to the SARIF document as results
+under a `secret/<rule-id>` rule. The SARIF level is derived from
+`credibility_score` (`>= 0.8` → `error`, `0.4–0.8` → `warning`, `< 0.4` → `note`,
+no score → `warning`) and the score is embedded in the result message text so it
+is visible in GitHub Code Scanning. See
+[Credential detection](concepts/credential-detection.md).
+
 ## Choosing between modes
 
 | Situation | Recommended mode |
 | --- | --- |
 | Feeding output into a spreadsheet or data pipeline | CSV (default) |
+| Detecting hardcoded credentials in test source | `-detect-secrets` (+ `-ai` for scoring) |
 | Quick visual inspection in a terminal | Plain (`-plain`) |
 | Archiving scan results with provenance metadata | CSV + `-emit-metadata` |
 | Filtering high-confidence security findings | CSV or JSON + `-ai-confidence -min-confidence` |

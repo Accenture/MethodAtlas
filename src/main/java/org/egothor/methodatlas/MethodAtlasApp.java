@@ -20,6 +20,7 @@ import org.egothor.methodatlas.command.ApplyTagsCommand;
 import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.egothor.methodatlas.emit.OutputMode;
 import org.egothor.methodatlas.command.ApplyTagsFromCsvCommand;
+import org.egothor.methodatlas.command.CheckPromptsCommand;
 import org.egothor.methodatlas.command.DiffCommand;
 import org.egothor.methodatlas.command.GitHubAnnotationsCommand;
 import org.egothor.methodatlas.command.JsonCommand;
@@ -289,6 +290,9 @@ public final class MethodAtlasApp {
             }
             if (GenSigningKeyCommand.FLAG_GEN_SIGNING_KEY.equals(args[i])) {
                 return GenSigningKeyCommand.run(args, out);
+            }
+            if (CheckPromptsCommand.FLAG_CHECK_PROMPTS.equals(args[i])) {
+                return CheckPromptsCommand.fromArgs(args).execute(out);
             }
         }
 

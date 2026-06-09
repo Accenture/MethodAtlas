@@ -136,6 +136,7 @@ dependencies {
     runtimeOnly project(':methodatlas-discovery-powershell')
     runtimeOnly project(':methodatlas-discovery-abap')
     runtimeOnly project(':methodatlas-discovery-cobol')
+    runtimeOnly project(':methodatlas-detect-secrets') // Built-in credential detector — discovered at runtime via ServiceLoader
 
     implementation 'tools.jackson.core:jackson-databind:3.1.4'
     implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.4'
@@ -186,6 +187,7 @@ dependencies {
     testRuntimeOnly project(':methodatlas-discovery-powershell')
     testRuntimeOnly project(':methodatlas-discovery-abap')
     testRuntimeOnly project(':methodatlas-discovery-cobol')
+    testRuntimeOnly project(':methodatlas-detect-secrets') // Built-in credential detector — discovered at runtime via ServiceLoader
 
     mockitoAgent('org.mockito:mockito-core:5.22.0') {
         transitive = false
@@ -269,12 +271,17 @@ check.dependsOn jacocoTestCoverageVerification
 // Skip the gate without disabling the report: ./gradlew check -x pitest
 // Full on-demand run: ./gradlew pitest
 // ---------------------------------------------------------------------------
+// PIT parallelism: analyse mutations across all available cores by default;
+// override with -PpitThreads=N. Mutation results are deterministic regardless
+// of thread count, so this affects speed only, not the score or the gate.
+ext.pitThreads = (findProperty('pitThreads') ?: Runtime.getRuntime().availableProcessors()) as int
+
 pitest {
     junit5PluginVersion  = '1.2.2'
     targetClasses        = ['org.egothor.methodatlas.*']
     targetTests          = ['org.egothor.methodatlas.*']
     mutators             = ['STRONGER']
-    threads              = 2
+    threads              = pitThreads
     timestampedReports   = false
     outputFormats        = ['HTML', 'XML']
     // Minimum mutation score: build fails if killed/total < 60 %.
@@ -482,6 +489,11 @@ ext.pitConfig = [
         excludedClasses: [],
         threshold      : 0,     // current  1.0 % — placeholder; Phase 4 audit-trail extraction ratchets this up
     ],
+    'methodatlas-detect-secrets': [
+        targetClasses  : ['org.egothor.methodatlas.detect.secrets.*'],
+        excludedClasses: [],
+        threshold      : 60,    // Task 6 baseline; CatalogSecretDetector + LineIndex
+    ],
 ]
 
 subprojects {
@@ -553,7 +565,7 @@ subprojects {
                     excludedClasses = pitCfg.excludedClasses
                 }
                 mutators            = ['STRONGER']
-                threads             = 2
+                threads             = rootProject.pitThreads
                 timestampedReports  = false
                 outputFormats       = ['HTML', 'XML']
                 mutationThreshold   = pitCfg.threshold

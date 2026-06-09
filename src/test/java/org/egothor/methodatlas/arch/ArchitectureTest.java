@@ -143,4 +143,54 @@ class ArchitectureTest {
                             + "cross-plugin compile-time dependency would mean omitting "
                             + "one plugin could break another's compilation or class "
                             + "loading, defeating the optional-plugin model.");
+
+    /**
+     * Asserts that the built-in credential-detection plugin
+     * ({@code methodatlas-detect-secrets}) depends only on {@code methodatlas-api}
+     * and external libraries.
+     *
+     * <p>
+     * The detector is resolved at runtime through the {@code CredentialDetector} SPI.
+     * In particular it must not depend on the AI subsystem: deterministic
+     * detection is the source of truth and must never call AI. Any dependency on
+     * root, AI, command, emit, or GUI types would chain the plugin's release to
+     * those subsystems and break the SPI-only contract.
+     * </p>
+     */
+    @ArchTest
+    static final ArchRule secretDetectorPluginMustDependOnlyOnTheApiAndExternalLibraries =
+            noClasses()
+                    .that().resideInAPackage("org.egothor.methodatlas.detect..")
+                    .should().dependOnClassesThat()
+                    .resideInAnyPackage(
+                            "org.egothor.methodatlas",
+                            "org.egothor.methodatlas.ai..",
+                            "org.egothor.methodatlas.command..",
+                            "org.egothor.methodatlas.emit..",
+                            "org.egothor.methodatlas.gui..")
+                    .because("The credential detector is a drop-in CredentialDetector plugin; it "
+                            + "must depend only on methodatlas-api and external libraries, and "
+                            + "in particular must never depend on the AI subsystem because "
+                            + "deterministic detection must not call AI.");
+
+    /**
+     * Asserts that no non-plugin class declares a compile-time dependency on a
+     * class in the credential-detection plugin package.
+     *
+     * <p>
+     * Like the discovery plugins, the credential detector is resolved at runtime
+     * via {@link java.util.ServiceLoader} through the SPI in
+     * {@code methodatlas-api}. Orchestration code programs against the
+     * {@code CredentialDetector} interface, never the concrete detector.
+     * </p>
+     */
+    @ArchTest
+    static final ArchRule nonPluginCodeMustNotDependOnTheCredentialDetectorPlugin =
+            noClasses()
+                    .that().resideOutsideOfPackage("org.egothor.methodatlas.detect..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("org.egothor.methodatlas.detect..")
+                    .because("The credential detector is resolved at runtime via ServiceLoader. "
+                            + "A compile-time dependency from any non-plugin class onto a "
+                            + "detector class breaks the optional-plugin contract.");
 }

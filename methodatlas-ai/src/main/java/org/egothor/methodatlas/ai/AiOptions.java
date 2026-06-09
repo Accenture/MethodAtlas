@@ -58,13 +58,18 @@ import java.util.Objects;
  *                      deployment endpoint; only consulted when
  *                      {@link AiProvider#AZURE_OPENAI} is selected; defaults
  *                      to {@link #DEFAULT_API_VERSION}
+ * @param promptTemplates the effective prompt templates (built-in defaults with any
+ *                      operator overrides already applied) used both to render the
+ *                      prompts sent to the provider and to compute the per-template
+ *                      hashes recorded in the reproducibility receipt; never
+ *                      {@code null}
  *
  * @see AiSuggestionEngine
  * @see Builder
  */
 public record AiOptions(boolean enabled, AiProvider provider, String modelName, String baseUrl, String apiKey,
         String apiKeyEnv, Path taxonomyFile, TaxonomyMode taxonomyMode, int maxClassChars, Duration timeout,
-        int maxRetries, boolean confidence, String apiVersion) {
+        int maxRetries, boolean confidence, String apiVersion, PromptTemplateSet promptTemplates) {
     /**
      * Built-in taxonomy modes used for security classification.
      *
@@ -136,6 +141,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         Objects.requireNonNull(modelName, "modelName");
         Objects.requireNonNull(timeout, "timeout");
         Objects.requireNonNull(taxonomyMode, "taxonomyMode");
+        Objects.requireNonNull(promptTemplates, "promptTemplates");
 
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalArgumentException("baseUrl must not be blank");
@@ -223,6 +229,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         private int maxRetries = 1;
         private boolean confidence;
         private String apiVersion = DEFAULT_API_VERSION;
+        private PromptTemplateSet promptTemplates = PromptTemplateSet.defaults();
 
         /**
          * Enables or disables AI enrichment.
@@ -381,6 +388,24 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         }
 
         /**
+         * Sets the effective prompt templates.
+         *
+         * <p>
+         * Callers pass the resolved set — the built-in defaults with any operator
+         * overrides already applied and validated. When not set, the built-in
+         * {@link PromptTemplateSet#defaults()} are used.
+         * </p>
+         *
+         * @param promptTemplates the resolved template set; must not be {@code null}
+         * @return this builder
+         * @throws NullPointerException if {@code promptTemplates} is {@code null}
+         */
+        public Builder promptTemplates(PromptTemplateSet promptTemplates) {
+            this.promptTemplates = Objects.requireNonNull(promptTemplates, "promptTemplates");
+            return this;
+        }
+
+        /**
          * Builds the final immutable {@link AiOptions} configuration.
          *
          * <p>
@@ -410,7 +435,8 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
             }
 
             return new AiOptions(enabled, effectiveProvider, modelName, effectiveBaseUrl, apiKey, apiKeyEnv,
-                    taxonomyFile, taxonomyMode, maxClassChars, timeout, maxRetries, confidence, apiVersion);
+                    taxonomyFile, taxonomyMode, maxClassChars, timeout, maxRetries, confidence, apiVersion,
+                    promptTemplates);
         }
     }
 }

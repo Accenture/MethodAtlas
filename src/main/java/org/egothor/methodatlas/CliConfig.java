@@ -78,31 +78,18 @@ import org.egothor.methodatlas.emit.OutputMode;
  *                             apply-tags-from-csv operation is aborted; {@code -1}
  *                             means no limit is enforced
  * @param emitSourceRoot       when {@code true}, a {@code source_root} column is
- *                             added to CSV output and a {@code SRCROOT=} token is
- *                             added to plain-text output, identifying which scan
- *                             root each record originated from; useful in
- *                             multi-root projects where the same fully qualified
- *                             class name can appear under different source trees
- *                             (e.g. module-a and module-b each contain
- *                             {@code com.acme.FooTest}); has no effect on SARIF
- *                             or GitHub Annotations output
+ *                             added to CSV/plain output identifying which scan root
+ *                             each record originated from; useful in multi-root
+ *                             projects; has no effect on SARIF or annotations output
  * @param sarifOmitScores      when {@code true}, the interaction score and
  *                             confidence percentage are omitted from SARIF result
  *                             message text; use this when the consuming system
- *                             already renders the {@code properties} bag and the
- *                             extra text in the message is unwanted; default is
- *                             {@code false} (scores are embedded in messages so
- *                             they are visible in GitHub Code Scanning and similar
- *                             tooling that does not render the properties bag)
- * @param minConfidence        minimum AI confidence score (inclusive) required
- *                             for a method to be emitted; methods whose
- *                             {@code ai_confidence} is below this threshold are
- *                             silently dropped; only meaningful when
- *                             {@code -ai-confidence} is also enabled — when
- *                             confidence scoring is disabled the field is always
- *                             {@code 0.0} and filtering on it would incorrectly
- *                             drop all methods; the default {@code 0.0} disables
- *                             the filter entirely
+ *                             already renders the {@code properties} bag; default
+ *                             is {@code false} (scores are embedded in messages)
+ * @param minConfidence        minimum AI confidence score (inclusive) for a method
+ *                             to be emitted; only meaningful when
+ *                             {@code -ai-confidence} is enabled; the default
+ *                             {@code 0.0} disables the filter entirely
  * @param emitReceipt          when {@code true}, a reproducibility receipt
  *                             JSON file is written after a successful scan
  *                             capturing the SHA-256 of every input that
@@ -158,6 +145,15 @@ import org.egothor.methodatlas.emit.OutputMode;
  *                              from the AI columns, writing unvalidated AI output
  *                              into source; off by default (see the engine and
  *                              YAML docs for the full warning)
+ * @param detectSecrets           when {@code true}, enable credential detection alongside the test scan
+ * @param secretsInclude          glob overriding the default file mask; {@code null} uses the default
+ * @param secretsRules            custom rule catalog YAML; {@code null} uses the built-in catalog
+ * @param secretsOut              output path for the secrets CSV; default {@code methodatlas-credentials.csv}
+ * @param secretsSeparateLlm      when {@code true}, force a standalone triage LLM call
+ * @param secretsShowValues       when {@code true}, print unmasked secret values (default: redacted)
+ * @param secretsErrorThreshold   SARIF {@code error} score floor (default {@code 0.8})
+ * @param secretsWarningThreshold SARIF {@code warning} score floor (default {@code 0.4})
+ * @param secretsMinScore         suppress findings below this score (default {@code 0.0} = keep all)
  * @since 3.0.0
  */
 public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
@@ -169,5 +165,8 @@ public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> p
         boolean emitCoverage, Path coverageFile, Path coverageMappingFile,
         String evidencePackFramework, Path evidencePackDir, boolean evidencePackOverwrite,
         Path evidencePackKeyringFile, String evidencePackKeyringEnv, String evidencePackKeyAlias,
-        String evidencePackSignAlgo, boolean verbose, boolean promoteAi) {
+        String evidencePackSignAlgo, boolean verbose, boolean promoteAi,
+        boolean detectSecrets, String secretsInclude, Path secretsRules,
+        Path secretsOut, boolean secretsSeparateLlm, boolean secretsShowValues,
+        double secretsErrorThreshold, double secretsWarningThreshold, double secretsMinScore) {
 }

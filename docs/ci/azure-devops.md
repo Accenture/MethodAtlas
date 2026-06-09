@@ -382,6 +382,66 @@ stages:
             condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
 ```
 
+## Scanning for hard-coded credentials
+
+[`-detect-secrets`](../concepts/credential-detection.md) adds a deterministic
+credential scan alongside the test inventory. The deterministic layer uses no AI
+and makes no network calls, so it needs no variable group and is safe to run on
+every pipeline. Emit the findings as SARIF and publish them; route them to the
+GHAzDO dashboard with the same `AdvancedSecurity-Publish@1` task used for the
+test-classification SARIF:
+
+```yaml
+steps:
+  - task: JavaToolInstaller@0
+    inputs:
+      versionSpec: '21'
+      jdkArchitectureOption: x64
+      jdkSourceOption: PreInstalled
+    displayName: Set up Java 21
+
+  - script: |
+      curl -fsSL -o methodatlas.jar \
+        https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+    displayName: Download MethodAtlas
+
+  - script: |
+      java -jar methodatlas.jar \
+        -detect-secrets \
+        -secrets-out $(Build.SourcesDirectory)/methodatlas-credentials.csv \
+        -sarif \
+        src/test/java \
+        > $(Build.SourcesDirectory)/methodatlas-credentials.sarif
+    displayName: Run MethodAtlas — credential detection (deterministic, no AI)
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: $(Build.SourcesDirectory)/methodatlas-credentials.sarif
+      artifactName: methodatlas-credentials-sarif
+    displayName: Publish credential SARIF artefact
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: $(Build.SourcesDirectory)/methodatlas-credentials.csv
+      artifactName: methodatlas-credentials-csv
+    displayName: Publish credentials CSV artefact
+```
+
+Secret values are **masked by default** in both the SARIF and the CSV. A
+deterministic-only run emits every finding at `warning` so nothing drops below
+review threshold. Uploading to the GHAzDO dashboard uses the same
+`AdvancedSecurity-Publish@1` task noted under
+[AI-enriched scan with SARIF output](#ai-enriched-scan-with-sarif-output).
+
+!!! note "Optional AI triage"
+    Add `-ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY` (with the
+    `methodatlas-secrets` variable group) to have the model score each candidate's
+    credibility and attribute it to the endpoint it authenticates against. This
+    transmits the test source to the provider, so for sensitive code prefer a local
+    Ollama model — see the
+    [AI trust boundary](../concepts/credential-detection.md#privacy-and-the-ai-trust-boundary).
+    `-secrets-include <glob>` [**replaces** the default test-class set](../concepts/credential-detection.md#what-gets-scanned).
+
 ## Using a YAML configuration file
 
 For teams that prefer to keep MethodAtlas settings in version control, create

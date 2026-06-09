@@ -335,6 +335,26 @@
         <li>
           <span class="feature-check">✓</span>
           <div>
+            <strong>Credential &amp; secret detection</strong>
+            <p>An opt-in <code>-detect-secrets</code> pass finds hard-coded credentials with a
+               clean-room Aho-Corasick engine over 170+ vendor formats &mdash; no live verification.
+               With AI enabled, each candidate is scored for credibility and attributed to the
+               endpoint it authenticates against.</p>
+            <span class="feature-scope">Values are masked by default in every output; raw secrets never leave the perimeter.</span>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>Placebo-test detection</strong>
+            <p>An interaction score flags &ldquo;security&rdquo; tests that only assert methods were
+               called but never verify an outcome &mdash; a class of false-confidence bug that
+               coverage and static-analysis tools cannot see.</p>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
             <strong>CI-ready output formats</strong>
             <p>CSV (default), plain text, SARIF&nbsp;2.1.0, GitHub Actions annotations,
                and flat JSON. Pick the schema your downstream tooling already speaks.</p>
@@ -364,6 +384,25 @@
             <p>Immutable per-run CSV audit trail, schema-versioned override YAML, and
                framework-specific guidance for PCI&nbsp;DSS, ISO&nbsp;27001, NIST&nbsp;SSDF,
                EU&nbsp;DORA, and SOC&nbsp;2.</p>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>Reproducible-by-design receipts</strong>
+            <p><code>-emit-receipt</code> fingerprints every input that shaped a scan &mdash;
+               configuration, taxonomy, AI provider and model, and a per-template checksum of
+               every LLM prompt &mdash; so an auditor can prove a re-run would yield identical
+               results without repeating it.</p>
+          </div>
+        </li>
+        <li>
+          <span class="feature-check">✓</span>
+          <div>
+            <strong>Control-coverage matrix</strong>
+            <p><code>-emit-coverage</code> maps your tests against a team-authored control mapping
+               (such as OWASP&nbsp;ASVS) and reports the gaps &mdash; the primary deliverable for a
+               risk board or auditor.</p>
           </div>
         </li>
         <li>
@@ -411,6 +450,21 @@
 ./methodatlas -evidence-pack PCI-6.4.1 \
   -evidence-pack-keyring audit.keyring \
   -evidence-pack-key-alias audit \
+  src/test/java</pre>
+
+      <p class="qs-label">6 &mdash; Credential detection (deterministic, values masked)</p>
+      <pre class="qs-pre">./methodatlas -detect-secrets -sarif \
+  src/test/java \
+  &gt; findings.sarif</pre>
+
+      <p class="qs-label">7 &mdash; Reproducibility receipt (audit fingerprint)</p>
+      <pre class="qs-pre">./methodatlas -ai -emit-receipt \
+  -receipt-file receipt.json \
+  src/test/java</pre>
+
+      <p class="qs-label">8 &mdash; Control-coverage matrix (GRC gaps)</p>
+      <pre class="qs-pre">./methodatlas -ai -emit-coverage \
+  -coverage-mapping controls.json \
   src/test/java</pre>
 
       <p class="qs-links">

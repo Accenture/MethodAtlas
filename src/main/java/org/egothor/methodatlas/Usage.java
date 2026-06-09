@@ -54,6 +54,12 @@ final class Usage {
               -ai-api-key-env <env>  Resolve the API key from an environment variable
               (see the reference for the full -ai-* and manual-workflow options)
 
+            Custom prompt templates (advanced; recorded in the reproducibility receipt):
+              -classification-prompt <file>     Override the method-classification prompt
+              -triage-prompt <file>             Override the folded credential-triage appendix
+              -dedicated-triage-prompt <file>   Override the standalone credential-triage prompt
+              -check-prompts                    Validate the templates, print their SHA-256, and exit
+
             Source write-back:
               -apply-tags            Write AI @Tag/@DisplayName back to source (requires -ai)
               -apply-tags-from-csv <file>
@@ -63,6 +69,18 @@ final class Usage {
                                      tags/display_name from ai_tags/ai_display_name — i.e. writes
                                      UNVALIDATED AI output into source, bypassing human review. Off
                                      by default; do not enable unless reviewed and approved.
+
+            Credential detection:
+              -detect-secrets            Enable credential/secret detection alongside the test scan
+              -secrets-include <glob>    Scan files matching <glob> INSTEAD of the discovered test
+                                         classes (replaces the set, does not extend it)
+              -secrets-rules <file>      Custom rule catalog YAML (default: built-in catalog)
+              -secrets-out <file>        Output path for the secrets CSV (default: methodatlas-credentials.csv)
+              -secrets-separate-llm      Force a standalone triage LLM call instead of prompt appendix
+              -secrets-show-values       Print unmasked secret values (default: values are redacted)
+              -secrets-error-threshold <score>    SARIF error floor (default: 0.8)
+              -secrets-warning-threshold <score>  SARIF warning floor (default: 0.4)
+              -secrets-min-score <score>          Suppress findings below this score (default: 0.0)
 
             Diagnostics:
               -verbose               Detailed diagnostics (notably for -apply-tags-from-csv)

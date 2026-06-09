@@ -159,12 +159,39 @@ public final class ScanOrchestrator {
     public int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, TestMethodSink sink,
             ClassificationOverride override, AiResultCache aiCache) throws IOException {
+        return scan(roots, cliConfig, discoveryConfig, aiEngine, sink, override, aiCache, null);
+    }
+
+    /**
+     * Scans every configured root like
+     * {@link #scan(List, CliConfig, TestDiscoveryConfig, AiSuggestionEngine, TestMethodSink, ClassificationOverride, AiResultCache)},
+     * additionally folding credential triage into each per-class AI call when
+     * {@code secretCtx} is supplied, so the class source is sent to the provider
+     * once for both classification and triage.
+     *
+     * @param roots           source roots to scan; must not be {@code null}
+     * @param cliConfig       full parsed CLI configuration
+     * @param discoveryConfig discovery configuration forwarded to providers
+     * @param aiEngine        AI engine providing suggestions; may be {@code null}
+     * @param sink            receiver of discovered test method records
+     * @param override        human classification overrides
+     * @param aiCache         AI result cache
+     * @param secretCtx       credential-triage context, or {@code null} to disable
+     *                        the fold (classification only)
+     * @return {@code 0} if all files were processed successfully, {@code 1} otherwise
+     * @throws IOException if traversing a file tree fails
+     * @since 4.1.0
+     */
+    public int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
+            AiSuggestionEngine aiEngine, TestMethodSink sink,
+            ClassificationOverride override, AiResultCache aiCache,
+            CredentialTriageContext secretCtx) throws IOException {
         List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
         boolean hadErrors = false;
         try {
             for (Path root : roots) {
                 if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine, sink,
-                        cliConfig.contentHash(), override, aiCache)) {
+                        cliConfig.contentHash(), override, aiCache, secretCtx)) {
                     hadErrors = true;
                 }
             }
@@ -201,11 +228,38 @@ public final class ScanOrchestrator {
      * @throws IOException if traversing the file tree fails
      * @since 1.0.0
      */
-    @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
     public boolean runDiscovery(Path root, List<TestDiscovery> providers,
             AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
             boolean contentHashEnabled, ClassificationOverride override,
             AiResultCache aiCache) throws IOException {
+        return runDiscovery(root, providers, aiOptions, aiEngine, sink, contentHashEnabled,
+                override, aiCache, null);
+    }
+
+    /**
+     * Runs discovery and AI analysis for one root like
+     * {@link #runDiscovery(Path, List, AiOptions, AiSuggestionEngine, TestMethodSink, boolean, ClassificationOverride, AiResultCache)},
+     * additionally folding credential triage into each per-class AI call when
+     * {@code secretCtx} is supplied.
+     *
+     * @param root               directory to scan
+     * @param providers          pre-configured discovery providers
+     * @param aiOptions          AI configuration for the current run
+     * @param aiEngine           AI engine, or {@code null} when AI is disabled
+     * @param sink               receiver of discovered test method records
+     * @param contentHashEnabled whether to include the class content hash
+     * @param override           human classification overrides
+     * @param aiCache            AI result cache
+     * @param secretCtx          credential-triage context, or {@code null} to disable the fold
+     * @return {@code true} if any provider encountered an error
+     * @throws IOException if traversing the file tree fails
+     * @since 4.1.0
+     */
+    @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
+    public boolean runDiscovery(Path root, List<TestDiscovery> providers,
+            AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
+            boolean contentHashEnabled, ClassificationOverride override,
+            AiResultCache aiCache, CredentialTriageContext secretCtx) throws IOException {
 
         TestMethodSink effectiveSink = wrapWithExtraSink(sink);
         List<DiscoveredMethod> methods = new ArrayList<>();
@@ -244,7 +298,7 @@ public final class ScanOrchestrator {
                     .toList();
 
             SuggestionLookup suggestions = resolveSuggestionLookup(
-                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash);
+                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash, secretCtx);
 
             for (DiscoveredMethod m : classMethods) {
                 effectiveSink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
@@ -347,7 +401,7 @@ public final class ScanOrchestrator {
                     .map(ScanOrchestrator::toTargetMethod).toList();
 
             SuggestionLookup suggestions = resolveSuggestionLookup(
-                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash);
+                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash, null);
 
             for (DiscoveredMethod m : classMethods) {
                 AiMethodSuggestion suggestion = suggestions.find(m.method()).orElse(null);
@@ -457,7 +511,7 @@ public final class ScanOrchestrator {
 
     private static SuggestionLookup resolveSuggestionLookup(String fileStem, String fqcn,
             String classSource, List<String> methodNames, List<PromptBuilder.TargetMethod> targetMethods,
-            AiRuntime ai, String contentHash) {
+            AiRuntime ai, String contentHash, CredentialTriageContext secretCtx) {
         if (methodNames.isEmpty()) {
             return SuggestionLookup.from(null);
         }
@@ -489,8 +543,19 @@ public final class ScanOrchestrator {
         }
 
         try {
-            AiClassSuggestion aiClassSuggestion =
-                    ai.engine().suggestForClass(fileStem, fqcn, classSource, targetMethods);
+            List<PromptBuilder.CredentialCandidateRef> candidates =
+                    secretCtx == null ? List.of() : secretCtx.candidatesFor(fqcn);
+            // Only use the folding overload when there are candidates to triage, so
+            // the common (classification-only) path calls the exact same method as
+            // before — preserving behaviour for callers and test doubles.
+            AiClassSuggestion aiClassSuggestion;
+            if (candidates.isEmpty()) {
+                aiClassSuggestion = ai.engine().suggestForClass(fileStem, fqcn, classSource, targetMethods);
+            } else {
+                aiClassSuggestion =
+                        ai.engine().suggestForClass(fileStem, fqcn, classSource, targetMethods, candidates);
+                secretCtx.recordVerdicts(fqcn, aiClassSuggestion.secrets());
+            }
             return SuggestionLookup.from(ai.override().apply(fqcn, aiClassSuggestion, methodNames));
         } catch (AiSuggestionException e) {
             if (LOG.isLoggable(Level.WARNING)) {

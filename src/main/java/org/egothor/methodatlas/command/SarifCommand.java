@@ -19,7 +19,9 @@ import org.egothor.methodatlas.emit.SarifEmitter;
  * <p>
  * Scans one or more source roots, buffers all discovered test-method records,
  * and serializes the result as a single SARIF 2.1.0 JSON document once the
- * scan completes.
+ * scan completes. When {@link CliConfig#detectSecrets()} is enabled, credential
+ * findings are detected (via {@link CredentialDetectionRunner}) and embedded in the
+ * same SARIF document before it is flushed.
  * </p>
  *
  * @see org.egothor.methodatlas.emit.SarifEmitter
@@ -76,9 +78,22 @@ public final class SarifCommand implements Command {
         boolean scoresInMessage = !cliConfig.sarifOmitScores();
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix, scoresInMessage);
 
+        // Credential detection: prepare() folds triage into the per-class call when
+        // possible (source sent once) and returns the context the scan threads
+        // through; finish() records findings into the SARIF document before flush.
+        CredentialDetectionRunner secretRunner = cliConfig.detectSecrets()
+                ? new CredentialDetectionRunner(cliConfig, discoveryConfig, new PluginLoader(), scanOrchestrator, aiEngine)
+                : null;
+        CredentialTriageContext secretCtx = secretRunner != null ? secretRunner.prepare(roots) : null;
+
         int result = scanOrchestrator.scan(roots, cliConfig, discoveryConfig, aiEngine,
                 scanOrchestrator.filterSink(sarifEmitter, cliConfig.securityOnly(),
-                        cliConfig.minConfidence(), confidenceEnabled), override, aiCache);
+                        cliConfig.minConfidence(), confidenceEnabled), override, aiCache, secretCtx);
+
+        if (secretRunner != null) {
+            secretRunner.finish(roots, sarifEmitter);
+        }
+
         sarifEmitter.flush(out);
         return result;
     }

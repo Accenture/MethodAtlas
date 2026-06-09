@@ -362,6 +362,35 @@ jobs:
           SECURITY_PATH: ${{ inputs.security-overrides-path }}
 
       # -----------------------------------------------------------------------
+      # Credential / secret detection — deterministic, no AI
+      #
+      # Runs MethodAtlas's clean-room credential scanner over the same test
+      # sources. This layer makes no AI provider calls and no network calls, so
+      # it needs no token and is safe on every run. Findings are embedded in a
+      # SARIF document (under secret/<rule-id> rules) and the raw values are
+      # masked by default in both the SARIF and the CSV.
+      #
+      # It is kept as a separate, AI-free step (rather than folded into the
+      # classification passes above) so it always runs deterministically and is
+      # never short-circuited by the AI cache.
+      #
+      # ADAPTING FOR YOUR OWN PROJECT: this step is self-contained; the only
+      # requirement is the security-events: write permission already granted
+      # above, used by the credential SARIF upload further down.
+      # -----------------------------------------------------------------------
+      - name: Run MethodAtlas — credential detection (deterministic, no AI)
+        run: |
+          mkdir -p build/reports
+          echo "Scanning ${{ inputs.test-source-path }} for hard-coded credentials …"
+          "$METHODATLAS" \
+            -detect-secrets \
+            -secrets-out build/reports/methodatlas-credentials.csv \
+            -sarif \
+            "${{ inputs.test-source-path }}" \
+            > build/reports/methodatlas-credentials.sarif
+          echo "Credential detection complete: build/reports/methodatlas-credentials.{sarif,csv}"
+
+      # -----------------------------------------------------------------------
       # Save AI classification cache for the next run
       #
       # The CSV produced in pass 1 is stored under a key that includes the
@@ -405,4 +434,27 @@ jobs:
         with:
           name: methodatlas-sarif
           path: build/reports/methodatlas-sarif.json
+          retention-days: 30
+
+      # -----------------------------------------------------------------------
+      # Publish credential-detection results
+      #
+      # The credential SARIF is uploaded under its own Code Scanning category so
+      # it appears separately from the test-classification findings. The CSV and
+      # SARIF are also retained as a downloadable artifact for 30 days.
+      # -----------------------------------------------------------------------
+      - name: Upload credential-detection SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: build/reports/methodatlas-credentials.sarif
+          category: methodatlas-credentials
+
+      - name: Upload credential-detection artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodatlas-credentials
+          path: |
+            build/reports/methodatlas-credentials.sarif
+            build/reports/methodatlas-credentials.csv
           retention-days: 30

@@ -92,7 +92,7 @@ class ReceiptWriterTest {
                 "CSV",
                 List.of("/tmp/scan"),
                 true,
-                new ReceiptInputs(null, "DEFAULT", null, null, null, null, null),
+                new ReceiptInputs(null, "DEFAULT", null, null, null, null, null, null, null),
                 "0".repeat(64));
     }
 }

@@ -66,9 +66,15 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
     private static final String RULE_SECURITY_TEST = "security-test";
     private static final String RULE_EMPTY_DISPLAY_NAME = "annotation/empty-display-name";
     private static final String RULE_SECURITY_PLACEBO = "security-test/placebo";
+    private static final String LEVEL_ERROR = "error";
     private static final String LEVEL_NOTE = "note";
     private static final String LEVEL_NONE = "none";
     private static final String LEVEL_WARNING = "warning";
+
+    private static final String RULE_SECRET_PREFIX = "secret/";
+    private static final double SECRET_ERROR_THRESHOLD = 0.8;
+    private static final double SECRET_WARNING_THRESHOLD = 0.4;
+    private static final int SECRET_MSG_HINT = 256;
 
     /** Interaction score at or above which a security test is flagged as a potential placebo. */
     private static final double PLACEBO_THRESHOLD = 0.8;
@@ -115,6 +121,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
     private final String filePrefix;
     private final String toolVersion;
     private final List<ResultRecord> records = new ArrayList<>();
+    private final List<SecretResultRecord> secretRecords = new ArrayList<>();
 
     /**
      * Creates a new SARIF emitter with scores embedded in result message text
@@ -173,6 +180,18 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
     }
 
     /**
+     * Buffers a credential finding to be emitted as a SARIF result in the same
+     * run as the test-method results.
+     *
+     * @param fileUri forward-slash artifact URI for the file the finding is in;
+     *                never {@code null}
+     * @param finding the credential finding; never {@code null}
+     */
+    public void recordSecret(final String fileUri, final CredentialFinding finding) {
+        secretRecords.add(new SecretResultRecord(fileUri, finding));
+    }
+
+    /**
      * Serializes all buffered records as a SARIF 2.1.0 JSON document and writes
      * it to the supplied writer.
      *
@@ -198,6 +217,12 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
                 rulesById.computeIfAbsent(RULE_SECURITY_PLACEBO, SarifEmitter::buildRule);
                 results.add(buildPlaceboResult(rec));
             }
+        }
+
+        for (SecretResultRecord sec : secretRecords) {
+            String ruleId = RULE_SECRET_PREFIX + sec.finding().candidate().ruleId();
+            rulesById.computeIfAbsent(ruleId, SarifEmitter::buildCredentialRule);
+            results.add(buildSecretResult(sec, ruleId));
         }
 
         SarifDriver driver = new SarifDriver("MethodAtlas", toolVersion,
@@ -505,12 +530,90 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
         return SEVERITY_DEFAULT;
     }
 
+    private static SarifRule buildCredentialRule(final String ruleId) {
+        final String name = toRuleName(ruleId);
+        final SarifHelp help = new SarifHelp(
+                "MethodAtlas detected a credential candidate in scanned source. The credibility "
+                + "score (shown in the finding message) reflects an LLM assessment of whether the "
+                + "value is a genuine live credential. Rotate any confirmed credential and move it "
+                + "out of source into a secret store or environment variable.");
+        final SarifRuleProperties props = new SarifRuleProperties(List.of("security", "secret"));
+        return new SarifRule(ruleId, name,
+                new SarifMessage("Credential candidate in scanned source"), props, help);
+    }
+
+    private SarifResult buildSecretResult(final SecretResultRecord sec, final String ruleId) {
+        final CredentialFinding f = sec.finding();
+        final String level = secretLevel(f.credibilityScore());
+
+        final SarifArtifactLocation artifactLocation = new SarifArtifactLocation(sec.fileUri(), null);
+        final SarifRegion region = f.candidate().beginLine() > 0
+                ? new SarifRegion(f.candidate().beginLine()) : null;
+        final SarifPhysicalLocation physicalLocation = new SarifPhysicalLocation(artifactLocation, region);
+        final SarifLocation location = new SarifLocation(physicalLocation, List.of());
+
+        final SarifProperties properties = new SarifProperties(0, null, null, null, null, null, null,
+                null, null, null, null, null, secretSeverity(f.credibilityScore()));
+
+        return new SarifResult(ruleId, level, new SarifMessage(secretMessage(f)),
+                List.of(location), properties);
+    }
+
+    private static String secretMessage(final CredentialFinding f) {
+        final StringBuilder sb = new StringBuilder(SECRET_MSG_HINT)
+                .append("[secret] Potential ")
+                .append(f.candidate().ruleId().replace('-', ' '));
+        appendCredibility(sb, f.credibilityScore());
+        appendEndpoint(sb, f.endpoint());
+        sb.append(" Rule: ").append(f.candidate().ruleId())
+                .append(". Snippet: ")
+                .append(CredentialMasker.mask(f.candidate().matchedValue()));
+        return sb.toString();
+    }
+
+    private static void appendCredibility(final StringBuilder sb, final Double score) {
+        if (score != null) {
+            sb.append(String.format(Locale.ROOT, " — credibility %.2f.", score));
+        } else {
+            sb.append(" — unverified (no AI triage).");
+        }
+    }
+
+    private static void appendEndpoint(final StringBuilder sb, final String endpoint) {
+        if (endpoint != null && !endpoint.isBlank()) {
+            sb.append(" Likely authenticates: ").append(endpoint).append('.');
+        }
+    }
+
+    private static String secretLevel(final Double score) {
+        if (score == null) {
+            return LEVEL_WARNING;
+        }
+        if (score >= SECRET_ERROR_THRESHOLD) {
+            return LEVEL_ERROR;
+        }
+        if (score >= SECRET_WARNING_THRESHOLD) {
+            return LEVEL_WARNING;
+        }
+        return LEVEL_NOTE;
+    }
+
+    private static String secretSeverity(final Double score) {
+        if (score == null) {
+            return null;
+        }
+        return String.format(Locale.ROOT, "%.1f", Math.min(10.0, score * 10.0));
+    }
+
     // -------------------------------------------------------------------------
     // Internal buffer record
     // -------------------------------------------------------------------------
 
     private record ResultRecord(String fqcn, String method, int beginLine, int loc,
             String contentHash, List<String> tags, String displayName, AiMethodSuggestion suggestion) {
+    }
+
+    private record SecretResultRecord(String fileUri, CredentialFinding finding) {
     }
 
     // -------------------------------------------------------------------------

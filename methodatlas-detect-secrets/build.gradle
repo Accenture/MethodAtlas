@@ -1,0 +1,53 @@
+plugins {
+    id 'java-library'
+    id 'net.ltgt.errorprone' version '5.1.0'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api project(':methodatlas-api')
+
+    // Jackson 3 YAML for the rule catalog
+    implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.4'
+
+    testImplementation(platform("org.junit:junit-bom:5.14.2"))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    errorprone 'com.google.errorprone:error_prone_core:2.36.0'
+}
+
+tasks.named('compileJava') {
+    options.errorprone.enabled = true
+}
+tasks.named('compileTestJava') {
+    options.errorprone.enabled = false
+    options.release = JavaVersion.current().majorVersion.toInteger()
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+javadoc {
+    failOnError = true
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    options.addBooleanOption('html5', true)
+    options.tags('apiNote:a:API Note:')
+    options.tags('implSpec:a:Implementation Requirements:')
+    options.tags('implNote:a:Implementation Note:')
+    options.tags('param')
+    options.tags('return')
+    options.tags('throws')
+    options.tags('since')
+    options.tags('version')
+    options.tags('see')
+}

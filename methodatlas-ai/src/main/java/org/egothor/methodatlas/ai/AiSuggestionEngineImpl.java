@@ -162,10 +162,69 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
     @Override
     public AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException {
-        String prompt = PromptBuilder.build(fqcn, classSource, taxonomyText, targetMethods, options.confidence());
+        String prompt = PromptBuilder.build(options.promptTemplates(), fqcn, classSource, taxonomyText,
+                targetMethods, options.confidence());
         AiClassSuggestion result = client.suggestForClass(fqcn, prompt);
         notifyResponseListener(fqcn, prompt, result);
         return result;
+    }
+
+    /**
+     * Classifies and triages a class in one provider call by appending the
+     * credential candidates to the classification prompt, so the class source is
+     * transmitted only once. Falls back to plain classification when no candidates
+     * are supplied.
+     *
+     * @param fileStem         file stem of the source file; forwarded for provenance
+     * @param fqcn             fully qualified class name of the analyzed test class
+     * @param classSource      complete source code of the class to analyze
+     * @param targetMethods    deterministically extracted test methods to classify
+     * @param secretCandidates credential candidates to triage in the same call
+     * @return classification result, carrying secret verdicts when candidates were supplied
+     * @throws AiSuggestionException if the provider fails or returns an invalid response
+     */
+    @Override
+    public AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
+            List<PromptBuilder.TargetMethod> targetMethods,
+            List<PromptBuilder.CredentialCandidateRef> secretCandidates) throws AiSuggestionException {
+        if (secretCandidates == null || secretCandidates.isEmpty()) {
+            return suggestForClass(fileStem, fqcn, classSource, targetMethods);
+        }
+        String prompt = PromptBuilder.build(options.promptTemplates(), fqcn, classSource, taxonomyText,
+                targetMethods, options.confidence(), secretCandidates);
+        AiClassSuggestion result = client.suggestForClass(fqcn, prompt);
+        notifyResponseListener(fqcn, prompt, result);
+        return result;
+    }
+
+    /**
+     * Issues a dedicated credential-triage request and returns the verdicts.
+     *
+     * <p>
+     * Triage runs as its own provider call (the credential-detection pass is
+     * separate from method classification), so a malformed or failed triage
+     * response affects only triage — never classification. The candidate list is
+     * the closed input; the model scores only those candidates.
+     * </p>
+     *
+     * @param fqcn        fully qualified class name (or file identifier) for context
+     * @param classSource complete source of the class being triaged
+     * @param candidates  detected candidates to score
+     * @return one verdict per scored candidate; never {@code null}; empty when no
+     *         candidates were supplied
+     * @throws AiSuggestionException if the provider call fails or returns an
+     *                               invalid response
+     */
+    @Override
+    public List<CredentialTriageVerdict> triageSecrets(String fqcn, String classSource,
+            List<PromptBuilder.CredentialCandidateRef> candidates) throws AiSuggestionException {
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        String prompt = PromptBuilder.buildCredentialTriage(options.promptTemplates(), fqcn, classSource, candidates);
+        AiClassSuggestion result = client.suggestForClass(fqcn, prompt);
+        notifyResponseListener(fqcn, prompt, result);
+        return result.secrets() == null ? List.of() : result.secrets();
     }
 
     /**

@@ -112,6 +112,8 @@ nav:
       - Multi-root Scanning: usage-modes/multi-root.md
       - Control-Coverage Matrix: usage-modes/control-coverage.md
       - Evidence Packs: usage-modes/evidence-packs.md
+      - Credential Detection: concepts/credential-detection.md
+      - Reproducibility Receipts: usage-modes/reproducibility-receipts.md
     - AI Enrichment:
       - Overview: ai/index.md
       - Providers: ai/providers.md

@@ -23,7 +23,7 @@ The receipt is a single JSON object. Field types are JSON types; "absent" means 
 
 | Field | Type | When present | Meaning |
 |-------|------|--------------|---------|
-| `schemaVersion` | string | always | Currently `"1"`. Bumped on any breaking schema change. |
+| `schemaVersion` | string | always | Currently `"2"`. Bumped on any breaking schema change; see [Schema migration: v1 → v2](#schema-migration-v1--v2). |
 | `generatedUtc` | string | always | ISO-8601 instant when the receipt was written. |
 | `methodAtlasVersion` | string | always | `Implementation-Version` from the JAR manifest, or `"dev"` for local builds. |
 | `javaVersion` | string | always | `System.getProperty("java.version")` at receipt-write time. |
@@ -36,8 +36,12 @@ The receipt is a single JSON object. Field types are JSON types; "absent" means 
 | `inputs.aiCacheFile` | object `{path,sha256}` | when `-ai-cache` is supplied | Absolute path and SHA-256 of the AI cache CSV. |
 | `inputs.aiProvider` | string | when AI is enabled | Uppercase provider enum, e.g. `OPENAI`. |
 | `inputs.aiModel` | string | when AI is enabled | Provider-specific model identifier. |
-| `inputs.promptTemplateHash` | string | when AI is enabled | SHA-256 of the static prompt skeleton (per-class data excluded). |
+| `inputs.classificationPromptHash` | string | when AI is enabled | SHA-256 of the **effective** method-classification prompt template — the built-in default, or the operator's `-classification-prompt` override. Per-run data (taxonomy, methods, source) is excluded. |
+| `inputs.triageAppendixPromptHash` | string | when AI is enabled | SHA-256 of the effective folded credential-triage appendix template (`-triage-prompt` override, else built-in). |
+| `inputs.dedicatedTriagePromptHash` | string | when AI is enabled | SHA-256 of the effective standalone credential-triage template (`-dedicated-triage-prompt` override, else built-in). |
 | `configHash` | string | always | 64-char lowercase hex SHA-256 of a canonical key=value serialisation of the input fingerprints. See below. |
+
+The three prompt hashes record the *exact* prompt wording sent to the model. Because they cover the effective template, a custom prompt supplied with `-classification-prompt` (or the triage flags) changes the corresponding hash — an auditor sees that a non-default prompt was used, and can reproduce the checksum with `methodatlas -check-prompts -classification-prompt <file>`.
 
 ## `deterministicReplay`
 
@@ -54,15 +58,17 @@ Out of scope for this flag: source-file modifications, JVM non-determinism in re
 
 The algorithm is deliberately simple so an auditor can re-derive it with `sha256sum` and a `printf`:
 
-1. Populate the following eight keys with their values; absent inputs map to the empty string:
+1. Populate the following ten keys with their values; absent inputs map to the empty string:
    - `aiCacheFileSha256`
    - `aiModel`
    - `aiProvider`
    - `builtInTaxonomy`
+   - `classificationPromptHash`
+   - `dedicatedTriagePromptHash`
    - `methodAtlasVersion`
    - `overrideFileSha256`
-   - `promptTemplateHash`
    - `taxonomyFileSha256`
+   - `triageAppendixPromptHash`
 2. Sort the keys alphabetically (a `TreeMap` enforces this implicitly).
 3. Serialise as `key1=value1\nkey2=value2\n...keyN=valueN\n` using UTF-8.
 4. Apply SHA-256, render lowercase hex.
@@ -75,10 +81,12 @@ The same value is reported as the receipt's `configHash` field. An auditor with 
   printf 'aiModel=%s\n'           "$(jq -r '.inputs.aiModel // ""'           receipt.json)"
   printf 'aiProvider=%s\n'        "$(jq -r '.inputs.aiProvider // ""'        receipt.json)"
   printf 'builtInTaxonomy=%s\n'   "$(jq -r '.inputs.builtInTaxonomy // ""'   receipt.json)"
+  printf 'classificationPromptHash=%s\n'  "$(jq -r '.inputs.classificationPromptHash // ""'  receipt.json)"
+  printf 'dedicatedTriagePromptHash=%s\n' "$(jq -r '.inputs.dedicatedTriagePromptHash // ""' receipt.json)"
   printf 'methodAtlasVersion=%s\n' "$(jq -r '.methodAtlasVersion'             receipt.json)"
   printf 'overrideFileSha256=%s\n' "$(jq -r '.inputs.overrideFile.sha256 // ""' receipt.json)"
-  printf 'promptTemplateHash=%s\n' "$(jq -r '.inputs.promptTemplateHash // ""' receipt.json)"
   printf 'taxonomyFileSha256=%s\n' "$(jq -r '.inputs.taxonomyFile.sha256 // ""' receipt.json)"
+  printf 'triageAppendixPromptHash=%s\n' "$(jq -r '.inputs.triageAppendixPromptHash // ""' receipt.json)"
 } | sha256sum
 ```
 
@@ -109,6 +117,40 @@ deterministicReplay true          deterministicReplay false
 ```
 
 `configHash` divergence localises the cause: the diff between the two receipts shows exactly which inputs changed.
+
+## Schema migration: v1 → v2
+
+Schema **v2** (MethodAtlas 4.1.0) changed how the AI prompt is fingerprinted. This matters for anyone comparing a receipt produced by 4.1.0+ against one archived from an earlier release.
+
+### What changed
+
+- **Removed:** the single field `inputs.promptTemplateHash`.
+- **Added:** three fields recording the *effective* (built-in or operator-overridden) prompt templates separately:
+  - `inputs.classificationPromptHash`
+  - `inputs.triageAppendixPromptHash`
+  - `inputs.dedicatedTriagePromptHash`
+- The `configHash` canonical key set grew from eight keys to ten: `promptTemplateHash` was removed and the three new keys were added.
+
+### Why
+
+v1 hashed only the classification prompt skeleton. The credential-triage prompts (introduced alongside credential detection) were **not** covered, so a change to triage wording was invisible to an auditor. v1 also could not represent operator-supplied custom prompts. v2 closes both gaps: every prompt the model receives has its own checksum, and a custom template changes the matching hash.
+
+### Effect on previously archived receipts
+
+- A v1 and a v2 receipt are **not** directly comparable by `configHash`: the canonical key sets differ, so the hashes will differ even for an otherwise identical configuration. Always compare receipts of the **same `schemaVersion`**; use `schemaVersion` as the first discriminator.
+- For a like-for-like check across the boundary, re-run the older configuration with 4.1.0+ to obtain a v2 receipt, then compare v2-to-v2.
+- A v1 receipt remains valid evidence for the run that produced it; it is simply expressed in the older schema. Retain it as-is — do not attempt to "upgrade" an archived v1 receipt, as that would invalidate its provenance.
+
+### New structure at a glance
+
+```text
+v1 inputs:                          v2 inputs:
+  ...                                 ...
+  aiModel                             aiModel
+  promptTemplateHash  ← single hash   classificationPromptHash   ← classification prompt
+                                      triageAppendixPromptHash   ← folded triage appendix
+                                      dedicatedTriagePromptHash  ← standalone triage prompt
+```
 
 ## Known limitations
 

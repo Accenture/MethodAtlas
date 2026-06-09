@@ -12,6 +12,8 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.egothor.methodatlas.api.CredentialDetector;
+import org.egothor.methodatlas.api.CredentialDetectorConfig;
 import org.egothor.methodatlas.api.SourcePatcher;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
@@ -48,6 +50,7 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  *
  * @see TestDiscovery
  * @see SourcePatcher
+ * @see CredentialDetector
  * @see Command
  * @since 1.0.0
  */
@@ -201,6 +204,69 @@ public final class PluginLoader {
                         "Duplicate SourcePatcher plugin ID \"" + id + "\": two or more "
                         + "registered patchers claim the same pluginId(). "
                         + "Each patcher must declare a unique identifier.");
+            }
+        }
+    }
+
+    /**
+     * Loads all {@link CredentialDetector} providers registered via
+     * {@link ServiceLoader}, configures each with {@code config}, and returns
+     * them in registration order. An empty list is legitimate — it means no
+     * credential detector is on the classpath and the feature is unavailable.
+     *
+     * @param config runtime configuration forwarded to each detector; never {@code null}
+     * @return possibly-empty list of configured detectors in registration order
+     * @throws IllegalStateException if two detectors share the same {@code detectorId()}
+     */
+    @SuppressWarnings("PMD.CloseResource") // callers own the lifecycle and must close via closeAllCredentialDetectors()
+    public List<CredentialDetector> loadCredentialDetectors(CredentialDetectorConfig config) {
+        List<CredentialDetector> detectors = new ArrayList<>();
+        for (CredentialDetector detector : ServiceLoader.load(CredentialDetector.class)) {
+            detector.configure(config);
+            detectors.add(detector);
+        }
+        requireUniqueCredentialDetectorIds(detectors);
+        return detectors;
+    }
+
+    /**
+     * Verifies that every {@link CredentialDetector} in the list has a unique
+     * {@link CredentialDetector#detectorId()}.
+     *
+     * @param detectors detectors to validate; never {@code null}
+     * @throws IllegalStateException if two or more detectors share the same id
+     */
+    // Detectors are owned by the caller; closing them here would be wrong.
+    @SuppressWarnings("PMD.CloseResource")
+    public static void requireUniqueCredentialDetectorIds(List<CredentialDetector> detectors) {
+        Set<String> seen = new LinkedHashSet<>();
+        for (CredentialDetector d : detectors) {
+            String id = d.detectorId();
+            if (!seen.add(id)) {
+                throw new IllegalStateException(
+                        "Duplicate CredentialDetector id \"" + id + "\": two or more registered "
+                        + "detectors claim the same detectorId(). Each detector must declare a "
+                        + "unique identifier.");
+            }
+        }
+    }
+
+    /**
+     * Closes every detector in the list, logging any {@link IOException}
+     * at {@link Level#FINE} and continuing so that all detectors are attempted.
+     * Never throws.
+     *
+     * @param detectors detectors to close; must not be {@code null}
+     */
+    @SuppressWarnings("PMD.CloseResource") // this method IS the close mechanism; d.close() is called explicitly
+    public void closeAllCredentialDetectors(List<CredentialDetector> detectors) {
+        for (CredentialDetector d : detectors) {
+            try {
+                d.close();
+            } catch (IOException e) {
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.log(Level.FINE, "Failed to close detector " + d.detectorId(), e);
+                }
             }
         }
     }

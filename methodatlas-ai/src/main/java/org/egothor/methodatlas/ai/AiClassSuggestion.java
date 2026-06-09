@@ -39,9 +39,29 @@ import java.util.List;
  * @param methods               method-level suggestions produced for individual
  *                              test methods; may be empty or {@code null}
  *                              depending on response normalization
+ * @param secrets               credential-triage verdicts for deterministically
+ *                              detected candidates; {@code null} on runs that did
+ *                              not request triage, and populated only by the
+ *                              credential-detection triage path
  * @see AiMethodSuggestion
+ * @see CredentialTriageVerdict
  * @see org.egothor.methodatlas.ai.AiSuggestionEngine
  */
 public record AiClassSuggestion(String className, Boolean classSecurityRelevant, List<String> classTags,
-        String classReason, List<AiMethodSuggestion> methods) {
+        String classReason, List<AiMethodSuggestion> methods, List<CredentialTriageVerdict> secrets) {
+
+    /**
+     * Convenience constructor for callers that do not produce credential-triage
+     * verdicts; {@code secrets} defaults to {@code null}.
+     *
+     * @param className             see {@link #className()}
+     * @param classSecurityRelevant see {@link #classSecurityRelevant()}
+     * @param classTags             see {@link #classTags()}
+     * @param classReason           see {@link #classReason()}
+     * @param methods               see {@link #methods()}
+     */
+    public AiClassSuggestion(String className, Boolean classSecurityRelevant, List<String> classTags,
+            String classReason, List<AiMethodSuggestion> methods) {
+        this(className, classSecurityRelevant, classTags, classReason, methods, null);
+    }
 }

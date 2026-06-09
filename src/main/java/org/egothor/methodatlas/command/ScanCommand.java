@@ -25,7 +25,9 @@ import org.egothor.methodatlas.emit.OutputEmitter;
  * <p>
  * Scans one or more source roots, optionally enriches the output with AI
  * suggestions, and emits test-method records incrementally to the supplied
- * writer.
+ * writer. When {@link CliConfig#detectSecrets()} is enabled, deterministic
+ * credential detection runs after the scan and writes a dedicated secrets CSV
+ * (see {@link CredentialDetectionRunner}).
  * </p>
  *
  * @see org.egothor.methodatlas.emit.OutputEmitter
@@ -101,6 +103,14 @@ public final class ScanCommand implements Command {
         final OutputMode mode = cliConfig.outputMode();
         final boolean emitSourceRoot = cliConfig.emitSourceRoot();
 
+        // Credential detection: prepare() decides whether to fold triage into the
+        // per-class classification call (so the class source is sent once) and, when
+        // folding, returns the context the scan threads through; finish() emits.
+        CredentialDetectionRunner secretRunner = cliConfig.detectSecrets()
+                ? new CredentialDetectionRunner(cliConfig, discoveryConfig, pluginLoader, scanOrchestrator, aiEngine)
+                : null;
+        CredentialTriageContext secretCtx = secretRunner != null ? secretRunner.prepare(roots) : null;
+
         // Scan each root with its own sink so the source_root value can be captured
         // per root. When emitSourceRoot is false, sourceRoot is null and the column
         // is omitted from the output.
@@ -114,7 +124,7 @@ public final class ScanCommand implements Command {
                 if (scanOrchestrator.runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine,
                         scanOrchestrator.filterSink(rootSink, cliConfig.securityOnly(),
                                 cliConfig.minConfidence(), confidenceEnabled),
-                        cliConfig.contentHash(), override, aiCache)) {
+                        cliConfig.contentHash(), override, aiCache, secretCtx)) {
                     hadErrors = true;
                 }
             }
@@ -130,6 +140,11 @@ public final class ScanCommand implements Command {
             LOG.log(Level.INFO, "AI cache: {0} hit(s), {1} miss(es)",
                     new Object[] { aiCache.hits(), aiCache.misses() });
         }
+
+        if (secretRunner != null) {
+            secretRunner.finish(roots, null);
+        }
+
         return hadErrors ? 1 : 0;
     }
 }

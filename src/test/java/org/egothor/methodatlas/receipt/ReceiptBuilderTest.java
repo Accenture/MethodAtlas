@@ -148,8 +148,25 @@ class ReceiptBuilderTest {
         ReproducibilityReceipt receipt = ReceiptBuilder.build(config(false, null), "1.0.0", "CSV");
         assertNull(receipt.inputs().aiProvider(), "aiProvider must be null when AI is off");
         assertNull(receipt.inputs().aiModel(), "aiModel must be null when AI is off");
-        assertNull(receipt.inputs().promptTemplateHash(),
-                "promptTemplateHash must be null when AI is off");
+        assertNull(receipt.inputs().classificationPromptHash(),
+                "classificationPromptHash must be null when AI is off");
+        assertNull(receipt.inputs().triageAppendixPromptHash(),
+                "triageAppendixPromptHash must be null when AI is off");
+        assertNull(receipt.inputs().dedicatedTriagePromptHash(),
+                "dedicatedTriagePromptHash must be null when AI is off");
+    }
+
+    @Test
+    void inputs_recordPromptHashesWhenAiEnabled() throws IOException {
+        ReproducibilityReceipt receipt = ReceiptBuilder.build(config(true, null), "1.0.0", "SARIF");
+        assertNotNull(receipt.inputs().classificationPromptHash(),
+                "classificationPromptHash must be present when AI is on");
+        assertNotNull(receipt.inputs().triageAppendixPromptHash(),
+                "triageAppendixPromptHash must be present when AI is on");
+        assertNotNull(receipt.inputs().dedicatedTriagePromptHash(),
+                "dedicatedTriagePromptHash must be present when AI is on");
+        assertEquals(64, receipt.inputs().classificationPromptHash().length(),
+                "a prompt hash is a 64-char hex SHA-256");
     }
 
     @Test
@@ -207,6 +224,7 @@ class ReceiptBuilderTest {
                 false, aiCacheFile, false, null, -1, false, false, 0.0,
                 false, null,
                 false, null, null,
-                null, null, false, null, null, null, null, false, false);
+                null, null, false, null, null, null, null, false, false,
+                false, null, null, java.nio.file.Path.of("methodatlas-credentials.csv"), false, false, 0.8, 0.4, 0.0);
     }
 }

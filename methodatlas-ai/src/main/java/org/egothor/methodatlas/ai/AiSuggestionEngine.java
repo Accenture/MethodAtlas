@@ -124,6 +124,37 @@ public interface AiSuggestionEngine {
             List<PromptBuilder.TargetMethod> targetMethods) throws AiSuggestionException;
 
     /**
+     * Requests AI classification <em>and</em> credential triage for a single class
+     * in one provider call, so the class source is transmitted only once.
+     *
+     * <p>
+     * When {@code secretCandidates} is empty this is equivalent to
+     * {@link #suggestForClass(String, String, String, List)}. Otherwise the
+     * returned {@link AiClassSuggestion} carries both the method classifications
+     * and a {@link AiClassSuggestion#secrets()} list of verdicts for the supplied
+     * candidates. The default implementation ignores the candidates and delegates
+     * to the four-argument form, which suits engines that do not fold triage into
+     * classification (the returned {@code secrets} is then {@code null}).
+     * </p>
+     *
+     * @param fileStem         dot-separated path stem identifying the source file
+     * @param fqcn             fully qualified class name of the parsed test class
+     * @param classSource      complete source code of the class to analyze
+     * @param targetMethods    deterministically extracted test methods to classify
+     * @param secretCandidates credential candidates to triage in the same call;
+     *                         never {@code null}; empty disables triage
+     * @return normalized classification result, with secret verdicts when triage
+     *         was folded in
+     * @throws AiSuggestionException if analysis fails
+     * @since 4.1.0
+     */
+    default AiClassSuggestion suggestForClass(String fileStem, String fqcn, String classSource,
+            List<PromptBuilder.TargetMethod> targetMethods,
+            List<PromptBuilder.CredentialCandidateRef> secretCandidates) throws AiSuggestionException {
+        return suggestForClass(fileStem, fqcn, classSource, targetMethods);
+    }
+
+    /**
      * Registers an optional callback that the engine will notify after each
      * successful AI round-trip.
      *
@@ -141,5 +172,30 @@ public interface AiSuggestionEngine {
      */
     default void setResponseListener(AiResponseListener listener) {
         // no-op by default
+    }
+
+    /**
+     * Triages deterministically-detected credential candidates for a single class.
+     *
+     * <p>
+     * The candidate list is the closed, explicit input: implementations score
+     * only the supplied candidates and never invent or omit any. The default
+     * implementation returns an empty list, which suits engines that perform no
+     * live triage (for example the manual-workflow consume engine); live engines
+     * override it to issue a dedicated triage request.
+     * </p>
+     *
+     * @param fqcn        fully qualified class name (or file identifier) for context;
+     *                    never {@code null}
+     * @param classSource complete source of the class being triaged; never {@code null}
+     * @param candidates  detected candidates to score; never {@code null}
+     * @return one {@link CredentialTriageVerdict} per scored candidate; never {@code null};
+     *         empty when triage is unavailable
+     * @throws AiSuggestionException if a live triage request fails
+     * @since 4.1.0
+     */
+    default List<CredentialTriageVerdict> triageSecrets(String fqcn, String classSource,
+            List<PromptBuilder.CredentialCandidateRef> candidates) throws AiSuggestionException {
+        return List.of();
     }
 }

@@ -332,6 +332,65 @@ methodatlas-scan:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 ```
 
+## Scanning for hard-coded credentials
+
+[`-detect-secrets`](../concepts/credential-detection.md) adds a deterministic
+credential scan alongside the test inventory. The deterministic layer uses no AI
+and makes no network calls, so it needs no API-key variable and is safe to run on
+every pipeline. Emit the findings as SARIF — GitLab ingests them through the same
+`artifacts.reports.sast` channel as the test scan (SAST reports from multiple jobs
+are merged), so credential findings appear in the merge-request security widget and
+the Security Dashboard:
+
+```yaml
+methodatlas-credentials:
+  image: eclipse-temurin:21-jdk
+  stage: test
+  cache:
+    - key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
+      paths:
+        - methodatlas.jar
+      policy: pull
+  script:
+    - |
+      if [ ! -f methodatlas.jar ]; then
+        curl -fsSL -o methodatlas.jar \
+          https://github.com/Accenture/MethodAtlas/releases/latest/download/methodatlas.jar
+      fi
+    - |
+      java -jar methodatlas.jar \
+        -detect-secrets \
+        -secrets-out methodatlas-credentials.csv \
+        -sarif \
+        src/test/java \
+        > methodatlas-credentials.sarif
+  artifacts:
+    reports:
+      sast: methodatlas-credentials.sarif
+    paths:
+      - methodatlas-credentials.sarif
+      - methodatlas-credentials.csv
+    expire_in: 90 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+```
+
+Secret values are **masked by default** in both the SARIF and the CSV. A
+deterministic-only run emits every finding at `warning` so nothing drops below
+review threshold. (The `artifacts.reports.sast` dashboard integration requires
+GitLab Ultimate, exactly as for the test-classification SARIF above; on lower tiers
+both files remain downloadable job artefacts.)
+
+!!! note "Optional AI triage"
+    Add `-ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY` (with the masked
+    `OPENAI_API_KEY` CI/CD variable) to have the model score each candidate's
+    credibility and attribute it to the endpoint it authenticates against. This
+    transmits the test source to the provider, so for sensitive code prefer a local
+    Ollama model — see the
+    [AI trust boundary](../concepts/credential-detection.md#privacy-and-the-ai-trust-boundary).
+    `-secrets-include <glob>` [**replaces** the default test-class set](../concepts/credential-detection.md#what-gets-scanned).
+
 ## Using a YAML configuration file
 
 For teams that prefer to keep MethodAtlas settings in version control rather

@@ -213,6 +213,24 @@ function Table(tbl)
   --
   -- Platform is usually short; trigger text needs more room.
   if column_count == 3 then
+    -- Credential-detection custom-prompt flag table:
+    --   Flag | YAML key (under ai:) | Overrides
+    -- Column 1 holds long flag tokens (-dedicated-triage-prompt <file>); the
+    -- YAML key column holds camelCase identifiers (dedicatedTriagePrompt).
+    if contains(headers[1], "flag")
+        and contains(headers[2], "yaml key") then
+      return set_widths(tbl, {0.40, 0.27, 0.33})
+    end
+
+    -- Credential rule-catalog field table:
+    --   Field | Required | Meaning
+    -- Short field keys and a short Required column; Meaning dominates.
+    if contains(headers[1], "field")
+        and contains(headers[2], "required")
+        and contains(headers[3], "meaning") then
+      return set_widths(tbl, {0.18, 0.18, 0.64})
+    end
+
     -- Evidence-pack signing-algorithm table:
     --   -evidence-pack-sign-algo value | Kind | Backed by
     -- Column 1 holds algorithm tokens (Ed25519+SPHINCS+), Kind is one short
@@ -545,6 +563,25 @@ function Table(tbl)
 
   -- Generic fallback for wider tables.
   if column_count == 4 then
+    -- Credential-detection prompt-template token table:
+    --   Template | Required tokens | Also allowed | Must retain
+    -- Columns 2 and 3 carry monospace {placeholder} token lists (widest single
+    -- token {expectedMethodNames}); they get the most room.
+    if contains(headers[1], "template")
+        and contains(headers[2], "required token") then
+      return set_widths(tbl, {0.16, 0.32, 0.28, 0.24})
+    end
+
+    -- Reproducibility-receipt schema table:
+    --   Field | Type | When present | Meaning
+    -- Field holds long dotted monospace paths (inputs.classificationPromptHash,
+    -- ~32 chars, no break opportunity), so column 1 must fit them on one line.
+    if contains(headers[1], "field")
+        and contains(headers[2], "type")
+        and contains(headers[3], "when present") then
+      return set_widths(tbl, {0.40, 0.16, 0.16, 0.28})
+    end
+
     if contains(headers[1], "knob")
         and contains(headers[2], "flag")
         and contains(headers[3], "key")

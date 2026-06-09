@@ -227,6 +227,33 @@ See [Evidence Packs](usage-modes/evidence-packs.md).
 
 See [Control-Coverage Matrix](usage-modes/control-coverage.md) and [Reproducibility Receipts](usage-modes/reproducibility-receipts.md).
 
+## Credential detection
+
+```bash
+# Deterministic scan of the discovered test classes; values masked, CSV + log output
+./methodatlas -detect-secrets src/test/java
+
+# Embed credential findings in a SARIF document for Code Scanning
+./methodatlas -detect-secrets -sarif src/test/java > findings.sarif
+
+# Replace the default file set with a glob to reach production source too
+./methodatlas -detect-secrets -secrets-include "**/*.{java,cs,ts}" src
+
+# Add AI triage: credibility score + endpoint per candidate (prefer local Ollama)
+./methodatlas -ai -ai-provider ollama -detect-secrets src/test/java
+
+# Use a custom rule catalog instead of the built-in 170+ rules
+./methodatlas -detect-secrets -secrets-rules my-rules.yaml src/test/java
+
+# Suppress low-credibility candidates below a score threshold
+./methodatlas -ai -detect-secrets -secrets-min-score 0.5 src/test/java
+
+# Validate custom prompt templates and print their checksums, then exit
+./methodatlas -check-prompts -dedicated-triage-prompt my-triage.txt
+```
+
+See [Credential detection](concepts/credential-detection.md). For a CI pipeline step, see [GitHub Actions → Scanning for hard-coded credentials](ci/github-actions.md#scanning-for-hard-coded-credentials).
+
 ## Real-world output example
 
 Running against a mix of functional and cryptographic test classes:

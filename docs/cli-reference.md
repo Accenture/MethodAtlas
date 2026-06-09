@@ -44,6 +44,26 @@ Run `methodatlas -help` (or `--help` / `-h`) for a terse on-screen summary that 
 | `-help`, `--help`, `-h` | Print a usage summary and the URL of this reference, then exit | — |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
+## Credential detection options
+
+Opt-in deterministic detection of credential candidates in the scanned source,
+with optional AI triage. See [Credential detection](concepts/credential-detection.md)
+for the concept and the privacy trust boundary.
+
+| Argument | Meaning | Default |
+| -------- | ------- | --- |
+| `-detect-secrets` | Enable credential detection; writes a secrets CSV and (in SARIF mode) embeds findings in the SARIF document | Off |
+| `-secrets-include <glob>` | **Replaces** (does not extend) the default file set: scans only files whose path matches the glob via an independent walk, instead of the discovered test classes. Also overrides the `-file-suffix` mask. Findings are keyed by file path and triaged with a dedicated LLM call. See [What gets scanned](concepts/credential-detection.md#what-gets-scanned) | Discovered test classes |
+| `-secrets-rules <file>` | Use a custom YAML rule catalog instead of the bundled one | Bundled catalog |
+| `-secrets-out <file>` | Output path for the secrets CSV | `methodatlas-credentials.csv` |
+| `-secrets-show-values` | Print raw (unmasked) secret values in the log, CSV, and SARIF | Off (masked) |
+| `-secrets-error-threshold <n>` | Credibility score at or above which a SARIF finding is `error` | `0.8` |
+| `-secrets-warning-threshold <n>` | Credibility score at or above which a SARIF finding is `warning` | `0.4` |
+| `-secrets-min-score <n>` | Suppress findings whose credibility score is below `n`; deterministic-only (unscored) findings are always kept | `0.0` (keep all) |
+| `-secrets-separate-llm` | Force triage into a standalone LLM call instead of folding it into the per-class classification call. By default, when `-ai` is enabled and the default (test-class) scope is used, triage is folded into the classification call so the class source is sent to the provider once | Off (folded) |
+
+Credential triage requires `-ai`. Without it, deterministic candidates are emitted with empty triage columns. Prefer a local Ollama provider for triage so detected secrets and source never leave your network.
+
 ## AI options
 
 | Argument | Meaning | Default |
@@ -63,6 +83,17 @@ Run `methodatlas -help` (or `--help` / `-h`) for a terse on-screen summary that 
 | `-ai-timeout-sec <seconds>` | Request timeout for provider calls | `90` |
 | `-ai-max-retries <count>` | Retry limit for AI operations | `1` |
 | `-ai-api-version <version>` | Azure OpenAI REST API version appended as `?api-version=` query parameter; only used when provider is `azure_openai` | `2024-02-01` |
+
+## Custom prompt templates
+
+Override the prompts MethodAtlas sends to the AI provider. Each is a plain-text template with `{token}` placeholders; the effective template's SHA-256 is recorded in the [reproducibility receipt](usage-modes/reproducibility-receipts.md). See [Customising the LLM prompts](concepts/credential-detection.md#customising-the-llm-prompts) for the token reference and validation rules.
+
+| Argument | Meaning | Default |
+| --- | --------- | --- |
+| `-classification-prompt <file>` | Override the method-classification prompt template | Built-in |
+| `-triage-prompt <file>` | Override the folded credential-triage appendix (combined mode) | Built-in |
+| `-dedicated-triage-prompt <file>` | Override the standalone credential-triage prompt (separate mode) | Built-in |
+| `-check-prompts` | Validate the templates (defaults, or the overrides passed alongside), print each one's SHA-256, and exit; non-zero exit if any is invalid. A utility mode — no scan runs | — |
 
 ## Manual AI options
 

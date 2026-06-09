@@ -431,6 +431,52 @@ jobs:
     `-ai-provider openai -ai-api-key-env OPENAI_API_KEY` and store
     `OPENAI_API_KEY` as a repository secret. All other steps are identical.
 
+## Scanning for hard-coded credentials
+
+[`-detect-secrets`](../concepts/credential-detection.md) adds a deterministic
+credential scan alongside the test inventory. The deterministic layer needs no AI
+and makes no network calls, so it is safe to run on every push. Emit the findings
+as SARIF (credential findings are embedded in the SARIF document under
+`secret/<rule-id>` rules) and upload them to Code Scanning under their own category:
+
+```yaml
+      - name: Run MethodAtlas — credential detection (deterministic, no AI)
+        run: |
+          java -jar methodatlas.jar \
+            -detect-secrets \
+            -secrets-out methodatlas-credentials.csv \
+            -sarif \
+            src/test/java \
+            > methodatlas-credentials.sarif
+
+      - name: Upload credential-detection SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: methodatlas-credentials.sarif
+          category: methodatlas-credentials
+
+      - name: Upload credentials CSV artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodatlas-credentials
+          path: methodatlas-credentials.csv
+          retention-days: 30
+```
+
+Secret values are **masked by default** in both the SARIF and the CSV. SARIF
+severity is derived from the credibility score; a deterministic-only run (no AI)
+emits every finding at `warning` so nothing drops below review threshold.
+
+!!! note "Optional AI triage"
+    Add `-ai -ai-provider github_models -ai-api-key-env GITHUB_TOKEN` to the same
+    command to have the model score each candidate's credibility and attribute it to
+    the endpoint it authenticates against. This transmits the test source to the
+    provider, so for sensitive code prefer a local Ollama model — see the
+    [AI trust boundary](../concepts/credential-detection.md#privacy-and-the-ai-trust-boundary).
+    To narrow or widen the file set, use `-secrets-include <glob>`, which
+    [**replaces** the default test-class set](../concepts/credential-detection.md#what-gets-scanned).
+
 ## Persisting human corrections with an override file
 
 AI classification is non-deterministic: the same test method may receive

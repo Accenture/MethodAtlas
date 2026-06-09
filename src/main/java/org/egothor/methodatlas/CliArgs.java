@@ -1,6 +1,7 @@
 package org.egothor.methodatlas;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -15,6 +16,10 @@ import java.util.Set;
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.emit.OutputMode;
 import org.egothor.methodatlas.ai.AiProvider;
+import org.egothor.methodatlas.ai.PromptTemplateException;
+import org.egothor.methodatlas.ai.PromptTemplateKind;
+import org.egothor.methodatlas.ai.PromptTemplateSet;
+import org.egothor.methodatlas.ai.PromptTemplateValidator;
 
 /**
  * Parses command-line arguments into a {@link CliConfig}.
@@ -66,6 +71,18 @@ final class CliArgs {
     private static final String FLAG_EVIDENCE_PACK_KEYRING_ENV = "-evidence-pack-keyring-env";
     private static final String FLAG_EVIDENCE_PACK_KEY_ALIAS = "-evidence-pack-key-alias";
     private static final String FLAG_EVIDENCE_PACK_SIGN_ALGO = "-evidence-pack-sign-algo";
+    private static final String FLAG_DETECT_SECRETS = "-detect-secrets";
+    private static final String FLAG_SECRETS_INCLUDE = "-secrets-include";
+    private static final String FLAG_SECRETS_RULES = "-secrets-rules";
+    private static final String FLAG_SECRETS_OUT = "-secrets-out";
+    private static final String FLAG_SECRETS_SEPARATE_LLM = "-secrets-separate-llm";
+    private static final String FLAG_SECRETS_SHOW_VALUES = "-secrets-show-values";
+    private static final String FLAG_SECRETS_ERROR_THRESHOLD = "-secrets-error-threshold";
+    private static final String FLAG_SECRETS_WARNING_THRESHOLD = "-secrets-warning-threshold";
+    private static final String FLAG_SECRETS_MIN_SCORE = "-secrets-min-score";
+    private static final String FLAG_CLASSIFICATION_PROMPT = "-classification-prompt";
+    private static final String FLAG_TRIAGE_PROMPT = "-triage-prompt";
+    private static final String FLAG_DEDICATED_TRIAGE_PROMPT = "-dedicated-triage-prompt";
 
     /**
      * Prevents instantiation of this utility class.
@@ -163,6 +180,26 @@ final class CliArgs {
         // into source where curated columns are blank — risky and off by default.
         // Seeded from YAML (promoteAi:) and overridable by the CLI flag.
         boolean promoteAi = yamlConfig != null && yamlConfig.promoteAi;
+        // Credential-detection flags — all off/null/default until -detect-secrets is given.
+        boolean detectSecrets = yamlConfig != null && yamlConfig.detectSecrets;
+        String secretsInclude = yamlConfig != null ? yamlConfig.secretsInclude : null;
+        Path secretsRules = yamlConfig != null && yamlConfig.secretsRules != null
+                ? Paths.get(yamlConfig.secretsRules) : null;
+        Path secretsOut = yamlConfig != null && yamlConfig.secretsOut != null
+                ? Paths.get(yamlConfig.secretsOut) : Path.of("methodatlas-credentials.csv");
+        boolean secretsSeparateLlm = yamlConfig != null && yamlConfig.secretsSeparateLlm;
+        boolean secretsShowValues = yamlConfig != null && yamlConfig.secretsShowValues;
+        double secretsErrorThreshold = yamlConfig != null && yamlConfig.secretsErrorThreshold != null
+                ? yamlConfig.secretsErrorThreshold : 0.8;
+        double secretsWarningThreshold = yamlConfig != null && yamlConfig.secretsWarningThreshold != null
+                ? yamlConfig.secretsWarningThreshold : 0.4;
+        double secretsMinScore = yamlConfig != null && yamlConfig.secretsMinScore != null
+                ? yamlConfig.secretsMinScore : 0.0;
+        // Optional prompt-template override files (CLI overrides YAML). Resolved into
+        // an effective PromptTemplateSet after parsing, validated fail-fast.
+        Path classificationPromptFile = yamlAiPromptPath(yamlConfig, "classification");
+        Path triagePromptFile = yamlAiPromptPath(yamlConfig, "triage");
+        Path dedicatedTriagePromptFile = yamlAiPromptPath(yamlConfig, "dedicatedTriage");
         // Tracks whether the first CLI -file-suffix has been seen; when it is,
         // subsequent -file-suffix values are appended rather than replacing defaults.
         boolean cliFileSuffixSet = false;
@@ -250,6 +287,22 @@ final class CliArgs {
                 case FLAG_EVIDENCE_PACK_KEYRING_ENV -> evidencePackKeyringEnv = nextArg(args, ++i, arg);
                 case FLAG_EVIDENCE_PACK_KEY_ALIAS -> evidencePackKeyAlias = nextArg(args, ++i, arg);
                 case FLAG_EVIDENCE_PACK_SIGN_ALGO -> evidencePackSignAlgo = nextArg(args, ++i, arg);
+                case FLAG_DETECT_SECRETS -> detectSecrets = true;
+                case FLAG_SECRETS_INCLUDE -> secretsInclude = nextArg(args, ++i, arg);
+                case FLAG_SECRETS_RULES -> secretsRules = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_SECRETS_OUT -> secretsOut = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_SECRETS_SEPARATE_LLM -> secretsSeparateLlm = true;
+                case FLAG_SECRETS_SHOW_VALUES -> secretsShowValues = true;
+                case FLAG_SECRETS_ERROR_THRESHOLD ->
+                    secretsErrorThreshold = Double.parseDouble(nextArg(args, ++i, arg));
+                case FLAG_SECRETS_WARNING_THRESHOLD ->
+                    secretsWarningThreshold = Double.parseDouble(nextArg(args, ++i, arg));
+                case FLAG_SECRETS_MIN_SCORE ->
+                    secretsMinScore = Double.parseDouble(nextArg(args, ++i, arg));
+                case FLAG_CLASSIFICATION_PROMPT -> classificationPromptFile = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_TRIAGE_PROMPT -> triagePromptFile = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_DEDICATED_TRIAGE_PROMPT ->
+                    dedicatedTriagePromptFile = Paths.get(nextArg(args, ++i, arg));
                 case "-manual-prepare" -> {
                     manualWorkDir = nextArg(args, ++i, arg);
                     manualResponseDir = nextArg(args, ++i, arg);
@@ -297,6 +350,11 @@ final class CliArgs {
             return null;
         }
 
+        // Resolve and validate any prompt-template overrides, then hand the effective
+        // set to the AI options so both prompt rendering and receipt hashing use it.
+        aiBuilder.promptTemplates(
+                resolvePromptTemplates(classificationPromptFile, triagePromptFile, dedicatedTriagePromptFile));
+
         List<String> resolvedSuffixes = fileSuffixes.isEmpty() ? List.of(DEFAULT_FILE_SUFFIX) : fileSuffixes;
         Set<String> resolvedMarkers = testMarkers.isEmpty() ? Set.of() : testMarkers;
         return new CliConfig(outputMode, aiBuilder.build(), paths, resolvedSuffixes, resolvedMarkers,
@@ -306,7 +364,10 @@ final class CliArgs {
                 emitCoverage, coverageFile, coverageMappingFile,
                 evidencePackFramework, evidencePackDir,
                 evidencePackOverwrite, evidencePackKeyringFile, evidencePackKeyringEnv,
-                evidencePackKeyAlias, evidencePackSignAlgo, verbose, promoteAi);
+                evidencePackKeyAlias, evidencePackSignAlgo, verbose, promoteAi,
+                detectSecrets, secretsInclude, secretsRules,
+                secretsOut, secretsSeparateLlm, secretsShowValues,
+                secretsErrorThreshold, secretsWarningThreshold, secretsMinScore);
     }
 
     // -------------------------------------------------------------------------
@@ -402,6 +463,74 @@ final class CliArgs {
         if (aiConfig.apiVersion != null) {
             builder.apiVersion(aiConfig.apiVersion);
         }
+    }
+
+    /**
+     * Reads an AI prompt-template override path from the YAML config, if present.
+     *
+     * @param yamlConfig loaded YAML config, or {@code null}
+     * @param which      one of {@code "classification"}, {@code "triage"},
+     *                   {@code "dedicatedTriage"}
+     * @return the configured path, or {@code null} when unset
+     */
+    private static Path yamlAiPromptPath(YamlConfig.YamlConfigFile yamlConfig, String which) {
+        if (yamlConfig == null || yamlConfig.ai == null) {
+            return null;
+        }
+        String value = switch (which) {
+            case "classification" -> yamlConfig.ai.classificationPrompt;
+            case "triage" -> yamlConfig.ai.triagePrompt;
+            case "dedicatedTriage" -> yamlConfig.ai.dedicatedTriagePrompt;
+            default -> null;
+        };
+        return value == null ? null : Paths.get(value);
+    }
+
+    /**
+     * Builds the effective {@link PromptTemplateSet} from the built-in defaults plus
+     * any operator overrides, validating each override fail-fast.
+     *
+     * @param classification  classification template file, or {@code null}
+     * @param triageAppendix   folded triage-appendix template file, or {@code null}
+     * @param dedicatedTriage standalone triage template file, or {@code null}
+     * @return the resolved template set; never {@code null}
+     * @throws IllegalArgumentException if an override file cannot be read or fails
+     *                                  structural validation
+     */
+    private static PromptTemplateSet resolvePromptTemplates(Path classification, Path triageAppendix,
+            Path dedicatedTriage) {
+        PromptTemplateSet set = PromptTemplateSet.defaults();
+        set = applyPromptOverride(set, PromptTemplateKind.CLASSIFICATION, classification);
+        set = applyPromptOverride(set, PromptTemplateKind.TRIAGE_APPENDIX, triageAppendix);
+        set = applyPromptOverride(set, PromptTemplateKind.DEDICATED_TRIAGE, dedicatedTriage);
+        return set;
+    }
+
+    /**
+     * Loads, validates, and applies a single prompt-template override.
+     *
+     * @param set  the set to extend; must not be {@code null}
+     * @param kind the kind the file overrides; must not be {@code null}
+     * @param file the override file, or {@code null} to leave the kind unchanged
+     * @return the (possibly extended) set; never {@code null}
+     * @throws IllegalArgumentException if the file cannot be read or is invalid
+     */
+    private static PromptTemplateSet applyPromptOverride(PromptTemplateSet set, PromptTemplateKind kind, Path file) {
+        if (file == null) {
+            return set;
+        }
+        String body;
+        try {
+            body = Files.readString(file);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot read prompt template " + file + ": " + e.getMessage(), e);
+        }
+        try {
+            PromptTemplateValidator.validateOrThrow(kind, body, file.toString());
+        } catch (PromptTemplateException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
+        return set.with(kind, body);
     }
 
     // -------------------------------------------------------------------------

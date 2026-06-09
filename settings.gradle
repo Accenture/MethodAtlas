@@ -11,6 +11,8 @@ include 'methodatlas-discovery-python'
 include 'methodatlas-discovery-powershell'
 include 'methodatlas-discovery-abap'
 include 'methodatlas-discovery-cobol'
+// Built-in credential detector (SecretDetector SPI implementation)
+include 'methodatlas-detect-secrets'
 
 // Documentation PDF module — not part of the binary distribution.
 // Build on request: ./gradlew :methodatlas-docs:generatePdf

@@ -36,6 +36,7 @@ dependencies {
     runtimeOnly project(':methodatlas-discovery-powershell')
     runtimeOnly project(':methodatlas-discovery-abap')
     runtimeOnly project(':methodatlas-discovery-cobol')
+    runtimeOnly project(':methodatlas-detect-secrets') // Built-in credential detector — discovered at runtime via ServiceLoader
 
     // FlatLaf — professional flat Look and Feel, Apache 2.0
     implementation 'com.formdev:flatlaf:3.4'
