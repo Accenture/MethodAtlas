@@ -212,48 +212,37 @@ jobs:
         id: restore-ai-cache
         uses: actions/cache/restore@v4
         with:
-          path: build/methodatlas-cache.csv.gz
+          path: build/methodatlas-cache.json.gz
           key: methodatlas-ai-cache-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
             methodatlas-ai-cache-${{ github.ref_name }}-
             methodatlas-ai-cache-
 
       # -----------------------------------------------------------------------
-      # Run MethodAtlas AI classification — two-pass approach
+      # Run MethodAtlas — classification + credential detection (single pass)
       #
       # Uses GitHub Models (provider: github_models) authenticated with
       # GITHUB_TOKEN — automatically available in every GitHub Actions run,
       # no additional secrets or billing setup required.
       #
-      # WHY TWO PASSES?
-      #   SARIF output does not carry the content_hash column that the cache
-      #   mechanism requires.  A CSV pass is therefore run first to build an
-      #   up-to-date cache file; the SARIF pass then reads exclusively from that
-      #   file and makes zero AI calls.  This approach also guarantees that the
-      #   SARIF output and the cache are always in sync.
+      # A SINGLE combined pass classifies test methods AND triages credentials in
+      # one prompt per class. The unified AI cache (-ai-cache / -ai-cache-out)
+      # carries BOTH the classifications and the credential verdicts, keyed by the
+      # class content hash and tagged with the prompt-catalogue signature, so an
+      # unchanged class is served from cache with zero AI calls and the SARIF still
+      # reports its credentials. -ai-cache-out persists the cache regardless of the
+      # output format, so the old CSV-then-SARIF two-pass workaround is gone.
       #
-      # Pass 1 — CSV (cache refresh):
-      #   Reads the restored cache and calls the AI provider only for classes
-      #   that are new or whose content_hash differs from the cached value.
-      #   The output becomes the new cache file for the next run.
-      #
-      # Pass 2 — SARIF (zero AI calls):
-      #   Every class produced in pass 1 is now present in the cache.  The SARIF
-      #   pass reads those classifications locally without calling the AI.
-      #   -drift-detect is applied here so it appears in Code Scanning findings.
-      #
-      # Flags used in both passes:
-      #   -ai               enable AI security classification
-      #   -ai-provider      github_models (free, uses GITHUB_TOKEN)
-      #   -ai-model         model from github.com/marketplace/models
-      #   -ai-confidence    include per-method confidence scores in output
-      #   -content-hash     record the SHA-256 fingerprint for caching
-      #   -override-file    (optional) apply human-reviewed corrections
-      #
-      # Flags used in pass 2 only:
-      #   -sarif            emit SARIF 2.1.0 for Code Scanning upload
-      #   -drift-detect     flag @Tag("security") / AI disagreements
-      #   -ai-cache         path to the cache produced in pass 1
+      # Flags:
+      #   -ai / -ai-provider / -ai-model / -ai-api-key-env  AI provider selection
+      #   -ai-taxonomy-mode optimized / -ai-confidence       classification tuning
+      #   -content-hash   per-class fingerprint used as the cache key
+      #   -drift-detect   flag @Tag("security") / AI disagreements in the SARIF
+      #   -detect-secrets deterministic credential detection + folded AI triage
+      #   -secrets-out    credential CSV (values masked by default)
+      #   -ai-cache / -ai-cache-out   read and write the unified cache
+      #   -override-file  (optional) apply human-reviewed corrections
+      #   -sarif          one SARIF with classifications AND credential findings
       #
       # ───────────────────────────────────────────────────────────────────────
       # ADAPTING FOR YOUR OWN PROJECT
@@ -293,68 +282,52 @@ jobs:
             OVERRIDE_ARGS=("-override-file" "$LOCAL_OVERRIDE_FILE")
           fi
 
-          # Decompress the restored cache file (gzip is used to reduce GitHub
-          # Actions cache storage consumption — CSV text compresses very well).
-          # If no cache was restored the .gz file is absent; the cold-start
-          # branch handles this by leaving CACHE_ARGS empty.
-          if [ -f build/methodatlas-cache.csv.gz ]; then
-            gunzip -k build/methodatlas-cache.csv.gz
+          # Decompress the restored unified cache (gzip keeps the Actions cache
+          # small). If none was restored the .gz file is absent and the run starts
+          # cold — every class calls the provider.
+          if [ -f build/methodatlas-cache.json.gz ]; then
+            gunzip -k build/methodatlas-cache.json.gz
           fi
 
-          # Report cache status so that CI logs explain the expected AI traffic.
-          if [ -f build/methodatlas-cache.csv ]; then
-            CACHE_ROWS=$(tail -n +2 build/methodatlas-cache.csv | wc -l | tr -d ' ')
-            echo "AI classification cache restored ($CACHE_ROWS cached method rows)."
-            echo "Only test classes whose source has changed will be sent to the AI provider."
-            CACHE_ARGS=("-ai-cache" "build/methodatlas-cache.csv")
+          # Report cache status so the CI log explains the expected AI traffic.
+          CACHE_ARGS=()
+          if [ -f build/methodatlas-cache.json ]; then
+            CACHED=$(wc -l < build/methodatlas-cache.json | tr -d ' ')
+            echo "Unified AI cache restored ($CACHED cached classes)."
+            echo "Only classes whose source changed will be sent to the AI provider."
+            CACHE_ARGS=("-ai-cache" "build/methodatlas-cache.json")
           else
-            echo "No AI classification cache found. All test classes will be sent to the AI provider."
-            CACHE_ARGS=()
+            echo "No AI cache found. All test classes will be sent to the AI provider."
           fi
 
-          # Flags shared between both passes.
-          COMMON_FLAGS=(
-            -ai
-            -ai-provider github_models
-            -ai-model "${{ inputs.ai-model }}"
-            -ai-api-key-env GITHUB_TOKEN
-            -ai-taxonomy-mode optimized
-            -ai-max-class-chars 20000
-            -ai-max-retries 3
-            -ai-confidence
-            -content-hash
-          )
-
-          # ── Pass 1: CSV ──────────────────────────────────────────────────
-          # Produces a fresh cache file.  Only changed / new classes call the
-          # AI provider; unchanged classes are served from the restored cache.
-          echo "Pass 1: building classification cache …"
+          # ── Single combined pass ─────────────────────────────────────────
+          # Classifies methods AND triages credentials in one prompt per class.
+          # Changed classes call the provider; unchanged classes are served from
+          # the restored unified cache (classifications AND credential verdicts).
+          echo "Running classification + credential detection …"
           "$METHODATLAS" \
-            "${COMMON_FLAGS[@]}" \
-            "${CACHE_ARGS[@]}" \
-            "${OVERRIDE_ARGS[@]}" \
-            "${{ inputs.test-source-path }}" \
-            > build/methodatlas-cache-new.csv
-          mv build/methodatlas-cache-new.csv build/methodatlas-cache.csv
-          CACHED_ROWS=$(tail -n +2 build/methodatlas-cache.csv | wc -l | tr -d ' ')
-          echo "Pass 1 complete: $CACHED_ROWS method rows in cache."
-
-          # Compress the updated cache for storage.  The uncompressed file is
-          # kept alongside so that pass 2 can read it without a second gunzip.
-          gzip -c build/methodatlas-cache.csv > build/methodatlas-cache.csv.gz
-
-          # ── Pass 2: SARIF ────────────────────────────────────────────────
-          # Every class is now in the freshly built cache; no AI calls are made.
-          echo "Pass 2: generating SARIF from cache (no AI calls) …"
-          "$METHODATLAS" \
-            "${COMMON_FLAGS[@]}" \
-            -sarif \
+            -ai \
+            -ai-provider github_models \
+            -ai-model "${{ inputs.ai-model }}" \
+            -ai-api-key-env GITHUB_TOKEN \
+            -ai-taxonomy-mode optimized \
+            -ai-max-class-chars 20000 \
+            -ai-max-retries 3 \
+            -ai-confidence \
+            -content-hash \
             -drift-detect \
-            -ai-cache build/methodatlas-cache.csv \
+            -detect-secrets \
+            -secrets-out build/reports/methodatlas-credentials.csv \
+            "${CACHE_ARGS[@]}" \
+            -ai-cache-out build/methodatlas-cache.json \
             "${OVERRIDE_ARGS[@]}" \
+            -sarif \
             "${{ inputs.test-source-path }}" \
             > build/reports/methodatlas-sarif.json
-          echo "Pass 2 complete: SARIF written to build/reports/methodatlas-sarif.json."
+
+          # Compress the updated unified cache for the save step.
+          gzip -c build/methodatlas-cache.json > build/methodatlas-cache.json.gz
+          echo "Run complete: SARIF + credential CSV written; unified cache updated."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LOCAL_OVERRIDE_FILE: ${{ inputs.override-file }}
@@ -362,52 +335,17 @@ jobs:
           SECURITY_PATH: ${{ inputs.security-overrides-path }}
 
       # -----------------------------------------------------------------------
-      # Credential / secret detection — deterministic, no AI
+      # Save the unified AI cache for the next run
       #
-      # Runs MethodAtlas's clean-room credential scanner over the same test
-      # sources. This layer makes no AI provider calls and no network calls, so
-      # it needs no token and is safe on every run. Findings are embedded in a
-      # SARIF document (under secret/<rule-id> rules) and the raw values are
-      # masked by default in both the SARIF and the CSV.
-      #
-      # It is kept as a separate, AI-free step (rather than folded into the
-      # classification passes above) so it always runs deterministically and is
-      # never short-circuited by the AI cache.
-      #
-      # ADAPTING FOR YOUR OWN PROJECT: this step is self-contained; the only
-      # requirement is the security-events: write permission already granted
-      # above, used by the credential SARIF upload further down.
+      # Stored under a key that includes the commit SHA; the restore-keys prefix
+      # lets the next run on the same branch fall back to it. Saved only on
+      # success (never a partial cache) and compressed to minimise storage.
       # -----------------------------------------------------------------------
-      - name: Run MethodAtlas — credential detection (deterministic, no AI)
-        run: |
-          mkdir -p build/reports
-          echo "Scanning ${{ inputs.test-source-path }} for hard-coded credentials …"
-          "$METHODATLAS" \
-            -detect-secrets \
-            -secrets-out build/reports/methodatlas-credentials.csv \
-            -sarif \
-            "${{ inputs.test-source-path }}" \
-            > build/reports/methodatlas-credentials.sarif
-          echo "Credential detection complete: build/reports/methodatlas-credentials.{sarif,csv}"
-
-      # -----------------------------------------------------------------------
-      # Save AI classification cache for the next run
-      #
-      # The CSV produced in pass 1 is stored under a key that includes the
-      # current commit SHA.  The restore-keys prefix ensures that the next run
-      # on the same branch finds this entry as a fallback even when its own
-      # exact key is not yet cached.
-      #
-      # The step runs only when the classification step succeeded, so a partial
-      # or empty cache file is never stored.  The compressed form (.gz) is saved
-      # to minimise GitHub Actions cache storage consumption; the uncompressed
-      # file used during the run is not cached.
-      # -----------------------------------------------------------------------
-      - name: Save AI classification cache
+      - name: Save AI cache
         if: success()
         uses: actions/cache/save@v4
         with:
-          path: build/methodatlas-cache.csv.gz
+          path: build/methodatlas-cache.json.gz
           key: methodatlas-ai-cache-${{ github.ref_name }}-${{ github.sha }}
 
       # -----------------------------------------------------------------------
@@ -437,24 +375,16 @@ jobs:
           retention-days: 30
 
       # -----------------------------------------------------------------------
-      # Publish credential-detection results
+      # Publish the credential CSV
       #
-      # The credential SARIF is uploaded under its own Code Scanning category so
-      # it appears separately from the test-classification findings. The CSV and
-      # SARIF are also retained as a downloadable artifact for 30 days.
+      # Credential findings are already embedded in the SARIF uploaded above
+      # (under secret/<rule-id> rules); the masked CSV is retained as a separate
+      # downloadable artifact for triage.
       # -----------------------------------------------------------------------
-      - name: Upload credential-detection SARIF to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: build/reports/methodatlas-credentials.sarif
-          category: methodatlas-credentials
-
-      - name: Upload credential-detection artifacts
+      - name: Upload credential-detection CSV artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: methodatlas-credentials
-          path: |
-            build/reports/methodatlas-credentials.sarif
-            build/reports/methodatlas-credentials.csv
+          path: build/reports/methodatlas-credentials.csv
           retention-days: 30

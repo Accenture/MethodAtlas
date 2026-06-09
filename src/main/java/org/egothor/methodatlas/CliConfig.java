@@ -154,6 +154,9 @@ import org.egothor.methodatlas.emit.OutputMode;
  * @param secretsErrorThreshold   SARIF {@code error} score floor (default {@code 0.8})
  * @param secretsWarningThreshold SARIF {@code warning} score floor (default {@code 0.4})
  * @param secretsMinScore         suppress findings below this score (default {@code 0.0} = keep all)
+ * @param aiCacheOut              path to write the unified AI result cache (JSON Lines) after the
+ *                                scan, or {@code null} to write none; pair with {@code aiCacheFile}
+ *                                pointing at the same path for an incremental read-update cache
  * @since 3.0.0
  */
 public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
@@ -168,5 +171,6 @@ public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> p
         String evidencePackSignAlgo, boolean verbose, boolean promoteAi,
         boolean detectSecrets, String secretsInclude, Path secretsRules,
         Path secretsOut, boolean secretsSeparateLlm, boolean secretsShowValues,
-        double secretsErrorThreshold, double secretsWarningThreshold, double secretsMinScore) {
+        double secretsErrorThreshold, double secretsWarningThreshold, double secretsMinScore,
+        Path aiCacheOut) {
 }

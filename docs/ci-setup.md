@@ -146,7 +146,7 @@ jobs:
 ```
 
 For a full, self-contained GitHub Actions workflow that includes caching,
-SARIF upload, and the two-pass pattern, see
+SARIF upload, and credential detection, see
 [GitHub Actions](ci/github-actions.md).
 
 

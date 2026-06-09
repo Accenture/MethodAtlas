@@ -7,9 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
 import org.egothor.methodatlas.ai.AiClassSuggestion;
+import org.egothor.methodatlas.ai.AiMethodSuggestion;
+import org.egothor.methodatlas.ai.CredentialTriageVerdict;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -190,6 +193,73 @@ class AiResultCacheTest {
         AiResultCache cache = AiResultCache.load(csv);
         assertTrue(cache.lookup(null).isEmpty());
         assertEquals(1, cache.misses());
+    }
+
+    // -------------------------------------------------------------------------
+    // Unified JSON-Lines cache: round-trip + prompt-signature gating
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("unified cache round-trips classifications and credential verdicts when the signature matches")
+    @Tag("positive")
+    void unifiedCache_roundTripsClassificationAndVerdicts(@TempDir Path tempDir) throws Exception {
+        String hash = "1".repeat(64);
+        String signature = "sig-default";
+        AiClassSuggestion suggestion = new AiClassSuggestion(
+                "com.acme.LoginTest", Boolean.TRUE, List.of("security"), "class reason",
+                List.of(new AiMethodSuggestion("testLogin", true, "SECURITY: auth",
+                        List.of("security", "auth"), "Tests login.", 0.5, 0.0)),
+                List.of(new CredentialTriageVerdict(0, 0.9, "https://api.example", "looks live")));
+        Path file = tempDir.resolve("cache.jsonl");
+        AiCacheStore.write(file, List.of(new AiCacheEntry(hash, signature, suggestion)));
+
+        AiResultCache cache = AiResultCache.load(file);
+
+        Optional<AiClassSuggestion> classification = cache.classification(hash, signature);
+        assertTrue(classification.isPresent(), "classification must be served on a signature match");
+        assertEquals("testLogin", classification.get().methods().get(0).methodName());
+
+        Optional<List<CredentialTriageVerdict>> verdicts = cache.verdicts(hash, signature);
+        assertTrue(verdicts.isPresent(), "verdicts must be served on a signature match");
+        assertEquals(1, verdicts.get().size());
+        assertEquals(0, verdicts.get().get(0).candidateIndex());
+        assertEquals(0.9, verdicts.get().get(0).credibilityScore(), 0.001);
+        assertEquals("https://api.example", verdicts.get().get(0).endpoint());
+    }
+
+    @Test
+    @DisplayName("a different prompt signature misses both classification and verdicts")
+    @Tag("negative")
+    void unifiedCache_signatureMismatchMissesBoth(@TempDir Path tempDir) throws Exception {
+        String hash = "2".repeat(64);
+        AiClassSuggestion suggestion = new AiClassSuggestion(null, null, null, null,
+                List.of(new AiMethodSuggestion("t", false, null, List.of(), null, 0.0, 0.0)),
+                List.of(new CredentialTriageVerdict(0, 0.1, null, "placeholder")));
+        Path file = tempDir.resolve("cache.jsonl");
+        AiCacheStore.write(file, List.of(new AiCacheEntry(hash, "sig-A", suggestion)));
+
+        AiResultCache cache = AiResultCache.load(file);
+
+        assertTrue(cache.classification(hash, "sig-B").isEmpty(),
+                "classification from a different prompt catalogue must not be reused");
+        assertTrue(cache.verdicts(hash, "sig-B").isEmpty(),
+                "verdicts from a different prompt catalogue must not be reused");
+    }
+
+    @Test
+    @DisplayName("legacy CSV entry serves classification by content hash but never satisfies a credential query")
+    @Tag("edge-case")
+    void legacyCsvEntry_servesClassificationNotVerdicts(@TempDir Path tempDir) throws Exception {
+        String hash = "3".repeat(64);
+        Path csv = buildMinimalCsv(tempDir, hash,
+                "com.acme.FooTest", "testFoo", "true", "SECURITY: foo", "security", "Reason.", "0.0");
+
+        AiResultCache cache = AiResultCache.load(csv);
+
+        assertTrue(cache.classification(hash, "any-signature").isPresent(),
+                "a legacy entry (no signature) is served by content hash, preserving prior behaviour");
+        assertTrue(cache.verdicts(hash, "any-signature").isEmpty(),
+                "a legacy entry carries no verdicts and cannot satisfy a credential query");
     }
 
     // -------------------------------------------------------------------------

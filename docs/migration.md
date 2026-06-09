@@ -14,10 +14,58 @@ commit history, see the project
 | **2.x.x** | Single built-in Java scanner; configuration tightly coupled to JVM annotation names |
 | **3.x.x** | Plugin-based discovery via `ServiceLoader`; configuration generalised to support multiple languages and platforms |
 | **4.x.x** | Evidence packs and post-quantum-capable manifest signing; the GUI evidence CSV aligned to the CLI drift definition and extended with reviewer tag-delta columns |
+| **5.x.x** | Credential/secret detection (`-detect-secrets`), user-definable and checksum-audited LLM prompts, and a unified AI result cache; the reproducibility-receipt schema is raised to v2 |
 
 MethodAtlas follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 A major version increment means at least one breaking change that requires
 action from the operator.
+
+## Upgrading from 4.x to 5.x
+
+### Summary of breaking changes
+
+| Area | What changed | Action required |
+|---|---|---|
+| Reproducibility receipt | Schema raised **v1 → v2**: `inputs.promptTemplateHash` is removed and replaced by `inputs.classificationPromptHash`, `inputs.triageAppendixPromptHash`, and `inputs.dedicatedTriagePromptHash`; all three are folded into `configHash` (its canonical key set grows from eight keys to ten) | Update any tooling that reads `promptTemplateHash` or re-derives `configHash`; branch on `schemaVersion` and compare only receipts of the same version |
+
+The receipt is the only consumed contract that changes incompatibly; every other 5.x addition is opt-in and backward-compatible (see *New in 5.x* below).
+
+### Reproducibility receipt schema v1 → v2  ⚠️ breaking
+
+Schema v1 hashed only the classification prompt skeleton, in a single `inputs.promptTemplateHash`. It did not cover the credential-triage prompts and could not represent operator-supplied custom prompts. Schema v2 replaces that single field with one hash per **effective** prompt template:
+
+- `inputs.classificationPromptHash`
+- `inputs.triageAppendixPromptHash`
+- `inputs.dedicatedTriagePromptHash`
+
+and folds all three into the canonical `configHash`. Because the key set differs, **a v1 `configHash` and a v2 `configHash` are not comparable**, even for an otherwise identical configuration.
+
+**How to detect the problem:** a consumer that reads `inputs.promptTemplateHash` finds it absent on a 5.x receipt; a consumer that re-derives `configHash` from a hard-coded key list computes a mismatching value.
+
+**How to fix it:**
+
+- Branch on the top-level `schemaVersion` field (now `"2"`); read the three new `*PromptHash` fields and treat `promptTemplateHash` as v1-only.
+- Compare receipts only within the same `schemaVersion`. To compare a pre-5.x configuration against a 5.x one, re-run the older configuration under 5.x to obtain a v2 receipt, then compare v2-to-v2.
+- Retain archived v1 receipts as-is — do not attempt to "upgrade" them, which would invalidate their provenance.
+
+The full field table, the ten-key `configHash` derivation, and a worked v1→v2 comparison are in the [Reproducibility Receipts](usage-modes/reproducibility-receipts.md) reference under *Schema migration: v1 → v2*.
+
+### New in 5.x (no action required)
+
+These additions are opt-in and do not affect existing pipelines:
+
+| Area | What changed | Action required |
+|---|---|---|
+| Credential detection | New `-detect-secrets` mode (a clean-room engine over 170+ vendor formats, with optional AI triage) and a `CredentialDetector` SPI | None — opt-in |
+| Custom LLM prompts | `-classification-prompt`, `-triage-prompt`, `-dedicated-triage-prompt`, and `-check-prompts`; the effective prompt is checksummed into the receipt | None — the built-in templates remain the default |
+| AI result cache | A unified JSON-Lines cache (`-ai-cache-out`) stores classifications **and** credential verdicts; one combined pass replaces the CSV-then-SARIF two-pass. `-ai-cache` still reads a legacy scan CSV | None required — legacy CSV caches are still read. Recommended: switch CI to a single `-ai-cache cache.json -ai-cache-out cache.json` pass; see [AI Result Caching](ai/caching.md) |
+
+### Checklist: upgrading from 4.x to 5.x
+
+- [ ] Audit every consumer of the reproducibility-receipt JSON: read the three `*PromptHash` fields, branch on `schemaVersion`, and stop reading `promptTemplateHash`
+- [ ] Ensure receipt comparisons are made only within the same `schemaVersion`
+- [ ] (Optional) Migrate CI caching to the single-pass unified cache (`-ai-cache cache.json -ai-cache-out cache.json`)
+- [ ] (Optional) Enable `-detect-secrets` where credential scanning of test sources is wanted
 
 ## Upgrading from 3.x to 4.x
 

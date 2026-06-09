@@ -36,109 +36,61 @@ The cache input file must have been produced with:
 
 If either column is absent, the cache silently degrades to a no-op: every class is classified by the AI provider as normal.
 
-## Two-pass pattern for SARIF output
+## Unified cache: one pass for SARIF, classifications, and credentials
 
-SARIF output does not carry the `content_hash` column, so a SARIF file cannot itself serve as a cache for the next run. When you need both a persistent cache **and** SARIF output, run MethodAtlas twice in the same CI job.
+The unified cache (JSON Lines) is written by [`-ai-cache-out`](../cli-reference.md#-ai-cache) and read by `-ai-cache`. Unlike a scan CSV it is independent of the output format, so a **single** run can emit SARIF *and* persist the cache — the older CSV-then-SARIF two-pass workaround is no longer needed.
 
-**Pass 1** produces an up-to-date CSV cache, calling the AI only for classes that changed. **Pass 2** reads exclusively from the pass-1 cache to produce SARIF — it makes zero AI calls.
+Each entry is keyed by the class content hash and tagged with a *prompt-catalogue signature* (a SHA-256 over the effective prompt templates). An entry is reused only when **both** match, so editing a prompt template correctly invalidates stale answers. Crucially, one entry carries the full answer — method classifications **and** any credential-triage verdicts — so a combined `-ai -detect-secrets` run caches both: an unchanged class on the next run is served from cache for classification *and* credentials, with zero AI calls.
 
 ```bash
-# Pass 1: CSV — calls AI only for classes that changed since the cached run.
-#          Produces an up-to-date cache for the next run.
+# One pass: classify methods, triage credentials, emit SARIF, update the cache.
+# Day 1 the cache file does not exist yet (cold start). Day 2+ reuses unchanged
+# classes — for both classification and credentials — at no API cost.
 ./methodatlas \
   -ai -ai-provider github_models -ai-api-key-env GITHUB_TOKEN \
-  -content-hash \
-  -ai-cache prev-cache.csv \
-  src/test/java \
-  > current-cache.csv
-
-# Pass 2: SARIF — reads exclusively from the cache produced in pass 1.
-#          Makes zero AI calls because every class is now in the cache.
-./methodatlas \
-  -ai -ai-provider github_models -ai-api-key-env GITHUB_TOKEN \
-  -content-hash \
-  -ai-cache current-cache.csv \
-  -sarif \
-  src/test/java \
+  -content-hash -drift-detect \
+  -detect-secrets -secrets-out credentials.csv \
+  -ai-cache cache.json -ai-cache-out cache.json \
+  -sarif src/test/java \
   > results.sarif
 ```
 
-On the very first run omit `-ai-cache prev-cache.csv` (the file does not yet exist). Every subsequent run passes the previous scan's CSV as the cache.
+This keeps the SARIF and the cache in sync, makes AI calls only for changed classes, and keeps findings for unchanged classes present in the SARIF so GitHub Code Scanning does not close them between runs. A legacy scan CSV is still accepted by `-ai-cache` (auto-detected): its classifications are reused by content hash, but it carries no credential verdicts.
 
-The two-pass approach guarantees:
-
-- The SARIF findings and the stored cache are always in sync.
-- No AI calls are made during the SARIF pass, eliminating rate-limit exposure for that pass entirely.
-- All findings from unchanged classes remain present in the SARIF output, so GitHub Code Scanning does not close them as resolved between runs.
-
-The reusable workflow `methodatlas-analysis.yml` shipped with this project implements this pattern automatically. See [GitHub Actions](../ci/github-actions.md) for the full workflow and [CI Setup](../ci-setup.md) for integration guidance.
+The reusable workflow `methodatlas-analysis.yml` shipped with this project implements exactly this single-pass pattern. See [GitHub Actions](../ci/github-actions.md) for the full workflow and [CI Setup](../ci-setup.md) for integration guidance.
 
 ## CI workflow examples
 
-The cache file is stored in compressed form (`.gz`) to minimise GitHub Actions cache storage consumption. CSV text typically compresses to 10–20 % of its original size, making the cache practical even for very large test suites.
+The cache file is stored in compressed form (`.gz`) to minimise GitHub Actions cache storage consumption; the JSON-Lines cache compresses well even for very large test suites.
 
-### CSV output with caching
+### GitHub Actions example
+
+A single cached pass classifies, emits SARIF, and refreshes the unified cache:
 
 ```yaml
-- name: Restore MethodAtlas AI cache
-  uses: actions/cache@v4
+- name: MethodAtlas AI cache
+  uses: actions/cache@v4        # restores before the run, saves after
   with:
-    path: .methodatlas-cache.csv.gz
+    path: .methodatlas-cache.json.gz
     key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
     restore-keys: |
       methodatlas-ai-${{ github.ref_name }}-
       methodatlas-ai-
 
-- name: Run MethodAtlas
+- name: Run MethodAtlas (cached, single pass)
   run: |
-    [ -f .methodatlas-cache.csv.gz ] && gunzip -k .methodatlas-cache.csv.gz
+    [ -f .methodatlas-cache.json.gz ] && gunzip -k .methodatlas-cache.json.gz
     CACHE_ARGS=()
-    [ -f .methodatlas-cache.csv ] && CACHE_ARGS=("-ai-cache" ".methodatlas-cache.csv")
-    ./methodatlas -ai -content-hash "${CACHE_ARGS[@]}" src/test/java \
-      > .methodatlas-cache-new.csv
-    mv .methodatlas-cache-new.csv .methodatlas-cache.csv
-    gzip -c .methodatlas-cache.csv > .methodatlas-cache.csv.gz
-```
-
-On the first run (cold cache) every class is classified by the AI. On subsequent runs, only modified classes incur API calls.
-
-### SARIF output with caching (two-pass)
-
-```yaml
-- name: Restore MethodAtlas AI cache
-  uses: actions/cache/restore@v4
-  with:
-    path: .methodatlas-cache.csv.gz
-    key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
-    restore-keys: |
-      methodatlas-ai-${{ github.ref_name }}-
-      methodatlas-ai-
-
-- name: Run MethodAtlas — CSV pass (cache refresh)
-  run: |
-    [ -f .methodatlas-cache.csv.gz ] && gunzip -k .methodatlas-cache.csv.gz
-    CACHE_ARGS=()
-    [ -f .methodatlas-cache.csv ] && CACHE_ARGS=("-ai-cache" ".methodatlas-cache.csv")
-    ./methodatlas -ai -content-hash "${CACHE_ARGS[@]}" src/test/java \
-      > .methodatlas-cache-new.csv
-    mv .methodatlas-cache-new.csv .methodatlas-cache.csv
-    # Keep the uncompressed file for pass 2; also produce the .gz for storage.
-    gzip -c .methodatlas-cache.csv > .methodatlas-cache.csv.gz
-
-- name: Run MethodAtlas — SARIF pass (zero AI calls)
-  run: |
+    [ -f .methodatlas-cache.json ] && CACHE_ARGS=("-ai-cache" ".methodatlas-cache.json")
     ./methodatlas -ai -content-hash \
-      -ai-cache .methodatlas-cache.csv \
+      "${CACHE_ARGS[@]}" \
+      -ai-cache-out .methodatlas-cache.json \
       -sarif \
       src/test/java > results.sarif
-
-- name: Save MethodAtlas AI cache
-  if: success()
-  uses: actions/cache/save@v4
-  with:
-    path: .methodatlas-cache.csv.gz
-    key: methodatlas-ai-${{ github.ref_name }}-${{ github.sha }}
+    gzip -c .methodatlas-cache.json > .methodatlas-cache.json.gz
 ```
+
+On the first run (cold cache) every class is classified by the AI. On subsequent runs only modified classes incur API calls; swap `-sarif` for CSV or `-github-annotations` as needed — the caching is identical.
 
 ## Combining with `-diff`
 

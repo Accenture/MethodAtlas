@@ -14,6 +14,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import org.egothor.methodatlas.AiCacheEntry;
+import org.egothor.methodatlas.AiCacheStore;
 import org.egothor.methodatlas.AiResultCache;
 import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.egothor.methodatlas.CliConfig;
@@ -24,6 +26,7 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.ai.AiSuggestionException;
+import org.egothor.methodatlas.ai.CredentialTriageVerdict;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.SuggestionLookup;
 import org.egothor.methodatlas.api.DiscoveredMethod;
@@ -188,15 +191,26 @@ public final class ScanOrchestrator {
             CredentialTriageContext secretCtx) throws IOException {
         List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
         boolean hadErrors = false;
+        // Accumulates one cache entry per processed class across all roots; written
+        // once at the end when -ai-cache-out is set.
+        Map<String, AiCacheEntry> cacheAll =
+                cliConfig.aiCacheOut() != null ? new LinkedHashMap<>() : null;
         try {
             for (Path root : roots) {
-                if (runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine, sink,
-                        cliConfig.contentHash(), override, aiCache, secretCtx)) {
+                DiscoveryResult result = runDiscoveryInternal(root, providers, cliConfig.aiOptions(),
+                        aiEngine, sink, cliConfig.contentHash(), override, aiCache, secretCtx);
+                if (result.hadErrors()) {
                     hadErrors = true;
+                }
+                if (cacheAll != null) {
+                    cacheAll.putAll(result.cacheEntries());
                 }
             }
         } finally {
             pluginLoader.closeAll(providers);
+        }
+        if (cacheAll != null) {
+            AiCacheStore.write(cliConfig.aiCacheOut(), cacheAll.values());
         }
         return hadErrors ? 1 : 0;
     }
@@ -255,8 +269,24 @@ public final class ScanOrchestrator {
      * @throws IOException if traversing the file tree fails
      * @since 4.1.0
      */
-    @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
     public boolean runDiscovery(Path root, List<TestDiscovery> providers,
+            AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
+            boolean contentHashEnabled, ClassificationOverride override,
+            AiResultCache aiCache, CredentialTriageContext secretCtx) throws IOException {
+        return runDiscoveryInternal(root, providers, aiOptions, aiEngine, sink, contentHashEnabled,
+                override, aiCache, secretCtx).hadErrors();
+    }
+
+    /**
+     * Body of {@link #runDiscovery(Path, List, AiOptions, AiSuggestionEngine, TestMethodSink,
+     * boolean, ClassificationOverride, AiResultCache, CredentialTriageContext)} that also returns one
+     * {@link AiCacheEntry} per processed class (cache hits preserved, misses freshly computed) so the
+     * caller can persist the unified AI result cache.
+     *
+     * @return the error flag plus the per-class cache entries keyed by content hash
+     */
+    @SuppressWarnings("PMD.CloseResource") // providers are owned by the caller; this method does not close them
+    private DiscoveryResult runDiscoveryInternal(Path root, List<TestDiscovery> providers,
             AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
             boolean contentHashEnabled, ClassificationOverride override,
             AiResultCache aiCache, CredentialTriageContext secretCtx) throws IOException {
@@ -276,38 +306,70 @@ public final class ScanOrchestrator {
                         LinkedHashMap::new, Collectors.toList()));
 
         AiRuntime ai = new AiRuntime(aiOptions, aiEngine, override, aiCache);
+        // The prompt-catalogue signature gates cache reuse and tags written entries;
+        // only meaningful when AI is enabled.
+        String promptSignature = aiEngine == null ? null : aiOptions.promptTemplates().signature();
 
+        Map<String, AiCacheEntry> cacheEntries = new LinkedHashMap<>();
         for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
-            String fqcn = entry.getKey();
-            List<DiscoveredMethod> classMethods = entry.getValue();
-
-            // groupingBy never produces an empty value list, so the first method is
-            // always present; it is the representative carrying the class-level fields
-            // (source content and file stem are identical across a class's methods).
-            DiscoveredMethod representative = classMethods.get(0);
-            String classSource = representative.sourceContent().get().orElse(null);
-
-            String lookupHash = (contentHashEnabled || aiCache.isActive()) && classSource != null
-                    ? ContentHasher.hashClass(classSource) : null;
-            String outputHash = contentHashEnabled ? lookupHash : null;
-
-            String fileStem = representative.fileStem();
-            List<String> methodNames = classMethods.stream().map(DiscoveredMethod::method).toList();
-            List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
-                    .map(ScanOrchestrator::toTargetMethod)
-                    .toList();
-
-            SuggestionLookup suggestions = resolveSuggestionLookup(
-                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash, secretCtx);
-
-            for (DiscoveredMethod m : classMethods) {
-                effectiveSink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
-                        m.tags(), m.displayName(),
-                        suggestions.find(m.method()).orElse(null));
-            }
+            processClass(entry, ai, promptSignature, contentHashEnabled, secretCtx,
+                    effectiveSink, cacheEntries);
         }
 
-        return hadErrors;
+        return new DiscoveryResult(hadErrors, cacheEntries);
+    }
+
+    /**
+     * Classifies one class (consulting the cache), feeds its methods to {@code effectiveSink}, and —
+     * when AI produced a cacheable answer with a content hash — records a cache entry.
+     *
+     * @param entry           one class's discovered methods, keyed by FQCN
+     * @param ai              AI runtime (engine, override, cache)
+     * @param promptSignature current prompt-catalogue signature, or {@code null} when AI is disabled
+     * @param contentHashEnabled whether the emitted records carry the content hash
+     * @param secretCtx       credential-triage context, or {@code null}
+     * @param effectiveSink   sink receiving the per-method records
+     * @param cacheEntries    accumulator to record the cacheable answer into, keyed by content hash
+     * @throws IOException if the sink fails to record a method
+     */
+    private void processClass(Map.Entry<String, List<DiscoveredMethod>> entry, AiRuntime ai,
+            String promptSignature, boolean contentHashEnabled, CredentialTriageContext secretCtx,
+            TestMethodSink effectiveSink, Map<String, AiCacheEntry> cacheEntries) throws IOException {
+        String fqcn = entry.getKey();
+        List<DiscoveredMethod> classMethods = entry.getValue();
+
+        // groupingBy never produces an empty value list, so the first method is always
+        // present; it is the representative carrying the class-level fields (source
+        // content and file stem are identical across a class's methods).
+        DiscoveredMethod representative = classMethods.get(0);
+        String classSource = representative.sourceContent().get().orElse(null);
+
+        // The content hash is needed to read the cache, to emit the hash column, and to
+        // key a written cache entry — so compute it whenever any of those apply.
+        String lookupHash = (contentHashEnabled || ai.cache().isActive() || ai.engine() != null)
+                && classSource != null
+                ? ContentHasher.hashClass(classSource) : null;
+        String outputHash = contentHashEnabled ? lookupHash : null;
+
+        String fileStem = representative.fileStem();
+        List<String> methodNames = classMethods.stream().map(DiscoveredMethod::method).toList();
+        List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
+                .map(ScanOrchestrator::toTargetMethod)
+                .toList();
+
+        Resolved resolved = resolveSuggestionLookup(fileStem, fqcn, classSource, methodNames,
+                targetMethods, ai, lookupHash, promptSignature, secretCtx);
+        SuggestionLookup suggestions = resolved.lookup();
+
+        for (DiscoveredMethod m : classMethods) {
+            effectiveSink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
+                    m.tags(), m.displayName(),
+                    suggestions.find(m.method()).orElse(null));
+        }
+
+        if (resolved.cacheable() != null && lookupHash != null) {
+            cacheEntries.put(lookupHash, new AiCacheEntry(lookupHash, promptSignature, resolved.cacheable()));
+        }
     }
 
     /**
@@ -384,6 +446,7 @@ public final class ScanOrchestrator {
     public void gatherAiSuggestionsForFile(Map<String, List<DiscoveredMethod>> byClass,
             AiRuntime ai, AiResultCache aiCache,
             Map<String, List<String>> tagsToApply, Map<String, String> displayNames) {
+        String promptSignature = ai.engine() == null ? null : ai.options().promptTemplates().signature();
         for (Map.Entry<String, List<DiscoveredMethod>> classEntry : byClass.entrySet()) {
             String fqcn = classEntry.getKey();
             List<DiscoveredMethod> classMethods = classEntry.getValue();
@@ -401,7 +464,8 @@ public final class ScanOrchestrator {
                     .map(ScanOrchestrator::toTargetMethod).toList();
 
             SuggestionLookup suggestions = resolveSuggestionLookup(
-                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash, null);
+                    fileStem, fqcn, classSource, methodNames, targetMethods, ai, lookupHash,
+                    promptSignature, null).lookup();
 
             for (DiscoveredMethod m : classMethods) {
                 AiMethodSuggestion suggestion = suggestions.find(m.method()).orElse(null);
@@ -509,25 +573,42 @@ public final class ScanOrchestrator {
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private static SuggestionLookup resolveSuggestionLookup(String fileStem, String fqcn,
+    /**
+     * Resolves the AI answer for one class, consulting the signature-gated cache
+     * before any provider call and serving cached credential verdicts when present.
+     *
+     * @param promptSignature the current run's prompt-catalogue signature, or
+     *                        {@code null} when AI is disabled
+     * @return the override-applied lookup plus the raw answer to cache (or
+     *         {@code null} when nothing should be cached)
+     */
+    private static Resolved resolveSuggestionLookup(String fileStem, String fqcn,
             String classSource, List<String> methodNames, List<PromptBuilder.TargetMethod> targetMethods,
-            AiRuntime ai, String contentHash, CredentialTriageContext secretCtx) {
+            AiRuntime ai, String contentHash, String promptSignature, CredentialTriageContext secretCtx) {
         if (methodNames.isEmpty()) {
-            return SuggestionLookup.from(null);
+            return new Resolved(SuggestionLookup.from(null), null);
         }
 
         if (ai.engine() == null) {
-            return SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames));
+            return new Resolved(SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames)), null);
         }
 
-        // Check the cache before making an API call.
-        AiClassSuggestion cached = ai.cache().lookup(contentHash).orElse(null);
+        List<PromptBuilder.CredentialCandidateRef> candidates =
+                secretCtx == null ? List.of() : secretCtx.candidatesFor(fqcn);
+
+        // Cache first, gated on the prompt-catalogue signature. A hit serves the
+        // classification AND (when this run triages credentials) the verdicts —
+        // from the same cached answer, with no provider call.
+        AiClassSuggestion cached = ai.cache().classification(contentHash, promptSignature).orElse(null);
         if (cached != null) {
-            return SuggestionLookup.from(ai.override().apply(fqcn, cached, methodNames));
+            AiClassSuggestion cacheable = candidates.isEmpty() ? cached
+                    : serveOrTriageVerdicts(ai, fqcn, classSource, contentHash, promptSignature,
+                            candidates, cached, secretCtx);
+            return new Resolved(SuggestionLookup.from(ai.override().apply(fqcn, cached, methodNames)), cacheable);
         }
 
         if (classSource == null) {
-            return SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames));
+            return new Resolved(SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames)), null);
         }
 
         if (ai.options().enabled() && classSource.length() > ai.options().maxClassChars()) {
@@ -535,7 +616,7 @@ public final class ScanOrchestrator {
                 LOG.log(Level.INFO, "Skipping AI for {0}: class source too large ({1} chars)",
                         new Object[] { fqcn, classSource.length() });
             }
-            return SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames));
+            return new Resolved(SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames)), null);
         }
 
         if (LOG.isLoggable(Level.INFO)) {
@@ -543,11 +624,8 @@ public final class ScanOrchestrator {
         }
 
         try {
-            List<PromptBuilder.CredentialCandidateRef> candidates =
-                    secretCtx == null ? List.of() : secretCtx.candidatesFor(fqcn);
-            // Only use the folding overload when there are candidates to triage, so
-            // the common (classification-only) path calls the exact same method as
-            // before — preserving behaviour for callers and test doubles.
+            // Fold credential triage into the single classification call when there
+            // are candidates, so the class source is sent to the provider once.
             AiClassSuggestion aiClassSuggestion;
             if (candidates.isEmpty()) {
                 aiClassSuggestion = ai.engine().suggestForClass(fileStem, fqcn, classSource, targetMethods);
@@ -556,12 +634,80 @@ public final class ScanOrchestrator {
                         ai.engine().suggestForClass(fileStem, fqcn, classSource, targetMethods, candidates);
                 secretCtx.recordVerdicts(fqcn, aiClassSuggestion.secrets());
             }
-            return SuggestionLookup.from(ai.override().apply(fqcn, aiClassSuggestion, methodNames));
+            return new Resolved(
+                    SuggestionLookup.from(ai.override().apply(fqcn, aiClassSuggestion, methodNames)),
+                    aiClassSuggestion);
         } catch (AiSuggestionException e) {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING, "AI suggestion failed for class " + fqcn, e);
             }
-            return SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames));
+            return new Resolved(SuggestionLookup.from(ai.override().apply(fqcn, null, methodNames)), null);
         }
+    }
+
+    /**
+     * On a classification cache hit, supplies the credential verdicts: cached when
+     * present for this signature, otherwise a one-off dedicated triage call (so a
+     * class whose classification was cached without verdicts still gets scored).
+     *
+     * @return the cached suggestion augmented with the resolved verdicts, for re-caching
+     */
+    private static AiClassSuggestion serveOrTriageVerdicts(AiRuntime ai, String fqcn, String classSource,
+            String contentHash, String promptSignature,
+            List<PromptBuilder.CredentialCandidateRef> candidates, AiClassSuggestion cached,
+            CredentialTriageContext secretCtx) {
+        Optional<List<CredentialTriageVerdict>> cachedVerdicts =
+                ai.cache().verdicts(contentHash, promptSignature);
+        if (cachedVerdicts.isPresent()) {
+            secretCtx.recordVerdicts(fqcn, cachedVerdicts.get());
+            return withSecrets(cached, cachedVerdicts.get());
+        }
+        if (classSource == null) {
+            return cached;
+        }
+        try {
+            List<CredentialTriageVerdict> verdicts = ai.engine().triageSecrets(fqcn, classSource, candidates);
+            secretCtx.recordVerdicts(fqcn, verdicts);
+            return withSecrets(cached, verdicts);
+        } catch (AiSuggestionException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING, "Credential triage failed for cached class " + fqcn, e);
+            }
+            return cached;
+        }
+    }
+
+    /**
+     * Returns a copy of {@code suggestion} with its credential verdicts replaced.
+     *
+     * @param suggestion the classification result to copy; never {@code null}
+     * @param secrets    the verdicts to attach; may be {@code null}
+     * @return a new suggestion carrying {@code secrets}
+     */
+    private static AiClassSuggestion withSecrets(AiClassSuggestion suggestion,
+            List<CredentialTriageVerdict> secrets) {
+        return new AiClassSuggestion(suggestion.className(), suggestion.classSecurityRelevant(),
+                suggestion.classTags(), suggestion.classReason(), suggestion.methods(), secrets);
+    }
+
+    /**
+     * The outcome of resolving one class: the override-applied per-method lookup, and
+     * the raw AI answer to persist in the cache ({@code null} when nothing should be
+     * cached — no AI, no methods, oversized source, or a failed call).
+     *
+     * @param lookup    per-method suggestion lookup fed to the sink; never {@code null}
+     * @param cacheable the full AI answer to cache, or {@code null}
+     */
+    private record Resolved(SuggestionLookup lookup, AiClassSuggestion cacheable) {
+    }
+
+    /**
+     * The result of scanning one root: whether any provider errored, and the unified
+     * cache entries collected for the classes processed in that root.
+     *
+     * @param hadErrors    {@code true} if any provider reported a non-fatal error
+     * @param cacheEntries cache entries keyed by content hash; never {@code null}
+     */
+    private record DiscoveryResult(boolean hadErrors, Map<String, AiCacheEntry> cacheEntries) {
     }
 }

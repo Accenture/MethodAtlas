@@ -225,6 +225,7 @@ class ReceiptBuilderTest {
                 false, null,
                 false, null, null,
                 null, null, false, null, null, null, null, false, false,
-                false, null, null, java.nio.file.Path.of("methodatlas-credentials.csv"), false, false, 0.8, 0.4, 0.0);
+                false, null, null, java.nio.file.Path.of("methodatlas-credentials.csv"), false, false, 0.8, 0.4, 0.0,
+                null);
     }
 }

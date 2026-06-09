@@ -78,7 +78,8 @@ Credential triage requires `-ai`. Without it, deterministic candidates are emitt
 | `-ai-api-key-env <name>` | Read API key from an environment variable | — |
 | `-ai-taxonomy <path>` | Load taxonomy text from an external file | Built-in taxonomy |
 | `-ai-taxonomy-mode <mode>` | Select built-in taxonomy variant: `default` or `optimized` | `default` |
-| `-ai-cache <file>` | Use a previous scan's CSV as a classification cache; classes whose SHA-256 hash matches are reused without calling the AI provider | — |
+| `-ai-cache <file>` | Read a unified AI cache (JSON Lines) — or a legacy scan CSV — from a previous run; a class whose content hash **and** prompt-catalogue signature match is reused (classification *and* any credential verdicts) without calling the provider | — |
+| `-ai-cache-out <file>` | Write the unified AI cache (JSON Lines) after the scan. Pair with `-ai-cache` at the same path for an incremental read-update cache — one combined run caches both classification and credential triage, with no two-pass workaround | — |
 | `-ai-max-class-chars <count>` | Skip AI for classes larger than this character count | `40000` |
 | `-ai-timeout-sec <seconds>` | Request timeout for provider calls | `90` |
 | `-ai-max-retries <count>` | Retry limit for AI operations | `1` |

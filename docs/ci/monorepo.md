@@ -109,14 +109,15 @@ level delta gating, or retained as a consolidated evidence artefact.
 
 ### Producing a project-level SARIF
 
-Run a second pass with `-sarif` using the aggregated cache:
+Run a SARIF scan over all modules using the combined unified cache — unchanged
+classes are served from it, so this makes few or no new AI calls:
 
 ```bash
 java -jar methodatlas.jar \
   -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
   -sarif -security-only \
   -emit-source-root \
-  -ai-cache .methodatlas-cache-combined.csv \
+  -ai-cache .methodatlas-cache-combined.json \
   module-auth/src/test/java \
   module-payment/src/test/java \
   module-reporting/src/test/java \

@@ -236,6 +236,39 @@ public record PromptTemplateSet(String classification, String triageAppendix, St
     }
 
     /**
+     * Returns a single SHA-256 hex signature identifying this whole prompt
+     * catalogue (all three templates together).
+     *
+     * <p>
+     * Two runs share a signature if and only if they use byte-identical
+     * classification, triage-appendix, and dedicated-triage templates. The
+     * AI result cache uses this to decide whether a cached answer may be reused:
+     * an answer obtained under one catalogue must not be served to a run using a
+     * different catalogue (the model could answer differently), even though the
+     * concrete prompt for a subset query differs. The built-in defaults therefore
+     * have one stable signature; any operator override yields a different one.
+     * </p>
+     *
+     * @return a 64-character lowercase hexadecimal SHA-256 digest; never {@code null}
+     * @see <a href="https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf">FIPS 180-4</a>
+     */
+    public String signature() {
+        try {
+            MessageDigest digest = MessageDigest.getInstance(SHA256_ALGO);
+            // A NUL separator keeps the three bodies unambiguous so no concatenation
+            // collision can make two distinct catalogues share a signature.
+            digest.update(classification.getBytes(StandardCharsets.UTF_8));
+            digest.update((byte) 0);
+            digest.update(triageAppendix.getBytes(StandardCharsets.UTF_8));
+            digest.update((byte) 0);
+            digest.update(dedicatedTriage.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    /**
      * Returns the SHA-256 hex digest of the template body for the given kind.
      *
      * <p>

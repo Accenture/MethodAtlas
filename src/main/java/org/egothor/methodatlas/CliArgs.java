@@ -51,6 +51,7 @@ final class CliArgs {
     private static final String DEFAULT_FILE_SUFFIX = "java:Test.java";
     private static final String FLAG_CONFIG = "-config";
     private static final String FLAG_AI_CACHE = "-ai-cache";
+    private static final String FLAG_AI_CACHE_OUT = "-ai-cache-out";
     private static final String FLAG_DRIFT_DETECT = "-drift-detect";
     private static final String FLAG_EMIT_SOURCE_ROOT = "-emit-source-root";
     private static final String FLAG_INCLUDE_NON_SECURITY = "-include-non-security";
@@ -161,6 +162,7 @@ final class CliArgs {
         boolean driftDetect = yamlConfig != null && yamlConfig.driftDetect;
         boolean emitSourceRoot = false;
         Path aiCacheFile = null;
+        Path aiCacheOut = null;
         Path applyTagsFromCsvFile = null;
         int mismatchLimit = -1;
         boolean emitReceipt = false;
@@ -208,6 +210,10 @@ final class CliArgs {
             String arg = args[i];
             if (FLAG_AI_CACHE.equals(arg)) {
                 aiCacheFile = Paths.get(nextArg(args, ++i, arg));
+                continue;
+            }
+            if (FLAG_AI_CACHE_OUT.equals(arg)) {
+                aiCacheOut = Paths.get(nextArg(args, ++i, arg));
                 continue;
             }
             if (arg.startsWith("-ai")) {
@@ -367,7 +373,8 @@ final class CliArgs {
                 evidencePackKeyAlias, evidencePackSignAlgo, verbose, promoteAi,
                 detectSecrets, secretsInclude, secretsRules,
                 secretsOut, secretsSeparateLlm, secretsShowValues,
-                secretsErrorThreshold, secretsWarningThreshold, secretsMinScore);
+                secretsErrorThreshold, secretsWarningThreshold, secretsMinScore,
+                aiCacheOut);
     }
 
     // -------------------------------------------------------------------------

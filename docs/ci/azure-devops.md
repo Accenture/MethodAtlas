@@ -152,31 +152,23 @@ steps:
       key: 'methodatlas | "$(Agent.OS)" | $(Build.SourcesDirectory)/src/test/java/**/*.java'
       restoreKeys: |
         methodatlas | "$(Agent.OS)"
-      path: $(Build.SourcesDirectory)/.methodatlas-cache.csv
+      path: $(Build.SourcesDirectory)/.methodatlas-cache.json
     displayName: Restore MethodAtlas AI cache
 
   - script: |
       CACHE_ARG=""
-      if [ -f .methodatlas-cache.csv ]; then
-        CACHE_ARG="-ai-cache .methodatlas-cache.csv"
+      if [ -f .methodatlas-cache.json ]; then
+        CACHE_ARG="-ai-cache .methodatlas-cache.json"
       fi
 
-      # Pass 1: CSV — refreshes cache, calls AI only for changed classes
-      java -jar methodatlas.jar \
-        -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-        -content-hash \
-        -security-only \
-        $CACHE_ARG \
-        src/test/java \
-        > .methodatlas-cache-new.csv
-      mv .methodatlas-cache-new.csv .methodatlas-cache.csv
-
-      # Pass 2: SARIF — reads exclusively from cache, zero AI calls
+      # Single combined pass: classify, emit SARIF, and refresh the unified cache.
+      # Only changed classes call the AI provider.
       java -jar methodatlas.jar \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
         -sarif -security-only \
         -content-hash \
-        -ai-cache .methodatlas-cache.csv \
+        $CACHE_ARG \
+        -ai-cache-out .methodatlas-cache.json \
         src/test/java \
         > methodatlas.sarif
     displayName: Run MethodAtlas with cache
@@ -308,36 +300,26 @@ stages:
               key: 'methodatlas | "$(Agent.OS)" | $(Build.SourcesDirectory)/src/test/java/**/*.java'
               restoreKeys: |
                 methodatlas | "$(Agent.OS)"
-              path: $(Build.SourcesDirectory)/.methodatlas-cache.csv
+              path: $(Build.SourcesDirectory)/.methodatlas-cache.json
             displayName: Restore AI cache
 
           - script: |
               CACHE_ARG=""
-              if [ -f .methodatlas-cache.csv ]; then
-                CACHE_ARG="-ai-cache .methodatlas-cache.csv"
+              if [ -f .methodatlas-cache.json ]; then
+                CACHE_ARG="-ai-cache .methodatlas-cache.json"
               fi
 
-              # Pass 1: classify and update cache
+              # Single combined pass: classify (CSV output drives the -diff delta
+              # gate below) and refresh the unified cache. Only changed classes
+              # call the AI provider; unchanged classes come from the cache.
               java -jar methodatlas.jar \
                 -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
                 -content-hash \
                 -security-only \
                 $CACHE_ARG \
+                -ai-cache-out .methodatlas-cache.json \
                 src/test/java \
-                > .methodatlas-cache-new.csv
-              mv .methodatlas-cache-new.csv .methodatlas-cache.csv
-
-              # Pass 2: emit SARIF from cache (zero AI calls)
-              java -jar methodatlas.jar \
-                -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-                -sarif -security-only \
-                -content-hash \
-                -ai-cache .methodatlas-cache.csv \
-                src/test/java \
-                > methodatlas.sarif
-
-              # Produce CSV for delta gating
-              cp .methodatlas-cache.csv current.csv
+                > current.csv
             displayName: Run MethodAtlas
             env:
               OPENAI_API_KEY: $(openaiApiKey)
@@ -367,12 +349,6 @@ stages:
                 echo "No baseline — skipping delta gate."
               fi
             displayName: Delta gate
-
-          - task: PublishBuildArtifacts@1
-            inputs:
-              pathToPublish: methodatlas.sarif
-              artifactName: methodatlas-sarif
-            displayName: Publish SARIF
 
           - task: PublishBuildArtifacts@1
             inputs:

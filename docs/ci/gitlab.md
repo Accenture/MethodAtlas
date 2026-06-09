@@ -119,7 +119,7 @@ methodatlas-scan:
       policy: pull-push
     - key: "methodatlas-ai-$CI_COMMIT_REF_SLUG"
       paths:
-        - .methodatlas-cache.csv
+        - .methodatlas-cache.json
       policy: pull-push
   script:
     - |
@@ -129,26 +129,19 @@ methodatlas-scan:
       fi
     - |
       CACHE_ARG=""
-      if [ -f .methodatlas-cache.csv ]; then
-        CACHE_ARG="-ai-cache .methodatlas-cache.csv"
+      if [ -f .methodatlas-cache.json ]; then
+        CACHE_ARG="-ai-cache .methodatlas-cache.json"
       fi
 
-      # Pass 1: CSV — refreshes cache, calls AI only for changed classes
-      java -jar methodatlas.jar \
-        -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-        -content-hash \
-        -security-only \
-        $CACHE_ARG \
-        src/test/java \
-        > .methodatlas-cache-new.csv
-      mv .methodatlas-cache-new.csv .methodatlas-cache.csv
-
-      # Pass 2: SARIF — reads exclusively from cache, zero AI calls
+      # Single combined pass: classify, emit SARIF, and refresh the unified cache.
+      # Only changed classes call the AI provider; unchanged classes are served
+      # from the cache (classification and, with -detect-secrets, credentials).
       java -jar methodatlas.jar \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
         -sarif -security-only \
         -content-hash \
-        -ai-cache .methodatlas-cache.csv \
+        $CACHE_ARG \
+        -ai-cache-out .methodatlas-cache.json \
         src/test/java \
         > methodatlas.sarif
   artifacts:
@@ -279,53 +272,30 @@ methodatlas-scan:
     - <<: *methodatlas-binary-cache
     - key: "methodatlas-ai-$CI_COMMIT_REF_SLUG"
       paths:
-        - .methodatlas-cache.csv
+        - .methodatlas-cache.json
       policy: pull-push
   script:
     - *download-methodatlas
     - |
       CACHE_ARG=""
-      if [ -f .methodatlas-cache.csv ]; then
-        CACHE_ARG="-ai-cache .methodatlas-cache.csv"
+      if [ -f .methodatlas-cache.json ]; then
+        CACHE_ARG="-ai-cache .methodatlas-cache.json"
       fi
 
-      # Pass 1: classify and update cache
-      java -jar "$METHODATLAS_JAR" \
-        -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
-        -content-hash \
-        -security-only \
-        $CACHE_ARG \
-        src/test/java \
-        > .methodatlas-cache-new.csv
-      mv .methodatlas-cache-new.csv .methodatlas-cache.csv
-
-      # Pass 2: emit SARIF from cache (zero AI calls)
+      # Single combined pass: classify, emit SARIF, and refresh the unified cache.
       java -jar "$METHODATLAS_JAR" \
         -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
         -sarif -security-only \
         -content-hash \
-        -ai-cache .methodatlas-cache.csv \
+        $CACHE_ARG \
+        -ai-cache-out .methodatlas-cache.json \
         src/test/java \
         > methodatlas.sarif
-
-      # Count gate (compare against baseline from previous run on this branch)
-      if [ -f baseline.csv ]; then
-        baseline=$(tail -n +2 baseline.csv | wc -l)
-        current=$(tail -n +2 .methodatlas-cache.csv | wc -l)
-        echo "Baseline: $baseline  Current: $current"
-        if [ "$current" -lt "$baseline" ]; then
-          echo "ERROR: Security test count dropped from $baseline to $current"
-          exit 1
-        fi
-      fi
-
-      cp .methodatlas-cache.csv baseline.csv
   artifacts:
     reports:
       sast: methodatlas.sarif
     paths:
       - methodatlas.sarif
-      - baseline.csv
     expire_in: 90 days
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
