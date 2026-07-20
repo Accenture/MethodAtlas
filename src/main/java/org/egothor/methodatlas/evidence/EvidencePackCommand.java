@@ -262,7 +262,7 @@ public final class EvidencePackCommand {
                     cliConfig.minConfidence(), confidenceEnabled);
 
             int result = orchestrator.scan(roots, cliConfig, discoveryConfig, aiEngine,
-                    filtered, override, aiCache);
+                    filtered, override, aiCache, null);
 
             // Surface any write error swallowed by the streaming CSV writer before
             // the manifest is hashed, so a truncated manifest.csv cannot be signed.

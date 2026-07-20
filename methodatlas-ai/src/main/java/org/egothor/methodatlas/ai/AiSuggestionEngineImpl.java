@@ -3,6 +3,7 @@ package org.egothor.methodatlas.ai;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -34,8 +35,12 @@ import tools.jackson.databind.json.JsonMapper;
  * </ul>
  *
  * <p>
- * Instances of this class are immutable after construction and are intended to
- * be created once per application run.
+ * Configuration (provider client, taxonomy, options) is fixed at construction.
+ * The only mutable state is the optional {@linkplain #setResponseListener(AiResponseListener)
+ * response listener}, which is registered once during single-threaded command
+ * setup before any classification call; it is held in a {@link AtomicReference}
+ * so its value is safely published to the threads that later invoke the engine.
+ * Instances are intended to be created once per application run.
  * </p>
  *
  * @see AiSuggestionEngine
@@ -56,10 +61,12 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
     /**
      * Optional callback invoked after each successful provider call so observers
      * (e.g. the evidence-pack archive) can record provenance. Set via
-     * {@link #setResponseListener(AiResponseListener)}; {@code null} when no
-     * listener has been registered.
+     * {@link #setResponseListener(AiResponseListener)}; holds {@code null} when no
+     * listener has been registered. An {@link AtomicReference} so a listener
+     * registered during single-threaded setup is safely published to any thread
+     * that later drives the engine.
      */
-    private AiResponseListener responseListener;
+    private final AtomicReference<AiResponseListener> responseListener = new AtomicReference<>();
 
     /**
      * Creates a new AI suggestion engine using the supplied runtime options.
@@ -126,7 +133,7 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      */
     @Override
     public void setResponseListener(AiResponseListener listener) {
-        this.responseListener = listener;
+        this.responseListener.set(listener);
     }
 
     /**
@@ -243,7 +250,7 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
      * @param result normalised classification result returned by the provider
      */
     private void notifyResponseListener(String fqcn, String prompt, AiClassSuggestion result) {
-        AiResponseListener listener = this.responseListener;
+        AiResponseListener listener = this.responseListener.get();
         if (listener == null) {
             return;
         }

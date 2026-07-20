@@ -169,4 +169,50 @@ class JsonTextTest {
         String extracted = JsonText.extractFirstJsonObject("{}");
         assertEquals("{}", extracted);
     }
+
+    @Test
+    @DisplayName("extractFirstJsonObject stops at the first complete object, ignoring trailing commentary")
+    @Tag("positive")
+    void extractFirstJsonObject_trailingComment_returnsOnlyFirstObject() throws Exception {
+        String text = "{\"className\":\"AuthTest\",\"methods\":[]}  // done, hope this helps!";
+
+        String extracted = JsonText.extractFirstJsonObject(text);
+
+        assertEquals("{\"className\":\"AuthTest\",\"methods\":[]}", extracted);
+    }
+
+    @Test
+    @DisplayName("extractFirstJsonObject returns the first of two concatenated objects")
+    @Tag("positive")
+    void extractFirstJsonObject_twoConcatenatedObjects_returnsFirst() throws Exception {
+        String text = "{\"a\":1}{\"b\":2}";
+
+        String extracted = JsonText.extractFirstJsonObject(text);
+
+        assertEquals("{\"a\":1}", extracted);
+    }
+
+    @Test
+    @DisplayName("extractFirstJsonObject ignores braces that appear inside string values")
+    @Tag("positive")
+    @Tag("security")
+    void extractFirstJsonObject_bracesInsideStringValue_areNotStructural() throws Exception {
+        String text = "prefix {\"note\":\"a } here and a { there\",\"ok\":true} suffix";
+
+        String extracted = JsonText.extractFirstJsonObject(text);
+
+        assertEquals("{\"note\":\"a } here and a { there\",\"ok\":true}", extracted);
+    }
+
+    @Test
+    @DisplayName("extractFirstJsonObject honours escaped quotes inside string values")
+    @Tag("positive")
+    @Tag("security")
+    void extractFirstJsonObject_escapedQuoteInsideString_isHonoured() throws Exception {
+        String text = "{\"note\":\"he said \\\"hi\\\" }\",\"ok\":true}";
+
+        String extracted = JsonText.extractFirstJsonObject(text);
+
+        assertEquals(text, extracted);
+    }
 }

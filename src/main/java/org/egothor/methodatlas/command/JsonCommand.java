@@ -111,7 +111,7 @@ public final class JsonCommand implements Command {
                 if (scanOrchestrator.runDiscovery(root, providers, cliConfig.aiOptions(), aiEngine,
                         scanOrchestrator.filterSink(rootSink, cliConfig.securityOnly(),
                                 cliConfig.minConfidence(), confidenceEnabled),
-                        cliConfig.contentHash(), override, aiCache)) {
+                        cliConfig.contentHash(), override, aiCache, null)) {
                     hadErrors = true;
                 }
             }

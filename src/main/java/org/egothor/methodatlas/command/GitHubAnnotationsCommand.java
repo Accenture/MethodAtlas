@@ -73,7 +73,7 @@ public final class GitHubAnnotationsCommand implements Command {
         GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(out, filePrefix);
         int result = scanOrchestrator.scan(roots, cliConfig, discoveryConfig, aiEngine,
                 scanOrchestrator.filterSink(emitter, false, cliConfig.minConfidence(), confidenceEnabled),
-                override, aiCache);
+                override, aiCache, null);
         // Surface any write error the streaming PrintWriter swallowed.
         emitter.finish();
         return result;

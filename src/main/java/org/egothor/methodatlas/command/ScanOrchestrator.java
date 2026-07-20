@@ -146,6 +146,12 @@ public final class ScanOrchestrator {
      * {@code sink}. Loads and closes the {@link TestDiscovery} providers
      * internally so callers do not need to manage the lifecycle.
      *
+     * <p>
+     * When {@code secretCtx} is supplied, credential triage is folded into each
+     * per-class AI call so the class source is sent to the provider once for both
+     * classification and triage; pass {@code null} for classification only.
+     * </p>
+     *
      * @param roots           source roots to scan; must not be {@code null}
      * @param cliConfig       full parsed CLI configuration
      * @param discoveryConfig discovery configuration forwarded to providers
@@ -154,36 +160,12 @@ public final class ScanOrchestrator {
      * @param sink            receiver of discovered test method records
      * @param override        human classification overrides
      * @param aiCache         AI result cache
+     * @param secretCtx       credential-triage context, or {@code null} to disable
+     *                        the fold (classification only)
      * @return {@code 0} if all files were processed successfully, {@code 1}
      *         if any file produced a parse or processing error
      * @throws IOException if traversing a file tree fails
      * @since 1.0.0
-     */
-    public int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
-            AiSuggestionEngine aiEngine, TestMethodSink sink,
-            ClassificationOverride override, AiResultCache aiCache) throws IOException {
-        return scan(roots, cliConfig, discoveryConfig, aiEngine, sink, override, aiCache, null);
-    }
-
-    /**
-     * Scans every configured root like
-     * {@link #scan(List, CliConfig, TestDiscoveryConfig, AiSuggestionEngine, TestMethodSink, ClassificationOverride, AiResultCache)},
-     * additionally folding credential triage into each per-class AI call when
-     * {@code secretCtx} is supplied, so the class source is sent to the provider
-     * once for both classification and triage.
-     *
-     * @param roots           source roots to scan; must not be {@code null}
-     * @param cliConfig       full parsed CLI configuration
-     * @param discoveryConfig discovery configuration forwarded to providers
-     * @param aiEngine        AI engine providing suggestions; may be {@code null}
-     * @param sink            receiver of discovered test method records
-     * @param override        human classification overrides
-     * @param aiCache         AI result cache
-     * @param secretCtx       credential-triage context, or {@code null} to disable
-     *                        the fold (classification only)
-     * @return {@code 0} if all files were processed successfully, {@code 1} otherwise
-     * @throws IOException if traversing a file tree fails
-     * @since 4.1.0
      */
     public int scan(List<Path> roots, CliConfig cliConfig, TestDiscoveryConfig discoveryConfig,
             AiSuggestionEngine aiEngine, TestMethodSink sink,
@@ -228,6 +210,11 @@ public final class ScanOrchestrator {
      * call.
      * </p>
      *
+     * <p>
+     * When {@code secretCtx} is supplied, credential triage is folded into each
+     * per-class AI call; pass {@code null} for classification only.
+     * </p>
+     *
      * @param root               directory to scan
      * @param providers          list of pre-configured discovery providers
      * @param aiOptions          AI configuration for the current run
@@ -237,37 +224,11 @@ public final class ScanOrchestrator {
      *                           emitted records
      * @param override           human classification overrides
      * @param aiCache            AI result cache
+     * @param secretCtx          credential-triage context, or {@code null} to disable the fold
      * @return {@code true} if any provider encountered a parse or processing
      *         error
      * @throws IOException if traversing the file tree fails
      * @since 1.0.0
-     */
-    public boolean runDiscovery(Path root, List<TestDiscovery> providers,
-            AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,
-            boolean contentHashEnabled, ClassificationOverride override,
-            AiResultCache aiCache) throws IOException {
-        return runDiscovery(root, providers, aiOptions, aiEngine, sink, contentHashEnabled,
-                override, aiCache, null);
-    }
-
-    /**
-     * Runs discovery and AI analysis for one root like
-     * {@link #runDiscovery(Path, List, AiOptions, AiSuggestionEngine, TestMethodSink, boolean, ClassificationOverride, AiResultCache)},
-     * additionally folding credential triage into each per-class AI call when
-     * {@code secretCtx} is supplied.
-     *
-     * @param root               directory to scan
-     * @param providers          pre-configured discovery providers
-     * @param aiOptions          AI configuration for the current run
-     * @param aiEngine           AI engine, or {@code null} when AI is disabled
-     * @param sink               receiver of discovered test method records
-     * @param contentHashEnabled whether to include the class content hash
-     * @param override           human classification overrides
-     * @param aiCache            AI result cache
-     * @param secretCtx          credential-triage context, or {@code null} to disable the fold
-     * @return {@code true} if any provider encountered an error
-     * @throws IOException if traversing the file tree fails
-     * @since 4.1.0
      */
     public boolean runDiscovery(Path root, List<TestDiscovery> providers,
             AiOptions aiOptions, AiSuggestionEngine aiEngine, TestMethodSink sink,

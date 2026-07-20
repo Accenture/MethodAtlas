@@ -13,9 +13,10 @@ package org.egothor.methodatlas.ai;
  * </p>
  *
  * <p>
- * The current implementation performs a simple structural search for the first
- * opening brace (<code>{</code>) and the last closing brace (<code>}</code>),
- * and returns the substring spanning those positions.
+ * The implementation performs a depth-counted scan from the first opening brace
+ * (<code>{</code>) and returns the first <em>balanced</em> object, tracking
+ * string literals and backslash escapes so that braces appearing inside string
+ * values are not mistaken for structural delimiters.
  * </p>
  *
  * <p>
@@ -32,6 +33,16 @@ package org.egothor.methodatlas.ai;
  * @see AiClassSuggestion
  */
 public final class JsonText {
+
+    /** Opening object delimiter. */
+    private static final char OPEN_BRACE = '{';
+    /** Closing object delimiter. */
+    private static final char CLOSE_BRACE = '}';
+    /** String-literal delimiter. */
+    private static final char QUOTE = '"';
+    /** Escape character within a string literal. */
+    private static final char BACKSLASH = '\\';
+
     /**
      * Prevents instantiation of this utility class.
      */
@@ -39,39 +50,62 @@ public final class JsonText {
     }
 
     /**
-     * Extracts the first JSON object found within a text response.
+     * Extracts the first complete JSON object found within a text response.
      *
      * <p>
-     * The method scans the supplied text for the first occurrence of an opening
-     * brace (<code>{</code>) and the last occurrence of a closing brace
-     * (<code>}</code>). The substring between these positions (inclusive) is
-     * returned as the extracted JSON object.
-     * </p>
-     *
-     * <p>
-     * This approach allows the application to recover structured data even when the
-     * model returns additional natural-language content or formatting around the
-     * JSON payload.
+     * The method locates the first opening brace (<code>{</code>) and scans
+     * forward, counting brace depth until the matching closing brace is reached,
+     * returning that balanced substring (inclusive). Braces inside string
+     * literals are ignored, and backslash escapes within strings are honoured, so
+     * a value such as <code>"a }"</code> does not prematurely terminate the
+     * object. When the response contains additional objects or trailing
+     * commentary after the first, only the first complete object is returned.
      * </p>
      *
      * @param text text returned by the AI model
-     * @return extracted JSON object as text
+     * @return the first balanced JSON object as text
      *
-     * @throws AiSuggestionException if the input text is empty or if no valid JSON
-     *                               object boundaries can be located
+     * @throws AiSuggestionException if the input text is empty, contains no
+     *                               opening brace, or the first object is never
+     *                               closed (unbalanced)
      */
     public static String extractFirstJsonObject(String text) throws AiSuggestionException {
         if (text == null || text.isBlank()) {
             throw new AiSuggestionException("Model returned an empty response");
         }
 
-        int start = text.indexOf('{');
-        int end = text.lastIndexOf('}');
-
-        if (start < 0 || end < 0 || end < start) {
+        int start = text.indexOf(OPEN_BRACE);
+        if (start < 0) {
             throw new AiSuggestionException("Model response does not contain a JSON object: " + text);
         }
 
-        return text.substring(start, end + 1);
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = start; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == BACKSLASH) {
+                    escaped = true;
+                } else if (c == QUOTE) {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == QUOTE) {
+                inString = true;
+            } else if (c == OPEN_BRACE) {
+                depth++;
+            } else if (c == CLOSE_BRACE) {
+                depth--;
+                if (depth == 0) {
+                    return text.substring(start, i + 1);
+                }
+            }
+        }
+
+        throw new AiSuggestionException("Model response does not contain a JSON object: " + text);
     }
 }
