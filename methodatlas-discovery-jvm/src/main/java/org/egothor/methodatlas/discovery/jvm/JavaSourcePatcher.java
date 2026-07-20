@@ -74,10 +74,20 @@ public final class JavaSourcePatcher implements SourcePatcher {
     private List<String> fileSuffixes = List.of("Test.java");
 
     /**
+     * Reusable JavaParser (Java 21 language level). JavaParser resets its state
+     * on each {@code parse} call, so a single instance serves every sequential
+     * parse; the patcher is used single-threaded, mirroring
+     * {@code JavaTestDiscovery}.
+     */
+    private final JavaParser parser;
+
+    /**
      * No-arg constructor required by {@link java.util.ServiceLoader}.
      */
     public JavaSourcePatcher() {
-        // Required by ServiceLoader
+        ParserConfiguration cfg = new ParserConfiguration();
+        cfg.setLanguageLevel(LanguageLevel.JAVA_21);
+        this.parser = new JavaParser(cfg);
     }
 
     /**
@@ -137,10 +147,6 @@ public final class JavaSourcePatcher implements SourcePatcher {
     @Override
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     public Map<String, List<String>> discoverMethodsByClass(Path sourceFile) throws IOException {
-        ParserConfiguration cfg = new ParserConfiguration();
-        cfg.setLanguageLevel(LanguageLevel.JAVA_21);
-        JavaParser parser = new JavaParser(cfg);
-
         ParseResult<CompilationUnit> parseResult = parser.parse(sourceFile);
         if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
             if (LOG.isLoggable(Level.WARNING)) {
@@ -205,10 +211,6 @@ public final class JavaSourcePatcher implements SourcePatcher {
                      Map<String, List<String>> tagsToApply,
                      Map<String, String> displayNames,
                      PrintWriter diagnostics) throws IOException {
-
-        ParserConfiguration cfg = new ParserConfiguration();
-        cfg.setLanguageLevel(LanguageLevel.JAVA_21);
-        JavaParser parser = new JavaParser(cfg);
 
         ParseResult<CompilationUnit> parseResult = parser.parse(sourceFile);
         if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {

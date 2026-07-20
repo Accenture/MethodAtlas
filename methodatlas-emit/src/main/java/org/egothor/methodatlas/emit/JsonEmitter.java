@@ -51,6 +51,11 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class JsonEmitter implements TestMethodSink, RecordEmitter {
 
+    /** Shared, thread-safe indenting JSON mapper (immutable after build). */
+    private static final JsonMapper MAPPER = JsonMapper.builder()
+            .configure(SerializationFeature.INDENT_OUTPUT, true)
+            .build();
+
     private final boolean aiEnabled;
     private final boolean confidenceEnabled;
     private final boolean contentHashEnabled;
@@ -209,11 +214,8 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
      *                               underlying stream reports a write error
      */
     public void flush(PrintWriter out) {
-        JsonMapper mapper = JsonMapper.builder()
-                .configure(SerializationFeature.INDENT_OUTPUT, true)
-                .build();
         try {
-            out.println(mapper.writeValueAsString(records));
+            out.println(MAPPER.writeValueAsString(records));
         } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize JSON output", e);
         }

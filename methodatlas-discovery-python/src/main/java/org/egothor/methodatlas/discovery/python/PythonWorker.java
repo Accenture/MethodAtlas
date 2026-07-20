@@ -10,6 +10,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -68,6 +74,8 @@ final class PythonWorker {
     private BufferedReader stdout;
     @SuppressWarnings("PMD.DoNotUseThreads")
     private Thread stderrDrainer;
+    /** One reusable reader thread per worker, replacing the old thread-per-scan. */
+    private ExecutorService readerExecutor;
     private long pid = -1;
 
     /**
@@ -105,6 +113,7 @@ final class PythonWorker {
         stdout = new BufferedReader(
                 new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
         stderrDrainer = startStderrDrainer(process, workerIndex, pid);
+        readerExecutor = newReaderExecutor(workerIndex);
 
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO,
@@ -169,52 +178,53 @@ final class PythonWorker {
         if (stderrDrainer != null) {
             stderrDrainer.interrupt();
         }
+        if (readerExecutor != null) {
+            readerExecutor.shutdownNow();
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────
 
-    @SuppressWarnings("PMD.DoNotUseThreads")
     private String readWithTimeout(Path filePath, String requestId)
             throws IOException, WorkerException {
-        final String[] result = { null };
-        final IOException[] ioError = { null };
+        Future<String> future = readerExecutor.submit(stdout::readLine);
 
-        Thread reader = new Thread(() -> {
-            try {
-                result[0] = stdout.readLine();
-            } catch (IOException e) {
-                ioError[0] = e;
-            }
-        }, "py-worker-reader-" + workerIndex);
-        reader.setDaemon(true);
-        reader.start();
-
+        String line;
         try {
-            reader.join(timeoutMillis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            reader.interrupt();
-            throw new WorkerException("Interrupted while waiting for worker response", e);
-        }
-
-        if (reader.isAlive()) {
-            reader.interrupt();
+            line = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
             kill("per-file timeout of " + timeoutMillis + " ms exceeded for " + filePath
                     + " (requestId=" + requestId + ")");
             throw new WorkerException("Worker timeout after " + timeoutMillis
-                    + " ms scanning " + filePath);
+                    + " ms scanning " + filePath, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            throw new WorkerException("Interrupted while waiting for worker response", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException io) {
+                throw io;
+            }
+            throw new WorkerException("Worker read failed scanning " + filePath, cause);
         }
 
-        if (ioError[0] != null) {
-            throw ioError[0];
-        }
-
-        if (result[0] == null) {
+        if (line == null) {
             throw new WorkerException(
                     "Worker stdout closed unexpectedly while scanning " + filePath);
         }
 
-        return result[0];
+        return line;
+    }
+
+    @SuppressWarnings("PMD.DoNotUseThreads")
+    private static ExecutorService newReaderExecutor(int workerIndex) {
+        return Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "py-worker-reader-" + workerIndex);
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")

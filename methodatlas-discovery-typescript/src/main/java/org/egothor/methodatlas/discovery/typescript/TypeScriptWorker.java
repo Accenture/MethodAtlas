@@ -10,6 +10,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -83,6 +89,8 @@ final class TypeScriptWorker {
     private BufferedReader stdout;
     @SuppressWarnings("PMD.DoNotUseThreads")
     private Thread stderrDrainer;
+    /** One reusable reader thread per worker, replacing the old thread-per-scan. */
+    private ExecutorService readerExecutor;
     private long pid = -1;
 
     /**
@@ -124,6 +132,7 @@ final class TypeScriptWorker {
         stdout = new BufferedReader(
                 new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
         stderrDrainer = startStderrDrainer(process, workerIndex, pid);
+        readerExecutor = newReaderExecutor(workerIndex);
 
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO,
@@ -158,6 +167,7 @@ final class TypeScriptWorker {
         stdout = new BufferedReader(
                 new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
         stderrDrainer = startStderrDrainer(process, workerIndex, pid);
+        readerExecutor = newReaderExecutor(workerIndex);
 
         if (LOG.isLoggable(Level.INFO)) {
             LOG.log(Level.INFO,
@@ -237,6 +247,9 @@ final class TypeScriptWorker {
         if (stderrDrainer != null) {
             stderrDrainer.interrupt();
         }
+        if (readerExecutor != null) {
+            readerExecutor.shutdownNow();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -314,9 +327,10 @@ final class TypeScriptWorker {
      * {@link #timeoutMillis} milliseconds.
      *
      * <p>
-     * Because {@link BufferedReader#readLine()} is blocking, a separate
-     * reader thread is used so that a timeout can be enforced with
-     * {@link Thread#join(long)}.
+     * Because {@link BufferedReader#readLine()} is blocking, the read is
+     * submitted to this worker's reusable single-thread {@link #readerExecutor}
+     * and awaited with {@link Future#get(long, TimeUnit)} so a timeout can be
+     * enforced without spawning a fresh thread per scan.
      * </p>
      *
      * @param filePath  file being scanned (for log messages)
@@ -324,52 +338,49 @@ final class TypeScriptWorker {
      * @return the response JSON line
      * @throws WorkerException  if the timeout elapses or the stream closes
      *                          unexpectedly
-     * @throws IOException      if the reader thread itself throws
+     * @throws IOException      if the read task fails with an I/O error
      */
-    @SuppressWarnings("PMD.DoNotUseThreads")
     private String readWithTimeout(Path filePath, String requestId)
             throws IOException, WorkerException {
-        // Shared result container accessed from both this thread and the reader thread.
-        final String[] result = { null };
-        final IOException[] ioError = { null };
+        Future<String> future = readerExecutor.submit(stdout::readLine);
 
-        Thread reader = new Thread(() -> {
-            try {
-                result[0] = stdout.readLine();
-            } catch (IOException e) {
-                ioError[0] = e;
-            }
-        }, "ts-worker-reader-" + workerIndex);
-        reader.setDaemon(true);
-        reader.start();
-
+        String line;
         try {
-            reader.join(timeoutMillis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            reader.interrupt();
-            throw new WorkerException("Interrupted while waiting for worker response", e);
-        }
-
-        if (reader.isAlive()) {
-            // Timeout elapsed — kill the worker and the reader thread.
-            reader.interrupt();
+            line = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            // Timeout elapsed — cancel the read and kill the worker.
+            future.cancel(true);
             kill("per-file timeout of " + timeoutMillis + " ms exceeded for " + filePath
                     + " (requestId=" + requestId + ")");
             throw new WorkerException("Worker timeout after " + timeoutMillis
-                    + " ms scanning " + filePath);
+                    + " ms scanning " + filePath, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            future.cancel(true);
+            throw new WorkerException("Interrupted while waiting for worker response", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException io) {
+                throw io;
+            }
+            throw new WorkerException("Worker read failed scanning " + filePath, cause);
         }
 
-        if (ioError[0] != null) {
-            throw ioError[0];
-        }
-
-        if (result[0] == null) {
+        if (line == null) {
             throw new WorkerException(
                     "Worker stdout closed unexpectedly while scanning " + filePath);
         }
 
-        return result[0];
+        return line;
+    }
+
+    @SuppressWarnings("PMD.DoNotUseThreads")
+    private static ExecutorService newReaderExecutor(int workerIndex) {
+        return Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "ts-worker-reader-" + workerIndex);
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     /**

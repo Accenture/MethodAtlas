@@ -65,6 +65,11 @@ public final class AuditWriter {
     private static final DateTimeFormatter NOTE_TS =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
+    /** Shared, thread-safe YAML mapper (immutable after build). */
+    private static final ObjectMapper YAML_MAPPER = YAMLMapper.builder()
+            .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
+            .build();
+
     private AuditWriter() {}
 
     /**
@@ -167,9 +172,7 @@ public final class AuditWriter {
             String operatorName, LocalDateTime timestamp) throws IOException {
         Path yamlFile = dir.resolve("overrides.yaml");
 
-        ObjectMapper mapper = YAMLMapper.builder()
-                .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
-                .build();
+        ObjectMapper mapper = YAML_MAPPER;
 
         // Load existing overrides (if any) into a mutable list
         List<Map<String, Object>> existing = loadExistingOverrides(yamlFile, mapper);

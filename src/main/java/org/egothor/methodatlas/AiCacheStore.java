@@ -52,7 +52,23 @@ public final class AiCacheStore {
      * @throws IOException if the file cannot be read
      */
     public static boolean looksLikeJsonLines(Path file) throws IOException {
-        for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+        return looksLikeJsonLines(Files.readAllLines(file, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Returns {@code true} if the already-read {@code lines} appear to be a unified
+     * JSON-Lines cache, by inspecting the first non-blank line.
+     *
+     * <p>
+     * This line-based overload lets a caller read the file once and drive both the
+     * format decision and {@link #read(List)} from the same in-memory copy.
+     * </p>
+     *
+     * @param lines file lines, already read; never {@code null}
+     * @return {@code true} when the first non-blank character is an opening brace
+     */
+    /* default */ static boolean looksLikeJsonLines(List<String> lines) {
+        for (String line : lines) {
             String trimmed = line.strip();
             if (!trimmed.isEmpty()) {
                 return trimmed.charAt(0) == '{';
@@ -71,7 +87,18 @@ public final class AiCacheStore {
      * @throws IOException if the file cannot be read
      */
     public static List<AiCacheEntry> read(Path file) throws IOException {
-        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        return read(Files.readAllLines(file, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Parses cache entries from already-read JSON-Lines {@code lines}. Blank lines are
+     * ignored and a single unparseable line is skipped (logged at {@code FINE}) so a
+     * partially corrupt cache never aborts a scan.
+     *
+     * @param lines file lines, already read; never {@code null}
+     * @return the parsed entries in line order; never {@code null}; may be empty
+     */
+    /* default */ static List<AiCacheEntry> read(List<String> lines) {
         List<AiCacheEntry> entries = new ArrayList<>(lines.size());
         for (String line : lines) {
             String trimmed = line.strip();

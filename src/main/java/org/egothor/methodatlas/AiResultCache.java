@@ -1,12 +1,15 @@
 package org.egothor.methodatlas;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
@@ -37,7 +40,8 @@ import org.egothor.methodatlas.emit.DeltaReport;
  *
  * <p>
  * Instances are obtained via {@link #load(Path)} or the no-op {@link #empty()}.
- * Not thread-safe for the hit/miss counters; the scan loop is single-threaded.
+ * The hit/miss counters are {@link AtomicInteger}s, so lookups remain correct if
+ * the scan loop is ever parallelised; the entry map is immutable after loading.
  * </p>
  *
  * @see AiCacheStore
@@ -46,8 +50,8 @@ import org.egothor.methodatlas.emit.DeltaReport;
 public final class AiResultCache {
 
     private final Map<String, AiCacheEntry> byHash;
-    private int hits;
-    private int misses;
+    private final AtomicInteger hits = new AtomicInteger();
+    private final AtomicInteger misses = new AtomicInteger();
 
     private AiResultCache(Map<String, AiCacheEntry> byHash) {
         this.byHash = byHash;
@@ -68,8 +72,11 @@ public final class AiResultCache {
      */
     public static AiResultCache load(Path path) throws IOException {
         Map<String, AiCacheEntry> byHash = new HashMap<>();
-        if (AiCacheStore.looksLikeJsonLines(path)) {
-            for (AiCacheEntry entry : AiCacheStore.read(path)) {
+        // Read the file once and drive both the format sniff and the parse from the
+        // same in-memory copy (avoids a second full read for the JSON-Lines case).
+        List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8);
+        if (AiCacheStore.looksLikeJsonLines(lines)) {
+            for (AiCacheEntry entry : AiCacheStore.read(lines)) {
                 if (entry.contentHash() != null && !entry.contentHash().isEmpty()
                         && entry.suggestion() != null) {
                     byHash.put(entry.contentHash(), entry);
@@ -128,15 +135,15 @@ public final class AiResultCache {
      */
     public Optional<AiClassSuggestion> lookup(String contentHash) {
         if (contentHash == null) {
-            misses++;
+            misses.incrementAndGet();
             return Optional.empty();
         }
         AiCacheEntry entry = byHash.get(contentHash);
         if (entry != null) {
-            hits++;
+            hits.incrementAndGet();
             return Optional.of(entry.suggestion());
         }
-        misses++;
+        misses.incrementAndGet();
         return Optional.empty();
     }
 
@@ -158,10 +165,10 @@ public final class AiResultCache {
         AiCacheEntry entry = contentHash == null ? null : byHash.get(contentHash);
         if (entry != null && (entry.promptSignature() == null
                 || entry.promptSignature().equals(promptSignature))) {
-            hits++;
+            hits.incrementAndGet();
             return Optional.of(entry.suggestion());
         }
-        misses++;
+        misses.incrementAndGet();
         return Optional.empty();
     }
 
@@ -203,11 +210,11 @@ public final class AiResultCache {
 
     /** Returns the number of successful cache lookups so far. */
     public int hits() {
-        return hits;
+        return hits.get();
     }
 
     /** Returns the number of unsuccessful cache lookups so far. */
     public int misses() {
-        return misses;
+        return misses.get();
     }
 }

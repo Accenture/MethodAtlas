@@ -1,9 +1,11 @@
 package org.egothor.methodatlas.detect.secrets;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,6 +40,8 @@ public final class CatalogCredentialDetector implements CredentialDetector {
     private AhoCorasick anchorAutomaton;
     private List<CredentialRule> anchoredRules;
     private List<CredentialRule> unanchoredRules;
+    /** Regex compiled once per rule at catalog-load time, keyed by rule. */
+    private Map<CredentialRule, Pattern> patternsByRule;
     private double defaultEntropy = DEFAULT_ENTROPY;
     private boolean hadErrors;
 
@@ -63,11 +67,14 @@ public final class CatalogCredentialDetector implements CredentialDetector {
         this.catalog = loaded;
         this.anchoredRules = new ArrayList<>();
         this.unanchoredRules = new ArrayList<>();
+        this.patternsByRule = new HashMap<>();
         // Build the automaton from lowercased anchors so that the prefilter pass
         // can be run on a lowercased copy of the source, enabling case-insensitive
         // anchor matching without modifying the Aho-Corasick implementation.
         List<String> allAnchorsLower = new ArrayList<>();
         for (CredentialRule rule : loaded.rules()) {
+            // Compile each rule's regex once here rather than on every detect() call.
+            patternsByRule.put(rule, Pattern.compile(rule.pattern()));
             if (rule.unanchored()) {
                 unanchoredRules.add(rule);
             } else {
@@ -111,7 +118,7 @@ public final class CatalogCredentialDetector implements CredentialDetector {
 
         for (CredentialRule rule : unanchoredRules) {
             double floor = rule.entropyMin() > 0 ? rule.entropyMin() : defaultEntropy;
-            Matcher m = Pattern.compile(rule.pattern()).matcher(source);
+            Matcher m = patternsByRule.get(rule).matcher(source);
             while (m.find()) {
                 String value = m.groupCount() >= 1 ? m.group(1) : m.group();
                 if (Entropy.shannonBitsPerChar(value) >= floor) {
@@ -128,7 +135,7 @@ public final class CatalogCredentialDetector implements CredentialDetector {
             LineIndex lines, List<CredentialCandidate> out) {
         int from = Math.max(0, anchorStart - CONFIRM_WINDOW);
         int to = Math.min(source.length(), anchorStart + CONFIRM_WINDOW);
-        Matcher m = Pattern.compile(rule.pattern()).matcher(source.substring(from, to));
+        Matcher m = patternsByRule.get(rule).matcher(source.substring(from, to));
         while (m.find()) {
             int absStart = from + m.start();
             int absEnd = from + m.end();

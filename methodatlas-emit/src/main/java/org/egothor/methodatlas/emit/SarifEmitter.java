@@ -60,6 +60,10 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
     private static final String SARIF_SCHEMA =
             "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";
     private static final String SARIF_VERSION = "2.1.0";
+    /** Shared, thread-safe indenting JSON mapper (immutable after build). */
+    private static final JsonMapper MAPPER = JsonMapper.builder()
+            .enable(SerializationFeature.INDENT_OUTPUT)
+            .build();
     private static final int SINGLE_CHAR_LENGTH = 1;
     private static final int RULE_ID_PART_COUNT = 2;
     private static final String RULE_TEST_METHOD = "test-method";
@@ -231,12 +235,8 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
         SarifRun run = new SarifRun(tool, results);
         SarifDocument doc = new SarifDocument(SARIF_SCHEMA, SARIF_VERSION, List.of(run));
 
-        JsonMapper mapper = JsonMapper.builder()
-                .enable(SerializationFeature.INDENT_OUTPUT)
-                .build();
-
         try {
-            out.print(mapper.writeValueAsString(doc));
+            out.print(MAPPER.writeValueAsString(doc));
         } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize SARIF output", e);
         }

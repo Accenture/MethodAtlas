@@ -28,7 +28,7 @@
  * {@code stdin}/{@code stdout} using a newline-delimited JSON protocol
  * (NDJSON).  One JSON line is written per request; one JSON line is read per
  * response.  Workers are restarted automatically after failures subject to a
- * circuit-breaker limit ({@link WorkerCircuitBreaker}).
+ * circuit-breaker limit ({@link org.egothor.methodatlas.util.WorkerCircuitBreaker}).
  * </p>
  *
  * <h2>Security model</h2>
