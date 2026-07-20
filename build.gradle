@@ -4,7 +4,7 @@ plugins {
     id 'pmd'
     id 'jacoco'
     id 'com.palantir.git-version' version '5.0.0'
-    id 'org.cyclonedx.bom' version '3.2.4'
+    id 'org.cyclonedx.bom' version '3.3.0'
     id 'org.owasp.dependencycheck' version '12.2.2'
     id 'com.github.spotbugs' version '6.5.4'
     id 'net.ltgt.errorprone' version '5.1.0'
