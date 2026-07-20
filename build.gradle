@@ -265,6 +265,11 @@ jacocoTestCoverageVerification {
 
 check.dependsOn jacocoTestCoverageVerification
 
+// Javadoc is a first-class quality gate: dangling @link/@see references (e.g.
+// after a class moves between modules) fail the build here rather than only
+// under `build`. Skip during fast dev iteration with `-x javadoc`.
+check.dependsOn javadoc
+
 // ---------------------------------------------------------------------------
 // PIT – mutation testing
 // Gate: build FAILS if mutation score < 60 % (enforced via check lifecycle).
@@ -553,6 +558,9 @@ subprojects {
         }
         tasks.named('check').configure {
             dependsOn 'jacocoTestCoverageVerification'
+            // Fail the build on dangling Javadoc references (e.g. after a class
+            // moves between modules) rather than only under `build`.
+            dependsOn 'javadoc'
         }
 
         // -----------------------------------------------------------------

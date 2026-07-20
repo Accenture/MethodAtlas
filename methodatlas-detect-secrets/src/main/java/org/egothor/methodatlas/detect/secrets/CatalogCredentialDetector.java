@@ -43,7 +43,6 @@ public final class CatalogCredentialDetector implements CredentialDetector {
     /** Regex compiled once per rule at catalog-load time, keyed by rule. */
     private Map<CredentialRule, Pattern> patternsByRule;
     private double defaultEntropy = DEFAULT_ENTROPY;
-    private boolean hadErrors;
 
     /**
      * Creates a detector with the bundled catalog; {@link #configure} may replace it.
@@ -158,9 +157,18 @@ public final class CatalogCredentialDetector implements CredentialDetector {
                 beginLine, beginCol, endLine, endCol, value));
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This detector is fail-fast: catalog, rule-compilation, and I/O errors
+     * surface as exceptions from construction / {@link #configure} rather than
+     * being recorded, and {@link #detect} performs no error-swallowing pass. It
+     * therefore never reports recoverable errors through this flag and always
+     * returns {@code false}.</p>
+     */
     @Override
     public boolean hadErrors() {
-        return hadErrors;
+        return false;
     }
 
     /** Maps absolute character offsets to one-based line/column. */

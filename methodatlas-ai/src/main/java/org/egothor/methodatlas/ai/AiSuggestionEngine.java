@@ -21,6 +21,11 @@ import java.util.List;
  * <li>accepting a fully qualified class name and corresponding class
  * source</li>
  * <li>submitting the class for AI-based security analysis</li>
+ * <li>optionally triaging deterministically-detected credential candidates,
+ * either folded into the classification call
+ * ({@link #suggestForClass(String, String, String, java.util.List, java.util.List)})
+ * or as a dedicated request ({@link #triageSecrets}) &mdash; both added in
+ * 4.1.0</li>
  * <li>normalizing provider-specific responses into
  * {@link AiClassSuggestion}</li>
  * <li>surfacing failures through {@link AiSuggestionException}</li>

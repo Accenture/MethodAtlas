@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'net.ltgt.errorprone' version '5.1.0'
 }
 
 java {
@@ -56,6 +57,19 @@ dependencies {
     // ArchUnit -- enforces that the GUI does not name AiSuggestionEngineImpl
     // directly; it must go through the AiSuggestionEngine.create factory.
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
+
+    // Error Prone -- compile-time bug detection on main sources (matches
+    // methodatlas-gui-core). Disabled on test compilation, which uses
+    // --release and can conflict with Error Prone's internal API access.
+    errorprone 'com.google.errorprone:error_prone_core:2.36.0'
+}
+
+tasks.named('compileJava') {
+    options.errorprone.enabled = true
+}
+tasks.named('compileTestJava') {
+    options.errorprone.enabled = false
+    options.release = JavaVersion.current().majorVersion.toInteger()
 }
 
 tasks.named('test') {
