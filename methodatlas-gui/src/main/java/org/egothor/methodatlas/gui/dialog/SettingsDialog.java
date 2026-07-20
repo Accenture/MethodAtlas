@@ -472,7 +472,7 @@ public final class SettingsDialog extends JDialog {
             String text = field.getText().trim();
             if (!text.isEmpty()) {
                 List<String> masks = new ArrayList<>();
-                for (String token : text.split(",")) {
+                for (String token : text.split(",", -1)) {
                     String m = token.trim();
                     if (!m.isEmpty()) { masks.add(m); }
                 }

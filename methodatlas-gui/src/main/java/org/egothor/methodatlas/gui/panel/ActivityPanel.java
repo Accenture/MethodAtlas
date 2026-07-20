@@ -215,7 +215,7 @@ public final class ActivityPanel extends JPanel {
     /** Refreshes the elapsed-time label; called by the one-second timer. */
     private void updateElapsed() {
         if (analysisStart == null) { return; }
-        long secs = java.time.Duration.between(analysisStart, Instant.now()).getSeconds();
+        long secs = java.time.Duration.between(analysisStart, Instant.now()).toSeconds();
         long h = secs / 3600;
         long m = secs % 3600 / 60;
         long s = secs % 60;

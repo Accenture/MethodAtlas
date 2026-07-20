@@ -59,6 +59,9 @@ import tools.jackson.databind.node.ObjectNode;
  * worker-borrowing protocol.
  * </p>
  */
+// A worker manages an OS subprocess plus its reader/stderr threads; the J2EE
+// "no threads" rule (PMD.DoNotUseThreads) does not apply to this CLI tool.
+@SuppressWarnings("PMD.DoNotUseThreads")
 final class PythonWorker {
 
     private static final Logger LOG = Logger.getLogger(PythonWorker.class.getName());
@@ -72,7 +75,6 @@ final class PythonWorker {
     private Process process;
     private BufferedWriter stdin;
     private BufferedReader stdout;
-    @SuppressWarnings("PMD.DoNotUseThreads")
     private Thread stderrDrainer;
     /** One reusable reader thread per worker, replacing the old thread-per-scan. */
     private ExecutorService readerExecutor;
@@ -185,6 +187,10 @@ final class PythonWorker {
 
     // ── Private helpers ───────────────────────────────────────────────
 
+    // The ExecutionException is unwrapped so a genuine IOException keeps its type
+    // for the pool's hard-I/O handling; that deliberate unwrap is what PMD flags
+    // as PreserveStackTrace.
+    @SuppressWarnings("PMD.PreserveStackTrace")
     private String readWithTimeout(Path filePath, String requestId)
             throws IOException, WorkerException {
         Future<String> future = readerExecutor.submit(stdout::readLine);
@@ -207,7 +213,7 @@ final class PythonWorker {
             if (cause instanceof IOException io) {
                 throw io;
             }
-            throw new WorkerException("Worker read failed scanning " + filePath, cause);
+            throw new WorkerException("Worker read failed scanning " + filePath, e);
         }
 
         if (line == null) {
@@ -218,7 +224,6 @@ final class PythonWorker {
         return line;
     }
 
-    @SuppressWarnings("PMD.DoNotUseThreads")
     private static ExecutorService newReaderExecutor(int workerIndex) {
         return Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "py-worker-reader-" + workerIndex);
@@ -275,7 +280,6 @@ final class PythonWorker {
         return methods;
     }
 
-    @SuppressWarnings("PMD.DoNotUseThreads")
     private static Thread startStderrDrainer(Process proc, int workerIndex, long processId) {
         Thread t = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(

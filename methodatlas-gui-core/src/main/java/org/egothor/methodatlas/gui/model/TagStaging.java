@@ -56,7 +56,7 @@ public final class TagStaging {
         if (trimmed.isEmpty()) {
             return result;
         }
-        for (String token : trimmed.split(",")) {
+        for (String token : trimmed.split(",", -1)) {
             String tag = token.trim();
             if (!tag.isEmpty()) {
                 result.add(tag);
