@@ -77,10 +77,12 @@ import java.util.stream.Stream;
  *
  * <p>
  * Non-fatal per-file errors (e.g. parse failures) should be logged and skipped
- * rather than thrown. {@link #hadErrors()} returns {@code true} after a
- * {@link #discover} call that encountered at least one such error. Fatal errors
- * (e.g. the root directory cannot be traversed) are propagated as
- * {@link IOException}.
+ * rather than thrown. {@link #hadErrors()} is <strong>cumulative</strong>: once
+ * any {@link #discover} call on this instance encounters such an error it stays
+ * {@code true} for the remainder of the instance's lifetime; it is not reset per
+ * call. This lets an orchestrator that scans several roots with one provider
+ * derive a single overall exit status. Fatal errors (e.g. the root directory
+ * cannot be traversed) are propagated as {@link IOException}.
  * </p>
  *
  * <h2>Resource management</h2>
@@ -165,10 +167,19 @@ public interface TestDiscovery extends Closeable {
     Stream<DiscoveredMethod> discover(Path root) throws IOException;
 
     /**
-     * Returns {@code true} if the most recent {@link #discover} call (or any
-     * prior call) encountered at least one non-fatal per-file error.
+     * Returns {@code true} if <em>any</em> {@link #discover} call on this
+     * instance has encountered at least one non-fatal per-file error.
      *
-     * @return {@code true} when any file could not be processed
+     * <p>
+     * The flag is cumulative for the lifetime of the configured instance: it
+     * reflects every error observed since construction / {@link #configure} and
+     * is <strong>not</strong> reset between {@link #discover} calls. An
+     * orchestrator scanning multiple roots with a single provider therefore sees
+     * {@code true} if any root produced an error, which it can map to the process
+     * exit status.
+     * </p>
+     *
+     * @return {@code true} when any file could not be processed by this instance
      */
     boolean hadErrors();
 

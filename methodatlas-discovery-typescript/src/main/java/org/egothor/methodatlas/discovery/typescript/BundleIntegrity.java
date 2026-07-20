@@ -56,6 +56,16 @@ final class BundleIntegrity {
     /* default */ static final String MANIFEST_VERSION_ATTR = "TS-Scanner-Bundle-Version";
 
     /**
+     * System property that must be set to {@code true} to allow the bundle to
+     * run when the manifest carries no SHA-256 (e.g. a dev build or a test JVM
+     * running from a classes directory rather than the packaged JAR). Absent
+     * this opt-in, a missing hash is a hard failure so a tampered or unverified
+     * bundle never executes silently in production.
+     */
+    /* default */ static final String ALLOW_UNVERIFIED_PROPERTY =
+            "methodatlas.typescript.allowUnverifiedBundle";
+
+    /**
      * Prevents instantiation of this utility class.
      */
     private BundleIntegrity() {
@@ -74,8 +84,9 @@ final class BundleIntegrity {
      * @return absolute path to the extracted, verified bundle
      * @throws IllegalStateException if the bundle is not found on the
      *         classpath, if the hash embedded in the manifest does not match
-     *         the computed hash of the bundle bytes, or if SHA-256 is
-     *         unavailable (impossible in practice)
+     *         the computed hash of the bundle bytes, if the manifest carries no
+     *         hash and the {@value #ALLOW_UNVERIFIED_PROPERTY} opt-in is not
+     *         set, or if SHA-256 is unavailable (impossible in practice)
      * @throws IOException if writing the temporary file fails
      */
     /* default */ static Path extractAndVerify() throws IOException {
@@ -150,22 +161,36 @@ final class BundleIntegrity {
      * and throws if they differ.
      *
      * <p>
-     * When the manifest does not contain a hash entry (e.g. during local
-     * development before the bundle is built), the check is skipped and a
-     * {@code WARNING} is logged.  This allows the module to be built
-     * incrementally without a full esbuild pass on every compile cycle.
+     * When the manifest carries no hash entry (e.g. a dev build before the
+     * bundle is packaged, or a test JVM running from a classes directory), the
+     * check can only be skipped when the caller has explicitly opted in via the
+     * {@value #ALLOW_UNVERIFIED_PROPERTY} system property set to {@code true};
+     * the skip is then logged at {@code WARNING}. Without the opt-in a missing
+     * hash is a hard failure ({@link IllegalStateException}) so an unverified or
+     * tampered bundle never runs silently in production.
      * </p>
      *
      * @param manifestHash  SHA-256 from the JAR manifest; may be {@code null}
      * @param computedHash  SHA-256 freshly computed from the bundle bytes
-     * @throws IllegalStateException if both hashes are present and differ
+     * @throws IllegalStateException if the manifest hash is absent and the
+     *         {@value #ALLOW_UNVERIFIED_PROPERTY} opt-in is not set, or if both
+     *         hashes are present and differ
      */
-    private static void verifyHash(String manifestHash, String computedHash) {
+    /* default */ static void verifyHash(String manifestHash, String computedHash) {
         if (manifestHash == null || manifestHash.isBlank()) {
+            if (!Boolean.getBoolean(ALLOW_UNVERIFIED_PROPERTY)) {
+                throw new IllegalStateException(
+                        "TypeScript scanner bundle hash not found in the JAR manifest, so its "
+                        + "integrity cannot be verified. This is expected only for non-release / "
+                        + "development builds. Refusing to run an unverified bundle. Rebuild the "
+                        + "module ('./gradlew :methodatlas-discovery-typescript:build') to embed "
+                        + "the hash, or set -D" + ALLOW_UNVERIFIED_PROPERTY + "=true to allow the "
+                        + "unverified bundle deliberately. Computed sha256=" + computedHash);
+            }
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.warning("TypeScript scanner bundle hash not found in JAR manifest — "
-                        + "integrity verification skipped. "
-                        + "This may indicate a non-release build. "
+                        + "integrity verification skipped because -D" + ALLOW_UNVERIFIED_PROPERTY
+                        + "=true was set. This is unsafe outside development. "
                         + "Computed sha256=" + computedHash);
             }
             return;

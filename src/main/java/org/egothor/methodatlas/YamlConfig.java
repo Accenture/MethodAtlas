@@ -4,12 +4,17 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.deser.DeserializationProblemHandler;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
@@ -73,17 +78,40 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * </pre>
  *
  * <p>
- * Unknown fields in the YAML file are silently ignored.
+ * Unknown fields in the YAML file are tolerated (they never fail the load) but
+ * each is logged at {@code WARNING} so operator typos are visible.
  * </p>
  *
  * @see CliArgs
  */
 final class YamlConfig {
 
+    private static final Logger LOG = Logger.getLogger(YamlConfig.class.getName());
+
     /**
      * Prevents instantiation of this utility class.
      */
     private YamlConfig() {
+    }
+
+    /**
+     * Logs every unknown YAML key at {@code WARNING} so operator typos are
+     * visible, then declines to handle it so Jackson skips the value (the mapper
+     * has {@code FAIL_ON_UNKNOWN_PROPERTIES} disabled, preserving the
+     * "unknown keys are tolerated" contract).
+     */
+    private static final class UnknownKeyLogger extends DeserializationProblemHandler {
+        @Override
+        public boolean handleUnknownProperty(DeserializationContext ctxt, JsonParser parser,
+                ValueDeserializer<?> deserializer, Object beanOrClass, String propertyName) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                Class<?> target = beanOrClass instanceof Class<?> c ? c : beanOrClass.getClass();
+                LOG.log(Level.WARNING,
+                        "Unknown configuration key ''{0}'' (in {1}) ignored — check for a typo.",
+                        new Object[] { propertyName, target.getSimpleName() });
+            }
+            return false; // not consumed here; Jackson skips it (FAIL_ON_UNKNOWN_PROPERTIES=false)
+        }
     }
 
     /**
@@ -97,6 +125,7 @@ final class YamlConfig {
     /* default */ static YamlConfigFile load(Path configFile) throws IOException {
         ObjectMapper mapper = YAMLMapper.builder()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .addHandler(new UnknownKeyLogger())
                 .build();
         try {
             return mapper.readValue(configFile.toFile(), YamlConfigFile.class);
@@ -111,8 +140,15 @@ final class YamlConfig {
 
     /**
      * Top-level YAML configuration structure.
+     *
+     * <p>
+     * Unknown keys are tolerated (the mapper disables
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES}) but each is logged at {@code WARNING}
+     * by {@link UnknownKeyLogger}; hence no class-level
+     * {@code @JsonIgnoreProperties(ignoreUnknown = true)} — that would silently
+     * drop unknowns before the handler could see them.
+     * </p>
      */
-    @JsonIgnoreProperties(ignoreUnknown = true)
     /* default */ static final class YamlConfigFile {
 
         /** Output mode: {@code csv}, {@code plain}, or {@code sarif}. */
@@ -283,9 +319,9 @@ final class YamlConfig {
     }
 
     /**
-     * AI subsystem configuration within the YAML file.
+     * AI subsystem configuration within the YAML file. Unknown keys are logged
+     * and skipped (see {@link YamlConfigFile}).
      */
-    @JsonIgnoreProperties(ignoreUnknown = true)
     /* default */ static final class YamlAiConfig {
 
         /** Whether AI enrichment is enabled. */

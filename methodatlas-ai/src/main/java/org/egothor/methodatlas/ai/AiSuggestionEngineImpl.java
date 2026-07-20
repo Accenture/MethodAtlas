@@ -258,8 +258,12 @@ public final class AiSuggestionEngineImpl implements AiSuggestionEngine {
         try {
             response = JsonMapper.builder().build().writeValueAsString(result);
         } catch (JacksonException e) {
-            if (LOG.isLoggable(Level.FINE)) {
-                LOG.log(Level.FINE, "Failed to serialize AI response for archive", e);
+            // A blank provenance entry is being written to the archive — surface
+            // it at WARNING so the gap is visible in the audit trail.
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Failed to serialize AI response for archive (" + fqcn
+                        + ") — recording an empty provenance entry", e);
             }
             response = "";
         }

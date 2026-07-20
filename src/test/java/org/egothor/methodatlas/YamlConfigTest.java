@@ -10,8 +10,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -128,6 +133,41 @@ class YamlConfigTest {
         Path config = write(tempDir, "unknownField: someValue\noutputMode: csv\n");
         YamlConfig.YamlConfigFile cfg = YamlConfig.load(config);
         assertEquals("csv", cfg.outputMode);
+    }
+
+    @Test
+    @DisplayName("load logs a WARNING naming an unknown top-level key")
+    @Tag("positive")
+    void load_logsWarningForUnknownKey(@TempDir Path tempDir) throws Exception {
+        Logger logger = Logger.getLogger("org.egothor.methodatlas.YamlConfig");
+        List<LogRecord> records = new ArrayList<>();
+        Handler capture = new Handler() {
+            @Override public void publish(LogRecord record) {
+                records.add(record);
+            }
+            @Override public void flush() {
+                // no-op: records are captured synchronously in publish
+            }
+            @Override public void close() {
+                // no-op: nothing to release
+            }
+        };
+        logger.addHandler(capture);
+        Level previous = logger.getLevel();
+        logger.setLevel(Level.WARNING);
+        try {
+            // "secruityOnly" is a deliberate typo of "securityOnly".
+            Path config = write(tempDir, "secruityOnly: true\noutputMode: csv\n");
+            YamlConfig.YamlConfigFile cfg = YamlConfig.load(config);
+            assertEquals("csv", cfg.outputMode, "known keys must still parse");
+            assertTrue(
+                    records.stream().anyMatch(r -> r.getLevel() == Level.WARNING
+                            && String.valueOf(r.getMessage()).contains("Unknown configuration key")),
+                    "Expected a WARNING for the unknown key; got: " + records);
+        } finally {
+            logger.removeHandler(capture);
+            logger.setLevel(previous);
+        }
     }
 
     @Test

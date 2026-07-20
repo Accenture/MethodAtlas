@@ -6,6 +6,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Lazy provider of the source text for a test class.
@@ -27,6 +29,9 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @FunctionalInterface
 public interface SourceContent {
+
+    /** Logger used by {@link #ofFile(Path)} to report a failed source read. */
+    Logger LOG = Logger.getLogger(SourceContent.class.getName());
 
     /**
      * Returns the source text of the enclosing test class.
@@ -66,6 +71,11 @@ public interface SourceContent {
                 try {
                     read = Optional.of(Files.readString(file));
                 } catch (IOException e) {
+                    if (LOG.isLoggable(Level.WARNING)) {
+                        LOG.log(Level.WARNING,
+                                "Cannot read source file for AI analysis / content hashing: "
+                                + file + " (" + e.getMessage() + ")", e);
+                    }
                     read = Optional.empty();
                 }
                 cache.compareAndSet(null, read);

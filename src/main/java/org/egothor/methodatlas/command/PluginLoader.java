@@ -135,13 +135,13 @@ public final class PluginLoader {
 
     /**
      * Closes every provider in the list, logging any {@link IOException} at
-     * {@link Level#FINE} and continuing so that all providers are attempted.
+     * {@link Level#WARNING} and continuing so that all providers are attempted.
      *
      * <p>
      * This method never throws: a provider whose {@code close} fails leaves
      * its resources in an indeterminate state, but the orchestration layer
-     * always exits cleanly. Failures are observable through the FINE-level
-     * log.
+     * always exits cleanly. A failed close is a potential resource leak, so it
+     * is logged at {@code WARNING} to be visible at the default log threshold.
      * </p>
      *
      * @param providers list of providers to close; must not be {@code null}
@@ -152,8 +152,8 @@ public final class PluginLoader {
             try {
                 p.close();
             } catch (IOException e) {
-                if (LOG.isLoggable(Level.FINE)) {
-                    LOG.log(Level.FINE, "Failed to close provider " + p.pluginId(), e);
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.log(Level.WARNING, "Failed to close provider " + p.pluginId(), e);
                 }
             }
         }
@@ -253,8 +253,8 @@ public final class PluginLoader {
 
     /**
      * Closes every detector in the list, logging any {@link IOException}
-     * at {@link Level#FINE} and continuing so that all detectors are attempted.
-     * Never throws.
+     * at {@link Level#WARNING} and continuing so that all detectors are
+     * attempted. Never throws.
      *
      * @param detectors detectors to close; must not be {@code null}
      */
@@ -264,8 +264,8 @@ public final class PluginLoader {
             try {
                 d.close();
             } catch (IOException e) {
-                if (LOG.isLoggable(Level.FINE)) {
-                    LOG.log(Level.FINE, "Failed to close detector " + d.detectorId(), e);
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.log(Level.WARNING, "Failed to close detector " + d.detectorId(), e);
                 }
             }
         }

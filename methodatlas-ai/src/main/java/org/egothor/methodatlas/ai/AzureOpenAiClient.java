@@ -4,7 +4,9 @@
 package org.egothor.methodatlas.ai;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpRequest;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -116,9 +118,8 @@ public record AzureOpenAiClient(AiOptions options, HttpJsonExecutor executor) im
                     List.of(new Message("system", SYSTEM_PROMPT), new Message("user", prompt)), 0.0);
             String requestBody = executor.httpSupport().objectMapper().writeValueAsString(payload);
 
-            String url = options.baseUrl() + "/openai/deployments/" + options.modelName()
-                    + "/chat/completions?api-version=" + options.apiVersion();
-            URI uri = URI.create(url);
+            URI uri = URI.create(buildEndpointUrl(
+                    options.baseUrl(), options.modelName(), options.apiVersion()));
 
             request = executor.httpSupport().jsonPost(uri, requestBody, options.timeout())
                     .header("api-key", options.resolvedApiKey())
@@ -133,6 +134,32 @@ public record AzureOpenAiClient(AiOptions options, HttpJsonExecutor executor) im
             }
             return response.choices().get(0).message().content();
         });
+    }
+
+    /**
+     * Builds the Azure OpenAI chat-completions endpoint URL, encoding the
+     * deployment name as a URL path segment.
+     *
+     * <p>
+     * The deployment name is operator-supplied configuration and may contain
+     * characters (spaces, reserved characters) that are illegal in a URI path.
+     * {@link URLEncoder} produces {@code application/x-www-form-urlencoded} text
+     * where a space becomes {@code '+'}; that is correct for query strings but
+     * not for path segments, so {@code '+'} is rewritten to {@code %20} to yield
+     * a valid path segment.
+     * </p>
+     *
+     * @param baseUrl        resource endpoint (e.g. {@code https://contoso.openai.azure.com})
+     * @param deploymentName Azure deployment name (from {@link AiOptions#modelName()})
+     * @param apiVersion     REST API version query-parameter value
+     * @return the fully-assembled request URL
+     */
+    /* default */ static String buildEndpointUrl(String baseUrl, String deploymentName,
+            String apiVersion) {
+        String encodedDeployment =
+                URLEncoder.encode(deploymentName, StandardCharsets.UTF_8).replace("+", "%20");
+        return baseUrl + "/openai/deployments/" + encodedDeployment
+                + "/chat/completions?api-version=" + apiVersion;
     }
 
     /**

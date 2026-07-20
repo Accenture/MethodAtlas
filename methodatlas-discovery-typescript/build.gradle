@@ -43,6 +43,11 @@ tasks.named('compileTestJava') {
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
     jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
+    // Tests run from classes dirs, not the packaged JAR, so the bundle SHA-256
+    // manifest attribute is absent. Opt in to the unverified bundle for the test
+    // JVM only; production runs from the JAR where the hash is present and
+    // BundleIntegrity hard-fails without this property. See BundleIntegrity.
+    systemProperty 'methodatlas.typescript.allowUnverifiedBundle', 'true'
 }
 
 // ---------------------------------------------------------------------------

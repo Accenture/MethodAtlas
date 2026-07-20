@@ -201,6 +201,8 @@ public final class MethodAtlasApp {
     private static final int EXIT_BAD_ARGS = 2;
     /** Exit code used when an evidence-pack framework token cannot be parsed. */
     private static final int EXIT_BAD_FRAMEWORK = 2;
+    /** Exit code returned when the run fails with an expected, reported error. */
+    private static final int EXIT_RUN_ERROR = 1;
 
     /**
      * Prevents instantiation of this utility class.
@@ -212,19 +214,19 @@ public final class MethodAtlasApp {
      * Program entry point.
      *
      * <p>
-     * Delegates all work to {@link #run(String[], PrintWriter)}. Exits with a
-     * non-zero status code if any source file could not be processed.
+     * Delegates all work to {@link #run(String[], PrintWriter)}. The expected
+     * failure modes — an I/O error traversing a scan tree, a rejected option, or
+     * an AI engine that cannot be built — are caught here, reported as a single
+     * concise line on {@code System.err}, and turned into exit code
+     * {@value #EXIT_RUN_ERROR}; the raw stack trace is not shown. Unexpected
+     * runtime failures are deliberately left to propagate so genuine defects
+     * still surface with a full trace. A non-zero status is also returned when a
+     * source file could not be processed.
      * </p>
      *
      * @param args command-line arguments
-     * @throws IOException              if traversal of a configured file tree fails
-     * @throws IllegalArgumentException if an option is unknown, if a required
-     *                                  option value is missing, or if an option
-     *                                  value cannot be parsed
-     * @throws IllegalStateException    if AI support is enabled but the AI engine
-     *                                  cannot be created successfully
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         // Wrap System.out in a guarded stream whose close() only flushes.
         // This lets try-with-resources manage the PrintWriter (satisfying
         // SpotBugs CloseResource and PMD UseTryWithResources) without
@@ -236,11 +238,19 @@ public final class MethodAtlasApp {
                 flush(); // flush but do NOT close System.out
             }
         };
+        int exitCode;
         try (PrintWriter out = new PrintWriter(new OutputStreamWriter(guarded, StandardCharsets.UTF_8), true)) {
-            int exitCode = run(args, out);
-            if (exitCode != 0) {
-                System.exit(exitCode);
-            }
+            exitCode = run(args, out);
+        } catch (IOException | IllegalArgumentException | IllegalStateException e) {
+            // Expected, actionable failures: report one concise line, no stack
+            // trace. Unexpected RuntimeExceptions are not caught here so real
+            // bugs still surface with a full trace.
+            String detail = e.getMessage() != null ? e.getMessage() : e.toString();
+            System.err.println("methodatlas: " + detail);
+            exitCode = EXIT_RUN_ERROR;
+        }
+        if (exitCode != 0) {
+            System.exit(exitCode);
         }
     }
 

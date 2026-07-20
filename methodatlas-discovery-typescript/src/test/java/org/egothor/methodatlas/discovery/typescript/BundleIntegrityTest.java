@@ -1,7 +1,9 @@
 package org.egothor.methodatlas.discovery.typescript;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
@@ -68,5 +70,50 @@ class BundleIntegrityTest {
     @Test
     void manifestVersionAttr_isExpectedKey() {
         assertEquals("TS-Scanner-Bundle-Version", BundleIntegrity.MANIFEST_VERSION_ATTR);
+    }
+
+    @Test
+    void verifyHash_matchingHash_passes() {
+        assertDoesNotThrow(() -> BundleIntegrity.verifyHash("ABCDEF", "abcdef"),
+                "matching hashes (case-insensitive) must pass");
+    }
+
+    @Test
+    void verifyHash_mismatch_throws() {
+        assertThrows(IllegalStateException.class,
+                () -> BundleIntegrity.verifyHash("aaaa", "bbbb"));
+    }
+
+    @Test
+    void verifyHash_absentHash_withoutOptIn_throws() {
+        String prop = BundleIntegrity.ALLOW_UNVERIFIED_PROPERTY;
+        String previous = System.getProperty(prop);
+        System.clearProperty(prop);
+        try {
+            assertThrows(IllegalStateException.class,
+                    () -> BundleIntegrity.verifyHash(null, "deadbeef"),
+                    "a missing manifest hash must hard-fail without the opt-in");
+        } finally {
+            if (previous != null) {
+                System.setProperty(prop, previous);
+            }
+        }
+    }
+
+    @Test
+    void verifyHash_absentHash_withOptIn_skips() {
+        String prop = BundleIntegrity.ALLOW_UNVERIFIED_PROPERTY;
+        String previous = System.getProperty(prop);
+        System.setProperty(prop, "true");
+        try {
+            assertDoesNotThrow(() -> BundleIntegrity.verifyHash(null, "deadbeef"),
+                    "opt-in must allow an unverified bundle");
+        } finally {
+            if (previous == null) {
+                System.clearProperty(prop);
+            } else {
+                System.setProperty(prop, previous);
+            }
+        }
     }
 }
