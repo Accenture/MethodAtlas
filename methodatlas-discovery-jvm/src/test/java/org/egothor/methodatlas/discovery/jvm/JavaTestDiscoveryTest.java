@@ -84,6 +84,36 @@ class JavaTestDiscoveryTest {
         assertFalse(discovery.hadErrors());
     }
 
+    @Test
+    @DisplayName("a directory whose name ends with a configured suffix is not treated as a file")
+    @Tag("negative")
+    void discover_directoryNamedLikeSuffix_isIgnored(@TempDir Path tmp) throws IOException {
+        // A directory literally named like a test file ("*Test.java"). The full
+        // path ends with the suffix, so the old path.toString() match wrongly
+        // selected it and then failed to parse a directory. The file-name match
+        // must skip it — without recording an error.
+        Path bogusDir = tmp.resolve("Integration.Test.java");
+        Files.createDirectories(bogusDir);
+        Files.writeString(bogusDir.resolve("notes.txt"), "not source");
+
+        // A genuine test file must still be discovered.
+        write(tmp, "com/acme/RealTest.java", """
+                package com.acme;
+                import org.junit.jupiter.api.Test;
+                class RealTest {
+                    @Test
+                    void realCase() {}
+                }
+                """);
+
+        List<DiscoveredMethod> result = discover(tmp);
+
+        assertEquals(1, result.size(), "only the genuine test file should be discovered");
+        assertEquals("realCase", result.get(0).method());
+        assertFalse(discovery.hadErrors(),
+                "a directory named like a suffix must not cause a parse error");
+    }
+
     // -------------------------------------------------------------------------
     // Basic JUnit 5 discovery
     // -------------------------------------------------------------------------

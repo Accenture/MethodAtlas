@@ -4,6 +4,7 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.gui.model.AnalysisModel;
 import org.egothor.methodatlas.gui.model.AppSettings;
 import org.egothor.methodatlas.gui.model.MethodEntry;
+import org.egothor.methodatlas.gui.model.TagStaging;
 import org.egothor.methodatlas.gui.service.SourceWriteBackSupport;
 
 import javax.swing.*;
@@ -13,9 +14,7 @@ import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Bottom-right panel for reviewing and staging tag suggestions for a method.
@@ -282,31 +281,22 @@ public final class TagEditorPanel extends JPanel {
     private void stageSelectedTags() {
         if (currentEntry == null) { return; }
 
-        Set<String> tags = new LinkedHashSet<>(currentEntry.discovered().tags());
+        List<String> selectedAiTags = new ArrayList<>();
         for (Component c : aiTagsRow.getComponents()) {
             if (c instanceof JToggleButton btn && btn.isSelected()) {
-                tags.add(btn.getText());
-            }
-        }
-        String override = overrideField.getText().trim();
-        if (!override.isEmpty()) {
-            for (String t : override.split(",")) {
-                String trimmed = t.trim();
-                if (!trimmed.isEmpty()) { tags.add(trimmed); }
+                selectedAiTags.add(btn.getText());
             }
         }
 
-        String displayName = resolveDisplayName(currentEntry);
-        stageEntry(currentEntry, new ArrayList<>(tags), displayName);
+        List<String> tags = TagStaging.selectedTags(
+                currentEntry, selectedAiTags, overrideField.getText());
+        stageEntry(currentEntry, tags, TagStaging.resolveDisplayName(currentEntry));
     }
 
     private void stageAllAiTags() {
         if (currentEntry == null || currentEntry.suggestion() == null) { return; }
-        Set<String> tags = new LinkedHashSet<>(currentEntry.discovered().tags());
-        List<String> aiTags = currentEntry.suggestion().tags();
-        if (aiTags != null) { tags.addAll(aiTags); }
-        String displayName = resolveDisplayName(currentEntry);
-        stageEntry(currentEntry, new ArrayList<>(tags), displayName);
+        List<String> tags = TagStaging.acceptAllAiTags(currentEntry);
+        stageEntry(currentEntry, tags, TagStaging.resolveDisplayName(currentEntry));
     }
 
     private void unstageCurrentEntry() {
@@ -327,18 +317,6 @@ public final class TagEditorPanel extends JPanel {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
-
-    /**
-     * Returns the AI-suggested display name to stage alongside the tags, or
-     * {@code null} when one is not available or already set in source.
-     */
-    private static String resolveDisplayName(MethodEntry entry) {
-        String dn = entry.suggestedDisplayName();
-        if (dn != null && !dn.isBlank() && entry.discovered().displayName() == null) {
-            return dn;
-        }
-        return null;
-    }
 
     /**
      * Returns the flat suffix list required by {@link TestDiscoveryConfig}

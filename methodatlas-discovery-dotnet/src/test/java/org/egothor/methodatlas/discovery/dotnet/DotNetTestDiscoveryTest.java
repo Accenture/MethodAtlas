@@ -150,6 +150,30 @@ class DotNetTestDiscoveryTest {
     }
 
     @Test
+    void discover_frameworkUsingInLaterNamespace_resolvedAfterFullWalk(@TempDir Path root)
+            throws Exception {
+        // The `using Xunit;` lives in a namespace visited AFTER a method in an
+        // earlier namespace. Correct xUnit detection (and therefore DisplayName
+        // extraction, which only xUnit supports) requires resolving the
+        // framework after the whole file is walked.
+        Path src = resource("LateFrameworkUsing.cs");
+        java.nio.file.Files.copy(src, root.resolve("LateFrameworkUsing.cs"));
+
+        List<DiscoveredMethod> methods = discovery.discover(root).collect(Collectors.toList());
+
+        List<String> names = methods.stream().map(DiscoveredMethod::method).collect(Collectors.toList());
+        assertTrue(names.contains("FirstTest"),  "FirstTest must be discovered");
+        assertTrue(names.contains("SecondTest"), "SecondTest must be discovered");
+
+        DiscoveredMethod second = methods.stream()
+                .filter(m -> "SecondTest".equals(m.method()))
+                .findFirst().orElseThrow();
+        assertEquals("Nice name", second.displayName(),
+                "xUnit DisplayName requires the framework to be detected from the "
+                + "later namespace's using directive");
+    }
+
+    @Test
     void discover_nestedClass(@TempDir Path root) throws Exception {
         Path src = resource("NestedClass.cs");
         java.nio.file.Files.copy(src, root.resolve("NestedClass.cs"));

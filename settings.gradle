@@ -1,6 +1,10 @@
 rootProject.name = 'methodatlas'
 
 include 'methodatlas-api'
+// Swing-free internal utilities shared by the discovery plugins:
+// worker-process pool + circuit breaker (TypeScript/Python), path-stem
+// computation, config-property parsing, and lazy source-content loading.
+include 'methodatlas-util'
 include 'methodatlas-ai'
 include 'methodatlas-emit'
 include 'methodatlas-discovery-jvm'

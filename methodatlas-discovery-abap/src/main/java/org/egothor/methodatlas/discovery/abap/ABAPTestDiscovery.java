@@ -19,6 +19,7 @@ import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.util.PathStems;
 import org.egothor.methodatlas.discovery.abap.internal.ABAPTestVisitor;
 import org.egothor.methodatlas.discovery.abap.internal.ECATTScriptVisitor;
 import org.egothor.methodatlas.discovery.abap.internal.MethodInfo;
@@ -252,21 +253,7 @@ public final class ABAPTestDiscovery implements TestDiscovery {
      * @return dot-separated stem; never {@code null} or empty
      */
     /* default */ static String buildFileStem(Path file, Path root) {
-        Path rel = root.relativize(file);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < rel.getNameCount(); i++) {
-            if (!sb.isEmpty()) {
-                sb.append('.');
-            }
-            String part = rel.getName(i).toString();
-            if (i == rel.getNameCount() - 1) {
-                int dot = part.lastIndexOf('.');
-                if (dot > 0) {
-                    part = part.substring(0, dot);
-                }
-            }
-            sb.append(part);
-        }
-        return sb.toString();
+        // Strips the last dot-extension from the final segment; joins with '.'.
+        return PathStems.buildFileStem(root, file);
     }
 }

@@ -21,6 +21,7 @@ import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.discovery.go.internal.GoTestVisitor;
 import org.egothor.methodatlas.discovery.go.internal.MethodInfo;
+import org.egothor.methodatlas.util.PathStems;
 import org.egothor.methodatlas.discovery.go.parser.GoTestLexer;
 import org.egothor.methodatlas.discovery.go.parser.GoTestParser;
 
@@ -68,6 +69,9 @@ public final class GoTestDiscovery implements TestDiscovery {
     private static final Logger LOG = Logger.getLogger(GoTestDiscovery.class.getName());
 
     private static final String DEFAULT_SUFFIX = "_test.go";
+
+    /** Sentinel package name reported by the visitor when no {@code package} clause was parsed. */
+    private static final String UNKNOWN_PACKAGE = "unknown";
 
     private List<String> fileSuffixes = List.of(DEFAULT_SUFFIX);
     private final AtomicBoolean errors = new AtomicBoolean();
@@ -218,20 +222,26 @@ public final class GoTestDiscovery implements TestDiscovery {
     // ── Package-private static helpers (testable) ──────────────────────────
 
     /**
-     * Derives the fully-qualified class name from the file's parent directory
-     * relative to the scan root.
+     * Derives the fully-qualified class name for a Go test file.
      *
-     * <p>The path segments of the parent directory relative to {@code root}
-     * are joined with {@code "."}.  If the file resides directly under
-     * {@code root} (no parent segments) or relativization fails,
-     * {@code packageName} is returned as the fallback.</p>
+     * <p>The Go package name declared in the file is the primary FQCN, so two
+     * files sharing a directory but declaring different packages (for example
+     * {@code foo} and the external test package {@code foo_test}) receive
+     * distinct FQCNs. When the package name is unavailable
+     * ({@code "unknown"} — no {@code package} clause was parsed), the FQCN
+     * falls back to the dot-separated path of the file's parent directory
+     * relative to {@code root}, and finally to {@code "unknown"} when the file
+     * resides directly under {@code root} or relativization fails.</p>
      *
      * @param file        path to the Go source file
      * @param root        scan root directory
-     * @param packageName package name extracted from the file (used as fallback)
-     * @return dot-separated identifier representing the file's directory path
+     * @param packageName package name extracted from the file
+     * @return FQCN for the file's test methods; never {@code null}
      */
     /* default */ static String buildFqcn(Path file, Path root, String packageName) {
+        if (packageName != null && !UNKNOWN_PACKAGE.equals(packageName)) {
+            return packageName;
+        }
         try {
             Path relParent = root.relativize(file.getParent());
             if (relParent.getNameCount() == 0 || relParent.toString().isEmpty()) {
@@ -260,19 +270,7 @@ public final class GoTestDiscovery implements TestDiscovery {
      * @return dot-separated file stem without the {@code _test.go} extension
      */
     /* default */ static String buildFileStem(Path file, Path root) {
-        Path rel = root.relativize(file);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < rel.getNameCount(); i++) {
-            if (!sb.isEmpty()) {
-                sb.append('.');
-            }
-            String part = rel.getName(i).toString();
-            if (i == rel.getNameCount() - 1 && part.endsWith(DEFAULT_SUFFIX)) {
-                part = part.substring(0, part.length() - DEFAULT_SUFFIX.length());
-            }
-            sb.append(part);
-        }
-        return sb.toString();
+        return PathStems.buildFileStem(root, file, DEFAULT_SUFFIX);
     }
 
     private static SourceContent buildSourceContent(Path file) {

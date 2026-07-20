@@ -1,6 +1,5 @@
 plugins {
     id 'java-library'
-    id 'com.github.spotbugs' version '6.5.4'
     id 'net.ltgt.errorprone' version '5.1.0'
 }
 
@@ -13,33 +12,14 @@ repositories {
     mavenCentral()
 }
 
-def hashFile = layout.buildDirectory.file('py-scanner.sha256')
-
-// Compute the SHA-256 of the embedded scanner script and write it to a
-// sidecar file.  The value is read back by the jar task to populate the
-// manifest attribute so that PythonScriptIntegrity can verify it at runtime.
-tasks.register('computeScriptHash') {
-    def scriptFile = file(
-        'src/main/resources/org/egothor/methodatlas/discovery/python/py-scanner.py')
-    inputs.file(scriptFile)
-    outputs.file(hashFile)
-    doLast {
-        def digest = java.security.MessageDigest.getInstance('SHA-256')
-        def bytes  = scriptFile.bytes
-        def hash   = digest.digest(bytes).collect { String.format('%02x', it & 0xff) }.join('')
-        hashFile.get().asFile.text = hash
-        logger.lifecycle("Python scanner script SHA-256: {}", hash)
-    }
-}
-
 configurations {
     mockitoAgent
 }
 
 dependencies {
-    api    project(':methodatlas-api')
-    implementation project(':methodatlas-util')
-    implementation 'tools.jackson.core:jackson-databind:3.1.4'
+    // TestDiscoveryConfig (ConfigProperties) and SourceContent (LazySourceContent)
+    // are part of this module's public helper API, so expose the SPI transitively.
+    api project(':methodatlas-api')
 
     testImplementation(platform("org.junit:junit-bom:5.14.2"))
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -84,20 +64,6 @@ javadoc {
     options.tags('see')
 }
 
-// Publish Javadoc as part of the standard build so plugin documentation is
-// generated and archived alongside the plugin JAR.
+// Publish Javadoc as part of the standard build so shared-utility documentation
+// is generated and archived alongside the module JAR.
 build.dependsOn javadoc
-
-jar {
-    dependsOn computeScriptHash
-    manifest {
-        attributes(
-            'Implementation-Title':  'MethodAtlas Python Test Discovery',
-            'Implementation-Version': rootProject.version.toString(),
-            'Py-Scanner-Version':    rootProject.version.toString(),
-            'Py-Scanner-SHA256':     providers.fileContents(hashFile).asText
-                    .map { it.trim() }
-                    .orElse('').get()
-        )
-    }
-}

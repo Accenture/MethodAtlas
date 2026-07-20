@@ -1,4 +1,4 @@
-package org.egothor.methodatlas.discovery.typescript;
+package org.egothor.methodatlas.util;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -10,18 +10,27 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Tracks consecutive worker-process restarts and trips an open circuit when
- * the restart rate exceeds safe operating limits.
+ * Tracks consecutive worker-process restarts and trips an open circuit when the
+ * restart rate exceeds safe operating limits.
+ *
+ * <p>
+ * This class is shared by every discovery plugin that manages a pool of
+ * long-lived external worker processes (currently the TypeScript/Node.js and
+ * Python plugins).  The human-readable {@code subject} (e.g. {@code "TypeScript"}
+ * or {@code "Python"}) and the configuration-property {@code prefix} (e.g.
+ * {@code "typescript"} or {@code "python"}) parameterise the log messages so a
+ * single implementation serves all plugins without behavioural drift.
+ * </p>
  *
  * <h2>Policy</h2>
  *
  * <p>
  * The circuit opens when the number of worker restarts within the trailing
- * {@code windowSeconds} sliding window reaches or exceeds
- * {@code maxRestarts}.  Once open, the circuit never closes — the plugin is
- * disabled for the remainder of the scan run.  Operators can increase the
- * threshold via the {@code typescript.maxConsecutiveRestarts} and
- * {@code typescript.restartWindowSec} configuration properties.
+ * {@code windowSeconds} sliding window reaches or exceeds {@code maxRestarts}.
+ * Once open, the circuit never closes — the plugin is disabled for the
+ * remainder of the scan run.  Operators can increase the threshold via the
+ * {@code <prefix>.maxConsecutiveRestarts} and {@code <prefix>.restartWindowSec}
+ * configuration properties.
  * </p>
  *
  * <h2>Rationale</h2>
@@ -42,10 +51,12 @@ import java.util.logging.Logger;
  * single thread but could in future be extended to multiple scan threads.
  * </p>
  */
-final class WorkerCircuitBreaker {
+public final class WorkerCircuitBreaker {
 
     private static final Logger LOG = Logger.getLogger(WorkerCircuitBreaker.class.getName());
 
+    private final String subject;
+    private final String configPrefix;
     private final int maxRestarts;
     private final Duration window;
     private final Clock clock;
@@ -60,32 +71,43 @@ final class WorkerCircuitBreaker {
     private boolean open;
 
     /**
-     * Creates a circuit breaker with the given limits.
+     * Creates a circuit breaker with the given limits and the system UTC clock.
      *
-     * @param maxRestarts    maximum number of restarts allowed within the window
-     *                       before the circuit opens; must be positive
-     * @param windowSeconds  width of the sliding time window in seconds;
-     *                       must be positive
-     * @throws IllegalArgumentException if either argument is not positive
+     * @param subject       human-readable plugin label used in log messages
+     *                      (e.g. {@code "TypeScript"}); never {@code null}
+     * @param configPrefix  configuration-property prefix named in the remediation
+     *                      hint (e.g. {@code "typescript"}); never {@code null}
+     * @param maxRestarts   maximum number of restarts allowed within the window
+     *                      before the circuit opens; must be positive
+     * @param windowSeconds width of the sliding time window in seconds;
+     *                      must be positive
+     * @throws IllegalArgumentException if either numeric argument is not positive
      */
-    /* default */ WorkerCircuitBreaker(int maxRestarts, int windowSeconds) {
-        this(maxRestarts, windowSeconds, Clock.systemUTC());
+    public WorkerCircuitBreaker(String subject, String configPrefix,
+            int maxRestarts, int windowSeconds) {
+        this(subject, configPrefix, maxRestarts, windowSeconds, Clock.systemUTC());
     }
 
     /**
      * Creates a circuit breaker with a custom clock for testing.
      *
-     * @param maxRestarts    maximum restarts within the window
-     * @param windowSeconds  sliding window width in seconds
-     * @param clock          clock used to determine current time
+     * @param subject       human-readable plugin label used in log messages
+     * @param configPrefix  configuration-property prefix named in the remediation hint
+     * @param maxRestarts   maximum restarts within the window
+     * @param windowSeconds sliding window width in seconds
+     * @param clock         clock used to determine current time
+     * @throws IllegalArgumentException if either numeric argument is not positive
      */
-    /* default */ WorkerCircuitBreaker(int maxRestarts, int windowSeconds, Clock clock) {
+    public WorkerCircuitBreaker(String subject, String configPrefix,
+            int maxRestarts, int windowSeconds, Clock clock) {
         if (maxRestarts <= 0) {
             throw new IllegalArgumentException("maxRestarts must be positive, got: " + maxRestarts);
         }
         if (windowSeconds <= 0) {
             throw new IllegalArgumentException("windowSeconds must be positive, got: " + windowSeconds);
         }
+        this.subject = subject;
+        this.configPrefix = configPrefix;
         this.maxRestarts = maxRestarts;
         this.window = Duration.ofSeconds(windowSeconds);
         this.clock = clock;
@@ -96,7 +118,7 @@ final class WorkerCircuitBreaker {
      *
      * @return {@code true} if the circuit has tripped
      */
-    /* default */ boolean isOpen() {
+    public boolean isOpen() {
         lock.lock();
         try {
             return open;
@@ -114,7 +136,7 @@ final class WorkerCircuitBreaker {
      * Subsequent calls to {@link #recordRestart()} are silently ignored.
      * </p>
      */
-    /* default */ void recordRestart() {
+    public void recordRestart() {
         lock.lock();
         try {
             if (open) {
@@ -134,13 +156,13 @@ final class WorkerCircuitBreaker {
             if (restartTimestamps.size() >= maxRestarts) {
                 open = true;
                 if (LOG.isLoggable(Level.WARNING)) {
-                    LOG.warning("TypeScript worker pool circuit breaker TRIPPED — "
+                    LOG.warning(subject + " worker pool circuit breaker TRIPPED — "
                             + restartTimestamps.size() + " restarts within the last "
                             + window.toSeconds() + " s (limit=" + maxRestarts + "). "
-                            + "TypeScript scanning is disabled for the remainder of this run. "
+                            + subject + " scanning is disabled for the remainder of this run. "
                             + "Investigate worker logs for the root cause; "
-                            + "increase typescript.maxConsecutiveRestarts or "
-                            + "typescript.restartWindowSec to raise the threshold.");
+                            + "increase " + configPrefix + ".maxConsecutiveRestarts or "
+                            + configPrefix + ".restartWindowSec to raise the threshold.");
                 }
             }
         } finally {
@@ -154,7 +176,7 @@ final class WorkerCircuitBreaker {
      *
      * @return restart count within the active window
      */
-    /* default */ int restartsInWindow() {
+    public int restartsInWindow() {
         lock.lock();
         try {
             if (open) {

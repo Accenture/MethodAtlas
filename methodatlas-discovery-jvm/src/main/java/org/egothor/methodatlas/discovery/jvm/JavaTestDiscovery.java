@@ -194,7 +194,12 @@ public final class JavaTestDiscovery implements TestDiscovery {
 
         try (Stream<Path> walk = Files.walk(root)) {
             List<Path> files = walk
-                    .filter(path -> fileSuffixes.stream().anyMatch(s -> path.toString().endsWith(s)))
+                    .filter(Files::isRegularFile)
+                    .filter(path -> {
+                        Path fileName = path.getFileName();
+                        return fileName != null
+                                && fileSuffixes.stream().anyMatch(s -> fileName.toString().endsWith(s));
+                    })
                     .toList();
             for (Path path : files) {
                 processFile(root, path, result);

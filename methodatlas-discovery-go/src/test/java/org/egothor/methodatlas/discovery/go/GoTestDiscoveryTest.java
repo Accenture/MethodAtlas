@@ -2,6 +2,7 @@ package org.egothor.methodatlas.discovery.go;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -151,20 +152,68 @@ class GoTestDiscoveryTest {
     }
 
     /**
-     * Verifies that {@link GoTestDiscovery#buildFqcn(Path, Path, String)}
-     * derives the dot-separated directory path relative to the root.
+     * Verifies that {@link GoTestDiscovery#buildFqcn(Path, Path, String)} uses
+     * the declared Go package name as the primary FQCN.
      *
      * @param tempDir JUnit-managed temporary directory
      * @throws IOException if file operations fail
      */
     @Test
-    void buildFqcn_derivesFromDirectory(@TempDir Path tempDir) throws IOException {
+    void buildFqcn_usesPackageName(@TempDir Path tempDir) throws IOException {
         Path subPkg = tempDir.resolve("sub").resolve("pkg");
         Files.createDirectories(subPkg);
         Path file = subPkg.resolve("auth_test.go");
         Files.writeString(file, "package pkg\n");
 
         String fqcn = GoTestDiscovery.buildFqcn(file, tempDir, "pkg");
+        assertEquals("pkg", fqcn);
+    }
+
+    /**
+     * Verifies that two files in the SAME directory that declare DIFFERENT
+     * packages (e.g. {@code foo} and the external test package
+     * {@code foo_test}) receive distinct FQCNs — the collision that the
+     * directory-based FQCN previously produced.
+     *
+     * @param tempDir JUnit-managed temporary directory
+     * @throws IOException if file operations fail
+     */
+    @Test
+    void buildFqcn_distinctPackagesInSameDir_produceDistinctFqcns(@TempDir Path tempDir)
+            throws IOException {
+        Path dir = tempDir.resolve("svc");
+        Files.createDirectories(dir);
+        Path internal = dir.resolve("svc_test.go");
+        Path external = dir.resolve("svc_ext_test.go");
+        Files.writeString(internal, "package svc\n");
+        Files.writeString(external, "package svc_test\n");
+
+        String internalFqcn = GoTestDiscovery.buildFqcn(internal, tempDir, "svc");
+        String externalFqcn = GoTestDiscovery.buildFqcn(external, tempDir, "svc_test");
+
+        assertEquals("svc", internalFqcn);
+        assertEquals("svc_test", externalFqcn);
+        assertNotEquals(internalFqcn, externalFqcn,
+                "files in the same directory but different packages must not collide");
+    }
+
+    /**
+     * Verifies that when the package name is {@code "unknown"} (no parseable
+     * {@code package} clause) {@link GoTestDiscovery#buildFqcn} falls back to
+     * the dot-separated parent-directory path.
+     *
+     * @param tempDir JUnit-managed temporary directory
+     * @throws IOException if file operations fail
+     */
+    @Test
+    void buildFqcn_unknownPackage_fallsBackToDirectoryPath(@TempDir Path tempDir)
+            throws IOException {
+        Path subPkg = tempDir.resolve("sub").resolve("pkg");
+        Files.createDirectories(subPkg);
+        Path file = subPkg.resolve("auth_test.go");
+        Files.writeString(file, "// no package clause\n");
+
+        String fqcn = GoTestDiscovery.buildFqcn(file, tempDir, "unknown");
         assertEquals("sub.pkg", fqcn);
     }
 

@@ -5,9 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -17,6 +15,8 @@ import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.util.ConfigProperties;
+import org.egothor.methodatlas.util.WorkerCircuitBreaker;
 
 /**
  * Discovers Python test functions and methods in pytest-convention source files.
@@ -170,12 +170,12 @@ public final class PythonTestDiscovery implements TestDiscovery {
         List<String> suffixes = config.fileSuffixesFor(pluginId());
         this.fileSuffixes = suffixes.isEmpty() ? DEFAULT_SUFFIXES : suffixes;
 
-        this.poolSize = parseIntProperty(config, "python.poolSize", DEFAULT_POOL_SIZE);
-        int timeoutSec = parseIntProperty(config, "python.workerTimeoutSec", DEFAULT_TIMEOUT_SEC);
+        this.poolSize = ConfigProperties.parseInt(config, "python.poolSize", DEFAULT_POOL_SIZE);
+        int timeoutSec = ConfigProperties.parseInt(config, "python.workerTimeoutSec", DEFAULT_TIMEOUT_SEC);
         this.workerTimeoutMillis = timeoutSec * 1_000L;
-        this.maxRestarts = parseIntProperty(config, "python.maxConsecutiveRestarts",
+        this.maxRestarts = ConfigProperties.parseInt(config, "python.maxConsecutiveRestarts",
                 DEFAULT_MAX_RESTARTS);
-        this.restartWindowSec = parseIntProperty(config, "python.restartWindowSec",
+        this.restartWindowSec = ConfigProperties.parseInt(config, "python.restartWindowSec",
                 DEFAULT_RESTART_WINDOW_SEC);
     }
 
@@ -274,8 +274,8 @@ public final class PythonTestDiscovery implements TestDiscovery {
             }
             try {
                 Path scriptPath = PythonScriptExtractor.extractScript();
-                PythonWorkerCircuitBreaker cb =
-                        new PythonWorkerCircuitBreaker(maxRestarts, restartWindowSec);
+                WorkerCircuitBreaker cb =
+                        new WorkerCircuitBreaker("Python", "python", maxRestarts, restartWindowSec);
                 workerPool = new PythonWorkerPool(
                         scriptPath, pythonEnv, poolSize, workerTimeoutMillis, cb);
             } catch (IOException e) {
@@ -313,7 +313,7 @@ public final class PythonTestDiscovery implements TestDiscovery {
         }
 
         String modulePath = buildModulePath(file, root);
-        SourceContent sourceContent = buildSourceContent(file);
+        SourceContent sourceContent = SourceContent.ofFile(file);
 
         for (PythonWorker.MethodDescriptor d : descriptors) {
             String fqcn = d.className() != null
@@ -331,23 +331,6 @@ public final class PythonTestDiscovery implements TestDiscovery {
                     modulePath,
                     sourceContent));
         }
-    }
-
-    private static SourceContent buildSourceContent(Path file) {
-        AtomicBoolean read = new AtomicBoolean(false);
-        AtomicReference<String> cache = new AtomicReference<>(null);
-        return () -> {
-            if (read.compareAndSet(false, true)) {
-                try {
-                    cache.set(Files.readString(file));
-                } catch (IOException e) {
-                    if (LOG.isLoggable(Level.FINE)) {
-                        LOG.log(Level.FINE, "Cannot read source for AI analysis: " + file, e);
-                    }
-                }
-            }
-            return Optional.ofNullable(cache.get());
-        };
     }
 
     // ── Package-private static helpers (accessible from tests) ────────────
@@ -422,22 +405,5 @@ public final class PythonTestDiscovery implements TestDiscovery {
             sb.append(segment);
         }
         return sb.toString();
-    }
-
-    private static int parseIntProperty(TestDiscoveryConfig config, String key,
-                                        int defaultValue) {
-        List<String> values = config.properties().get(key);
-        if (values == null || values.isEmpty()) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(values.get(0));
-        } catch (NumberFormatException e) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.warning("Invalid value for property '" + key + "': " + values.get(0)
-                        + " — using default " + defaultValue);
-            }
-            return defaultValue;
-        }
     }
 }

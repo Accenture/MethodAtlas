@@ -245,6 +245,73 @@ class ClassificationOverrideTest {
     }
 
     @Test
+    @DisplayName("class-level override on a null suggestion synthesizes class fields from the fqcn")
+    @Tag("positive")
+    @Tag("security")
+    void staticMode_classLevelOverride_synthesizesFromFqcn(@TempDir Path tmp) throws IOException {
+        Path file = writeOverride(tmp, """
+                overrides:
+                  - fqcn: com.acme.OauthFlowTest
+                    securityRelevant: true
+                    tags: [security, auth]
+                    reason: "entire class covers OAuth 2.0 flow"
+                """);
+
+        ClassificationOverride co = ClassificationOverride.load(file);
+        AiClassSuggestion result = co.apply("com.acme.OauthFlowTest", null,
+                List.of("test_authCode", "test_refresh"));
+
+        assertNotNull(result, "class-level override should synthesize a result for a null suggestion");
+        // Class-level fields are synthesized: className is the fqcn; the rest stay null
+        // because no AI suggestion supplied them.
+        assertEquals("com.acme.OauthFlowTest", result.className());
+        assertNull(result.classSecurityRelevant());
+        assertNull(result.classTags());
+        assertNull(result.classReason());
+        // Every parser-discovered method receives the class-level override with confidence 1.0.
+        assertEquals(2, result.methods().size());
+        for (AiMethodSuggestion m : result.methods()) {
+            assertTrue(m.securityRelevant(), m.methodName());
+            assertEquals(List.of("security", "auth"), m.tags());
+            assertEquals("entire class covers OAuth 2.0 flow", m.reason());
+            assertEquals(1.0, m.confidence(), 1e-9);
+            assertEquals(0.0, m.interactionScore(), 1e-9);
+        }
+    }
+
+    @Test
+    @DisplayName("null suggestion + method-level override leaves untargeted methods as neutral records")
+    @Tag("positive")
+    void staticMode_untargetedMethod_getsNeutralRecord(@TempDir Path tmp) throws IOException {
+        Path file = writeOverride(tmp, """
+                overrides:
+                  - fqcn: com.acme.MixedTest
+                    method: test_secure
+                    securityRelevant: true
+                    tags: [crypto]
+                """);
+
+        ClassificationOverride co = ClassificationOverride.load(file);
+        AiClassSuggestion result = co.apply("com.acme.MixedTest", null,
+                List.of("test_secure", "test_plain"));
+
+        assertNotNull(result);
+        AiMethodSuggestion secure = findMethod(result, "test_secure");
+        assertTrue(secure.securityRelevant());
+        assertEquals(List.of("crypto"), secure.tags());
+        assertEquals(1.0, secure.confidence(), 1e-9);
+
+        // test_plain has neither a method-level nor a class-level override →
+        // a neutral synthesized record (documented "Methods not targeted …" behaviour).
+        AiMethodSuggestion plain = findMethod(result, "test_plain");
+        assertFalse(plain.securityRelevant());
+        assertTrue(plain.tags().isEmpty());
+        assertNull(plain.displayName());
+        assertNull(plain.reason());
+        assertEquals(0.0, plain.confidence(), 1e-9);
+    }
+
+    @Test
     @DisplayName("no override for class + null suggestion returns null (static mode, no annotation)")
     @Tag("positive")
     void staticMode_noOverride_returnsNull(@TempDir Path tmp) throws IOException {

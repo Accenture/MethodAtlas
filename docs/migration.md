@@ -15,10 +15,66 @@ commit history, see the project
 | **3.x.x** | Plugin-based discovery via `ServiceLoader`; configuration generalised to support multiple languages and platforms |
 | **4.x.x** | Evidence packs and post-quantum-capable manifest signing; the GUI evidence CSV aligned to the CLI drift definition and extended with reviewer tag-delta columns |
 | **5.x.x** | Credential/secret detection (`-detect-secrets`), user-definable and checksum-audited LLM prompts, and a unified AI result cache; the reproducibility-receipt schema is raised to v2 |
+| **6.x.x** | Two discovery-plugin FQCN corrections: TypeScript strips the full test suffix, and Go keys the FQCN on the package name (fixing the `foo` / `foo_test` collision) |
 
 MethodAtlas follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 A major version increment means at least one breaking change that requires
 action from the operator.
+
+## Upgrading from 5.x to 6.x
+
+### Summary of breaking changes
+
+| Area | What changed | Action required |
+|---|---|---|
+| TypeScript FQCN | The full test suffix (`.test.ts`, `.spec.ts`, `.test.tsx`, …) is now stripped from the `fqcn`, instead of only the final `.ts`/`.js` extension | Remap TypeScript classification overrides keyed on the old FQCN; expect a one-off diff churn on the first run |
+| Go FQCN | The `fqcn` is now keyed on the file's **package name**, not its directory path; this fixes the `package foo` / `package foo_test` collision | Remap Go classification overrides keyed on the old FQCN; expect a one-off diff churn on the first run |
+
+Both changes alter the `fqcn` string that MethodAtlas emits. The FQCN is a **stable identifier** written into every output surface — CSV / SARIF / JSON records, the delta/diff reports (`-diff`, `DeltaReport`), the AI result cache keys, and the `.methodatlas/overrides.yaml` audit trail. The change is a **one-time** re-baseline; the new format is exactly as deterministic and stable as the old one. There is no ongoing instability.
+
+### TypeScript: full test suffix stripped from the FQCN  ⚠️ breaking
+
+Before 6.0.0 the TypeScript/JavaScript plugin stripped only the final extension from the file name, leaving the test-convention marker in the FQCN:
+
+| | FQCN for `auth/__tests__/authService.test.ts` |
+|---|---|
+| **5.x** | `auth.__tests__.authService.test` |
+| **6.x** | `auth.__tests__.authService` |
+
+From 6.0.0 the longest **configured** file suffix that matches the file name is stripped in full (the defaults are `.test.ts`, `.spec.ts`, `.test.tsx`, `.spec.tsx`, `.test.js`, `.spec.js`), so the residual `.test` / `.spec` segment no longer appears. The change applies to every TypeScript/JavaScript test file.
+
+**How to detect the problem:** a diff between a 5.x baseline and the first 6.x run reports every TypeScript test method as removed (old FQCN) and re-added (new FQCN); classification overrides whose `fqcn` still carries the `.test` / `.spec` segment stop matching and are silently skipped.
+
+**How to fix it:**
+
+- Regenerate the TypeScript baseline on the first 6.x run and treat the one-off diff churn as expected.
+- Update any `.methodatlas/overrides.yaml` entries (and any external override source) whose `fqcn` ends in `.test` / `.spec` to drop that segment.
+- No action is needed for the AI result cache: affected entries simply miss once and re-populate under the new key.
+
+### Go: FQCN keyed on the package name  ⚠️ breaking
+
+Before 6.0.0 the Go plugin derived the FQCN from the file's directory path. Go permits two packages to live in the same directory — the package under test (`package foo`) and its external test package (`package foo_test`) — so tests from **different packages collided under one FQCN**:
+
+| | FQCN for `internal/auth/auth_test.go` declaring `package auth_test` |
+|---|---|
+| **5.x** | `internal.auth` (directory-derived; collides with `package auth` in the same directory) |
+| **6.x** | `auth_test` (package-derived; distinct from `auth`) |
+
+From 6.0.0 the extracted package name is the primary FQCN, falling back to the directory path only when the package name cannot be determined. This both removes the collision and changes the FQCN string for affected Go tests.
+
+**How to detect the problem:** a diff between a 5.x baseline and the first 6.x run reports Go test methods under new FQCNs; overrides keyed on the old directory-derived FQCN stop matching.
+
+**How to fix it:**
+
+- Regenerate the Go baseline on the first 6.x run and treat the one-off diff churn as expected.
+- Update Go classification overrides to key on the package-derived FQCN.
+- No action is needed for the AI result cache (entries re-populate under the new key).
+
+### Checklist: upgrading from 5.x to 6.x
+
+- [ ] Regenerate TypeScript and Go baselines on the first 6.x run; confirm the diff churn is limited to those two languages and is a one-off
+- [ ] Remap `.methodatlas/overrides.yaml` (and any external override source) entries whose `fqcn` targets a TypeScript test (drop the trailing `.test` / `.spec`) or a Go test (use the package name)
+- [ ] No action required for AI result caches — affected entries re-populate automatically
 
 ## Upgrading from 4.x to 5.x
 

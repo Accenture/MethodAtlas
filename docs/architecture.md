@@ -16,6 +16,7 @@ flowchart TD
     classDef gui fill:#e8f5e9,stroke:#2e7d32
 
     api[methodatlas-api<br/><i>SPI: TestDiscovery, SourcePatcher,<br/>DiscoveredMethod, ScanRecord</i>]:::api
+    util[methodatlas-util<br/><i>Shared plugin utilities:<br/>worker pool, circuit breaker, path stems</i>]:::core
 
     ai[methodatlas-ai<br/><i>AI engine + provider clients</i>]:::core
     emit[methodatlas-emit<br/><i>CSV / SARIF / JSON output<br/>+ audit-schema types</i>]:::core
@@ -34,14 +35,17 @@ flowchart TD
     guicore[methodatlas-gui-core<br/><i>Swing-free GUI domain<br/>+ AuditWriter</i>]:::gui
     gui[methodatlas-gui<br/><i>Swing desktop UI</i>]:::gui
 
+    util --> api
     ai --> api
     emit --> api
     emit --> ai
     jvm --> api
     dotnet --> api
     ts --> api
+    ts --> util
     go --> api
     py --> api
+    py --> util
     ps --> api
     abap --> api
     cobol --> api
@@ -71,6 +75,7 @@ flowchart TD
 | Module | Responsibility |
 | --- | --- |
 | `methodatlas-api` | Public SPI consumed by every discovery plugin. Types: `TestDiscovery`, `SourcePatcher`, `DiscoveredMethod`, `ScanRecord`, `SourceContent`, `TestDiscoveryConfig`. No behaviour — pure contracts and data records. |
+| `methodatlas-util` | Swing-free internal utilities shared by the process-worker plugins: the generic `WorkerPool` and `WorkerCircuitBreaker`, `PathStems` (dot-separated file-stem computation), and `ConfigProperties` (typed config parsing). Used by the TypeScript and Python plugins; depends only on `methodatlas-api`. |
 | `methodatlas-ai` | AI suggestion engine, provider clients (Ollama, OpenAI-compatible, Anthropic, Azure OpenAI), taxonomy, prompt building, manual prepare/consume workflow, shared `HttpJsonExecutor`. |
 | `methodatlas-emit` | Output emitters (CSV / plain / SARIF / JSON / GitHub annotations / delta) and audit-schema types (`DeltaReport`, `ClassificationOverride`). The schema-stability surface; downstream tooling depends on these contracts. |
 | `methodatlas-discovery-*` | Eight per-language test discovery plugins. Each independently distributable. |
@@ -181,6 +186,7 @@ Summary as of the closing commit of Phase 6:
 | --- | ---: | ---: | --- |
 | root (`methodatlas`) | 70 % | 60 % | Established |
 | `methodatlas-api` | 40 % | 0 % | SPI is mostly records |
+| `methodatlas-util` | 60 % | 30 % | New shared-utility module; calibrate after first CI run |
 | `methodatlas-ai` | 80 % | 70 % | Strong test suite |
 | `methodatlas-emit` | 65 % | 45 % | SARIF / JSON well-covered |
 | `methodatlas-gui-core` | 75 % | 50 % | `AuditWriter` at 99 % line cov |

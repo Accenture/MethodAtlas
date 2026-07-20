@@ -5,9 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -17,6 +15,9 @@ import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.util.ConfigProperties;
+import org.egothor.methodatlas.util.PathStems;
+import org.egothor.methodatlas.util.WorkerCircuitBreaker;
 
 /**
  * {@link TestDiscovery} implementation for TypeScript and JavaScript source trees.
@@ -130,7 +131,7 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
     private NodeEnvironment nodeEnv;
     private TypeScriptWorkerPool workerPool;
     private boolean configured;
-    private boolean errors;
+    private final AtomicBoolean errors = new AtomicBoolean();
 
     /**
      * No-arg constructor for use by {@link java.util.ServiceLoader}.
@@ -193,12 +194,12 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
         List<String> fns = config.properties().getOrDefault("functionNames", List.of());
         this.functionNames = fns.isEmpty() ? DEFAULT_FUNCTION_NAMES : List.copyOf(fns);
 
-        this.poolSize = parseIntProperty(config, "typescript.poolSize", DEFAULT_POOL_SIZE);
-        int timeoutSec = parseIntProperty(config, "typescript.workerTimeoutSec", DEFAULT_TIMEOUT_SEC);
+        this.poolSize = ConfigProperties.parseInt(config, "typescript.poolSize", DEFAULT_POOL_SIZE);
+        int timeoutSec = ConfigProperties.parseInt(config, "typescript.workerTimeoutSec", DEFAULT_TIMEOUT_SEC);
         this.workerTimeoutMillis = timeoutSec * 1_000L;
-        this.maxRestarts = parseIntProperty(config, "typescript.maxConsecutiveRestarts",
+        this.maxRestarts = ConfigProperties.parseInt(config, "typescript.maxConsecutiveRestarts",
                 DEFAULT_MAX_RESTARTS);
-        this.restartWindowSec = parseIntProperty(config, "typescript.restartWindowSec",
+        this.restartWindowSec = ConfigProperties.parseInt(config, "typescript.restartWindowSec",
                 DEFAULT_RESTART_WINDOW_SEC);
 
         this.configured = true;
@@ -263,7 +264,7 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
                         "Node.js is unavailable — {0} TypeScript/JavaScript file(s) under {1} will not be scanned.",
                         new Object[] { files.size(), root });
             }
-            errors = true;
+            errors.set(true);
             return Stream.empty();
         }
 
@@ -277,7 +278,7 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
     /** {@inheritDoc} */
     @Override
     public boolean hadErrors() {
-        return errors;
+        return errors.get();
     }
 
     /**
@@ -320,7 +321,8 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
             }
             try {
                 Path bundlePath = BundleIntegrity.extractAndVerify();
-                WorkerCircuitBreaker cb = new WorkerCircuitBreaker(maxRestarts, restartWindowSec);
+                WorkerCircuitBreaker cb =
+                        new WorkerCircuitBreaker("TypeScript", "typescript", maxRestarts, restartWindowSec);
                 workerPool = new TypeScriptWorkerPool(
                         bundlePath, nodeEnv, poolSize, workerTimeoutMillis, cb);
             } catch (IOException | IllegalStateException e) {
@@ -353,7 +355,7 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
             if (LOG.isLoggable(Level.WARNING)) {
                 LOG.log(Level.WARNING, "Cannot scan TypeScript file: " + file, e);
             }
-            errors = true;
+            errors.set(true);
             return;
         }
 
@@ -361,12 +363,13 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
             return;
         }
 
-        // Build the FQCN from the file path (relative to root, dot-separated, no extension).
-        String fqcn = buildFqcn(root, file);
-        String fileStem = buildFileStem(root, file);
+        // Build the FQCN from the file path (relative to root, dot-separated,
+        // with the matching test suffix stripped).
+        String fqcn = buildFqcn(root, file, fileSuffixes);
+        String fileStem = buildFileStem(root, file, fileSuffixes);
 
         // Lazy-load the source content once per file, shared across all methods.
-        SourceContent sourceContent = buildSourceContent(file);
+        SourceContent sourceContent = SourceContent.ofFile(file);
 
         for (TypeScriptWorker.MethodDescriptor d : descriptors) {
             String methodName = buildMethodName(d);
@@ -395,35 +398,34 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
      * </p>
      *
      * <p>Example: {@code auth/__tests__/authService.test.ts} scanned from
-     * root → {@code auth.__tests__.authService.test}</p>
+     * root with the default suffixes → {@code auth.__tests__.authService}
+     * (the full {@code .test.ts} test suffix is stripped, not just the
+     * {@code .ts} extension).</p>
      *
-     * @param root scan root directory
-     * @param file source file
+     * @param root     scan root directory
+     * @param file     source file
+     * @param suffixes configured file suffixes; the longest one matching the
+     *                 file name is stripped (falling back to the last
+     *                 extension when none match)
      * @return dot-separated FQCN; never {@code null}
      */
-    /* default */ static String buildFqcn(Path root, Path file) {
-        Path rel = root.toAbsolutePath().normalize()
-                .relativize(file.toAbsolutePath().normalize());
-        String pathStr = rel.toString().replace('\\', '/').replace('/', '.');
-        // Strip the file extension (last component only).
-        int lastDot = pathStr.lastIndexOf('.');
-        if (lastDot > 0) {
-            pathStr = pathStr.substring(0, lastDot);
-        }
-        return pathStr;
+    /* default */ static String buildFqcn(Path root, Path file, List<String> suffixes) {
+        return PathStems.buildFileStem(root, file, suffixes.toArray(new String[0]));
     }
 
     /**
      * Computes the dot-separated file stem used to name work and response files
-     * in the manual AI workflow.  Identical to {@link #buildFqcn(Path, Path)}
-     * for TypeScript because there is no class hierarchy below the file level.
+     * in the manual AI workflow.  Identical to
+     * {@link #buildFqcn(Path, Path, List)} for TypeScript because there is no
+     * class hierarchy below the file level.
      *
-     * @param root scan root directory
-     * @param file source file
+     * @param root     scan root directory
+     * @param file     source file
+     * @param suffixes configured file suffixes (see {@link #buildFqcn})
      * @return dot-separated file stem; never {@code null}
      */
-    /* default */ static String buildFileStem(Path root, Path file) {
-        return buildFqcn(root, file);
+    /* default */ static String buildFileStem(Path root, Path file, List<String> suffixes) {
+        return buildFqcn(root, file, suffixes);
     }
 
     /**
@@ -444,62 +446,5 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
             return d.name();
         }
         return String.join(" > ", d.describe()) + " > " + d.name();
-    }
-
-    /**
-     * Creates a lazy {@link SourceContent} provider that reads and caches the
-     * full content of {@code file} on the first call to
-     * {@link SourceContent#get()}.
-     *
-     * <p>
-     * The lazy approach avoids reading file content when AI analysis is
-     * disabled, matching the behaviour of the JVM and .NET plugins.
-     * All methods discovered in the same file share a single
-     * {@link SourceContent} instance to avoid redundant reads.
-     * </p>
-     *
-     * @param file source file
-     * @return lazy source-content provider
-     */
-    private static SourceContent buildSourceContent(Path file) {
-        // Single cached read; AtomicBoolean/AtomicReference allow safe capture in lambda.
-        AtomicBoolean read = new AtomicBoolean(false);
-        AtomicReference<String> cache = new AtomicReference<>(null);
-        return () -> {
-            if (read.compareAndSet(false, true)) {
-                try {
-                    cache.set(Files.readString(file));
-                } catch (IOException e) {
-                    if (LOG.isLoggable(Level.FINE)) {
-                        LOG.log(Level.FINE, "Cannot read source for AI analysis: " + file, e);
-                    }
-                }
-            }
-            return Optional.ofNullable(cache.get());
-        };
-    }
-
-    /**
-     * Reads a single integer property from the configuration.
-     *
-     * @param config       discovery configuration
-     * @param key          property key
-     * @param defaultValue value to use when the key is absent or unparseable
-     * @return parsed integer value
-     */
-    private static int parseIntProperty(TestDiscoveryConfig config, String key, int defaultValue) {
-        List<String> values = config.properties().get(key);
-        if (values == null || values.isEmpty()) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(values.get(0));
-        } catch (NumberFormatException e) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.warning("Invalid value for property '" + key + "': " + values.get(0)
-                        + " — using default " + defaultValue);
-            }
-            return defaultValue;
-        }
     }
 }

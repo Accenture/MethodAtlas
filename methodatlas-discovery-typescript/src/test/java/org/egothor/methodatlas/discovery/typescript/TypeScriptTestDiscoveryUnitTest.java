@@ -73,27 +73,30 @@ class TypeScriptTestDiscoveryUnitTest {
     // -------------------------------------------------------------------------
 
     @Test
-    void buildFqcn_simpleFile_stripsExtension() {
+    void buildFqcn_simpleFile_stripsFullTestSuffix() {
         Path root = Paths.get("/project/src");
         Path file = Paths.get("/project/src/auth/authService.test.ts");
-        String fqcn = TypeScriptTestDiscovery.buildFqcn(root, file);
-        assertEquals("auth.authService.test", fqcn);
+        String fqcn = TypeScriptTestDiscovery.buildFqcn(
+                root, file, TypeScriptTestDiscovery.DEFAULT_SUFFIXES);
+        assertEquals("auth.authService", fqcn);
     }
 
     @Test
     void buildFqcn_fileAtRoot_noPrefix() {
         Path root = Paths.get("/project/src");
         Path file = Paths.get("/project/src/utils.test.ts");
-        String fqcn = TypeScriptTestDiscovery.buildFqcn(root, file);
-        assertEquals("utils.test", fqcn);
+        String fqcn = TypeScriptTestDiscovery.buildFqcn(
+                root, file, TypeScriptTestDiscovery.DEFAULT_SUFFIXES);
+        assertEquals("utils", fqcn);
     }
 
     @Test
     void buildFqcn_deeplyNested_allSegmentsPresent() {
         Path root = Paths.get("/project");
         Path file = Paths.get("/project/a/b/c/deep.spec.ts");
-        String fqcn = TypeScriptTestDiscovery.buildFqcn(root, file);
-        assertEquals("a.b.c.deep.spec", fqcn);
+        String fqcn = TypeScriptTestDiscovery.buildFqcn(
+                root, file, TypeScriptTestDiscovery.DEFAULT_SUFFIXES);
+        assertEquals("a.b.c.deep", fqcn);
     }
 
     @Test
@@ -101,8 +104,8 @@ class TypeScriptTestDiscoveryUnitTest {
         Path root = Paths.get("/project/src");
         Path file = Paths.get("/project/src/auth/login.test.ts");
         assertEquals(
-                TypeScriptTestDiscovery.buildFqcn(root, file),
-                TypeScriptTestDiscovery.buildFileStem(root, file));
+                TypeScriptTestDiscovery.buildFqcn(root, file, TypeScriptTestDiscovery.DEFAULT_SUFFIXES),
+                TypeScriptTestDiscovery.buildFileStem(root, file, TypeScriptTestDiscovery.DEFAULT_SUFFIXES));
     }
 
     // -------------------------------------------------------------------------

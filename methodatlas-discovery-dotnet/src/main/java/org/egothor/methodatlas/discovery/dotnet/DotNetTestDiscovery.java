@@ -20,6 +20,7 @@ import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.util.PathStems;
 import org.egothor.methodatlas.discovery.dotnet.internal.AttributeInfo;
 import org.egothor.methodatlas.discovery.dotnet.internal.CSharpTestVisitor;
 import org.egothor.methodatlas.discovery.dotnet.internal.FrameworkKind;
@@ -249,18 +250,8 @@ public final class DotNetTestDiscovery implements TestDiscovery {
     }
 
     private static String buildFileStem(Path file, Path root) {
-        Path rel = root.relativize(file);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < rel.getNameCount(); i++) {
-            if (!sb.isEmpty()) { sb.append('.'); }
-            String part = rel.getName(i).toString();
-            // drop .cs extension from last segment
-            if (i == rel.getNameCount() - 1 && part.endsWith(".cs")) {
-                part = part.substring(0, part.length() - 3);
-            }
-            sb.append(part);
-        }
-        return sb.toString();
+        // Drops the .cs extension from the last segment; joins the rest with '.'.
+        return PathStems.buildFileStem(root, file, ".cs");
     }
 
     private static SourceContent buildSourceContent(Path file) {

@@ -392,17 +392,19 @@ gradle.projectsEvaluated {
 ext.coverageFloors = [
     // Module                          floor   measured  notes
     'methodatlas-api'                 : 0.40,   //  45.7 % small SPI, high per-instruction volatility
+    'methodatlas-util'                : 0.80,   //  90.2 % shared-utility module (circuit breaker, worker pool, path/config helpers)
+
     'methodatlas-ai'                  : 0.80,   //  84.9 % AI subsystem; strong test suite
     'methodatlas-emit'                : 0.65,   //  67.7 % emit module; covers CSV/SARIF/JSON/delta + schema types
     'methodatlas-gui-core'            : 0.75,   //  75.96 % Swing-free GUI domain types; AuditWriter at 99 % after Item 14 hardening
     'methodatlas-discovery-jvm'       : 0.85,   //  90.9 % strongest plugin test suite
     'methodatlas-discovery-dotnet'    : 0.38,   //  40.3 % ANTLR-generated parser dominates SLOC
-    'methodatlas-discovery-typescript': 0.17,   //  19.3 % most logic in bundled JS (excluded from JaCoCo)
+    'methodatlas-discovery-typescript': 0.12,   //  ~13 % most logic in bundled JS (excluded from JaCoCo); recalibrated after circuit-breaker/pool/helpers moved to methodatlas-util (coverage relocated to util, now 90 %)
     'methodatlas-discovery-go'        : 0.44,   //  46.6 %
     'methodatlas-discovery-python'    : 0.62,   //  65.7 %
     'methodatlas-discovery-powershell': 0.70,   //  72.9 %
     'methodatlas-discovery-abap'      : 0.38,   //  40.0 % ANTLR-generated parser dominates SLOC
-    'methodatlas-discovery-cobol'     : 0.30,   //  31.8 % ANTLR-generated parser dominates SLOC
+    'methodatlas-discovery-cobol'     : 0.28,   //  29.x % ANTLR-generated parser dominates SLOC; recalibrated after buildFileStem moved to methodatlas-util (coverage relocated to PathStemsTest, not lost)
     'methodatlas-gui'                 : 0.01,   //   1.1 % ratchets up in Phase 4 (audit-trail extraction)
 ]
 
@@ -427,6 +429,12 @@ ext.pitConfig = [
         targetClasses  : ['org.egothor.methodatlas.api.*'],
         excludedClasses: [],
         threshold      : 0,     // current  0.0 % — SPI is mostly records and interfaces; few mutations exist
+    ],
+    'methodatlas-util': [
+        targetClasses  : ['org.egothor.methodatlas.util.*'],
+        excludedClasses: [],
+        threshold      : 55,    // current 68 % — circuit breaker + path/config helpers strongly covered;
+                                // the process-worker pool base is exercised via a fake-worker harness.
     ],
     'methodatlas-ai': [
         targetClasses  : ['org.egothor.methodatlas.ai.*'],

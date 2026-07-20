@@ -186,7 +186,7 @@ For each discovered test method, MethodAtlas emits one record.
 
 | Field | Present when | Description |
 | --- | --- | ------ |
-| `fqcn` | Always | Fully qualified class name (Java/C#); dot-separated relative file path without extension (TypeScript) |
+| `fqcn` | Always | Fully qualified class name (Java/C#); dot-separated relative file path with the test suffix stripped (TypeScript/JavaScript); package name (Go) |
 | `method` | Always | Test method name; for TypeScript includes describe-block hierarchy (e.g. `AuthService > should authenticate`) |
 | `loc` | Always | Inclusive line count of the method declaration |
 | `tags` | Always | Existing tag-annotation values (`@Tag` for Java; `[Category]`/`[Trait]`/`[TestCategory]` for C#) |

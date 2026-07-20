@@ -27,9 +27,20 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
     private final Deque<String> namespaceStack = new ArrayDeque<>();
     private final Deque<String> classStack     = new ArrayDeque<>();
     private final List<String>  usingDirectives = new ArrayList<>();
-    private final List<MethodInfo> discoveredMethods = new ArrayList<>();
 
-    /** Lazily resolved once the first using directive is seen. */
+    /**
+     * Test-method candidates collected during the walk, with their enclosing
+     * FQCN captured at visit time.  The test/non-test decision is deferred to
+     * {@link #getDiscoveredMethods()} so that framework detection sees every
+     * using directive first — including those declared inside a file-scoped
+     * namespace body, which the grammar may visit after some methods.
+     */
+    private final List<Candidate> pendingMethods = new ArrayList<>();
+
+    /** Memoised result of {@link #getDiscoveredMethods()}. */
+    private List<MethodInfo> resolvedMethods;
+
+    /** Resolved from all collected using directives after the walk completes. */
     private FrameworkKind framework;
 
     /**
@@ -94,17 +105,7 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
     @Override
     public Void visitMethodDeclaration(
             CSharpTestParser.MethodDeclarationContext ctx) {
-        // Resolve framework lazily (all using directives are visited before methods
-        // because the grammar rule order is compilationUnit → usingDirective* → members)
-        if (framework == null) {
-            framework = FrameworkKind.detect(usingDirectives);
-        }
-
         List<AttributeInfo> attrs = collectAttributes(ctx.attributeSection());
-        if (!isTestMethod(attrs)) {
-            // Do not recurse into method body — it is already opaque in the grammar.
-            return null;
-        }
 
         String methodName = ctx.memberName().getText();
         // Strip any explicit interface prefix: IFoo.Method → Method
@@ -116,7 +117,11 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
         int beginLine = ctx.start.getLine();
         int endLine   = ctx.stop  != null ? ctx.stop.getLine() : beginLine;
 
-        discoveredMethods.add(new MethodInfo(buildFqcn(), methodName, attrs, beginLine, endLine));
+        // Capture the candidate with its FQCN now (the namespace/class stacks
+        // are correct at this point); defer the test/non-test decision until
+        // getDiscoveredMethods(), by which time all using directives are known.
+        // Do not recurse into the method body — it is already opaque in the grammar.
+        pendingMethods.add(new Candidate(buildFqcn(), methodName, attrs, beginLine, endLine));
         return null;
     }
 
@@ -239,9 +244,27 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
 
     // ── Result accessors ──────────────────────────────────────────────
 
-    /** All test methods found in the file after visiting. */
+    /**
+     * All test methods found in the file after visiting.
+     *
+     * <p>The framework is resolved (and the test/non-test filter applied) on
+     * the first call, once every using directive collected during the walk is
+     * available.  The result is memoised.</p>
+     *
+     * @return discovered test methods; never {@code null}
+     */
     public List<MethodInfo> getDiscoveredMethods() {
-        return List.copyOf(discoveredMethods);
+        if (resolvedMethods == null) {
+            List<MethodInfo> out = new ArrayList<>();
+            for (Candidate c : pendingMethods) {
+                if (isTestMethod(c.attrs())) {
+                    out.add(new MethodInfo(c.fqcn(), c.methodName(), c.attrs(),
+                            c.beginLine(), c.endLine()));
+                }
+            }
+            resolvedMethods = out;
+        }
+        return List.copyOf(resolvedMethods);
     }
 
     /** Using-directive namespace strings, in declaration order. */
@@ -252,5 +275,20 @@ public final class CSharpTestVisitor extends CSharpTestBaseVisitor<Void> {
     /** Framework detected from using directives; {@code null} before visiting. */
     public FrameworkKind getFramework() {
         return resolvedFramework();
+    }
+
+    /**
+     * A method encountered during the walk, retained until the framework is
+     * known so the test/non-test decision can be made with complete
+     * using-directive information.
+     *
+     * @param fqcn       fully-qualified enclosing name at the method's position
+     * @param methodName the method's simple name
+     * @param attrs      the method's attributes
+     * @param beginLine  1-based first line of the method declaration
+     * @param endLine    1-based last line of the method declaration
+     */
+    private record Candidate(String fqcn, String methodName, List<AttributeInfo> attrs,
+            int beginLine, int endLine) {
     }
 }

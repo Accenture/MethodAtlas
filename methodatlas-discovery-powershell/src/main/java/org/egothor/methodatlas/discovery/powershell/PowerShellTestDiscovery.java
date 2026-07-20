@@ -19,6 +19,7 @@ import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.util.PathStems;
 import org.egothor.methodatlas.discovery.powershell.internal.CommandInfo;
 import org.egothor.methodatlas.discovery.powershell.internal.PowerShellTestVisitor;
 import org.egothor.methodatlas.discovery.powershell.parser.PowerShellTestLexer;
@@ -269,19 +270,9 @@ public final class PowerShellTestDiscovery implements TestDiscovery {
      * @return dot-separated stem string; never {@code null} or empty
      */
     /* default */ static String buildFileStem(Path file, Path root) {
-        Path rel = root.relativize(file);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < rel.getNameCount(); i++) {
-            if (!sb.isEmpty()) {
-                sb.append('.');
-            }
-            String part = rel.getName(i).toString();
-            if (i == rel.getNameCount() - 1) {
-                part = stemOf(part);
-            }
-            sb.append(part);
-        }
-        return sb.toString();
+        // Strips the PowerShell test suffix (.Tests.ps1 / .Test.ps1 / .ps1,
+        // longest first) from the last segment; joins the rest with '.'.
+        return PathStems.buildFileStem(root, file, ".Tests.ps1", ".Test.ps1", ".ps1");
     }
 
     /**

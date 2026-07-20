@@ -74,6 +74,7 @@ configurations {
 dependencies {
     antlr 'org.antlr:antlr4:4.13.2'
     api    project(':methodatlas-api')
+    implementation project(':methodatlas-util')
     implementation 'org.antlr:antlr4-runtime:4.13.2'
 
     testImplementation(platform("org.junit:junit-bom:5.14.2"))
