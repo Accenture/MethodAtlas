@@ -22,7 +22,7 @@ dependencies {
     api project(':methodatlas-emit')
 
     // YAML for AuditWriter's overrides.yaml output
-    implementation 'tools.jackson.core:jackson-databind:3.1.4'
+    implementation 'tools.jackson.core:jackson-databind:3.1.5'
     implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.4'
 
     testImplementation(platform("org.junit:junit-bom:5.14.2"))
