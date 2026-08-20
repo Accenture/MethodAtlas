@@ -1,18 +1,24 @@
 // ---------------------------------------------------------------------------
 // Build-tool classpath security overrides
 //
-// The CycloneDX (3.3.0) and OWASP Dependency-Check (12.2.2) Gradle plugins
-// pull in transitive Jackson 2.x and Apache HttpComponents Core jars whose
-// versions carry known CVEs. Because these are plugin classpath dependencies,
-// project-level resolutionStrategy has no effect; the overrides must be
-// applied here, on configurations.classpath, before Gradle resolves plugins.
+// The CycloneDX (3.3.0), OWASP Dependency-Check (12.2.2), and SpotBugs
+// (6.5.4) Gradle plugins pull in transitive jars whose versions carry known
+// CVEs. Because these are plugin classpath dependencies, project-level
+// resolutionStrategy has no effect; the overrides must be applied here, on
+// configurations.classpath, before Gradle resolves plugins.
 //
 // Vulnerabilities addressed:
 //   jackson-databind   CVE-2026-54512 (GHSA-j3rv-43j4-c7qm) — PTV generic bypass
 //   jackson-databind   CVE-2026-54513 (GHSA-rmj7-2vxq-3g9f) — allowIfSubTypeIsArray bypass
-//   jackson-core       GHSA-r7wm-3cxj-wff9 — async maxNumberLength incomplete fix
+//   jackson-databind   CVE-2026-54515 (GHSA-5jmj-h7xm-6q6v) — @JsonIgnoreProperties case-insensitive bypass
+//   jackson-databind   CVE-2026-59889 (GHSA-5gvw-p9qm-jgwh) — @JsonView bypass for @JsonUnwrapped container properties
+//   jackson-databind   GHSA-mhm7-754m-9p8w            — @JsonView bypass for @JsonTypeInfo EXTERNAL_PROPERTY creator
+//   jackson-core       GHSA-r7wm-3cxj-wff9            — async maxNumberLength incomplete fix
 //   httpcore5          CVE-2026-54399 (GHSA-hf6x-8p5f-cgmf) — HTTP/1 header DoS
 //   httpcore5-h2       CVE-2026-54428 (GHSA-v3jc-474w-2wm6) — HPACK header DoS
+//   httpclient5        CVE-2026-64607 (GHSA-hjcp-jmpx-g3qm) — connection leak on bad Content-Encoding (DoS)
+//   jsoup              CVE-2026-71497 (GHSA-pmhh-3w7g-xqp8) — Cleaner XSS via raw-text custom elements
+//   log4j-api          CVE-2026-49844 (GHSA-qv9r-c865-cp47) — non-finite float MapMessage JSON encoding
 // ---------------------------------------------------------------------------
 buildscript {
     repositories {
@@ -21,9 +27,12 @@ buildscript {
     }
     configurations.classpath.resolutionStrategy {
         force 'com.fasterxml.jackson.core:jackson-core:2.21.4'
-        force 'com.fasterxml.jackson.core:jackson-databind:2.21.4'
+        force 'com.fasterxml.jackson.core:jackson-databind:2.21.5'
         force 'org.apache.httpcomponents.core5:httpcore5:5.4.3'
         force 'org.apache.httpcomponents.core5:httpcore5-h2:5.4.3'
+        force 'org.apache.httpcomponents.client5:httpclient5:5.6.3'
+        force 'org.jsoup:jsoup:1.23.1'
+        force 'org.apache.logging.log4j:log4j-api:2.25.5'
     }
 }
 
@@ -168,7 +177,7 @@ dependencies {
     runtimeOnly project(':methodatlas-detect-secrets') // Built-in credential detector — discovered at runtime via ServiceLoader
 
     implementation 'tools.jackson.core:jackson-databind:3.1.5'
-    implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.4'
+    implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.5'
 
     // ZeroEcho-lib (Egothor) — in-house cryptographic toolkit used by the
     // -evidence-pack feature to produce tamper-evident signed manifests, and
