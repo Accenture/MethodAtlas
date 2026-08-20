@@ -47,7 +47,7 @@ dependencies {
 
     // Jackson — settings serialisation and YAML audit output
     implementation 'tools.jackson.core:jackson-databind:3.1.5'
-    implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.4'
+    implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.5'
 
     // Unit tests for non-UI GUI helpers (SourceWriteBackSupport et al.)
     testImplementation(platform("org.junit:junit-bom:5.14.2"))

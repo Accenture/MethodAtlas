@@ -22,7 +22,7 @@ dependencies {
 
     // Jackson for SARIF / JSON output serialisation
     implementation 'tools.jackson.core:jackson-databind:3.1.5'
-    implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.4'
+    implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.5'
 
     testImplementation(platform("org.junit:junit-bom:5.14.2"))
     testImplementation 'org.junit.jupiter:junit-jupiter'
