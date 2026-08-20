@@ -1,3 +1,32 @@
+// ---------------------------------------------------------------------------
+// Build-tool classpath security overrides
+//
+// The CycloneDX (3.3.0) and OWASP Dependency-Check (12.2.2) Gradle plugins
+// pull in transitive Jackson 2.x and Apache HttpComponents Core jars whose
+// versions carry known CVEs. Because these are plugin classpath dependencies,
+// project-level resolutionStrategy has no effect; the overrides must be
+// applied here, on configurations.classpath, before Gradle resolves plugins.
+//
+// Vulnerabilities addressed:
+//   jackson-databind   CVE-2026-54512 (GHSA-j3rv-43j4-c7qm) — PTV generic bypass
+//   jackson-databind   CVE-2026-54513 (GHSA-rmj7-2vxq-3g9f) — allowIfSubTypeIsArray bypass
+//   jackson-core       GHSA-r7wm-3cxj-wff9 — async maxNumberLength incomplete fix
+//   httpcore5          CVE-2026-54399 (GHSA-hf6x-8p5f-cgmf) — HTTP/1 header DoS
+//   httpcore5-h2       CVE-2026-54428 (GHSA-v3jc-474w-2wm6) — HPACK header DoS
+// ---------------------------------------------------------------------------
+buildscript {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+    configurations.classpath.resolutionStrategy {
+        force 'com.fasterxml.jackson.core:jackson-core:2.21.4'
+        force 'com.fasterxml.jackson.core:jackson-databind:2.21.4'
+        force 'org.apache.httpcomponents.core5:httpcore5:5.4.3'
+        force 'org.apache.httpcomponents.core5:httpcore5-h2:5.4.3'
+    }
+}
+
 plugins {
     id 'java'
     id 'application'
