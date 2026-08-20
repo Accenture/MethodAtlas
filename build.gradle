@@ -25,6 +25,14 @@ buildscript {
         gradlePluginPortal()
         mavenCentral()
     }
+    dependencies {
+        // Explicit pin so Dependabot can track and close CVE-2026-49844
+        // (GHSA-qv9r-c865-cp47). SpotBugs 4.9.8 pulls in log4j-api 2.25.2
+        // transitively; declaring 2.25.5 here makes the override visible to
+        // Dependabot's static analyser. The resolutionStrategy.force() below
+        // ensures Gradle also honours it at build time.
+        classpath 'org.apache.logging.log4j:log4j-api:2.25.5'
+    }
     configurations.classpath.resolutionStrategy {
         force 'com.fasterxml.jackson.core:jackson-core:2.21.4'
         force 'com.fasterxml.jackson.core:jackson-databind:2.21.5'
