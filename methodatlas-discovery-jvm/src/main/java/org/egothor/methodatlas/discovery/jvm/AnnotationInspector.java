@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
@@ -152,6 +153,43 @@ public final class AnnotationInspector {
             effective.addAll(TESTNG_TEST_ANNOTATIONS);
         }
         return Collections.unmodifiableSet(effective);
+    }
+
+    /**
+     * Detects the JUnit test framework used in the given compilation unit by
+     * inspecting its import declarations.
+     *
+     * <ul>
+     *   <li>{@code org.junit.jupiter.*} imports (with or without JUnit 4 imports) →
+     *       {@link JavaTestFramework#JUNIT5}</li>
+     *   <li>{@code org.junit.*} or {@code junit.framework.*} imports without any
+     *       Jupiter import → {@link JavaTestFramework#JUNIT4}</li>
+     *   <li>No recognisable framework imports → {@code Optional.empty()} (caller
+     *       should fall back to a configured default)</li>
+     * </ul>
+     *
+     * @param cu parsed compilation unit whose imports are inspected
+     * @return detected framework, or {@code Optional.empty()} when no framework
+     *         imports are found
+     */
+    public static Optional<JavaTestFramework> detectFramework(CompilationUnit cu) {
+        boolean hasJupiter = false;
+        boolean hasJunit4 = false;
+        for (ImportDeclaration imp : cu.getImports()) {
+            String name = imp.getNameAsString();
+            if (name.startsWith("org.junit.jupiter")) {
+                hasJupiter = true;
+            } else if (name.startsWith("org.junit") || name.startsWith("junit.framework")) {
+                hasJunit4 = true;
+            }
+        }
+        if (hasJupiter) {
+            return Optional.of(JavaTestFramework.JUNIT5);
+        }
+        if (hasJunit4) {
+            return Optional.of(JavaTestFramework.JUNIT4);
+        }
+        return Optional.empty();
     }
 
     /**

@@ -118,8 +118,101 @@ value replaces the entire default set; subsequent values append to it.
 
 ### The `properties` map (JVM)
 
-The JVM plugin does not use the `properties` map. Any keys present are silently
-ignored.
+The JVM discovery plugin itself does not consume any property keys. The `properties`
+map is used by the Java **source patcher** for write-back configuration (see
+[Tag and display-name write-back](#tag-and-display-name-write-back-1) below). Any
+unrecognised keys are silently ignored by both the discovery plugin and the patcher.
+
+### Tag and display-name write-back
+
+`JavaSourcePatcher` handles the `-apply-tags` and `-apply-tags-from-csv` modes for
+Java source files. The annotation style it writes depends on which JUnit version the
+file uses — and the two versions have a fundamental semantic difference.
+
+#### JUnit 5 vs JUnit 4: why the annotation styles differ
+
+**JUnit 5 (Jupiter)** tags are string literals attached directly to a method:
+
+```java
+@Tag("security")
+@Tag("crypto")
+@DisplayName("SECURITY: validates encryption key rotation")
+void shouldRotateEncryptionKey() { … }
+```
+
+**JUnit 4** has no string-based tag annotation. The closest equivalent is
+`@Category`, which takes **class references** — marker interfaces — not strings:
+
+```java
+@Category({SecurityTest.class, CryptoTest.class})
+void shouldRotateEncryptionKey() { … }
+```
+
+Because `@Category` takes class literals rather than strings, there is no automatic
+conversion from a MethodAtlas tag value (e.g. `"security"`) to a class reference
+(e.g. `SecurityTest.class`). The operator must supply this mapping explicitly via the
+`categoryClasses` property.
+
+`@DisplayName` is a JUnit 5 feature with no JUnit 4 equivalent. When
+`-apply-tags-from-csv` encounters a display-name entry for a JUnit 4 method it emits
+a `[WARN]` diagnostic and leaves the source unchanged.
+
+#### Per-file framework detection
+
+The patcher inspects each file's import declarations to decide which annotation style
+to apply:
+
+| Imports in file | Annotation written |
+|---|---|
+| `org.junit.jupiter.*` | `@Tag("value")` |
+| `org.junit.*` or `junit.framework.*` (no Jupiter) | `@Category(SomeClass.class)` |
+| Both (mid-migration) | `@Tag("value")` — Jupiter takes precedence |
+| Neither | falls back to the `tagFramework` property (default: `junit5`) |
+
+The `tagFramework` property is only the fallback for files with no recognisable
+framework imports — for example, base test classes that inherit the `@Test` annotation
+transitively. For a pure JUnit 4 codebase where every test file imports `org.junit.*`,
+import-based detection handles everything without needing `tagFramework`.
+
+A mixed project where some modules have migrated to JUnit 5 and others remain on
+JUnit 4 needs only the `categoryClasses` mapping — the per-file detection handles the
+split automatically.
+
+#### Configuration
+
+Two property keys are recognised by `JavaSourcePatcher`:
+
+| Key | Values | Purpose |
+|---|---|---|
+| `tagFramework` | `junit5` (default), `junit4` | Fallback framework when a file has no recognisable test-framework imports |
+| `categoryClasses` | list of `tagName=fully.qualified.ClassName` entries | Maps each MethodAtlas tag string to the JUnit 4 `@Category` marker class |
+
+=== "YAML"
+
+    ```yaml
+    properties:
+      tagFramework:
+        - junit4           # fallback for files without framework imports
+      categoryClasses:
+        - security=com.example.SecurityTest
+        - performance=com.example.PerformanceTest
+    ```
+
+=== "CLI"
+
+    ```bash
+    ./methodatlas -apply-tags-from-csv reviewed.csv \
+      -property tagFramework=junit4 \
+      -property categoryClasses=security=com.example.SecurityTest \
+      -property categoryClasses=performance=com.example.PerformanceTest \
+      src/test/java
+    ```
+
+Each `categoryClasses` entry uses `tagName=fully.qualified.ClassName` format. The
+patcher derives the simple name for the annotation body and adds both the
+`org.junit.experimental.categories.Category` import and an import for each category
+class automatically. Tags that have no mapping entry for a JUnit 4 file are skipped
+with a `[WARN]` diagnostic line.
 
 ## C# / .NET
 
@@ -760,6 +853,7 @@ present are silently ignored, reserved for future dialect-specific options
 | Language / framework | `fileSuffixes` | `testMarkers` | `properties` |
 |---|---|---|---|
 | Java — JUnit 5 | `Test.java` | *(leave empty — auto-detected)* | — |
+| Java — JUnit 4 | `Test.java` | *(leave empty — auto-detected)* | `categoryClasses=security=com.example.SecurityTest` |
 | Java — TestNG | `Test.java` | *(leave empty — auto-detected)* | — |
 | Java — custom annotation | `Test.java` | e.g. `ScenarioTest` | — |
 | Kotlin — JUnit 5 | `Test.kt` | *(leave empty — auto-detected)* | — |
@@ -786,7 +880,7 @@ formatting-preserving edit.
 
 | Plugin     | Discovery | `SourcePatcher`            | What `-apply-tags` does |
 |------------|-----------|----------------------------|--------------------------|
-| jvm        | ✓         | `JavaSourcePatcher`        | Inserts `@DisplayName` and `@Tag` via JavaParser, preserving comments and whitespace |
+| jvm        | ✓         | `JavaSourcePatcher`        | JUnit 5: inserts `@Tag("value")` and `@DisplayName` via JavaParser; JUnit 4: inserts `@Category(SomeClass.class)` using a configurable tag→class mapping — see [Tag and display-name write-back](#tag-and-display-name-write-back-1) |
 | dotnet     | ✓         | `DotNetSourcePatcher`      | Inserts `[Category]` / `[Trait]` / `[TestCategory]` and xUnit `DisplayName=` |
 | typescript | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |
 | go         | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |

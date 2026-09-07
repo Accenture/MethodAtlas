@@ -365,6 +365,40 @@ properties:
     - it
 ```
 
+#### Java plugin: JUnit 4 `@Category` support
+
+By default, the Java patcher writes JUnit 5 `@Tag("value")` annotations. For repositories still using JUnit 4, the patcher detects the framework from each file's import declarations automatically. When a file imports `org.junit.*` or `junit.framework.*` without any Jupiter imports, it is patched with `@Category(SomeClass.class)` instead.
+
+Use the following two properties to control the behaviour:
+
+**`tagFramework`** — Override the default when a file has no recognisable framework imports:
+
+```bash
+-property tagFramework=junit4
+```
+
+```yaml
+properties:
+  tagFramework:
+    - junit4   # or junit5 (default)
+```
+
+**`categoryClasses`** — Map each MethodAtlas tag string to the fully qualified name of the JUnit 4 `@Category` class to write. Each entry uses `tagName=fully.qualified.ClassName` format. Tags without a mapping in JUnit 4 mode are skipped with a `[WARN]` diagnostic. The patcher adds both `import org.junit.experimental.categories.Category` and an import for each category class automatically.
+
+```bash
+-property categoryClasses=security=com.example.SecurityTest
+-property categoryClasses=performance=com.example.PerformanceTest
+```
+
+```yaml
+properties:
+  categoryClasses:
+    - security=com.example.SecurityTest
+    - performance=com.example.PerformanceTest
+```
+
+`@DisplayName` has no JUnit 4 equivalent. When a display name is requested for a JUnit 4 method, the patcher emits a `[WARN]` diagnostic and leaves the source unchanged.
+
 ### `-content-hash`
 
 Appends a SHA-256 content fingerprint to every emitted record. The hash is computed from the JavaParser AST string representation of the enclosing class, so it is independent of file encoding, line endings, and unrelated file-level changes. When a class contains multiple test methods, all of them share the same hash value.

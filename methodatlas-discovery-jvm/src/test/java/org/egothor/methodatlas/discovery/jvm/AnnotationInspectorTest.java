@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
@@ -343,6 +344,55 @@ class AnnotationInspectorTest {
                 .filter(m -> AnnotationInspector.isJUnitTest(m, effective))
                 .count();
         assertEquals(2, count, "Both @Test and @Theory methods must be detected");
+    }
+
+    // -------------------------------------------------------------------------
+    // detectFramework
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("detectFramework returns JUNIT5 when file has Jupiter imports")
+    @Tag("positive")
+    void detectFramework_jupiterImports_returnsJunit5() {
+        CompilationUnit cu = parse("import org.junit.jupiter.api.Test;\nclass C {}");
+        assertEquals(Optional.of(JavaTestFramework.JUNIT5),
+                AnnotationInspector.detectFramework(cu));
+    }
+
+    @Test
+    @DisplayName("detectFramework returns JUNIT4 when file has only JUnit 4 imports")
+    @Tag("positive")
+    void detectFramework_junit4Imports_returnsJunit4() {
+        CompilationUnit cu = parse("import org.junit.Test;\nclass C {}");
+        assertEquals(Optional.of(JavaTestFramework.JUNIT4),
+                AnnotationInspector.detectFramework(cu));
+    }
+
+    @Test
+    @DisplayName("detectFramework returns JUNIT4 when file has junit.framework imports")
+    @Tag("positive")
+    void detectFramework_junitFrameworkImports_returnsJunit4() {
+        CompilationUnit cu = parse("import junit.framework.TestCase;\nclass C {}");
+        assertEquals(Optional.of(JavaTestFramework.JUNIT4),
+                AnnotationInspector.detectFramework(cu));
+    }
+
+    @Test
+    @DisplayName("detectFramework returns JUNIT5 when file has both Jupiter and JUnit 4 imports")
+    @Tag("positive")
+    void detectFramework_bothFrameworks_returnsJunit5() {
+        CompilationUnit cu = parse(
+                "import org.junit.Test;\nimport org.junit.jupiter.api.Test;\nclass C {}");
+        assertEquals(Optional.of(JavaTestFramework.JUNIT5),
+                AnnotationInspector.detectFramework(cu));
+    }
+
+    @Test
+    @DisplayName("detectFramework returns empty when file has no framework imports")
+    @Tag("edge-case")
+    void detectFramework_noFrameworkImports_returnsEmpty() {
+        CompilationUnit cu = parse("import java.util.List;\nclass C {}");
+        assertEquals(Optional.empty(), AnnotationInspector.detectFramework(cu));
     }
 
     // -------------------------------------------------------------------------

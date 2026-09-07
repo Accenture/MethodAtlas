@@ -270,7 +270,7 @@ class JavaSourcePatcherTest {
     @DisplayName("MethodApplyResult.modified() returns false when nothing changed")
     @Tag("positive")
     void methodApplyResult_modifiedFalseWhenNothingChanged() {
-        JavaSourcePatcher.MethodApplyResult r = new JavaSourcePatcher.MethodApplyResult(0, 0, false);
+        JavaSourcePatcher.MethodApplyResult r = new JavaSourcePatcher.MethodApplyResult(0, 0, false, Set.of());
         assertFalse(r.modified());
     }
 
@@ -278,7 +278,7 @@ class JavaSourcePatcherTest {
     @DisplayName("MethodApplyResult.modified() returns true when tags were added")
     @Tag("positive")
     void methodApplyResult_modifiedTrueWhenTagsAdded() {
-        JavaSourcePatcher.MethodApplyResult r = new JavaSourcePatcher.MethodApplyResult(1, 0, false);
+        JavaSourcePatcher.MethodApplyResult r = new JavaSourcePatcher.MethodApplyResult(1, 0, false, Set.of());
         assertTrue(r.modified());
     }
 
@@ -286,7 +286,7 @@ class JavaSourcePatcherTest {
     @DisplayName("MethodApplyResult.modified() returns true when displayNameChanged is true")
     @Tag("positive")
     void methodApplyResult_modifiedTrueWhenDisplayNameChanged() {
-        JavaSourcePatcher.MethodApplyResult r = new JavaSourcePatcher.MethodApplyResult(0, 0, true);
+        JavaSourcePatcher.MethodApplyResult r = new JavaSourcePatcher.MethodApplyResult(0, 0, true, Set.of());
         assertTrue(r.modified());
     }
 
@@ -294,16 +294,16 @@ class JavaSourcePatcherTest {
     @DisplayName("MethodApplyResult.needsTagImport() returns true only when tags were added")
     @Tag("positive")
     void methodApplyResult_needsTagImportOnlyWhenAdded() {
-        assertTrue(new JavaSourcePatcher.MethodApplyResult(1, 0, false).needsTagImport());
-        assertFalse(new JavaSourcePatcher.MethodApplyResult(0, 1, false).needsTagImport());
+        assertTrue(new JavaSourcePatcher.MethodApplyResult(1, 0, false, Set.of()).needsTagImport());
+        assertFalse(new JavaSourcePatcher.MethodApplyResult(0, 1, false, Set.of()).needsTagImport());
     }
 
     @Test
     @DisplayName("MethodApplyResult.needsDisplayNameImport() returns true only when displayNameChanged")
     @Tag("positive")
     void methodApplyResult_needsDisplayNameImportOnlyWhenChanged() {
-        assertTrue(new JavaSourcePatcher.MethodApplyResult(0, 0, true).needsDisplayNameImport());
-        assertFalse(new JavaSourcePatcher.MethodApplyResult(1, 0, false).needsDisplayNameImport());
+        assertTrue(new JavaSourcePatcher.MethodApplyResult(0, 0, true, Set.of()).needsDisplayNameImport());
+        assertFalse(new JavaSourcePatcher.MethodApplyResult(1, 0, false, Set.of()).needsDisplayNameImport());
     }
 
     // -------------------------------------------------------------------------
@@ -488,5 +488,195 @@ class JavaSourcePatcherTest {
 
         String written = Files.readString(file, StandardCharsets.UTF_8);
         assertFalse(written.contains("@Tag(\"security\")"), written);
+    }
+
+    // -------------------------------------------------------------------------
+    // JUnit 4 / @Category patching
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("applyDesiredStateJunit4 writes @Category for a single mapped tag")
+    @Tag("positive")
+    void applyDesiredStateJunit4_singleTag_writesCategory() {
+        MethodDeclaration method = firstMethod("class C { @org.junit.Test void m() {} }");
+        Map<String, String> classMap = Map.of("security", "com.example.SecurityTest");
+        StringWriter sw = new StringWriter();
+        JavaSourcePatcher.MethodApplyResult result = JavaSourcePatcher.applyDesiredStateJunit4(
+                method, List.of("security"), classMap, new PrintWriter(sw));
+        assertTrue(result.modified());
+        assertTrue(result.needsCategoryImport());
+        assertEquals(Set.of("com.example.SecurityTest"), result.addedCategoryFqcns());
+        String out = method.toString();
+        assertTrue(out.contains("@Category(SecurityTest.class)"), out);
+    }
+
+    @Test
+    @DisplayName("applyDesiredStateJunit4 writes array-form @Category for multiple mapped tags")
+    @Tag("positive")
+    void applyDesiredStateJunit4_multipleTags_writesArrayCategory() {
+        MethodDeclaration method = firstMethod("class C { @org.junit.Test void m() {} }");
+        Map<String, String> classMap = Map.of(
+                "security", "com.example.SecurityTest",
+                "performance", "com.example.PerformanceTest");
+        StringWriter sw = new StringWriter();
+        JavaSourcePatcher.MethodApplyResult result = JavaSourcePatcher.applyDesiredStateJunit4(
+                method, List.of("security", "performance"), classMap, new PrintWriter(sw));
+        assertTrue(result.modified());
+        assertEquals(2, result.tagsAdded());
+        String out = method.toString();
+        assertTrue(out.contains("@Category"), out);
+        assertTrue(out.contains("SecurityTest.class"), out);
+        assertTrue(out.contains("PerformanceTest.class"), out);
+    }
+
+    @Test
+    @DisplayName("applyDesiredStateJunit4 skips unmapped tag with warning and leaves no partial @Category")
+    @Tag("edge-case")
+    void applyDesiredStateJunit4_unmappedTag_skipsWithWarning() {
+        MethodDeclaration method = firstMethod("class C { @org.junit.Test void m() {} }");
+        StringWriter sw = new StringWriter();
+        JavaSourcePatcher.MethodApplyResult result = JavaSourcePatcher.applyDesiredStateJunit4(
+                method, List.of("unknown-tag"), Map.of(), new PrintWriter(sw));
+        assertFalse(result.modified());
+        assertTrue(sw.toString().contains("[WARN]"));
+    }
+
+    @Test
+    @DisplayName("applyDesiredStateJunit4 removes existing @Category when desired list is empty")
+    @Tag("positive")
+    void applyDesiredStateJunit4_emptyDesired_removesCategory() {
+        MethodDeclaration method = firstMethod(
+                "class C { @org.junit.Test @Category(SecurityTest.class) void m() {} }");
+        StringWriter sw = new StringWriter();
+        JavaSourcePatcher.MethodApplyResult result = JavaSourcePatcher.applyDesiredStateJunit4(
+                method, List.of(), Map.of(), new PrintWriter(sw));
+        assertTrue(result.modified());
+        assertEquals(0, result.tagsAdded());
+        assertTrue(result.tagsRemoved() > 0);
+        assertFalse(method.toString().contains("@Category"));
+    }
+
+    @Test
+    @DisplayName("applyDesiredStateJunit4 does not modify when existing categories match desired")
+    @Tag("edge-case")
+    void applyDesiredStateJunit4_noChange_returnsUnmodified() {
+        MethodDeclaration method = firstMethod(
+                "class C { @org.junit.Test @Category(SecurityTest.class) void m() {} }");
+        Map<String, String> classMap = Map.of("security", "com.example.SecurityTest");
+        StringWriter sw = new StringWriter();
+        JavaSourcePatcher.MethodApplyResult result = JavaSourcePatcher.applyDesiredStateJunit4(
+                method, List.of("security"), classMap, new PrintWriter(sw));
+        assertFalse(result.modified());
+    }
+
+    @Test
+    @DisplayName("patch() uses @Category for file with JUnit 4 imports and writes category class imports")
+    @Tag("integration")
+    void patch_junit4File_writesCategoryAndImports(@TempDir Path tempDir) throws IOException {
+        // Category class is in a different package so the import is required
+        String source = "package com.example;\n"
+                + "import org.junit.Test;\n"
+                + "public class FooTest {\n"
+                + "    @Test\n"
+                + "    public void shouldDoSomething() {}\n"
+                + "}\n";
+        Path file = tempDir.resolve("FooTest.java");
+        Files.writeString(file, source, StandardCharsets.UTF_8);
+
+        JavaSourcePatcher patcher = new JavaSourcePatcher();
+        patcher.configure(new TestDiscoveryConfig(
+                List.of("Test.java"),
+                Set.of(),
+                Map.of("categoryClasses", List.of("security=com.example.categories.SecurityTest"))));
+
+        StringWriter sw = new StringWriter();
+        int changes = patcher.patch(file,
+                Map.of("shouldDoSomething", List.of("security")),
+                Map.of(),
+                new PrintWriter(sw));
+
+        assertTrue(changes > 0);
+        String patched = Files.readString(file, StandardCharsets.UTF_8);
+        assertTrue(patched.contains("@Category(SecurityTest.class)"), patched);
+        assertTrue(patched.contains("import org.junit.experimental.categories.Category"), patched);
+        assertTrue(patched.contains("import com.example.categories.SecurityTest"), patched);
+    }
+
+    @Test
+    @DisplayName("patch() emits diagnostic and skips @DisplayName for JUnit 4 file")
+    @Tag("integration")
+    void patch_junit4FileWithDisplayName_skipsDisplayNameWithDiagnostic(@TempDir Path tempDir)
+            throws IOException {
+        String source = "package com.example;\n"
+                + "import org.junit.Test;\n"
+                + "public class FooTest {\n"
+                + "    @Test\n"
+                + "    public void shouldDoSomething() {}\n"
+                + "}\n";
+        Path file = tempDir.resolve("FooTest.java");
+        Files.writeString(file, source, StandardCharsets.UTF_8);
+
+        JavaSourcePatcher patcher = new JavaSourcePatcher();
+        patcher.configure(new TestDiscoveryConfig(
+                List.of("Test.java"),
+                Set.of(),
+                Map.of("categoryClasses", List.of("security=com.example.SecurityTest"))));
+
+        StringWriter sw = new StringWriter();
+        patcher.patch(file,
+                Map.of("shouldDoSomething", List.of("security")),
+                Map.of("shouldDoSomething", "My display name"),
+                new PrintWriter(sw));
+
+        String diagnostic = sw.toString();
+        assertTrue(diagnostic.contains("[WARN]"), diagnostic);
+        String patched = Files.readString(file, StandardCharsets.UTF_8);
+        assertFalse(patched.contains("DisplayName"), patched);
+    }
+
+    @Test
+    @DisplayName("configure() sets JUNIT4 default when tagFramework=junit4 property is set")
+    @Tag("positive")
+    void configure_tagFrameworkJunit4_setsDefaultFramework(@TempDir Path tempDir) throws IOException {
+        // No framework imports — relies on tagFramework=junit4 default
+        String source = "package com.example;\n"
+                + "public class FooTest {\n"
+                + "    @org.junit.Test\n"
+                + "    public void shouldDoSomething() {}\n"
+                + "}\n";
+        Path file = tempDir.resolve("FooTest.java");
+        Files.writeString(file, source, StandardCharsets.UTF_8);
+
+        JavaSourcePatcher patcher = new JavaSourcePatcher();
+        patcher.configure(new TestDiscoveryConfig(
+                List.of("Test.java"),
+                Set.of(),
+                Map.of(
+                    "tagFramework", List.of("junit4"),
+                    "categoryClasses", List.of("security=com.example.SecurityTest"))));
+
+        StringWriter sw = new StringWriter();
+        int changes = patcher.patch(file,
+                Map.of("shouldDoSomething", List.of("security")),
+                Map.of(),
+                new PrintWriter(sw));
+
+        assertTrue(changes > 0);
+        String patched = Files.readString(file, StandardCharsets.UTF_8);
+        assertTrue(patched.contains("@Category(SecurityTest.class)"), patched);
+    }
+
+    @Test
+    @DisplayName("MethodApplyResult.needsCategoryImport returns true only when category FQCNs were added")
+    @Tag("positive")
+    void methodApplyResult_needsCategoryImport() {
+        JavaSourcePatcher.MethodApplyResult withCategory =
+                new JavaSourcePatcher.MethodApplyResult(1, 0, false, Set.of("com.example.Foo"));
+        JavaSourcePatcher.MethodApplyResult withTag =
+                new JavaSourcePatcher.MethodApplyResult(1, 0, false, Set.of());
+        assertTrue(withCategory.needsCategoryImport());
+        assertFalse(withCategory.needsTagImport());
+        assertFalse(withTag.needsCategoryImport());
+        assertTrue(withTag.needsTagImport());
     }
 }
