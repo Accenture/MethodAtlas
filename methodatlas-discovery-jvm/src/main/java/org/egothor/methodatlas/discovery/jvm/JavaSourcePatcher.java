@@ -31,7 +31,6 @@ import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.ArrayInitializerExpr;
-import com.github.javaparser.ast.expr.ClassExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithName;
@@ -110,9 +109,13 @@ import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinte
  * @see AnnotationInspector
  * @see JavaTestFramework
  */
+@SuppressWarnings("PMD.CyclomaticComplexity")
 public final class JavaSourcePatcher implements SourcePatcher {
 
     private static final Logger LOG = Logger.getLogger(JavaSourcePatcher.class.getName());
+
+    /** Threshold used to choose between single-class and array {@code @Category} syntax. */
+    private static final int ONE_CATEGORY = 1;
 
     /** Fully qualified name of {@code @DisplayName} for import management. */
     /* default */ static final String IMPORT_DISPLAY_NAME = "org.junit.jupiter.api.DisplayName";
@@ -198,8 +201,12 @@ public final class JavaSourcePatcher implements SourcePatcher {
             switch (value) {
                 case "junit4" -> this.defaultFramework = JavaTestFramework.JUNIT4;
                 case "junit5" -> this.defaultFramework = JavaTestFramework.JUNIT5;
-                default -> LOG.warning("Unknown tagFramework value '" + frameworkProp.get(0)
-                        + "'; expected 'junit4' or 'junit5' — defaulting to junit5");
+                default -> {
+                    if (LOG.isLoggable(Level.WARNING)) {
+                        LOG.warning("Unknown tagFramework value '" + frameworkProp.get(0)
+                                + "'; expected 'junit4' or 'junit5' — defaulting to junit5");
+                    }
+                }
             }
         }
 
@@ -208,15 +215,19 @@ public final class JavaSourcePatcher implements SourcePatcher {
         for (String entry : classMappings) {
             int eq = entry.indexOf('=');
             if (eq <= 0 || eq == entry.length() - 1) {
-                LOG.warning("Invalid categoryClasses entry '" + entry
-                        + "'; expected 'tagName=fqcn' format — skipped");
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.warning("Invalid categoryClasses entry '" + entry
+                            + "'; expected 'tagName=fqcn' format — skipped");
+                }
                 continue;
             }
             String tagName = entry.substring(0, eq).strip();
             String fqcn = entry.substring(eq + 1).strip();
             if (!FQCN_PATTERN.matcher(fqcn).matches()) {
-                LOG.warning("Invalid FQCN '" + fqcn
-                        + "' in categoryClasses entry '" + entry + "' — skipped");
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.warning("Invalid FQCN '" + fqcn
+                            + "' in categoryClasses entry '" + entry + "' — skipped");
+                }
                 continue;
             }
             map.put(tagName, fqcn);
@@ -339,7 +350,7 @@ public final class JavaSourcePatcher implements SourcePatcher {
 
         boolean needsTagImport = false;
         boolean needsDisplayNameImport = false;
-        boolean needsCategoryAnnotationImport = false;
+        boolean needsCatImport = false;
         Set<String> categoryClassImports = new LinkedHashSet<>();
         int totalChanges = 0;
 
@@ -358,16 +369,9 @@ public final class JavaSourcePatcher implements SourcePatcher {
                     continue;
                 }
 
-                MethodApplyResult result;
-                if (framework == JavaTestFramework.JUNIT4) {
-                    if (desiredDisplayName != null && !desiredDisplayName.isEmpty()) {
-                        diagnostics.println("[WARN] @DisplayName not supported for JUnit 4 method "
-                                + fqcn + "#" + methodName + " — skipped");
-                    }
-                    result = applyDesiredStateJunit4(method, desiredTags, categoryClassMap, diagnostics);
-                } else {
-                    result = applyDesiredState(method, desiredTags, desiredDisplayName);
-                }
+                MethodApplyResult result = dispatchMethodPatch(
+                        method, fqcn + "#" + methodName, desiredTags, desiredDisplayName,
+                        framework, diagnostics);
 
                 if (result.modified()) {
                     int changes = result.tagsAdded() + result.tagsRemoved()
@@ -380,7 +384,7 @@ public final class JavaSourcePatcher implements SourcePatcher {
                         needsDisplayNameImport = true;
                     }
                     if (result.needsCategoryImport()) {
-                        needsCategoryAnnotationImport = true;
+                        needsCatImport = true;
                         categoryClassImports.addAll(result.addedCategoryFqcns());
                     }
                     if (LOG.isLoggable(Level.FINE)) {
@@ -391,22 +395,43 @@ public final class JavaSourcePatcher implements SourcePatcher {
         }
 
         if (totalChanges > 0) {
-            if (needsTagImport) {
-                cu.addImport(IMPORT_TAG);
-            }
-            if (needsDisplayNameImport) {
-                cu.addImport(IMPORT_DISPLAY_NAME);
-            }
-            if (needsCategoryAnnotationImport) {
-                cu.addImport(IMPORT_CATEGORY);
-                for (String classFqcn : categoryClassImports) {
-                    cu.addImport(classFqcn);
-                }
-            }
+            writeImports(cu, needsTagImport, needsDisplayNameImport, needsCatImport, categoryClassImports);
             Files.writeString(sourceFile, LexicalPreservingPrinter.print(cu), StandardCharsets.UTF_8);
             diagnostics.println("Patched: " + sourceFile + " (+" + totalChanges + " change(s))");
         }
         return totalChanges;
+    }
+
+    private MethodApplyResult dispatchMethodPatch(
+            MethodDeclaration method,
+            String methodLabel,
+            List<String> desiredTags,
+            String desiredDisplayName,
+            JavaTestFramework framework,
+            PrintWriter diagnostics) {
+        if (framework == JavaTestFramework.JUNIT4) {
+            if (desiredDisplayName != null && !desiredDisplayName.isEmpty()) {
+                diagnostics.println("[WARN] @DisplayName not supported for JUnit 4 method "
+                        + methodLabel + " — skipped");
+            }
+            return applyDesiredStateJunit4(method, desiredTags, categoryClassMap, diagnostics);
+        }
+        return applyDesiredState(method, desiredTags, desiredDisplayName);
+    }
+
+    private static void writeImports(CompilationUnit cu,
+            boolean needsTag, boolean needsDisplayName,
+            boolean needsCat, Set<String> categoryFqcns) {
+        if (needsTag) {
+            cu.addImport(IMPORT_TAG);
+        }
+        if (needsDisplayName) {
+            cu.addImport(IMPORT_DISPLAY_NAME);
+        }
+        if (needsCat) {
+            cu.addImport(IMPORT_CATEGORY);
+            categoryFqcns.forEach(cu::addImport);
+        }
     }
 
     /**
@@ -504,7 +529,6 @@ public final class JavaSourcePatcher implements SourcePatcher {
      * @param diagnostics      writer for human-readable diagnostic output
      * @return result describing what changed; never {@code null}
      */
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     /* default */ static MethodApplyResult applyDesiredStateJunit4(
             MethodDeclaration method,
             List<String> desiredTags,
@@ -512,24 +536,7 @@ public final class JavaSourcePatcher implements SourcePatcher {
             PrintWriter diagnostics) {
 
         Set<String> existingSimpleNames = getCategorySimpleNames(method);
-
-        Set<String> desiredFqcns = new LinkedHashSet<>();
-        if (desiredTags != null) {
-            for (String tag : desiredTags) {
-                if (tag == null || tag.isBlank()) {
-                    continue;
-                }
-                String fqcn = categoryClassMap.get(tag);
-                if (fqcn == null) {
-                    if (LOG.isLoggable(Level.WARNING)) {
-                        LOG.warning("No categoryClasses mapping for tag '" + tag + "' — skipped");
-                    }
-                    diagnostics.println("[WARN] No categoryClasses mapping for tag '" + tag + "' — skipped");
-                    continue;
-                }
-                desiredFqcns.add(fqcn);
-            }
-        }
+        Set<String> desiredFqcns = resolveCategoryFqcns(desiredTags, categoryClassMap, diagnostics);
 
         Set<String> desiredSimpleNames = new LinkedHashSet<>();
         for (String fqcn : desiredFqcns) {
@@ -548,7 +555,7 @@ public final class JavaSourcePatcher implements SourcePatcher {
             return new MethodApplyResult(0, tagsRemoved, false, Set.of());
         }
 
-        if (desiredFqcns.size() == 1) {
+        if (desiredFqcns.size() == ONE_CATEGORY) {
             String simpleName = desiredSimpleNames.iterator().next();
             method.addSingleMemberAnnotation(ANNOTATION_CATEGORY,
                     StaticJavaParser.parseExpression(simpleName + ".class"));
@@ -561,6 +568,31 @@ public final class JavaSourcePatcher implements SourcePatcher {
         }
 
         return new MethodApplyResult(desiredFqcns.size(), tagsRemoved, false, Set.copyOf(desiredFqcns));
+    }
+
+    private static Set<String> resolveCategoryFqcns(
+            List<String> desiredTags,
+            Map<String, String> categoryClassMap,
+            PrintWriter diagnostics) {
+        if (desiredTags == null) {
+            return Set.of();
+        }
+        Set<String> result = new LinkedHashSet<>();
+        for (String tag : desiredTags) {
+            if (tag == null || tag.isBlank()) {
+                continue;
+            }
+            String fqcn = categoryClassMap.get(tag);
+            if (fqcn == null) {
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.warning("No categoryClasses mapping for tag '" + tag + "' — skipped");
+                }
+                diagnostics.println("[WARN] No categoryClasses mapping for tag '" + tag + "' — skipped");
+                continue;
+            }
+            result.add(fqcn);
+        }
+        return result;
     }
 
     /**
