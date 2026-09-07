@@ -20,7 +20,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 | "We can't send source code to external AI APIs" | Local inference via **Ollama**, or a two-phase **manual AI workflow** for air-gapped environments |
 | "Classification must be consistent and auditable" | Closed, versioned **security taxonomy** with optional custom taxonomy aligned to your controls framework |
 | "We need confidence scores, not just yes/no" | Per-method AI **confidence scores** (`0.0–1.0`) for threshold-based filtering and human-review queues |
-| "Annotate the source files for us" | **Apply-tags mode** writes `@DisplayName` and `@Tag` annotations directly into source files |
+| "Annotate the source files for us" | **Apply-tags mode** writes `@DisplayName` and `@Tag` (JUnit 5) or `@Category` (JUnit 4) annotations directly into source files |
 | "Our @Tag annotations look stale" | **Tag vs AI drift detection** flags disagreements between source annotations and AI classification |
 
 ## Key capabilities
@@ -40,7 +40,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **Mismatch limit** — `-mismatch-limit` safety gate for `-apply-tags-from-csv`; aborts without touching source files when the CSV diverges from the current codebase
 - **Verbose diagnostics** — `-verbose` explains an `-apply-tags-from-csv` run that updates nothing: it prints the CSV keys, the keys discovered in the source, and the key-by-key match result, surfacing fully-qualified-name or working-directory mismatches
 - **GitHub Actions annotations** — `-github-annotations` emits inline PR annotations for security-relevant methods without requiring a GitHub Advanced Security licence
-- **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent. **Supported languages:** Java (`.java`) and C# (`.cs`). Files in any other discovered language are recognised but skipped during write-back with a clear per-file notice and an aggregate skip count in the summary line.
+- **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent. **Supported languages:** Java (`.java`) and C# (`.cs`). Files in any other discovered language are recognised but skipped during write-back with a clear per-file notice and an aggregate skip count in the summary line. For Java, the annotation style is determined per file from its import declarations: JUnit 5 files receive `@Tag("value")`, JUnit 4 files receive `@Category(SomeClass.class)` (see `-property categoryClasses=` in the [CLI reference](https://accenture.github.io/MethodAtlas/cli-reference/)).
 - **Apply-tags-from-csv** — applies human-reviewed annotation decisions from a CSV back to source; separates the review step from the write-back. Same Java/C# language scope as `-apply-tags`.
 - **AI-column promotion** — `-promote-ai` (also `promoteAi:` in YAML) lets `-apply-tags-from-csv` fall back to the `ai_tags` / `ai_display_name` columns where the curated columns are blank. **⚠️ Risky and not recommended:** it writes unvalidated AI output into source, bypassing the review step; off by default and intended only after the promotion has been rethought and approved.
 - **Help** — `-help` (also `--help` / `-h`) prints a usage summary and the [CLI reference](https://accenture.github.io/MethodAtlas/cli-reference/) URL
