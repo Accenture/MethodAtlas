@@ -184,7 +184,7 @@ dependencies {
     runtimeOnly project(':methodatlas-discovery-cobol')
     runtimeOnly project(':methodatlas-detect-secrets') // Built-in credential detector — discovered at runtime via ServiceLoader
 
-    implementation 'tools.jackson.core:jackson-databind:3.1.5'
+    implementation 'tools.jackson.core:jackson-databind:3.1.6'
     implementation 'tools.jackson.dataformat:jackson-dataformat-yaml:3.1.5'
 
     // ZeroEcho-lib (Egothor) — in-house cryptographic toolkit used by the
