@@ -249,7 +249,7 @@ public final class EvidencePackCommand {
                         Files.newOutputStream(outputDir.resolve(CSV_FILE)),
                         StandardCharsets.UTF_8), true)) {
             OutputEmitter csvEmitter = new OutputEmitter(csvWriter, aiEnabled, confidenceEnabled,
-                    cliConfig.contentHash(), cliConfig.driftDetect(), false);
+                    cliConfig.contentHash(), cliConfig.driftDetect(), false, false);
             csvEmitter.emitCsvHeader(OutputMode.CSV);
 
             TestMethodSink csvSink = (fqcn, method, beginLine, loc, contentHash, tags,

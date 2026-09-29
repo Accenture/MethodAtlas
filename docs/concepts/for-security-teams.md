@@ -230,6 +230,8 @@ section in an audit evidence package or security review document:
 
 *Security taxonomy coverage:* [list of taxonomy tags present, e.g. auth, crypto, injection, session]
 
+*Taxonomy domains with zero coverage (gap report):* [list from `security-gap-report.json` gaps array, or "None — all domains covered"]
+
 *Open findings:* [brief description of any critical or high priority items above, or "None"]
 
 *Artefacts retained:* [file names of SARIF and CSV outputs, with content hashes]

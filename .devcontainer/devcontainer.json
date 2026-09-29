@@ -1,0 +1,21 @@
+{
+  "name": "MethodAtlas Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/java:21",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    }
+  },
+  "postCreateCommand": "./gradlew build -x pitest -x dependencyCheckAnalyze",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "sonarsource.sonarlint-vscode",
+        "redhat.vscode-yaml",
+        "vscjava.vscode-pmd",
+        "vscjava.vscode-checkstyle"
+      ]
+    }
+  }
+}

@@ -84,6 +84,14 @@ final class CliArgs {
     private static final String FLAG_CLASSIFICATION_PROMPT = "-classification-prompt";
     private static final String FLAG_TRIAGE_PROMPT = "-triage-prompt";
     private static final String FLAG_DEDICATED_TRIAGE_PROMPT = "-dedicated-triage-prompt";
+    private static final String FLAG_PARALLEL_AI = "-parallel-ai";
+    private static final String FLAG_AI_CWE = "-ai-cwe";
+    private static final String FLAG_GAP_REPORT = "-gap-report";
+    private static final String FLAG_GAP_REPORT_FILE = "-gap-report-file";
+    private static final String FLAG_EVIDENCE_REPORT = "-evidence-report";
+    private static final String FLAG_EVIDENCE_REPORT_FILE = "-evidence-report-file";
+    private static final String FLAG_ATTEST = "-attest";
+    private static final String FLAG_ATTEST_FILE = "-attest-file";
 
     /**
      * Prevents instantiation of this utility class.
@@ -197,6 +205,17 @@ final class CliArgs {
                 ? yamlConfig.secretsWarningThreshold : 0.4;
         double secretsMinScore = yamlConfig != null && yamlConfig.secretsMinScore != null
                 ? yamlConfig.secretsMinScore : 0.0;
+        boolean parallelAi = yamlConfig != null && yamlConfig.parallelAi;
+        boolean aiCwe = yamlConfig != null && yamlConfig.aiCwe;
+        boolean gapReport = yamlConfig != null && yamlConfig.gapReport;
+        Path gapReportFile = yamlConfig != null && yamlConfig.gapReportFile != null
+                ? Path.of(yamlConfig.gapReportFile) : null;
+        boolean evidenceReport = yamlConfig != null && yamlConfig.evidenceReport;
+        Path evidenceReportFile = yamlConfig != null && yamlConfig.evidenceReportFile != null
+                ? Path.of(yamlConfig.evidenceReportFile) : null;
+        boolean attest = yamlConfig != null && yamlConfig.attest;
+        Path attestFile = yamlConfig != null && yamlConfig.attestFile != null
+                ? Path.of(yamlConfig.attestFile) : null;
         // Optional prompt-template override files (CLI overrides YAML). Resolved into
         // an effective PromptTemplateSet after parsing, validated fail-fast.
         Path classificationPromptFile = yamlAiPromptPath(yamlConfig, "classification");
@@ -214,6 +233,10 @@ final class CliArgs {
             }
             if (FLAG_AI_CACHE_OUT.equals(arg)) {
                 aiCacheOut = Paths.get(nextArg(args, ++i, arg));
+                continue;
+            }
+            if (FLAG_AI_CWE.equals(arg)) {
+                aiCwe = true;
                 continue;
             }
             if (arg.startsWith("-ai")) {
@@ -257,6 +280,32 @@ final class CliArgs {
                 case FLAG_DRIFT_DETECT -> driftDetect = true;
                 case FLAG_EMIT_SOURCE_ROOT -> emitSourceRoot = true;
                 case "-verbose" -> verbose = true;
+                case FLAG_PARALLEL_AI -> parallelAi = true;
+                case FLAG_GAP_REPORT -> gapReport = true;
+                case FLAG_GAP_REPORT_FILE -> {
+                    String value = nextArg(args, ++i, arg);
+                    if (value.isBlank()) {
+                        throw new IllegalArgumentException("-gap-report-file path must not be blank");
+                    }
+                    gapReportFile = Paths.get(value);
+                }
+                case FLAG_EVIDENCE_REPORT -> evidenceReport = true;
+                case FLAG_EVIDENCE_REPORT_FILE -> {
+                    String value = nextArg(args, ++i, arg);
+                    if (value.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "-evidence-report-file path must not be blank");
+                    }
+                    evidenceReportFile = Paths.get(value);
+                }
+                case FLAG_ATTEST -> attest = true;
+                case FLAG_ATTEST_FILE -> {
+                    String value = nextArg(args, ++i, arg);
+                    if (value.isBlank()) {
+                        throw new IllegalArgumentException("-attest-file path must not be blank");
+                    }
+                    attestFile = Paths.get(value);
+                }
                 case FLAG_MIN_CONFIDENCE -> minConfidence = parseConfidenceThreshold(nextArg(args, ++i, arg));
                 case "-override-file" -> overrideFilePath = Paths.get(nextArg(args, ++i, arg));
                 case FLAG_EMIT_RECEIPT -> emitReceipt = true;
@@ -374,7 +423,10 @@ final class CliArgs {
                 detectSecrets, secretsInclude, secretsRules,
                 secretsOut, secretsSeparateLlm, secretsShowValues,
                 secretsErrorThreshold, secretsWarningThreshold, secretsMinScore,
-                aiCacheOut);
+                aiCacheOut, parallelAi, aiCwe,
+                gapReport, gapReportFile,
+                evidenceReport, evidenceReportFile,
+                attest, attestFile);
     }
 
     // -------------------------------------------------------------------------

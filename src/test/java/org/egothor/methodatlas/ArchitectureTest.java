@@ -179,4 +179,95 @@ class ArchitectureTest {
                     .because("emitters are formatting components; "
                             + "they must receive pre-computed suggestions as data, "
                             + "not call AI engine classes directly");
+
+    /**
+     * The {@code emit} package must not depend on the {@code command} package.
+     *
+     * <p>
+     * Emitters are pure formatting components: they receive pre-computed data
+     * and write it to an output stream.  Any reverse dependency
+     * (emit → command) would entangle output formatting with scan
+     * orchestration and make emitters impossible to test in isolation.
+     * </p>
+     */
+    @ArchTest
+    static final ArchRule EMIT_DOES_NOT_DEPEND_ON_COMMAND =
+            noClasses().that().resideInAPackage("org.egothor.methodatlas.emit")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("org.egothor.methodatlas.command")
+                    .because("emitters are formatting components that receive pre-computed data; "
+                            + "depending on the orchestration layer would prevent isolated testing");
+
+    /**
+     * The {@code api} package must not depend on the {@code command} package.
+     *
+     * <p>
+     * The {@code api} module is the SPI contract that all language plugins
+     * implement.  It must carry zero upward dependencies so that plugins
+     * can be compiled and shipped without pulling in the scanner core.
+     * A dependency on {@code command} would force every plugin to include
+     * the orchestration layer on its compile classpath.
+     * </p>
+     */
+    @ArchTest
+    static final ArchRule API_DOES_NOT_DEPEND_ON_COMMAND =
+            noClasses().that().resideInAPackage("org.egothor.methodatlas.api")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("org.egothor.methodatlas.command")
+                    .because("the api module is an SPI contract; it must have zero upward dependencies "
+                            + "so that language plugins can be compiled without the scanner core");
+
+    /**
+     * The {@code api} package must not depend on the {@code emit} package.
+     *
+     * <p>
+     * Same rationale as {@link #API_DOES_NOT_DEPEND_ON_COMMAND}: the SPI
+     * contract must be usable without pulling in any output-formatting code.
+     * </p>
+     */
+    @ArchTest
+    static final ArchRule API_DOES_NOT_DEPEND_ON_EMIT =
+            noClasses().that().resideInAPackage("org.egothor.methodatlas.api")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("org.egothor.methodatlas.emit")
+                    .because("the api module is an SPI contract; it must have zero upward dependencies "
+                            + "so that language plugins can be compiled without any output-formatting code");
+
+    /**
+     * The {@code api} package must not depend on the {@code ai} package.
+     *
+     * <p>
+     * Language plugins implement the {@code TestDiscovery} and
+     * {@code SourcePatcher} SPIs without any knowledge of the AI subsystem.
+     * A dependency from {@code api} to {@code ai} would force every plugin
+     * author to take a compile dependency on the AI engine, breaking the
+     * plugin model.
+     * </p>
+     */
+    @ArchTest
+    static final ArchRule API_DOES_NOT_DEPEND_ON_AI =
+            noClasses().that().resideInAPackage("org.egothor.methodatlas.api")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("org.egothor.methodatlas.ai")
+                    .because("the api module is an SPI contract; language plugins must not require "
+                            + "the AI subsystem on their compile classpath");
+
+    /**
+     * The {@code ai} package must not depend on the {@code emit} package.
+     *
+     * <p>
+     * The AI subsystem produces data objects ({@code AiClassSuggestion},
+     * {@code AiMethodSuggestion}).  Formatting those objects for output is
+     * the job of the {@code emit} package.  A reverse dependency
+     * (ai → emit) would couple the AI engine to a specific output format
+     * and prevent the engine from being reused with a different formatter.
+     * </p>
+     */
+    @ArchTest
+    static final ArchRule AI_DOES_NOT_DEPEND_ON_EMIT =
+            noClasses().that().resideInAPackage("org.egothor.methodatlas.ai")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("org.egothor.methodatlas.emit")
+                    .because("the ai subsystem produces data objects; "
+                            + "depending on emit would couple the AI engine to a specific output format");
 }

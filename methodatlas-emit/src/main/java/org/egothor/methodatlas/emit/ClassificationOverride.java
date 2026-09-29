@@ -235,6 +235,34 @@ public final class ClassificationOverride {
     }
 
     /**
+     * Returns {@code true} when a specific method is covered by an override entry, either
+     * directly (a method-level entry) or via a class-level entry that applies to all methods
+     * in the class.
+     *
+     * <p>
+     * This is stricter than {@link #hasOverridesFor(String)} — it matches both
+     * the class and (optionally) the method name.
+     * </p>
+     *
+     * @param fqcn   fully qualified class name
+     * @param method method name to check
+     * @return {@code true} if a covering override entry exists
+     * @since 3.0.0
+     */
+    public boolean hasOverrideFor(String fqcn, String method) {
+        List<Entry> entries = byClass.get(fqcn);
+        if (entries == null) {
+            return false;
+        }
+        for (Entry e : entries) {
+            if (e.method() == null || e.method().equals(method)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Applies override entries to an existing AI classification result.
      *
      * <p>

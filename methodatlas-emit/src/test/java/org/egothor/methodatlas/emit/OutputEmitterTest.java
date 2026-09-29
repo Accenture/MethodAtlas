@@ -681,7 +681,7 @@ class OutputEmitterTest {
         // finish() must convert that swallowed failure into an explicit exception so a
         // truncated report is never mistaken for a successful run.
         PrintWriter failing = new PrintWriter(new FailingWriter());
-        OutputEmitter emitter = new OutputEmitter(failing, false, false, false, false, false);
+        OutputEmitter emitter = new OutputEmitter(failing, false, false, false, false, false, false);
 
         emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null, List.of(), "", null, null);
 
@@ -695,7 +695,7 @@ class OutputEmitterTest {
     void finish_doesNotThrowOnHealthyWriter() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
-            OutputEmitter emitter = new OutputEmitter(pw, false, false, false, false, false);
+            OutputEmitter emitter = new OutputEmitter(pw, false, false, false, false, false, false);
             emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null, List.of(), "", null, null);
             assertDoesNotThrow(emitter::finish);
         }
@@ -751,7 +751,7 @@ class OutputEmitterTest {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (PrintWriter pw = new PrintWriter(new OutputStreamWriter(baos, StandardCharsets.UTF_8), true)) {
             OutputEmitter emitter = new OutputEmitter(pw, aiEnabled, confidenceEnabled, contentHashEnabled,
-                    driftDetect, emitSourceRoot);
+                    driftDetect, emitSourceRoot, false);
             consumer.accept(emitter);
         } catch (Exception e) {
             throw new RuntimeException(e);

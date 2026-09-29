@@ -4,6 +4,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
+import org.egothor.methodatlas.ai.CweMapping;
 
 /**
  * Formats and emits test method records to a configured output writer.
@@ -37,6 +38,7 @@ public final class OutputEmitter implements RecordEmitter {
     private final boolean contentHashEnabled;
     private final boolean driftDetect;
     private final boolean emitSourceRoot;
+    private final boolean cweEnabled;
 
     /**
      * Creates a new output emitter bound to the supplied writer.
@@ -57,15 +59,19 @@ public final class OutputEmitter implements RecordEmitter {
      *                           enable with {@code -emit-source-root} when scanning
      *                           a multi-root project where the same FQCN can appear
      *                           under different source trees
+     * @param cweEnabled         whether the {@code ai_cwe} column should be included;
+     *                           only meaningful when {@code aiEnabled} is {@code true}
      */
     public OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled,
-            boolean contentHashEnabled, boolean driftDetect, boolean emitSourceRoot) {
+            boolean contentHashEnabled, boolean driftDetect, boolean emitSourceRoot,
+            boolean cweEnabled) {
         this.out = out;
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
         this.contentHashEnabled = contentHashEnabled;
         this.driftDetect = driftDetect;
         this.emitSourceRoot = emitSourceRoot;
+        this.cweEnabled = cweEnabled;
     }
 
     /**
@@ -108,6 +114,9 @@ public final class OutputEmitter implements RecordEmitter {
             }
             if (driftDetect) {
                 header.append(",tag_ai_drift,tags_added,tags_removed");
+            }
+            if (cweEnabled) {
+                header.append(",ai_cwe");
             }
         }
         out.println(header.toString());
@@ -192,7 +201,7 @@ public final class OutputEmitter implements RecordEmitter {
         out.println(line.toString());
     }
 
-    @SuppressWarnings("PMD.NPathComplexity")
+    @SuppressWarnings({"PMD.NPathComplexity", "PMD.CyclomaticComplexity"})
     private void appendAiPlainFields(StringBuilder line, AiMethodSuggestion suggestion, TagAiDrift drift) {
         String aiSecurity = suggestion == null ? PLAIN_ABSENT : Boolean.toString(suggestion.securityRelevant());
         String aiDisplayName = suggestion == null || suggestion.displayName() == null
@@ -218,6 +227,11 @@ public final class OutputEmitter implements RecordEmitter {
         }
         if (driftDetect) {
             line.append(", TAG_AI_DRIFT=").append(drift != null ? drift.toValue() : PLAIN_ABSENT);
+        }
+        if (cweEnabled) {
+            List<String> cweIds = suggestion == null || suggestion.tags() == null
+                    ? List.of() : CweMapping.forTags(suggestion.tags());
+            line.append(", AI_CWE=").append(cweIds.isEmpty() ? PLAIN_ABSENT : String.join(";", cweIds));
         }
     }
 
@@ -246,7 +260,7 @@ public final class OutputEmitter implements RecordEmitter {
         out.println(line.toString());
     }
 
-    @SuppressWarnings("PMD.NPathComplexity")
+    @SuppressWarnings({"PMD.NPathComplexity", "PMD.CyclomaticComplexity"})
     private void appendAiCsvFields(StringBuilder line, List<String> tags, AiMethodSuggestion suggestion,
             TagAiDrift drift) {
         String aiSecurity = suggestion == null ? CSV_ABSENT : Boolean.toString(suggestion.securityRelevant());
@@ -281,6 +295,11 @@ public final class OutputEmitter implements RecordEmitter {
             String tagsRemoved = suggestion == null ? CSV_ABSENT : TagAiDrift.tagDifference(suggestion.tags(), tags);
             line.append(',').append(csvEscape(tagsAdded))
                     .append(',').append(csvEscape(tagsRemoved));
+        }
+        if (cweEnabled) {
+            List<String> cweIds = suggestion == null || suggestion.tags() == null
+                    ? List.of() : CweMapping.forTags(suggestion.tags());
+            line.append(',').append(csvEscape(cweIds.isEmpty() ? CSV_ABSENT : String.join(";", cweIds)));
         }
     }
 

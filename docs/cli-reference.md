@@ -29,6 +29,8 @@ Run `methodatlas -help` (or `--help` / `-h`) for a terse on-screen summary that 
 | `-mismatch-limit <n>` | Used with `-apply-tags-from-csv`: abort without making any changes if the number of mismatches between the CSV and the current source tree reaches or exceeds `n`; `-1` means warn and proceed | `-1` |
 | `-promote-ai` | **⚠️ Risky — not recommended.** Used with `-apply-tags-from-csv`: where the curated `tags` / `display_name` is blank, fall back to `ai_tags` / `ai_display_name`, writing **unvalidated AI output** into source and bypassing the human review step the workflow exists to enforce. Off by default; do not enable unless the promotion has been rethought and approved. See [`-promote-ai`](#-promote-ai) | Off |
 | `-verbose` | Emit detailed diagnostics to standard output. Currently consumed by `-apply-tags-from-csv`, where it prints the CSV desired-state keys, the keys discovered in the source tree, and the key-by-key match result, so a run that reports zero updates can be diagnosed | Off |
+| `-parallel-ai` | Issue AI classification calls for different classes concurrently using the common ForkJoinPool; output is still emitted in the original discovery order so CSV/SARIF output remains deterministic; most useful on large codebases or when the AI cache is warm and network round-trips dominate wall-clock time | Off |
+| `-ai-cwe` | Append an `ai_cwe` column to CSV/plain output mapping each method's AI taxonomy tags to CWE (Common Weakness Enumeration) identifiers; only meaningful with `-ai`; multiple tags may map to multiple CWEs, semicolon-separated | Off |
 | `-security-only` | Suppress non-security methods from CSV and plain-text output; only methods with `ai_security_relevant=true` are emitted; requires `-ai` or `-override-file` to have any effect; in SARIF mode this filter is already applied by default | Off |
 | `-include-non-security` | Opt-in to include all test methods in SARIF output, disabling the automatic security-only filter; has no effect in CSV or plain-text modes | Off |
 | `-sarif-omit-scores` | Opt-out: suppress the interaction score and confidence percentage from SARIF result message text; use this when the consuming system already renders the `properties` bag and the extra text is unwanted; scores are always embedded by default so they are visible in GitHub Code Scanning | Off |
@@ -36,11 +38,18 @@ Run `methodatlas -help` (or `--help` / `-h`) for a terse on-screen summary that 
 | `-emit-source-root` | Append a `source_root` column to CSV output (and a `SRCROOT=` token to plain-text output) identifying which scan root each record originated from; essential when the same FQCN can appear under multiple source trees | Off |
 | `-override-file <file>` | Load a YAML classification override file; human corrections are applied after AI classification on every run | — |
 | `-diff <before.csv> <after.csv>` | Compare two MethodAtlas scan outputs and emit a delta report; all other flags are ignored | — |
+| `-require-justification` | Used with `-diff`: exit non-zero when any security-relevant test method is removed without a matching entry in the `-override-file`; enforces change-control for security test removals | Off |
 | `-emit-receipt` | Write a reproducibility receipt JSON sidecar after the scan capturing the SHA-256 of every input that influenced the result | Off |
 | `-receipt-file <path>` | Override the receipt output path | `methodatlas-receipt.json` in CWD |
 | `-emit-coverage` | Write a control-coverage matrix mapping compliance requirement IDs to covering test methods; requires `-coverage-mapping` | Off |
 | `-coverage-mapping <path>` | User-authored tag → control mapping JSON; required when `-emit-coverage` is present | — |
 | `-coverage-file <path>` | Override the coverage matrix output path | `controls-coverage.json` in CWD |
+| `-gap-report` | Write a security-domain gap report JSON after the scan listing which of the nine built-in taxonomy domains (auth, access-control, crypto, …) have zero covering tests; requires `-ai` | Off |
+| `-gap-report-file <path>` | Override the gap report output path | `security-gap-report.json` in CWD |
+| `-evidence-report` | Write a Markdown security evidence report after the scan listing all AI-classified security-relevant methods with their tags, confidence, and CWE mappings | Off |
+| `-evidence-report-file <path>` | Override the evidence report output path | `security-evidence-report.md` in CWD |
+| `-attest` | Write a JSON attestation manifest listing every security-relevant test method with its content hash and commit SHA, ready for external signing | Off |
+| `-attest-file <path>` | Override the attestation manifest output path | `security-tests.attestation.json` in CWD |
 | `-help`, `--help`, `-h` | Print a usage summary and the URL of this reference, then exit | — |
 | `[path ...]` | One or more root paths to scan | Current directory |
 
@@ -151,6 +160,14 @@ driftDetect: false       # append tag_ai_drift column to CSV/plain output  (defa
 includeNonSecurity: false  # include non-security methods in SARIF output  (default: false)
 sarifOmitScores: false   # opt-out: omit scores from SARIF message text    (default: false)
 minConfidence: 0.0       # drop methods below this ai_confidence threshold (default: 0.0 = off)
+parallelAi: false        # issue AI calls concurrently; output order is preserved (default: false)
+aiCwe: false             # append ai_cwe column mapping taxonomy tags to CWE identifiers (default: false)
+gapReport: false         # write security-domain gap report JSON after the scan       (default: false)
+gapReportFile: security-gap-report.json  # gap report output path (default shown)
+evidenceReport: false    # write Markdown security evidence report after the scan     (default: false)
+evidenceReportFile: security-evidence-report.md  # evidence report output path (default shown)
+attest: false            # write JSON attestation manifest after the scan             (default: false)
+attestFile: security-tests.attestation.json  # attestation manifest output path (default shown)
 ```
 
 All fields are optional. Unknown fields are silently ignored. This makes it safe to add future fields to a shared configuration file without breaking older versions.
@@ -541,6 +558,29 @@ and `-ai` (enables classification-change detection).
 See [Delta Report](usage-modes/delta.md) for the full workflow, CI integration
 examples, and regulatory context.
 
+### `-require-justification`
+
+Used together with `-diff`. When this flag is present, MethodAtlas checks every
+security-relevant method that was removed between the two scan CSVs. If any such
+removal lacks a matching entry in the `-override-file`, the command exits with
+code `1` after printing the list of unjustified removals.
+
+```bash
+./methodatlas -diff scan-before.csv scan-after.csv \
+    -require-justification \
+    -override-file .methodatlas-overrides.yaml
+```
+
+A removal is considered **justified** when the override file contains either:
+
+- a method-level entry (`fqcn` + `method`) matching the removed test, or
+- a class-level entry (`fqcn` only, no `method` field) covering the whole class.
+
+This gate satisfies PCI-DSS Requirement 6 (secure development lifecycle) and
+SOX change-control requirements by preventing silent removal of security tests
+from reaching the main branch without documented reviewer approval. Wire it as a
+CI pre-merge gate using your pipeline's exit-code mechanism.
+
 ### `-override-file`
 
 Loads a YAML classification override file before the scan begins. The file records human-reviewed corrections to AI classifications and is applied after AI classification (or in place of it in static mode) on every run.
@@ -714,6 +754,124 @@ In the example above the CSV was produced for a class under package `com.wrong`,
 - **Method-name mismatch** — for example a parameterized test whose CSV row records a display name rather than the method identifier.
 
 Even without `-verbose`, a run that changes nothing prints a hint pointing here. The flag has no effect on the source files or the exit code; it only adds output.
+
+### `-ai-cwe`
+
+Appends an `ai_cwe` column to CSV and plain-text output. For each method, the column contains the CWE identifiers that correspond to the AI taxonomy tags assigned by `-ai`, semicolon-separated. The mapping is deterministic and static — it is not derived from the AI model.
+
+Tag-to-CWE mapping:
+
+| Tag | CWE |
+|---|---|
+| `auth` | CWE-287 (Improper Authentication) |
+| `access-control` | CWE-285 (Improper Authorization) |
+| `crypto` | CWE-327 (Use of Broken or Risky Cryptographic Algorithm) |
+| `input-validation` | CWE-20 (Improper Input Validation) |
+| `injection` | CWE-74 (Improper Neutralization) |
+| `data-protection` | CWE-311 (Missing Encryption of Sensitive Data) |
+| `logging` | CWE-778 (Insufficient Logging) |
+| `error-handling` | CWE-209 (Generation of Error Message Containing Sensitive Information) |
+
+Tags with no mapping (e.g. `owasp`) produce an empty `ai_cwe` cell. Methods with multiple mapped tags emit a semicolon-joined list with duplicates removed.
+
+```shell
+./methodatlas -ai -ai-cwe src/test/java
+```
+
+The `ai_cwe` column enables auditors to trace test coverage directly to recognised weakness categories required by PCI-DSS Requirement 6, NIST SP 800-53, and ISO 27001 Annex A without any post-processing. This flag can also be set in YAML configuration (`aiCwe: true`).
+
+### `-gap-report`
+
+Writes a security-domain gap report to `security-gap-report.json` (or the path supplied via `-gap-report-file`) after the scan completes. The report answers "which of the nine built-in taxonomy domains have zero covering tests?" — the inverse of the usual coverage question.
+
+```shell
+./methodatlas -ai -gap-report src/test/java
+./methodatlas -ai -gap-report -gap-report-file reports/my-gap.json src/test/java
+```
+
+The report is a pretty-printed JSON document with the following top-level fields:
+
+| Field | Description |
+|-------|-------------|
+| `schemaVersion` | Always `"1"` |
+| `generatedUtc` | ISO-8601 timestamp of the run |
+| `methodAtlasVersion` | Tool version string |
+| `domains` | Map of taxonomy tag → `{ count, methods[] }` for all nine tags |
+| `gaps` | List of taxonomy tags whose `count` is zero, in canonical taxonomy order |
+| `summary` | `{ totalDomains, coveredDomains, uncoveredDomains, coveragePercent }` |
+
+Example output (abbreviated):
+
+```json
+{
+  "schemaVersion": "1",
+  "generatedUtc": "2026-04-01T12:00:00Z",
+  "methodAtlasVersion": "6.0.2",
+  "domains": {
+    "auth": { "count": 8, "methods": [ ... ] },
+    "access-control": { "count": 3, "methods": [ ... ] },
+    "crypto": { "count": 0, "methods": [] }
+  },
+  "gaps": ["crypto", "input-validation", "data-protection"],
+  "summary": { "totalDomains": 9, "coveredDomains": 6, "uncoveredDomains": 3, "coveragePercent": 66.67 }
+}
+```
+
+Only AI-classified, security-relevant methods meeting the `-min-confidence` threshold are counted. Methods without an AI suggestion are not counted. This flag can also be set in YAML configuration (`gapReport: true`).
+
+### `-gap-report-file <path>`
+
+Overrides the default gap report output path (`security-gap-report.json` in the current working directory). Only honoured when `-gap-report` is also supplied. The value must not be blank.
+
+### `-evidence-report`
+
+Writes a Markdown security evidence report to `security-evidence-report.md` (or the path supplied via `-evidence-report-file`) after the scan completes. The report lists every AI-classified security-relevant test method grouped by taxonomy domain, including confidence scores, CWE mappings, and file locations. It is intended to be attached to a compliance evidence package or audit record.
+
+```shell
+./methodatlas -ai -ai-confidence -evidence-report src/test/java
+./methodatlas -ai -ai-confidence -evidence-report -evidence-report-file reports/evidence.md src/test/java
+```
+
+Combine with `-min-confidence` to suppress low-confidence methods from the evidence record. Can also be set in YAML configuration (`evidenceReport: true`).
+
+### `-evidence-report-file <path>`
+
+Overrides the default evidence report output path (`security-evidence-report.md` in the current working directory). Only honoured when `-evidence-report` is also supplied. The value must not be blank.
+
+### `-attest`
+
+Writes a JSON attestation manifest to `security-tests.attestation.json` (or the path supplied via `-attest-file`) after the scan completes. The manifest records:
+
+- Tool version and UTC generation timestamp
+- Commit SHA resolved from CI environment variables (`GITHUB_SHA`, `CI_COMMIT_SHA`, `GIT_COMMIT`, `BUILD_SOURCEVERSION`, `BITBUCKET_COMMIT`)
+- Scan root paths
+- Total and security-relevant method counts
+- Per-method records: FQCN, method name, content hash, and AI tags
+
+The manifest is designed to be signed externally (e.g. `cosign sign-blob security-tests.attestation.json`) and attached to a release as a tamper-evident record of which security tests existed at that commit.
+
+```shell
+./methodatlas -ai -attest src/test/java
+./methodatlas -ai -attest -attest-file dist/security-tests.attestation.json src/test/java
+```
+
+Can also be set in YAML configuration (`attest: true`). The `-attest-file` output path is likewise configurable (`attestFile: path/to/manifest.json`).
+
+### `-attest-file <path>`
+
+Overrides the default attestation manifest output path (`security-tests.attestation.json` in the current working directory). Only honoured when `-attest` is also supplied. The value must not be blank.
+
+### `-parallel-ai`
+
+Issues AI classification calls for different classes concurrently, using the common `ForkJoinPool`. Sink emission remains sequential so CSV and SARIF output is always in the original discovery order regardless of which classes finish first.
+
+```shell
+./methodatlas -ai -parallel-ai src/test/java
+```
+
+When to use it: on large codebases (hundreds or thousands of test classes) or when the AI cache is warm and most classes hit the cache — the parallel stream spreads the cache look-ups and the occasional live API call across all available cores. On small codebases, the ForkJoinPool overhead can make parallel mode slower than sequential; leave it off by default until you have measured a benefit.
+
+This flag is compatible with all other flags including `-detect-secrets`. It can also be set in YAML configuration (`parallelAi: true`).
 
 ### `-ai`
 

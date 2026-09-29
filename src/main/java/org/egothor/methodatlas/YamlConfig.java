@@ -149,6 +149,7 @@ final class YamlConfig {
      * drop unknowns before the handler could see them.
      * </p>
      */
+    @SuppressWarnings("PMD.TooManyFields")
     /* default */ static final class YamlConfigFile {
 
         /** Output mode: {@code csv}, {@code plain}, or {@code sarif}. */
@@ -312,6 +313,65 @@ final class YamlConfig {
          */
         @JsonProperty("secretsMinScore")
         /* default */ Double secretsMinScore;
+
+        /**
+         * When {@code true}, AI classification calls for different classes are issued
+         * concurrently using the common {@link java.util.concurrent.ForkJoinPool};
+         * output remains in discovery order. Default: {@code false}.
+         */
+        @JsonProperty("parallelAi")
+        /* default */ boolean parallelAi;
+
+        /**
+         * When {@code true}, append an {@code ai_cwe} column mapping AI taxonomy tags to CWE identifiers.
+         * Default: {@code false}.
+         */
+        @JsonProperty("aiCwe")
+        /* default */ boolean aiCwe;
+
+        /**
+         * When {@code true}, write a security-domain gap report JSON after the scan.
+         * Default: {@code false}.
+         */
+        @JsonProperty("gapReport")
+        /* default */ boolean gapReport;
+
+        /**
+         * Target path for the gap report file. Default: {@code security-gap-report.json}.
+         * Only honoured when {@code gapReport} is {@code true}.
+         */
+        @JsonProperty("gapReportFile")
+        /* default */ String gapReportFile;
+
+        /**
+         * When {@code true}, write a Markdown security evidence report after the scan.
+         * Default: {@code false}.
+         */
+        @JsonProperty("evidenceReport")
+        /* default */ boolean evidenceReport;
+
+        /**
+         * Target path for the evidence report file.
+         * Default: {@code security-evidence-report.md} in the working directory.
+         * Only honoured when {@code evidenceReport} is {@code true}.
+         */
+        @JsonProperty("evidenceReportFile")
+        /* default */ String evidenceReportFile;
+
+        /**
+         * When {@code true}, write a JSON attestation manifest of security-relevant test
+         * methods after the scan. Default: {@code false}.
+         */
+        @JsonProperty("attest")
+        /* default */ boolean attest;
+
+        /**
+         * Target path for the attestation JSON manifest.
+         * Default: {@code security-tests.attestation.json}. Only honoured when
+         * {@code attest} is {@code true}.
+         */
+        @JsonProperty("attestFile")
+        /* default */ String attestFile;
 
         /** AI enrichment settings. */
         @JsonProperty("ai")

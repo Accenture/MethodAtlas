@@ -13,6 +13,9 @@ can be layered on top of any mode that produces AI output or a reviewed CSV.
 | [Reproducibility receipts](reproducibility-receipts.md) | Optional | No | JSON sidecar pinning input fingerprints |
 | [Control-coverage matrix](control-coverage.md) | Optional | No | JSON map from compliance controls to covering tests |
 | [Evidence packs](evidence-packs.md) | Optional | Optional | Tamper-evident directory (SARIF + CSV + signed manifest) |
+| [Security gap report](security-gap-report.md) | Yes | No | JSON report listing uncovered security taxonomy domains |
+| [Security evidence report](evidence-report.md) | Yes | No | Markdown report of all security-relevant methods with AI details |
+| [Attestation manifest](attest.md) | Yes | No | JSON manifest (commit-anchored, signable) of security-relevant methods |
 
 Choose the mode that fits your infrastructure constraints:
 

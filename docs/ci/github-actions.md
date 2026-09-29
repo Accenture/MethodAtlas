@@ -437,3 +437,95 @@ See [Classification Overrides](../ai/overrides.md) for the file format
 reference and [Remote Override Sources](../ai/remote-overrides.md) for a
 strategy comparison that covers security-team repositories, HTTPS artifact
 servers, and reusable workflows.
+
+## Removal justification gate
+
+The `-require-justification` flag turns the delta report into an enforcement
+gate: if any security-relevant test was removed between the baseline and the
+current scan without a matching entry in the override file, MethodAtlas exits
+non-zero. This satisfies PCI-DSS Requirement 6 change-control and SOX test-
+lifecycle requirements with zero scripting:
+
+```yaml
+      - name: Justification gate
+        run: |
+          OVERRIDE_ARGS=()
+          [ -f .methodatlas-overrides.yaml ] && \
+            OVERRIDE_ARGS=("-override-file" ".methodatlas-overrides.yaml")
+
+          ./bin/methodatlas -diff baseline.csv current.csv \
+            -require-justification \
+            "${OVERRIDE_ARGS[@]}"
+```
+
+A developer removing a security test must add an entry to the override file
+before the gate passes, creating a durable audit trail. See
+[Release Gating](release-gating.md) for the full workflow.
+
+## Security domain gap report
+
+After a scan, publish the `-gap-report` output as a CI artifact so security
+reviewers can see which taxonomy domains have no covering tests:
+
+```yaml
+      - name: Scan with gap report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          java -jar methodatlas.jar \
+            -ai -ai-provider github_models \
+            -ai-model gpt-4o-mini \
+            -ai-api-key-env GITHUB_TOKEN \
+            -content-hash \
+            -gap-report -gap-report-file security-gap-report.json \
+            src/test/java > scan.csv
+
+      - name: Upload gap report
+        uses: actions/upload-artifact@v4
+        with:
+          name: methodatlas-gap-report
+          path: security-gap-report.json
+          retention-days: 90
+```
+
+## CWE column for compliance output
+
+Add `-ai-cwe` to include an `ai_cwe` column in CSV output mapping each
+method's AI taxonomy tags to CWE identifiers. This makes the output directly
+traceable to NIST SP 800-53 and ISO 27001 control catalogues without
+post-processing:
+
+```yaml
+      - name: Scan with CWE mapping
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          java -jar methodatlas.jar \
+            -ai -ai-provider github_models \
+            -ai-model gpt-4o-mini \
+            -ai-api-key-env GITHUB_TOKEN \
+            -content-hash -ai-cwe \
+            src/test/java > scan-with-cwe.csv
+```
+
+## Parallel AI classification
+
+For large test suites (thousands of methods), add `-parallel-ai` to issue AI
+classification calls for different classes concurrently. Output order is
+preserved so SARIF and CSV output remain deterministic:
+
+```yaml
+      - name: Scan (parallel AI)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          java -jar methodatlas.jar \
+            -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+            -content-hash -parallel-ai \
+            -sarif \
+            src/test/java > methodatlas.sarif
+```
+
+Pair with `-ai-cache` and `-ai-cache-out` to minimise API costs: parallel
+classification is most valuable when many classes need classification for the
+first time (cold cache runs).

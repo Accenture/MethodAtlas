@@ -24,7 +24,7 @@ class DeltaEntryTest {
 
     private static ScanRecord record(String method) {
         return new ScanRecord("com.acme.FooTest", method, 5, List.of(), null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     // -------------------------------------------------------------------------

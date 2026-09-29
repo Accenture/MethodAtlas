@@ -1,8 +1,8 @@
 package org.egothor.methodatlas.command;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.CredentialTriageVerdict;
@@ -14,9 +14,10 @@ import org.egothor.methodatlas.ai.CredentialTriageVerdict;
  *
  * <p>
  * Populated up-front by the credential-detection pass (candidates keyed by fully
- * qualified class name, in finding order) and mutated during the single-threaded
- * discovery loop as each class is classified. Not thread-safe; the scan loop is
- * single-threaded.
+ * qualified class name, in finding order) and mutated during the discovery loop as
+ * each class is classified. {@link #candidatesFor(String)} is safe to call from
+ * multiple threads (read-only on an immutable map); {@link #recordVerdicts(String, List)}
+ * uses a {@link ConcurrentHashMap} and is likewise safe for concurrent calls.
  * </p>
  *
  * @since 4.1.0
@@ -24,7 +25,7 @@ import org.egothor.methodatlas.ai.CredentialTriageVerdict;
 final class CredentialTriageContext {
 
     private final Map<String, List<PromptBuilder.CredentialCandidateRef>> candidatesByFqcn;
-    private final Map<String, List<CredentialTriageVerdict>> verdictsByFqcn = new HashMap<>();
+    private final Map<String, List<CredentialTriageVerdict>> verdictsByFqcn = new ConcurrentHashMap<>();
 
     /**
      * Creates a context for the supplied candidates.

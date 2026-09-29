@@ -395,7 +395,7 @@ class DeltaEmitterTest {
 
     private static ScanRecord scanRecord(String fqcn, String method, int loc, Boolean aiSecurityRelevant) {
         return new ScanRecord(fqcn, method, loc, List.of(), null, null,
-                aiSecurityRelevant, null, null, null, null, null, null);
+                aiSecurityRelevant, null, null, null, null, null, null, null);
     }
 
     private static DeltaReport.DeltaResult result(

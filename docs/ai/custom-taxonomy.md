@@ -232,6 +232,18 @@ awk -F',' 'NR > 1 && $5 == "true" {print $7}' security-tests.csv \
 
 Any tag not defined in your taxonomy file indicates that the AI model generated an out-of-vocabulary tag. This is rare but can happen with models that do not follow prompt instructions precisely. If it occurs, add an explicit instruction to your taxonomy file: *"Return only tags from the list above. Do not invent or add tags not defined in this taxonomy."*
 
+## CWE mapping with a custom taxonomy
+
+The `-ai-cwe` flag maps taxonomy tags to CWE identifiers. The mapping is
+hardcoded for the nine built-in tags (`auth`, `access-control`, `crypto`,
+`input-validation`, `injection`, `data-protection`, `logging`,
+`error-handling`, `owasp`). Custom taxonomy tags do not receive CWE mappings.
+
+If your custom taxonomy uses tags that correspond to known CWEs, include the
+CWE identifiers directly in your taxonomy file as part of each tag's
+definition. This allows reviewers to see the mapping even though the `ai_cwe`
+column will not be populated for custom tags.
+
 ## Further reading
 
 - [Security Taxonomy](taxonomy.md) — built-in tag reference and taxonomy mode selection

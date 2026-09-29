@@ -383,6 +383,47 @@ java -jar methodatlas.jar -config methodatlas.yml -sarif src/test/java
 The API key must still be supplied via an environment variable at runtime;
 do not store secrets in the configuration file committed to version control.
 
+## Removal justification gate
+
+Add a dedicated job that runs `-require-justification` to block merge requests
+when security-relevant tests are removed without an override-file entry:
+
+```yaml
+justification-gate:
+  stage: gate
+  needs: [scan]
+  script:
+    - |
+      java -jar methodatlas.jar \
+        -diff baseline.csv current.csv \
+        -require-justification \
+        -override-file .methodatlas-overrides.yaml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+```
+
+## Security domain gap report
+
+Include the gap report as a GitLab artifact so reviewers can inspect uncovered
+taxonomy domains:
+
+```yaml
+scan:
+  stage: scan
+  script:
+    - |
+      java -jar methodatlas.jar \
+        -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+        -content-hash \
+        -gap-report -gap-report-file security-gap-report.json \
+        src/test/java > scan.csv
+  artifacts:
+    paths:
+      - scan.csv
+      - security-gap-report.json
+    expire_in: 90 days
+```
+
 ## Further reading
 
 - [GitLab CI/CD — SAST reports](https://docs.gitlab.com/ee/user/application_security/sast/)

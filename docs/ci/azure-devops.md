@@ -439,6 +439,45 @@ java -jar methodatlas.jar -config methodatlas.yml -sarif src/test/java
 The API key must be supplied at runtime via an environment variable. Do not
 store secrets in the configuration file.
 
+## Removal justification gate
+
+Use `-require-justification` with `-diff` to block the pipeline when any
+security-relevant test is removed without a matching override-file entry:
+
+```yaml
+          - script: |
+              java -jar methodatlas.jar \
+                -diff baseline.csv current.csv \
+                -require-justification \
+                -override-file .methodatlas-overrides.yaml
+            displayName: Justification gate
+```
+
+If the gate fails, the developer must add an override entry for the removed
+method and re-run the pipeline. The entry becomes the auditable justification.
+
+## Security domain gap report
+
+Publish the gap report as a pipeline artifact so security reviewers can track
+uncovered taxonomy domains across releases:
+
+```yaml
+          - script: |
+              java -jar methodatlas.jar \
+                -ai -ai-provider openai -ai-api-key-env OPENAI_API_KEY \
+                -content-hash \
+                -gap-report -gap-report-file security-gap-report.json \
+                src/test/java > scan.csv
+            displayName: Scan with gap report
+            env:
+              OPENAI_API_KEY: $(openaiApiKey)
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: security-gap-report.json
+              artifactName: methodatlas-gap-report
+```
+
 ## Further reading
 
 - [Microsoft — GitHub Advanced Security for Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/repos/security/configure-github-advanced-security-features)

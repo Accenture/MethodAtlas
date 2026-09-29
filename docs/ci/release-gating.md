@@ -365,6 +365,43 @@ the Azure DevOps UI to require one or more manual approvals before the
 deployment job runs. This creates a two-layer gate: the automated delta check
 plus a human sign-off.
 
+## Automated removal gate with `-require-justification`
+
+The `-require-justification` flag automates the removal check. When passed
+alongside `-diff`, MethodAtlas exits `1` if any security-relevant method in
+the `before` CSV is absent from the `after` CSV without a matching entry in
+the override file:
+
+```bash
+./methodatlas -diff baseline.csv current.csv \
+    -require-justification \
+    -override-file .methodatlas-overrides.yaml
+```
+
+The flag checks for the presence of any override entry targeting the removed
+method — either a method-level entry (`fqcn` + `method`) or a class-level
+entry (`fqcn` only). The content of the override does not matter; its
+existence is the justification.
+
+This replaces the fragile `grep` approach with a gate that is both
+machine-readable and auditor-friendly: every justified removal leaves a
+version-controlled, human-authored record in the override file.
+
+### GitHub Actions integration
+
+```yaml
+      - name: Justification gate
+        run: |
+          ./bin/methodatlas \
+            -diff baseline.csv current.csv \
+            -require-justification \
+            -override-file .methodatlas-overrides.yaml
+```
+
+The step exits `1` when unjustified removals are found, and GitHub Actions
+marks the check as failed. Add the step name as a required status check in
+branch protection settings to block merge.
+
 ## Handling justified removals
 
 When a security-relevant test is legitimately removed — because the feature it
@@ -374,16 +411,30 @@ block until the removal is documented.
 The recommended process:
 
 1. Remove the test from source.
-2. Run the gate locally; observe the `-` entry in the delta.
-3. If the removal is justified, add a `securityRelevant: false` entry to the
-   [override file](../ai/overrides.md) for the removed method, with a `note`
+2. Run `./methodatlas -diff baseline.csv current.csv -require-justification -override-file .methodatlas-overrides.yaml` locally; observe the gate failure.
+3. Add an entry to the override file for the removed method with a `note`
    recording the reviewer's name, date, and rationale.
-4. The override entry silences the AI-side of the gate. For CI gates that
-   check raw delta output, the `-` entry remains; the development team
-   acknowledges it in the PR description.
+4. Commit the override file update in the same PR as the test removal.
 
-Storing the justification in the override file creates a durable, version-
-controlled record that auditors can examine.
+The override entry serves as the justification that satisfies the CI gate and
+creates a durable, version-controlled record for auditors.
+
+## Security domain gap report
+
+After a scan, the `-gap-report` flag writes a JSON report listing how many
+security-relevant tests cover each taxonomy domain and which domains have
+zero coverage:
+
+```bash
+./methodatlas \
+  -ai -ai-provider github_models -ai-api-key-env GITHUB_TOKEN \
+  -gap-report -gap-report-file security-gap-report.json \
+  src/test/java > scan.csv
+```
+
+The report is useful as a pre-release checklist: before shipping, verify that
+all security-critical domains for your application have at least one covering
+test. Publish the report as a CI artifact alongside the SARIF and CSV outputs.
 
 ## Further reading
 

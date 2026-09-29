@@ -108,6 +108,24 @@ The `-evidence-pack <framework>` mode bundles the SARIF report, CSV report, opti
 
 To access: pass `-evidence-pack <framework>` plus the keyring flags (`-evidence-pack-keyring` for CLI, or `-evidence-pack-keyring-env` for a CI secret) during your release pipeline and publish the resulting directory as a workflow artifact or release asset. See [usage-modes/evidence-packs.md](usage-modes/evidence-packs.md) for the full directory layout, signing options, and verification steps.
 
+### Security-domain gap report (opt-in)
+
+Produced on demand by `-gap-report` after an AI-classified scan. The output is a `security-gap-report.json` document listing each of the nine built-in taxonomy domains (auth, access-control, crypto, input-validation, injection, data-protection, logging, error-handling, owasp) with the count of covering security tests, the test method names, and a `gaps` array naming every domain with zero tests. Use it to answer "which security threat categories have no tests at all?" — an inverse coverage question that no standard JaCoCo or SAST tool can answer.
+
+To access: invoke MethodAtlas with `-ai -gap-report` (default destination `security-gap-report.json`) or `-gap-report -gap-report-file <path>`. Publish the file as a workflow artifact or attach it to a compliance evidence package. See [CI — Release gating](ci/release-gating.md) for a complete pipeline example.
+
+### Security evidence report (opt-in)
+
+Produced on demand by `-evidence-report` after an AI-classified scan. The output is a `security-evidence-report.md` Markdown document listing every AI-classified security-relevant method grouped by taxonomy domain, with AI tags, confidence scores, CWE identifiers, interaction scores, and content hashes. Attach it to an audit evidence package as human-readable, file-linked proof that specific security properties are being tested.
+
+To access: invoke MethodAtlas with `-ai -evidence-report` (default destination `security-evidence-report.md`) or `-evidence-report -evidence-report-file <path>`. Publish the file as a workflow artifact or release asset.
+
+### Attestation manifest (opt-in)
+
+Produced on demand by `-attest` after an AI-classified scan. The output is a `security-tests.attestation.json` JSON manifest recording the commit SHA, scan timestamp, total method count, and a per-method list of fully qualified class/method names, content hashes, and AI tags for every security-relevant test found in the scan. Sign it externally with `cosign sign-blob` or GPG and attach it to a release to produce a tamper-evident, verifiable record of which security tests existed at a specific commit — satisfying ISO 27001 and SOC 2 "evidence of testing" requirements.
+
+To access: invoke MethodAtlas with `-ai -attest` (default destination `security-tests.attestation.json`) or `-attest -attest-file <path>`. Publish the file as a workflow artifact or release asset.
+
 ## CI quality gates
 
 | Gate | Tool | Threshold | Scope |

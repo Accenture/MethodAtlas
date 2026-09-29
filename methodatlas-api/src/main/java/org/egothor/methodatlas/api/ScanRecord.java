@@ -53,6 +53,8 @@ import java.util.List;
  * @param tagAiDrift         tag-vs-AI drift value ({@code none}, {@code tag-only},
  *                           or {@code ai-only}), or {@code null} when the
  *                           {@code tag_ai_drift} column was absent
+ * @param aiCwe              AI-derived CWE identifiers for the classified security tags, or
+ *                           {@code null} when the {@code ai_cwe} column was absent
  *
  * @since 3.0.0
  */
@@ -69,5 +71,6 @@ public record ScanRecord(
         String aiReason,
         Double aiConfidence,
         Double aiInteractionScore,
-        String tagAiDrift) {
+        String tagAiDrift,
+        List<String> aiCwe) {
 }

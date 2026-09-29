@@ -112,22 +112,13 @@ import org.egothor.methodatlas.emit.OutputMode;
  * @param evidencePackFramework target compliance framework token supplied to
  *                              {@code -evidence-pack}; {@code null} when the
  *                              evidence-pack mode is not active
- * @param evidencePackDir       output directory for the evidence pack; {@code null}
- *                              means use the default (under the first scan root)
+ * @param evidencePackDir       output directory for the evidence pack; {@code null} uses the default (under first scan root)
  * @param evidencePackOverwrite when {@code true}, an existing evidence-pack
  *                              directory is reused; when {@code false}, a
  *                              pre-existing directory is treated as an error
- * @param evidencePackKeyringFile   ZeroEcho keyring file providing the manifest
- *                                  signing key (a plaintext {@code KeyringStore},
- *                                  not a JDK PKCS12 keystore); {@code null}
- *                                  produces an unsigned pack with a stderr warning;
- *                                  intended for CLI use with a permission-protected
- *                                  file
- * @param evidencePackKeyringEnv    name of an environment variable holding the
- *                                  full keyring content, or {@code null}; intended
- *                                  for CI/CD where the keyring is delivered through
- *                                  a platform secret and parsed in memory so the
- *                                  private key never touches the runner's disk;
+ * @param evidencePackKeyringFile   ZeroEcho {@code KeyringStore} file for manifest signing;
+ *                                  {@code null} produces an unsigned pack with a stderr warning
+ * @param evidencePackKeyringEnv    environment variable holding the full keyring content;
  *                                  takes precedence over {@code evidencePackKeyringFile}
  * @param evidencePackKeyAlias  keyring alias of the signing key; {@code null}
  *                              uses the first alias; for hybrid signing the
@@ -154,9 +145,17 @@ import org.egothor.methodatlas.emit.OutputMode;
  * @param secretsErrorThreshold   SARIF {@code error} score floor (default {@code 0.8})
  * @param secretsWarningThreshold SARIF {@code warning} score floor (default {@code 0.4})
  * @param secretsMinScore         suppress findings below this score (default {@code 0.0} = keep all)
- * @param aiCacheOut              path to write the unified AI result cache (JSON Lines) after the
- *                                scan, or {@code null} to write none; pair with {@code aiCacheFile}
- *                                pointing at the same path for an incremental read-update cache
+ * @param aiCacheOut              AI cache output path; pair with {@code aiCacheFile} for incremental caching; {@code null} skips
+ * @param parallelAi              when {@code true}, AI calls are issued concurrently; output order is preserved
+ * @param aiCwe                   when {@code true}, append an {@code ai_cwe} column mapping AI tags to CWE identifiers
+ * @param gapReport               when {@code true}, write a security-domain gap report JSON after the scan
+ * @param gapReportFile           path for the gap report; {@code null} defaults to {@code security-gap-report.json}
+ * @param evidenceReport          when {@code true}, write a Markdown evidence report of security-relevant methods
+ * @param evidenceReportFile      target path for the evidence report; {@code null} defaults to
+ *                                {@code security-evidence-report.md}; only honoured when {@code evidenceReport} is {@code true}
+ * @param attest                  when {@code true}, write a signed JSON attestation manifest of security-relevant methods
+ * @param attestFile              target path for the attestation JSON; {@code null} defaults to
+ *                                {@code security-tests.attestation.json}
  * @since 3.0.0
  */
 public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> paths, List<String> fileSuffixes,
@@ -172,5 +171,8 @@ public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> p
         boolean detectSecrets, String secretsInclude, Path secretsRules,
         Path secretsOut, boolean secretsSeparateLlm, boolean secretsShowValues,
         double secretsErrorThreshold, double secretsWarningThreshold, double secretsMinScore,
-        Path aiCacheOut) {
+        Path aiCacheOut, boolean parallelAi, boolean aiCwe,
+        boolean gapReport, Path gapReportFile,
+        boolean evidenceReport, Path evidenceReportFile,
+        boolean attest, Path attestFile) {
 }

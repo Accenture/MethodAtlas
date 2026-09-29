@@ -39,6 +39,12 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **Security-only filter** — `-security-only` suppresses non-security methods from CSV/plain output; applied automatically in SARIF mode
 - **Mismatch limit** — `-mismatch-limit` safety gate for `-apply-tags-from-csv`; aborts without touching source files when the CSV diverges from the current codebase
 - **Verbose diagnostics** — `-verbose` explains an `-apply-tags-from-csv` run that updates nothing: it prints the CSV keys, the keys discovered in the source, and the key-by-key match result, surfacing fully-qualified-name or working-directory mismatches
+- **Parallel AI** — `-parallel-ai` issues AI classification calls for different classes concurrently (common `ForkJoinPool`); output is still emitted in discovery order so CSV/SARIF output is deterministic; most effective on large codebases or when the cache is warm
+- **CWE taxonomy mapping** — `-ai-cwe` appends an `ai_cwe` column mapping each method's AI taxonomy tags to CWE identifiers (e.g. `auth` → `CWE-287`, `injection` → `CWE-74`); enables auditors to trace test coverage to weakness categories required by PCI-DSS, NIST SP 800-53, and ISO 27001 Annex A
+- **Security-domain gap report** — `-gap-report` writes a JSON report after the scan answering "which taxonomy domains have zero covering tests?"; all nine built-in domains (auth, access-control, crypto, input-validation, injection, data-protection, logging, error-handling, owasp) are listed with their test counts and the `gaps` array names the uncovered ones; no standard coverage tool produces this because it requires semantic understanding of test intent
+- **Security evidence report** — `-evidence-report` writes a Markdown report after the scan listing all AI-classified security-relevant methods grouped by taxonomy domain with confidence scores, CWE mappings, and file locations; attach it to a compliance evidence package or audit record as human-readable proof of test coverage
+- **Attestation manifest** — `-attest` writes a compact JSON manifest after the scan recording every security-relevant test method with its content hash, AI tags, and the commit SHA (resolved from `GITHUB_SHA`, `CI_COMMIT_SHA`, `GIT_COMMIT`, `BUILD_SOURCEVERSION`, or `BITBUCKET_COMMIT`); sign it externally with `cosign sign-blob` or GPG and attach it to a release as a tamper-evident record of which security tests existed at that commit
+- **Security test removal gate** — `-require-justification` (used with `-diff`) exits non-zero when any security-relevant test was removed between two scan CSVs without a matching entry in the `-override-file`; satisfies PCI-DSS Req. 6 and SOX change-control requirements for security test lifecycle governance
 - **GitHub Actions annotations** — `-github-annotations` emits inline PR annotations for security-relevant methods without requiring a GitHub Advanced Security licence
 - **Apply-tags** — writes AI-suggested `@DisplayName` and `@Tag` annotations back into source files; idempotent. **Supported languages:** Java (`.java`) and C# (`.cs`). Files in any other discovered language are recognised but skipped during write-back with a clear per-file notice and an aggregate skip count in the summary line. For Java, the annotation style is determined per file from its import declarations: JUnit 5 files receive `@Tag("value")`, JUnit 4 files receive `@Category(SomeClass.class)` (see `-property categoryClasses=` in the [CLI reference](https://accenture.github.io/MethodAtlas/cli-reference/)).
 - **Apply-tags-from-csv** — applies human-reviewed annotation decisions from a CSV back to source; separates the review step from the write-back. Same Java/C# language scope as `-apply-tags`.
@@ -541,6 +547,14 @@ ai:
 
 Command-line flags always override YAML values. See [docs/cli-reference.md](docs/cli-reference.md#-config-file) for the complete field reference.
 
+## Dev Container / GitHub Codespaces
+
+A `.devcontainer/devcontainer.json` is included so contributors can open MethodAtlas in a pre-configured environment with a single click — no local JDK or Node.js installation required.
+
+The container uses the official `mcr.microsoft.com/devcontainers/java:21` image (matching the required JDK 21) and installs Node 18 for the TypeScript discovery plugin. On first open it runs `./gradlew build -x pitest -x dependencyCheckAnalyze` to compile everything and run the test suite.
+
+Works with [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers), [GitHub Codespaces](https://github.com/features/codespaces), and any OCI-compatible dev container runtime.
+
 ## Distribution layout
 
 ```text
@@ -584,6 +598,7 @@ Full documentation is available at [accenture.github.io/MethodAtlas](https://acc
 | [docs/ai/interaction-score.md](docs/ai/interaction-score.md) | Placebo-test detection: interaction-score semantics and CI thresholds |
 | [docs/compliance.md](docs/compliance.md) | Compliance framework mapping: OWASP SAMM, NIST SSDF, ISO 27001, DORA; reproducibility statement |
 | [docs/deployment/](docs/deployment/index.md) | Regulated environment guidance: PCI-DSS, ISO 27001, NIST SSDF, DORA, SOC 2, air-gapped |
+| [docs/compliance/regulated-deployment.md](docs/compliance/regulated-deployment.md) | Unified regulated-environment guide: minimum flag sets per standard, artifact retention, auditor presentation |
 | [docs/deployment/onboarding.md](docs/deployment/onboarding.md) | Onboarding a brownfield codebase: six-phase progression from static scan to CI gate |
 | [docs/concepts/data-governance.md](docs/concepts/data-governance.md) | What data is submitted to AI providers, data residency options, enterprise secret management |
 | [docs/concepts/for-security-teams.md](docs/concepts/for-security-teams.md) | MethodAtlas from a security-team perspective: evidence packages, audit trails |

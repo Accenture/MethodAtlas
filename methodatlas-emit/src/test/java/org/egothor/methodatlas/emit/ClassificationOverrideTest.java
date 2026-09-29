@@ -396,6 +396,74 @@ class ClassificationOverrideTest {
     }
 
     // -------------------------------------------------------------------------
+    // hasOverrideFor — method-level and class-level lookup
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("hasOverrideFor returns false on the empty instance for any method")
+    @Tag("positive")
+    void empty_hasOverrideFor_returnsFalse() {
+        assertFalse(ClassificationOverride.empty().hasOverrideFor("com.acme.FooTest", "test_one"));
+    }
+
+    @Test
+    @DisplayName("hasOverrideFor returns true for exact method-level match")
+    @Tag("positive")
+    void methodLevel_hasOverrideFor_exactMatch(@TempDir Path tmp) throws IOException {
+        Path file = writeOverride(tmp, """
+                overrides:
+                  - fqcn: com.acme.FooTest
+                    method: test_one
+                    securityRelevant: true
+                """);
+        ClassificationOverride co = ClassificationOverride.load(file);
+        assertTrue(co.hasOverrideFor("com.acme.FooTest", "test_one"));
+    }
+
+    @Test
+    @DisplayName("hasOverrideFor returns false when method name does not match")
+    @Tag("negative")
+    void methodLevel_hasOverrideFor_differentMethod(@TempDir Path tmp) throws IOException {
+        Path file = writeOverride(tmp, """
+                overrides:
+                  - fqcn: com.acme.FooTest
+                    method: test_one
+                    securityRelevant: true
+                """);
+        ClassificationOverride co = ClassificationOverride.load(file);
+        assertFalse(co.hasOverrideFor("com.acme.FooTest", "test_two"));
+    }
+
+    @Test
+    @DisplayName("hasOverrideFor returns false when class is not in overrides")
+    @Tag("negative")
+    void methodLevel_hasOverrideFor_unknownClass(@TempDir Path tmp) throws IOException {
+        Path file = writeOverride(tmp, """
+                overrides:
+                  - fqcn: com.acme.FooTest
+                    method: test_one
+                    securityRelevant: true
+                """);
+        ClassificationOverride co = ClassificationOverride.load(file);
+        assertFalse(co.hasOverrideFor("com.acme.OtherTest", "test_one"));
+    }
+
+    @Test
+    @DisplayName("class-level override (no method) matches any method in the class")
+    @Tag("positive")
+    void classLevel_hasOverrideFor_matchesAnyMethod(@TempDir Path tmp) throws IOException {
+        Path file = writeOverride(tmp, """
+                overrides:
+                  - fqcn: com.acme.AuthTest
+                    securityRelevant: true
+                """);
+        ClassificationOverride co = ClassificationOverride.load(file);
+        assertTrue(co.hasOverrideFor("com.acme.AuthTest", "test_login"));
+        assertTrue(co.hasOverrideFor("com.acme.AuthTest", "test_logout"));
+        assertTrue(co.hasOverrideFor("com.acme.AuthTest", "any_arbitrary_name"));
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

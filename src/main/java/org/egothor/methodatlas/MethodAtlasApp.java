@@ -31,6 +31,9 @@ import org.egothor.methodatlas.command.SarifCommand;
 import org.egothor.methodatlas.command.ScanCommand;
 import org.egothor.methodatlas.command.ScanOrchestrator;
 import org.egothor.methodatlas.coverage.CoverageFacade;
+import org.egothor.methodatlas.attest.AttestFacade;
+import org.egothor.methodatlas.evidencereport.EvidenceReportFacade;
+import org.egothor.methodatlas.gap.GapFacade;
 import org.egothor.methodatlas.receipt.ReceiptFacade;
 import org.egothor.methodatlas.evidence.EvidenceFramework;
 import org.egothor.methodatlas.evidence.EvidencePackCommand;
@@ -187,9 +190,13 @@ import org.egothor.methodatlas.evidence.GenSigningKeyCommand;
  * @see org.egothor.methodatlas.command.Command
  * @see #main(String[])
  */
+@SuppressWarnings("PMD.CyclomaticComplexity")
 public final class MethodAtlasApp {
 
     private static final String FLAG_DIFF = "-diff";
+    private static final String FLAG_REQUIRE_JUSTIFICATION = "-require-justification";
+    private static final String FLAG_DIFF_OVERRIDE_FILE = "-override-file";
+    private static final int SINGLE_SINK = 1;
 
     /** Logger for receipt-emission warnings; receipt failures never abort the scan. */
     private static final Logger LOG = Logger.getLogger(MethodAtlasApp.class.getName());
@@ -275,7 +282,6 @@ public final class MethodAtlasApp {
      * @throws IllegalStateException    if AI support is enabled but the AI engine
      *                                  cannot be created successfully
      */
-    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops") // DiffCommand is created inside the loop but returned immediately
     /* default */ static int run(String[] args, PrintWriter out) throws IOException {
         // -help is handled before argument parsing so it works even with no
         // other (or otherwise invalid) arguments and never trips the
@@ -296,7 +302,7 @@ public final class MethodAtlasApp {
                     throw new IllegalArgumentException(
                             "-diff requires two arguments: -diff <before.csv> <after.csv>");
                 }
-                return new DiffCommand(Path.of(args[i + 1]), Path.of(args[i + 2])).execute(out);
+                return buildDiffCommand(args, i).execute(out);
             }
             if (GenSigningKeyCommand.FLAG_GEN_SIGNING_KEY.equals(args[i])) {
                 return GenSigningKeyCommand.run(args, out);
@@ -323,6 +329,10 @@ public final class MethodAtlasApp {
             return EXIT_BAD_ARGS;
         }
 
+        GapFacade.Handle gapHandle = prepareGapHandle(cliConfig);
+        EvidenceReportFacade.Handle evidenceHandle = prepareEvidenceReportHandle(cliConfig);
+        AttestFacade.Handle attestHandle = prepareAttestHandle(cliConfig);
+
         // Establish the run identity once and place it in the thread-local
         // context so the JUL formatter (Item 20) can prepend the correlation
         // id to every log record emitted during this invocation. clear() in
@@ -333,17 +343,69 @@ public final class MethodAtlasApp {
         ScanRun scanRun = ScanRun.create(version, cliConfig.toString());
         ScanRunContext.set(scanRun);
         try {
-            int exit = runWithScanRun(out, cliConfig, coverageHandle);
-            if (cliConfig.emitReceipt()) {
-                emitReceipt(cliConfig, version);
-            }
-            if (coverageHandle != null) {
-                writeCoverage(cliConfig, version, coverageHandle);
-            }
+            int exit = runWithScanRun(out, cliConfig, coverageHandle, gapHandle, evidenceHandle,
+                    attestHandle);
+            writeSideCarReports(cliConfig, version, coverageHandle, gapHandle, evidenceHandle,
+                    attestHandle);
             return exit;
         } finally {
             ScanRunContext.clear();
         }
+    }
+
+    /**
+     * Writes all side-car reports that were requested for this run.
+     * Extracted from {@link #run} to keep that method's cyclomatic complexity in check.
+     *
+     * @param cliConfig      parsed CLI configuration
+     * @param version        resolved tool version string
+     * @param coverageHandle coverage handle; {@code null} when coverage is not active
+     * @param gapHandle      gap-report handle; {@code null} when gap report is not active
+     * @param evidenceHandle evidence-report handle; {@code null} when not active
+     * @param attestHandle   attestation handle; {@code null} when not active
+     */
+    private static void writeSideCarReports(CliConfig cliConfig, String version,
+            CoverageFacade.Handle coverageHandle, GapFacade.Handle gapHandle,
+            EvidenceReportFacade.Handle evidenceHandle, AttestFacade.Handle attestHandle) {
+        if (cliConfig.emitReceipt()) {
+            emitReceipt(cliConfig, version);
+        }
+        if (coverageHandle != null) {
+            writeCoverage(cliConfig, version, coverageHandle);
+        }
+        if (gapHandle != null) {
+            writeGapReport(cliConfig, version, gapHandle);
+        }
+        if (evidenceHandle != null) {
+            writeEvidenceReport(cliConfig, version, evidenceHandle);
+        }
+        if (attestHandle != null) {
+            writeAttestation(cliConfig, version, attestHandle);
+        }
+    }
+
+    /**
+     * Constructs a {@link DiffCommand} from raw args, scanning for
+     * {@code -require-justification} and {@code -override-file} beyond the two
+     * positional CSV paths.
+     *
+     * @param args  raw argument array; {@code args[diffIdx]} must equal {@code -diff}
+     * @param diffIdx index of the {@code -diff} flag in {@code args}
+     * @return configured command
+     */
+    private static DiffCommand buildDiffCommand(String[] args, int diffIdx) {
+        Path diffBefore = Path.of(args[diffIdx + 1]);
+        Path diffAfter = Path.of(args[diffIdx + 2]);
+        boolean requireJustification = false;
+        Path diffOverrideFile = null;
+        for (int j = 0; j < args.length; j++) {
+            if (FLAG_REQUIRE_JUSTIFICATION.equals(args[j])) {
+                requireJustification = true;
+            } else if (FLAG_DIFF_OVERRIDE_FILE.equals(args[j]) && j + 1 < args.length) {
+                diffOverrideFile = Path.of(args[j + 1]);
+            }
+        }
+        return new DiffCommand(diffBefore, diffAfter, requireJustification, diffOverrideFile);
     }
 
     /**
@@ -387,6 +449,109 @@ public final class MethodAtlasApp {
     }
 
     /**
+     * Prepares a gap-report handle when {@code -gap-report} is active.
+     *
+     * @param cliConfig parsed CLI configuration
+     * @return prepared handle, or {@code null} when gap-report mode is not active
+     */
+    private static GapFacade.Handle prepareGapHandle(CliConfig cliConfig) {
+        if (!cliConfig.gapReport()) {
+            return null;
+        }
+        return GapFacade.prepare(cliConfig.minConfidence());
+    }
+
+    /**
+     * Writes the security-domain gap report. Errors are logged and swallowed so
+     * a gap-report write failure never demotes a successful scan.
+     *
+     * @param cliConfig parsed CLI configuration
+     * @param version   resolved tool version
+     * @param handle    prepared gap-report handle; never {@code null}
+     */
+    private static void writeGapReport(CliConfig cliConfig, String version,
+            GapFacade.Handle handle) {
+        String toolVersion = version != null ? version : DEV_VERSION;
+        Path target = cliConfig.gapReportFile() != null
+                ? cliConfig.gapReportFile()
+                : Path.of(GapFacade.DEFAULT_GAP_REPORT_FILENAME);
+        try {
+            handle.write(toolVersion, target);
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Could not write gap report: {0}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Prepares an evidence-report handle when {@code -evidence-report} is active.
+     *
+     * @param cliConfig parsed CLI configuration
+     * @return prepared handle, or {@code null} when evidence-report mode is not active
+     */
+    private static EvidenceReportFacade.Handle prepareEvidenceReportHandle(CliConfig cliConfig) {
+        if (!cliConfig.evidenceReport()) {
+            return null;
+        }
+        return EvidenceReportFacade.prepare(cliConfig.minConfidence(), cliConfig.paths());
+    }
+
+    /**
+     * Prepares an attestation collector when {@code -attest} is active.
+     *
+     * @param cliConfig parsed CLI configuration
+     * @return prepared handle, or {@code null} when attest mode is not active
+     */
+    private static AttestFacade.Handle prepareAttestHandle(CliConfig cliConfig) {
+        if (!cliConfig.attest()) {
+            return null;
+        }
+        return AttestFacade.prepare(cliConfig.minConfidence(), cliConfig.paths());
+    }
+
+    /**
+     * Writes the security evidence report. Errors are logged and swallowed so
+     * a report-write failure never demotes a successful scan.
+     *
+     * @param cliConfig parsed CLI configuration
+     * @param version   resolved tool version
+     * @param handle    prepared evidence-report handle; never {@code null}
+     */
+    private static void writeEvidenceReport(CliConfig cliConfig, String version,
+            EvidenceReportFacade.Handle handle) {
+        String toolVersion = version != null ? version : DEV_VERSION;
+        Path target = cliConfig.evidenceReportFile() != null
+                ? cliConfig.evidenceReportFile()
+                : Path.of(EvidenceReportFacade.DEFAULT_REPORT_FILENAME);
+        try {
+            handle.write(toolVersion, target);
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Could not write evidence report: {0}", e.getMessage());
+            }
+        }
+    }
+
+    private static void writeAttestation(CliConfig cliConfig, String version,
+            AttestFacade.Handle handle) {
+        String toolVersion = version != null ? version : DEV_VERSION;
+        Path target = cliConfig.attestFile() != null
+                ? cliConfig.attestFile()
+                : Path.of(AttestFacade.DEFAULT_ATTEST_FILENAME);
+        try {
+            handle.write(toolVersion, target);
+        } catch (IOException e) {
+            if (LOG.isLoggable(Level.WARNING)) {
+                LOG.log(Level.WARNING,
+                        "Could not write attestation manifest: {0}", e.getMessage());
+            }
+        }
+    }
+
+    /**
      * Writes a reproducibility receipt for the just-completed scan.
      *
      * <p>
@@ -413,8 +578,59 @@ public final class MethodAtlasApp {
         }
     }
 
+    /**
+     * Builds a composite extra sink from all active side-channel handles.
+     * When only one handle is active its own sink is returned directly;
+     * when multiple are active their {@code record} calls are fanned out in order.
+     *
+     * @param coverageHandle  coverage handle; may be {@code null}
+     * @param gapHandle       gap-report handle; may be {@code null}
+     * @param evidenceHandle  evidence-report handle; may be {@code null}
+     * @param attestHandle    attestation handle; may be {@code null}
+     * @return optional sink; empty when no feature is active
+     */
+    @SuppressWarnings("PMD.NPathComplexity")
+    private static java.util.Optional<org.egothor.methodatlas.emit.TestMethodSink> buildExtraSink(
+            CoverageFacade.Handle coverageHandle, GapFacade.Handle gapHandle,
+            EvidenceReportFacade.Handle evidenceHandle, AttestFacade.Handle attestHandle) {
+        org.egothor.methodatlas.emit.TestMethodSink coverageSink =
+                coverageHandle == null ? null : coverageHandle.asSink();
+        org.egothor.methodatlas.emit.TestMethodSink gapSink =
+                gapHandle == null ? null : gapHandle.asSink();
+        org.egothor.methodatlas.emit.TestMethodSink evidenceSink =
+                evidenceHandle == null ? null : evidenceHandle.asSink();
+        org.egothor.methodatlas.emit.TestMethodSink attestSink =
+                attestHandle == null ? null : attestHandle.asSink();
+        java.util.List<org.egothor.methodatlas.emit.TestMethodSink> active = new java.util.ArrayList<>();
+        if (coverageSink != null) {
+            active.add(coverageSink);
+        }
+        if (gapSink != null) {
+            active.add(gapSink);
+        }
+        if (evidenceSink != null) {
+            active.add(evidenceSink);
+        }
+        if (attestSink != null) {
+            active.add(attestSink);
+        }
+        if (active.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        if (active.size() == SINGLE_SINK) {
+            return java.util.Optional.of(active.get(0));
+        }
+        return java.util.Optional.of(
+                (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) -> {
+                    for (org.egothor.methodatlas.emit.TestMethodSink sink : active) {
+                        sink.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
+                    }
+                });
+    }
+
     private static int runWithScanRun(PrintWriter out, CliConfig cliConfig,
-            CoverageFacade.Handle coverageHandle) throws IOException {
+            CoverageFacade.Handle coverageHandle, GapFacade.Handle gapHandle,
+            EvidenceReportFacade.Handle evidenceHandle, AttestFacade.Handle attestHandle) throws IOException {
         AiRuntimeBuilder aiRuntimeBuilder = new AiRuntimeBuilder();
         ClassificationOverride override = new OverrideLoader().load(cliConfig.overrideFile());
         AiResultCache aiCache = aiRuntimeBuilder.buildCache(cliConfig.aiCacheFile());
@@ -424,15 +640,14 @@ public final class MethodAtlasApp {
 
         // One PluginLoader + one ScanOrchestrator are shared by every command in
         // this run; both are stateless and the providers they resolve are owned
-        // (and closed) by the command that requested them. When -emit-coverage
-        // is active the orchestrator carries the coverage sink as an extra
+        // (and closed) by the command that requested them. When -emit-coverage or
+        // -gap-report is active the orchestrator carries the extra sink(s) as a
         // fan-out — every command mode sees the same fan-out automatically.
         PluginLoader pluginLoader = new PluginLoader();
         java.util.Optional<org.egothor.methodatlas.emit.TestMethodSink> extraSink =
-                coverageHandle == null
-                        ? java.util.Optional.empty()
-                        : java.util.Optional.of(coverageHandle.asSink());
-        ScanOrchestrator scanOrchestrator = new ScanOrchestrator(pluginLoader, extraSink);
+                buildExtraSink(coverageHandle, gapHandle, evidenceHandle, attestHandle);
+        ScanOrchestrator scanOrchestrator = new ScanOrchestrator(pluginLoader, extraSink,
+                cliConfig.parallelAi());
 
         // Manual prepare phase: write AI prompt work files; no CSV output.
         if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {

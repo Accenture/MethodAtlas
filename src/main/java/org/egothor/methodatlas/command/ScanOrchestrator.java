@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -89,6 +90,17 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  * idempotent; nothing else is shared between calls.
  * </p>
  *
+ * <p>
+ * When {@code parallelAi} is enabled (see
+ * {@link #ScanOrchestrator(PluginLoader, java.util.Optional, boolean)}),
+ * AI classification calls for different classes within one root are issued
+ * concurrently via {@link java.util.stream.Stream#parallel()}.  All objects
+ * read during that phase ({@link AiResultCache}, the classification override,
+ * and the underlying {@link java.net.http.HttpClient}) are thread-safe.
+ * Sink emission is always sequential, so output ordering matches discovery
+ * order regardless of AI call completion order.
+ * </p>
+ *
  * @see PluginLoader
  * @see AiRuntime
  * @see Command
@@ -107,14 +119,21 @@ public final class ScanOrchestrator {
     private final TestMethodSink extraSink;
 
     /**
-     * Creates a new orchestrator with no extra sink.
+     * When {@code true}, AI classification calls for different classes are
+     * issued concurrently via {@link java.util.stream.Stream#parallel()}
+     * before records are emitted in the original discovery order.
+     */
+    private final boolean parallelAi;
+
+    /**
+     * Creates a new orchestrator with no extra sink and parallel AI disabled.
      *
      * @param pluginLoader plugin loader used by {@link #scan} and
      *                     {@link #collectMethodsByFile}; must not be
      *                     {@code null}
      */
     public ScanOrchestrator(PluginLoader pluginLoader) {
-        this(pluginLoader, Optional.empty());
+        this(pluginLoader, Optional.empty(), false);
     }
 
     /**
@@ -137,8 +156,26 @@ public final class ScanOrchestrator {
      *                     {@code null} (use {@link Optional#empty()})
      */
     public ScanOrchestrator(PluginLoader pluginLoader, Optional<TestMethodSink> extraSink) {
+        this(pluginLoader, extraSink, false);
+    }
+
+    /**
+     * Creates a new orchestrator with full configuration.
+     *
+     * @param pluginLoader plugin loader used by {@link #scan} and
+     *                     {@link #collectMethodsByFile}; must not be
+     *                     {@code null}
+     * @param extraSink    optional secondary sink invoked in addition to the
+     *                     command-supplied primary sink; must not be
+     *                     {@code null} (use {@link Optional#empty()})
+     * @param parallelAi   when {@code true}, AI classification calls are issued
+     *                     concurrently; output is still emitted in discovery order
+     */
+    public ScanOrchestrator(PluginLoader pluginLoader, Optional<TestMethodSink> extraSink,
+            boolean parallelAi) {
         this.pluginLoader = pluginLoader;
         this.extraSink = extraSink.orElse(null);
+        this.parallelAi = parallelAi;
     }
 
     /**
@@ -271,31 +308,63 @@ public final class ScanOrchestrator {
         // only meaningful when AI is enabled.
         String promptSignature = aiEngine == null ? null : aiOptions.promptTemplates().signature();
 
+        Map<String, ClassResolution> resolutions = resolveAll(
+                byClass, ai, promptSignature, contentHashEnabled, secretCtx);
+
         Map<String, AiCacheEntry> cacheEntries = new LinkedHashMap<>();
         for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
-            processClass(entry, ai, promptSignature, contentHashEnabled, secretCtx,
-                    effectiveSink, cacheEntries);
+            emitClass(entry, resolutions.get(entry.getKey()), promptSignature, effectiveSink, cacheEntries);
         }
 
         return new DiscoveryResult(hadErrors, cacheEntries);
     }
 
     /**
-     * Classifies one class (consulting the cache), feeds its methods to {@code effectiveSink}, and —
-     * when AI produced a cacheable answer with a content hash — records a cache entry.
+     * Resolves AI suggestions for all classes, sequentially or in parallel depending on
+     * {@link #parallelAi}. Returns a map keyed by FQCN; keyed in the same order as
+     * {@code byClass} when sequential, unordered when parallel (callers must iterate
+     * {@code byClass} for emission order).
+     *
+     * @param byClass         methods grouped by FQCN
+     * @param ai              AI runtime (engine, override, cache)
+     * @param promptSignature current prompt-catalogue signature, or {@code null}
+     * @param contentHashEnabled whether content hashes should be computed
+     * @param secretCtx       credential-triage context, or {@code null}
+     * @return per-FQCN resolution results; never {@code null}
+     */
+    private Map<String, ClassResolution> resolveAll(
+            Map<String, List<DiscoveredMethod>> byClass, AiRuntime ai,
+            String promptSignature, boolean contentHashEnabled, CredentialTriageContext secretCtx) {
+        if (parallelAi) {
+            Map<String, ClassResolution> result = new ConcurrentHashMap<>(byClass.size() * 2);
+            byClass.entrySet().parallelStream().forEach(entry ->
+                    result.put(entry.getKey(),
+                            resolveClass(entry, ai, promptSignature, contentHashEnabled, secretCtx)));
+            return result;
+        }
+        Map<String, ClassResolution> result = new LinkedHashMap<>(byClass.size() * 2);
+        for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
+            result.put(entry.getKey(), resolveClass(entry, ai, promptSignature, contentHashEnabled, secretCtx));
+        }
+        return result;
+    }
+
+    /**
+     * Resolves the AI suggestion for one class without touching the sink.
+     * All objects read here ({@link AiResultCache}, {@link org.egothor.methodatlas.emit.ClassificationOverride},
+     * and the underlying {@link java.net.http.HttpClient}) are thread-safe, so this
+     * method may be called from a parallel stream.
      *
      * @param entry           one class's discovered methods, keyed by FQCN
      * @param ai              AI runtime (engine, override, cache)
-     * @param promptSignature current prompt-catalogue signature, or {@code null} when AI is disabled
-     * @param contentHashEnabled whether the emitted records carry the content hash
+     * @param promptSignature current prompt-catalogue signature, or {@code null}
+     * @param contentHashEnabled whether content hashes should be computed
      * @param secretCtx       credential-triage context, or {@code null}
-     * @param effectiveSink   sink receiving the per-method records
-     * @param cacheEntries    accumulator to record the cacheable answer into, keyed by content hash
-     * @throws IOException if the sink fails to record a method
+     * @return the resolution result for this class; never {@code null}
      */
-    private void processClass(Map.Entry<String, List<DiscoveredMethod>> entry, AiRuntime ai,
-            String promptSignature, boolean contentHashEnabled, CredentialTriageContext secretCtx,
-            TestMethodSink effectiveSink, Map<String, AiCacheEntry> cacheEntries) throws IOException {
+    private static ClassResolution resolveClass(Map.Entry<String, List<DiscoveredMethod>> entry,
+            AiRuntime ai, String promptSignature, boolean contentHashEnabled,
+            CredentialTriageContext secretCtx) {
         String fqcn = entry.getKey();
         List<DiscoveredMethod> classMethods = entry.getValue();
 
@@ -320,16 +389,36 @@ public final class ScanOrchestrator {
 
         Resolved resolved = resolveSuggestionLookup(fileStem, fqcn, classSource, methodNames,
                 targetMethods, ai, lookupHash, promptSignature, secretCtx);
-        SuggestionLookup suggestions = resolved.lookup();
+        return new ClassResolution(resolved, lookupHash, outputHash);
+    }
 
-        for (DiscoveredMethod m : classMethods) {
+    /**
+     * Emits one class's records to the sink and records the cache entry when applicable.
+     * Must be called sequentially (in discovery order) to preserve output determinism.
+     *
+     * @param entry           one class's discovered methods, keyed by FQCN
+     * @param resolution      pre-computed resolution for this class
+     * @param promptSignature current prompt-catalogue signature, or {@code null}
+     * @param effectiveSink   sink receiving the per-method records
+     * @param cacheEntries    accumulator for cache entries, keyed by content hash
+     * @throws IOException if the sink fails to record a method
+     */
+    private static void emitClass(Map.Entry<String, List<DiscoveredMethod>> entry,
+            ClassResolution resolution, String promptSignature,
+            TestMethodSink effectiveSink, Map<String, AiCacheEntry> cacheEntries) throws IOException {
+        SuggestionLookup suggestions = resolution.resolved().lookup();
+        String outputHash = resolution.outputHash();
+
+        for (DiscoveredMethod m : entry.getValue()) {
             effectiveSink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
                     m.tags(), m.displayName(),
                     suggestions.find(m.method()).orElse(null));
         }
 
-        if (resolved.cacheable() != null && lookupHash != null) {
-            cacheEntries.put(lookupHash, new AiCacheEntry(lookupHash, promptSignature, resolved.cacheable()));
+        String lookupHash = resolution.lookupHash();
+        AiClassSuggestion cacheable = resolution.resolved().cacheable();
+        if (cacheable != null && lookupHash != null) {
+            cacheEntries.put(lookupHash, new AiCacheEntry(lookupHash, promptSignature, cacheable));
         }
     }
 
@@ -660,6 +749,19 @@ public final class ScanOrchestrator {
      * @param cacheable the full AI answer to cache, or {@code null}
      */
     private record Resolved(SuggestionLookup lookup, AiClassSuggestion cacheable) {
+    }
+
+    /**
+     * The result of resolving AI suggestions for one class, separated from sink
+     * emission so that resolution can be parallelised while emission stays sequential.
+     *
+     * @param resolved    override-applied suggestion lookup and optional cache answer
+     * @param lookupHash  SHA-256 of the class source, used to key the cache entry;
+     *                    {@code null} when hashing was not requested or source was absent
+     * @param outputHash  same hash for inclusion in emitted records, or {@code null}
+     *                    when {@code -content-hash} is not enabled
+     */
+    private record ClassResolution(Resolved resolved, String lookupHash, String outputHash) {
     }
 
     /**

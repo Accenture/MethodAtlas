@@ -48,7 +48,8 @@ class ScanRecordTest {
                 "covers AES-GCM",
                 0.95,
                 0.8,
-                "none");
+                "none",
+                null);
 
         assertEquals("com.acme.CryptoTest", r.fqcn());
         assertEquals("testEncrypt", r.method());
@@ -94,7 +95,7 @@ class ScanRecordTest {
     @DisplayName("tags list is never null (empty list represents no tags)")
     @Tag("positive")
     void tags_neverNull_emptyListAllowed() {
-        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null);
+        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null, null);
 
         assertNotNull(r.tags());
         assertTrue(r.tags().isEmpty());
@@ -108,7 +109,7 @@ class ScanRecordTest {
     @DisplayName("displayName null means column was absent from the source CSV")
     @Tag("positive")
     void displayName_null_columnAbsent() {
-        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null);
+        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null, null);
 
         assertNull(r.displayName(), "null displayName means column was absent from CSV");
     }
@@ -117,7 +118,7 @@ class ScanRecordTest {
     @DisplayName("displayName empty string means column was present but no annotation")
     @Tag("positive")
     void displayName_empty_columnPresentNoAnnotation() {
-        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), "", null, null, null, null, null, null, null, null);
+        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), "", null, null, null, null, null, null, null, null, null);
 
         assertNotNull(r.displayName());
         assertTrue(r.displayName().isEmpty());
@@ -127,7 +128,7 @@ class ScanRecordTest {
     @DisplayName("displayName non-empty means the annotation text")
     @Tag("positive")
     void displayName_nonEmpty_annotationText() {
-        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), "Auth test", null, null, null, null, null, null, null, null);
+        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), "Auth test", null, null, null, null, null, null, null, null, null);
 
         assertEquals("Auth test", r.displayName());
     }
@@ -140,7 +141,7 @@ class ScanRecordTest {
     @DisplayName("contentHash null means column was absent (scan run without -content-hash)")
     @Tag("positive")
     void contentHash_null_columnAbsent() {
-        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null);
+        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null, null);
 
         assertNull(r.contentHash());
     }
@@ -149,7 +150,7 @@ class ScanRecordTest {
     @DisplayName("contentHash non-null is returned as-is")
     @Tag("positive")
     void contentHash_present_returnedAsIs() {
-        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, "deadbeef", null, null, null, null, null, null, null);
+        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, "deadbeef", null, null, null, null, null, null, null, null);
 
         assertEquals("deadbeef", r.contentHash());
     }
@@ -162,7 +163,7 @@ class ScanRecordTest {
     @DisplayName("all AI fields null when scan was run without -ai")
     @Tag("positive")
     void aiFields_allNull_whenNoAi() {
-        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null);
+        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null, null);
 
         assertNull(r.aiSecurityRelevant());
         assertNull(r.aiDisplayName());
@@ -177,8 +178,8 @@ class ScanRecordTest {
     @DisplayName("aiSecurityRelevant false is distinct from null")
     @Tag("positive")
     void aiSecurityRelevant_false_distinctFromNull() {
-        ScanRecord nullValue  = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null);
-        ScanRecord falseValue = new ScanRecord("FooTest", "m", 1, List.of(), null, null, false, null, null, null, null, null, null);
+        ScanRecord nullValue  = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null, null);
+        ScanRecord falseValue = new ScanRecord("FooTest", "m", 1, List.of(), null, null, false, null, null, null, null, null, null, null);
 
         assertNull(nullValue.aiSecurityRelevant());
         assertNotNull(falseValue.aiSecurityRelevant());
@@ -189,8 +190,8 @@ class ScanRecordTest {
     @DisplayName("aiTags empty list is distinct from null")
     @Tag("positive")
     void aiTags_emptyList_distinctFromNull() {
-        ScanRecord withNull  = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null);
-        ScanRecord withEmpty = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, List.of(), null, null, null, null);
+        ScanRecord withNull  = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, null, null, null, null);
+        ScanRecord withEmpty = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, List.of(), null, null, null, null, null);
 
         assertNull(withNull.aiTags());
         assertNotNull(withEmpty.aiTags());
@@ -202,7 +203,7 @@ class ScanRecordTest {
     @Tag("positive")
     void aiTags_withValues_returnedVerbatim() {
         List<String> aiTags = List.of("crypto", "auth", "injection");
-        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, true, null, aiTags, null, null, null, null);
+        ScanRecord r = new ScanRecord("FooTest", "m", 1, List.of(), null, null, true, null, aiTags, null, null, null, null, null);
 
         assertEquals(aiTags, r.aiTags());
     }
@@ -211,8 +212,8 @@ class ScanRecordTest {
     @DisplayName("aiConfidence boundary values 0.0 and 1.0 are accepted")
     @Tag("positive")
     void aiConfidence_boundaryValues_accepted() {
-        ScanRecord zero = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, 0.0, null, null);
-        ScanRecord one  = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, 1.0, null, null);
+        ScanRecord zero = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, 0.0, null, null, null);
+        ScanRecord one  = new ScanRecord("FooTest", "m", 1, List.of(), null, null, null, null, null, null, 1.0, null, null, null);
 
         assertEquals(0.0, zero.aiConfidence());
         assertEquals(1.0, one.aiConfidence());
@@ -226,9 +227,9 @@ class ScanRecordTest {
     @DisplayName("tagAiDrift accepts none, tag-only and ai-only string values")
     @Tag("positive")
     void tagAiDrift_validValues_stored() {
-        ScanRecord none    = new ScanRecord("T", "m", 1, List.of(), null, null, null, null, null, null, null, null, "none");
-        ScanRecord tagOnly = new ScanRecord("T", "m", 1, List.of(), null, null, null, null, null, null, null, null, "tag-only");
-        ScanRecord aiOnly  = new ScanRecord("T", "m", 1, List.of(), null, null, null, null, null, null, null, null, "ai-only");
+        ScanRecord none    = new ScanRecord("T", "m", 1, List.of(), null, null, null, null, null, null, null, null, "none", null);
+        ScanRecord tagOnly = new ScanRecord("T", "m", 1, List.of(), null, null, null, null, null, null, null, null, "tag-only", null);
+        ScanRecord aiOnly  = new ScanRecord("T", "m", 1, List.of(), null, null, null, null, null, null, null, null, "ai-only", null);
 
         assertEquals("none", none.tagAiDrift());
         assertEquals("tag-only", tagOnly.tagAiDrift());
@@ -244,9 +245,9 @@ class ScanRecordTest {
     @Tag("positive")
     void equality_identicalFields_equal() {
         ScanRecord a = new ScanRecord("FooTest", "m", 5, List.of("security"), "dn",
-                "hash", true, "ai-dn", List.of("tag"), "reason", 0.9, 0.5, "none");
+                "hash", true, "ai-dn", List.of("tag"), "reason", 0.9, 0.5, "none", null);
         ScanRecord b = new ScanRecord("FooTest", "m", 5, List.of("security"), "dn",
-                "hash", true, "ai-dn", List.of("tag"), "reason", 0.9, 0.5, "none");
+                "hash", true, "ai-dn", List.of("tag"), "reason", 0.9, 0.5, "none", null);
 
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
@@ -266,8 +267,8 @@ class ScanRecordTest {
     @DisplayName("records differing in aiSecurityRelevant are not equal")
     @Tag("positive")
     void equality_differentAiSecurityRelevant_notEqual() {
-        ScanRecord a = new ScanRecord("T", "m", 1, List.of(), null, null, true, null, null, null, null, null, null);
-        ScanRecord b = new ScanRecord("T", "m", 1, List.of(), null, null, false, null, null, null, null, null, null);
+        ScanRecord a = new ScanRecord("T", "m", 1, List.of(), null, null, true, null, null, null, null, null, null, null);
+        ScanRecord b = new ScanRecord("T", "m", 1, List.of(), null, null, false, null, null, null, null, null, null, null);
 
         assertFalse(a.equals(b));
     }
@@ -277,10 +278,10 @@ class ScanRecordTest {
     // -------------------------------------------------------------------------
 
     private static ScanRecord minimal(String fqcn, String method) {
-        return new ScanRecord(fqcn, method, 1, List.of(), null, null, null, null, null, null, null, null, null);
+        return new ScanRecord(fqcn, method, 1, List.of(), null, null, null, null, null, null, null, null, null, null);
     }
 
     private static ScanRecord minimal_withLoc(int loc) {
-        return new ScanRecord("FooTest", "m", loc, List.of(), null, null, null, null, null, null, null, null, null);
+        return new ScanRecord("FooTest", "m", loc, List.of(), null, null, null, null, null, null, null, null, null, null);
     }
 }

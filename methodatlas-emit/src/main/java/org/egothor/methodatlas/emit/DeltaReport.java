@@ -381,7 +381,8 @@ public final class DeltaReport {
                 getField(fields, colIndex, "ai_reason"),
                 parseDouble(getField(fields, colIndex, "ai_confidence")),
                 parseDouble(getField(fields, colIndex, "ai_interaction_score")),
-                getField(fields, colIndex, "tag_ai_drift"));
+                getField(fields, colIndex, "tag_ai_drift"),
+                parseSemicolonListOrNull(fields, colIndex, "ai_cwe"));
     }
 
     private static Map<String, ScanRecord> buildMap(List<ScanRecord> records) {
