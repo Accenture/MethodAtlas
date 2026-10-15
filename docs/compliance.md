@@ -143,6 +143,20 @@ by JavaParser AST analysis of the source files. Given the same source revision,
 this layer always produces identical output, regardless of provider, model, or
 time.
 
+**Cross-platform guarantee.** "Identical output" is verified across operating
+systems, not only across runs. The structural scan output (CSV, plain, JSON and
+SARIF with AI off) is byte-identical on Linux, Windows and macOS: files are
+discovered in a platform-independent order (code-point order of the
+forward-slashed relative path, not file-system or locale order), lines end in
+`\n` on every platform, path prefixes use `/`, and number formatting uses
+`Locale.ROOT`. This is enforced by `MethodAtlasAppDeterminismTest` (compares a
+fixed fixture against committed golden files) and by the `Determinism` GitHub
+Actions workflow, which runs the scan on `ubuntu-latest`, `windows-latest` and
+`macos-latest` and fails if the three outputs differ. The scope is the
+structural layer only: AI output, `scan_timestamp` metadata and the audit-trail
+timestamps are time- or model-dependent by nature and are excluded. See
+[Quality gates](quality-gates.md#cross-platform-determinism).
+
 **The AI layer is non-deterministic by nature.** Language models use
 probabilistic sampling. Even with the same model, same source, and same prompt,
 a different run may produce a slightly different `ai_reason`, a different

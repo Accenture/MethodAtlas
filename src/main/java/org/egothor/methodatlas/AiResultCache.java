@@ -34,8 +34,10 @@ import org.egothor.methodatlas.emit.DeltaReport;
  * Two source formats are accepted by {@link #load(Path)}: the unified JSON-Lines
  * cache (the format MethodAtlas now writes) and the legacy per-method scan CSV
  * (produced by older {@code -content-hash} runs). Legacy entries carry no prompt
- * signature and no credential verdicts: their classifications may still be reused
- * by content hash, but they can never satisfy a credential query.
+ * signature and no credential verdicts: they carry no taxonomy
+ * provenance, so they are never reused for classification (a hit would be stamped
+ * with a taxonomy version it was not classified under) and can never satisfy a
+ * credential query.
  * </p>
  *
  * <p>
@@ -152,9 +154,11 @@ public final class AiResultCache {
      * the cached answer is compatible with the current prompt catalogue.
      *
      * <p>
-     * A unified entry must carry a matching {@code promptSignature}; a legacy entry
-     * (no signature) is served by content hash alone, preserving prior behaviour.
-     * Updates the hit/miss counters.
+     * An entry must carry a matching {@code promptSignature}. The signature folds in the
+     * taxonomy version, so a hit is guaranteed to have been classified under the
+     * current taxonomy and the {@code ai_taxonomy_version} stamp is truthful. A legacy
+     * entry (no signature, hence no known taxonomy) is therefore never served: it is
+     * a miss and is re-queried. Updates the hit/miss counters.
      * </p>
      *
      * @param contentHash     SHA-256 fingerprint of the class source, or {@code null}
@@ -163,8 +167,8 @@ public final class AiResultCache {
      */
     public Optional<AiClassSuggestion> classification(String contentHash, String promptSignature) {
         AiCacheEntry entry = contentHash == null ? null : byHash.get(contentHash);
-        if (entry != null && (entry.promptSignature() == null
-                || entry.promptSignature().equals(promptSignature))) {
+        if (entry != null && entry.promptSignature() != null
+                && entry.promptSignature().equals(promptSignature)) {
             hits.incrementAndGet();
             return Optional.of(entry.suggestion());
         }

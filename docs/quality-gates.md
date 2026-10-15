@@ -46,6 +46,18 @@ justified in the commit body, documented in this file, and approved through
 the standard review process. Refactors that legitimately remove tested code
 (for example, deleting a dead module) are the typical justification.
 
+### Class-level gate: `AuditWriter`
+
+`AuditWriter` is the audit-trail integrity surface for the regulated-environment
+value proposition (SABSA attribute BA-009). Beyond the `methodatlas-gui-core`
+module floor, a dedicated class-level JaCoCo rule requires the
+`org.egothor.methodatlas.gui.service.AuditWriter` class to hold **at least 95 %
+line coverage** (`LINE` `COVEREDRATIO` ≥ 0.95). The rule lives in the
+`subprojects` block of the root `build.gradle` and is wired into `check` via
+`jacocoTestCoverageVerification`. The class currently sits at ~99 % line
+coverage, so the gate passes as-is. If coverage drops below the bar, add
+focused unit tests to `AuditWriterTest` rather than lowering the threshold.
+
 ## Per-module PIT mutation score
 
 Every Java module runs PIT against its own package and enforces its own
@@ -93,6 +105,32 @@ Pages build but enforces the gate on `./gradlew check`.
 | ArchUnit boundary tests | Root test suite | Three plugin-seam invariants; see `org.egothor.methodatlas.arch.ArchitectureTest`. |
 | OWASP Dependency-Check | Runtime classpath | On-demand: `./gradlew dependencyCheckAnalyze`. Build fails on CVSS ≥ 7.0. |
 | License compliance | Runtime classpath | `./gradlew checkLicense` against `config/allowed-licenses.json`. |
+| Cross-platform determinism | Structural scan output | `Determinism` workflow: ubuntu/windows/macos byte-identical comparison; see [below](#cross-platform-determinism). |
+
+## Cross-platform determinism
+
+The `Determinism` workflow (`.github/workflows/determinism.yml`) proves that the
+structural scan output does not depend on the machine (roadmap RM-D). It runs on
+`ubuntu-latest`, `windows-latest` and `macos-latest` with Temurin 21, executes
+only `MethodAtlasAppDeterminismTest` (no AI, no static analysis), and uploads each
+leg's output as an artefact. A final `compare` job downloads the three outputs and
+fails the workflow if they are not byte-identical. Each leg also compares its output
+to the committed golden files in
+`src/test/resources/determinism/expected/`, so a divergence is caught even when
+all three platforms drift together.
+
+Run it locally:
+
+```bash
+./gradlew :test --tests "org.egothor.methodatlas.MethodAtlasAppDeterminismTest"
+# After an intentional change to structural output, regenerate the golden files and review the diff:
+METHODATLAS_UPDATE_GOLDEN=true ./gradlew :test --tests "org.egothor.methodatlas.MethodAtlasAppDeterminismTest"
+```
+
+The fixture and golden files are marked `-text` in `.gitattributes` so no
+checkout converts their line endings. In scope: FQCN, method, LOC, source tags,
+display name, content hash, source root and SARIF locations. Out of scope: AI
+fields, `scan_timestamp`, and audit-trail timestamps.
 
 ## Running the gates locally
 

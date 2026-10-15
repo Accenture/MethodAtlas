@@ -46,4 +46,33 @@ public interface TestMethodSink {
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
     void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion);
+
+    /**
+     * Records a single test method together with the real path of the source file
+     * that declares it.
+     *
+     * <p>
+     * Sinks that emit file locations (SARIF, GitHub annotations) override this to
+     * use {@code sourcePath} instead of synthesising a Java-style path from the
+     * FQCN, which is wrong for every non-Java language. The default implementation
+     * ignores the path and delegates to
+     * {@link #record(String, String, int, int, String, List, String, AiMethodSuggestion)}.
+     * </p>
+     *
+     * @param fqcn        fully qualified name of the declaring class
+     * @param method      simple method name
+     * @param beginLine   one-based first line of the method, or {@code 0}
+     * @param loc         inclusive line count of the method declaration
+     * @param contentHash class content fingerprint, or {@code null}
+     * @param tags        source-level tag values; never {@code null}
+     * @param displayName existing display-name text, or {@code null}
+     * @param suggestion  AI classification, or {@code null}
+     * @param sourcePath  forward-slash path of the source file relative to the scan
+     *                    root, or {@code null} when unknown
+     */
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
+    default void recordWithSourcePath(String fqcn, String method, int beginLine, int loc, String contentHash,
+            List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourcePath) {
+        record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
+    }
 }

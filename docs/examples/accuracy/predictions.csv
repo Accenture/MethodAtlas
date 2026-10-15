@@ -1,0 +1,8 @@
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+com.acme.auth.AuthTest,login_rejectsBadPassword,12,,,true,,security;auth,Rejects a wrong password,0.0
+com.acme.auth.AuthTest,logout_clearsSession,9,,,true,,security;logging,Logs the logout,0.0
+com.acme.crypto.CryptoTest,encrypt_roundTrip,15,,,true,,security;crypto,AES round trip,0.0
+com.acme.crypto.CryptoTest,hash_isDeterministic,7,,,false,,,Plain hashing,0.0
+com.acme.util.UtilTest,formatIso,5,,,false,,,Formatting only,0.0
+com.acme.util.UtilTest,trimName,4,,,true,,security;input-validation,Trims input,0.0
+com.acme.misc.MiscTest,noLabelForThisOne,6,,,false,,,Not labelled,0.0

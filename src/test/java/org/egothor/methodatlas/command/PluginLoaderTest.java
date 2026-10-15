@@ -197,4 +197,21 @@ class PluginLoaderTest {
             loader.closeAll(providers);
         }
     }
+
+    @Test
+    void loadProviders_realClasspath_returnsProvidersSortedByPluginId() {
+        PluginLoader loader = new PluginLoader();
+        TestDiscoveryConfig config = new TestDiscoveryConfig(
+                List.of("Test.java"), Set.of("Test"), Map.of());
+
+        List<TestDiscovery> providers = loader.loadProviders(config);
+        try {
+            List<String> ids = providers.stream().map(TestDiscovery::pluginId).toList();
+            List<String> sorted = ids.stream().sorted().toList();
+            assertEquals(sorted, ids, "providers must be ordered by pluginId, independent of classpath order");
+            assertTrue(ids.size() > 1, "the test classpath ships several language plugins");
+        } finally {
+            loader.closeAll(providers);
+        }
+    }
 }

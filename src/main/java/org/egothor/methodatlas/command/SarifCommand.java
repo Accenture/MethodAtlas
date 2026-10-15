@@ -76,7 +76,8 @@ public final class SarifCommand implements Command {
 
         String filePrefix = ContentHasher.filePrefix(roots);
         boolean scoresInMessage = !cliConfig.sarifOmitScores();
-        SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix, scoresInMessage);
+        SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix, scoresInMessage,
+                new AiRuntimeBuilder().resolveTaxonomyVersion(cliConfig.aiOptions(), aiEnabled));
 
         // Credential detection: prepare() folds triage into the per-class call when
         // possible (source sent once) and returns the context the scan threads

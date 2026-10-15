@@ -22,6 +22,7 @@ import org.egothor.methodatlas.ai.AiSuggestionException;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.CredentialTriageVerdict;
 import org.egothor.methodatlas.api.DiscoveredMethod;
+import org.egothor.methodatlas.api.CredentialCandidate;
 import org.egothor.methodatlas.api.CredentialDetector;
 import org.egothor.methodatlas.api.CredentialDetectorConfig;
 import org.egothor.methodatlas.api.CredentialScanUnit;
@@ -77,6 +78,8 @@ final class CredentialDetectionRunner {
     private final PluginLoader pluginLoader;
     private final ScanOrchestrator orchestrator;
     private final AiSuggestionEngine aiEngine;
+    /** Redaction service applied to every source before triage when {@code -redact-comments} is set. */
+    private final CommentRedaction redaction;
 
     /** Whether triage is folded into the scan's classification call (set by {@link #prepare}). */
     private boolean folded;
@@ -105,19 +108,32 @@ final class CredentialDetectionRunner {
         this.pluginLoader = pluginLoader;
         this.orchestrator = orchestrator;
         this.aiEngine = aiEngine;
+        this.redaction = orchestrator.redaction();
     }
 
     /**
      * Deterministic detection result, plus the per-class candidate spans needed to
      * fold triage into the scan and the per-file source used for separate triage.
      *
+     * <p>
+     * When {@code -redact-comments} is active, {@code sourceByFile} holds the
+     * <em>redacted</em> text and {@code candidatesByFqcn} omits candidates located
+     * inside comments; {@code findings} always lists every candidate, because the
+     * local report never leaves the machine.
+     * </p>
+     *
      * @param findings         all deterministic findings (triage fields {@code null})
-     * @param candidatesByFqcn candidate spans per class, in finding order
-     * @param sourceByFile     file source text, for separate-call triage
+     * @param candidatesByFqcn AI-triage candidate spans per class, in finding order;
+     *                         indices refer to the position within the class's findings
+     * @param refsByFile       AI-triage candidate refs per file for the separate-call path,
+     *                         indices being positions within the file's findings
+     * @param sourceByFile     file source text sent for separate-call triage
+     *                         (redacted when {@code -redact-comments} is on)
      * @since 4.1.0
      */
     /* default */ record DetectionResult(List<CredentialFinding> findings,
             Map<String, List<PromptBuilder.CredentialCandidateRef>> candidatesByFqcn,
+            Map<Path, List<PromptBuilder.CredentialCandidateRef>> refsByFile,
             Map<Path, String> sourceByFile) {
     }
 
@@ -182,7 +198,7 @@ final class CredentialDetectionRunner {
         DetectionResult dr = detect(roots);
         List<CredentialFinding> triaged = aiEngine == null
                 ? dr.findings()
-                : triageSeparately(dr.findings(), dr.sourceByFile());
+                : triageSeparately(dr.findings(), dr.refsByFile(), dr.sourceByFile());
         emitFindings(triaged, sarifEmitter);
     }
 
@@ -202,10 +218,90 @@ final class CredentialDetectionRunner {
         Map<Path, List<DiscoveredMethod>> byFile = discoverByFile(roots);
         Map<Path, List<DetectCredentialsStage.MethodRange>> attribution = toAttribution(byFile);
         List<CredentialScanUnit> units = selectUnits(roots, byFile);
-        Map<Path, String> sourceByFile = units.stream()
+        Map<Path, String> originalByFile = units.stream()
                 .collect(Collectors.toMap(CredentialScanUnit::filePath, CredentialScanUnit::source, (a, b) -> a));
+        // Fail-closed pre-flight: redact every unit before anything is sent to the provider,
+        // so a single unredactable file aborts the whole run with zero provider calls.
+        Map<Path, String> redactedByFile = redactActive() ? redactAll(originalByFile) : null;
         List<CredentialFinding> findings = runDetectors(units, attribution);
-        return new DetectionResult(findings, candidatesByFqcn(findings), sourceByFile);
+        Map<Path, String> triageSource = redactedByFile != null ? redactedByFile : originalByFile;
+        return new DetectionResult(findings, candidatesByFqcn(findings, originalByFile, redactedByFile),
+                refsByFile(findings, originalByFile, redactedByFile), triageSource);
+    }
+
+    /**
+     * Reports whether source must be redacted before reaching the AI provider.
+     *
+     * @return {@code true} when an AI engine is active and {@code -redact-comments} is set
+     */
+    private boolean redactActive() {
+        return aiEngine != null && cfg.aiOptions() != null && cfg.aiOptions().redactComments();
+    }
+
+    private Map<Path, String> redactAll(Map<Path, String> originalByFile) {
+        Map<Path, String> redacted = new LinkedHashMap<>(originalByFile.size() * 2);
+        for (Map.Entry<Path, String> e : originalByFile.entrySet()) {
+            redacted.put(e.getKey(), redaction.redactOrThrow(e.getKey(), e.getValue()));
+        }
+        return redacted;
+    }
+
+    /**
+     * Decides whether a candidate lies in text that redaction blanked (a comment).
+     *
+     * <p>
+     * The redacted text shares offsets with the original, so the candidate's
+     * line/column span is mapped to offsets and the two texts are compared over it.
+     * Any differing character puts the candidate in a comment. The check fails
+     * closed: a span that cannot be mapped inside the text is treated as blanked.
+     * </p>
+     *
+     * @param original  the original source; never {@code null}
+     * @param redacted  the redacted source, same length as {@code original}; never {@code null}
+     * @param candidate the candidate to test; never {@code null}
+     * @return {@code true} when the candidate must not be sent to the AI
+     */
+    /* default */ static boolean overlapsBlankedText(String original, String redacted,
+            CredentialCandidate candidate) {
+        if (original.length() != redacted.length()) {
+            return true;
+        }
+        int start = offsetOf(original, candidate.beginLine(), candidate.beginColumn());
+        int end;
+        if (candidate.endColumn() == 1 && candidate.endLine() >= candidate.beginLine()) {
+            // The detector reports the column of the offset after the match; column 1 means
+            // the match ended exactly at a line break, i.e. at the start of the next line.
+            end = offsetOf(original, candidate.endLine() + 1, 1);
+        } else {
+            end = offsetOf(original, candidate.endLine(), candidate.endColumn());
+        }
+        if (start < 0 || end < start || end > original.length()) {
+            return true;
+        }
+        for (int i = start; i < Math.max(end, start + 1) && i < original.length(); i++) {
+            if (original.charAt(i) != redacted.charAt(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Maps a one-based line and column to a character offset, lines being split on
+     * {@code '\n'} exactly as the detector splits them.
+     *
+     * @return the offset, or {@code -1} when the line does not exist
+     */
+    private static int offsetOf(String text, int line, int column) {
+        int lineStart = 0;
+        for (int l = 1; l < line; l++) {
+            int nl = text.indexOf('\n', lineStart);
+            if (nl < 0) {
+                return line == l + 1 && column == 1 ? text.length() : -1;
+            }
+            lineStart = nl + 1;
+        }
+        return lineStart + column - 1;
     }
 
     /**
@@ -317,21 +413,54 @@ final class CredentialDetectionRunner {
                 f -> f.fqcn() == null ? NO_FQCN : f.fqcn(), LinkedHashMap::new, Collectors.toList()));
     }
 
+    /**
+     * Builds the AI-triage candidate refs of one finding group. Candidate indices are
+     * positions within the group, so verdicts still merge by index even when
+     * comment-resident candidates (omitted here) leave gaps.
+     *
+     * @param group       findings of one class or file; never {@code null}
+     * @param original    original source by absolute file path; never {@code null}
+     * @param redacted    redacted source by path, or {@code null} when redaction is off
+     * @return refs for the candidates that may be sent to the AI; never {@code null}
+     */
+    private static List<PromptBuilder.CredentialCandidateRef> refsFor(List<CredentialFinding> group,
+            Map<Path, String> original, Map<Path, String> redacted) {
+        return IntStream.range(0, group.size())
+                .filter(i -> redacted == null || !inComment(group.get(i), original, redacted))
+                .mapToObj(i -> new PromptBuilder.CredentialCandidateRef(i,
+                        group.get(i).candidate().beginLine(), group.get(i).candidate().matchedValue()))
+                .toList();
+    }
+
+    private static boolean inComment(CredentialFinding finding, Map<Path, String> original,
+            Map<Path, String> redacted) {
+        String orig = original.get(finding.filePath());
+        String red = redacted.get(finding.filePath());
+        return orig == null || red == null || overlapsBlankedText(orig, red, finding.candidate());
+    }
+
+    private static Map<Path, List<PromptBuilder.CredentialCandidateRef>> refsByFile(
+            List<CredentialFinding> findings, Map<Path, String> original, Map<Path, String> redacted) {
+        Map<Path, List<CredentialFinding>> byFile = findings.stream().collect(
+                Collectors.groupingBy(CredentialFinding::filePath, LinkedHashMap::new, Collectors.toList()));
+        Map<Path, List<PromptBuilder.CredentialCandidateRef>> out = new LinkedHashMap<>();
+        byFile.forEach((file, group) -> out.put(file, refsFor(group, original, redacted)));
+        return out;
+    }
+
     private static Map<String, List<PromptBuilder.CredentialCandidateRef>> candidatesByFqcn(
-            List<CredentialFinding> findings) {
+            List<CredentialFinding> findings, Map<Path, String> original, Map<Path, String> redacted) {
         Map<String, List<PromptBuilder.CredentialCandidateRef>> byFqcn = new LinkedHashMap<>();
         groupByFqcn(findings).forEach((fqcn, group) -> {
             if (!NO_FQCN.equals(fqcn)) {
-                byFqcn.put(fqcn, IntStream.range(0, group.size())
-                        .mapToObj(i -> new PromptBuilder.CredentialCandidateRef(i,
-                                group.get(i).candidate().beginLine(), group.get(i).candidate().matchedValue()))
-                        .toList());
+                byFqcn.put(fqcn, refsFor(group, original, redacted));
             }
         });
         return byFqcn;
     }
 
-    private List<CredentialFinding> triageSeparately(List<CredentialFinding> findings, Map<Path, String> sourceByFile) {
+    private List<CredentialFinding> triageSeparately(List<CredentialFinding> findings,
+            Map<Path, List<PromptBuilder.CredentialCandidateRef>> refsByFile, Map<Path, String> sourceByFile) {
         if (findings.isEmpty()) {
             return findings;
         }
@@ -339,18 +468,19 @@ final class CredentialDetectionRunner {
                 .collect(Collectors.groupingBy(CredentialFinding::filePath, LinkedHashMap::new, Collectors.toList()));
         List<CredentialFinding> result = new ArrayList<>(findings.size());
         byFile.forEach((file, group) ->
-                result.addAll(triageGroup(file, group, sourceByFile.getOrDefault(file, ""))));
+                result.addAll(triageGroup(file, group, refsByFile.getOrDefault(file, List.of()),
+                        sourceByFile.getOrDefault(file, ""))));
         return result;
     }
 
-    private List<CredentialFinding> triageGroup(Path file, List<CredentialFinding> group, String source) {
+    private List<CredentialFinding> triageGroup(Path file, List<CredentialFinding> group,
+            List<PromptBuilder.CredentialCandidateRef> refs, String source) {
+        if (refs.isEmpty()) {
+            return group;
+        }
         String fqcn = group.get(0).fqcn() != null
                 ? group.get(0).fqcn()
                 : file.toString().replace('\\', '/');
-        List<PromptBuilder.CredentialCandidateRef> refs = IntStream.range(0, group.size())
-                .mapToObj(i -> new PromptBuilder.CredentialCandidateRef(i,
-                        group.get(i).candidate().beginLine(), group.get(i).candidate().matchedValue()))
-                .toList();
         try {
             List<CredentialTriageVerdict> verdicts = aiEngine.triageSecrets(fqcn, source, refs);
             Map<Integer, CredentialTriageVerdict> byIndex = verdicts.stream()

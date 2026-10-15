@@ -24,6 +24,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.egothor.methodatlas.CliConfig;
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
+import org.egothor.methodatlas.ai.TaxonomyVersion;
 import org.egothor.methodatlas.emit.OutputMode;
 
 /**
@@ -178,9 +179,34 @@ class ReceiptBuilderTest {
                 "builtInTaxonomy must record the active TaxonomyMode name");
     }
 
+    @Test
+    void taxonomyVersion_agreesWithReceiptTaxonomyFingerprint(@TempDir Path tempDir) throws IOException {
+        Path tax = writeFile(tempDir, "taxonomy.txt", "auth,access-control\n");
+        CliConfig config = configWithTaxonomyFile(tax);
+
+        String receiptSha = ReceiptBuilder.build(config, "1.0.0", "SARIF")
+                .inputs().taxonomyFile().sha256();
+
+        assertEquals(TaxonomyVersion.FINGERPRINT_PREFIX + receiptSha,
+                TaxonomyVersion.resolve(config.aiOptions()),
+                "per-record ai_taxonomy_version must equal the receipt's taxonomyFileSha256");
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    @Test
+    void redactComments_isRecordedAndFoldedIntoConfigHash() throws IOException {
+        ReproducibilityReceipt off = ReceiptBuilder.build(configWithRedaction(false), "1.0.0", "CSV");
+        ReproducibilityReceipt on = ReceiptBuilder.build(configWithRedaction(true), "1.0.0", "CSV");
+
+        assertFalse(off.inputs().redactComments());
+        assertTrue(on.inputs().redactComments());
+        assertNotEquals(off.configHash(), on.configHash(),
+                "redaction changes the bytes sent to the provider, so it must change the config hash");
+        assertEquals("3", on.schemaVersion());
+    }
 
     private static Path writeFile(Path dir, String name, String content) throws IOException {
         Path file = dir.resolve(name);
@@ -194,6 +220,11 @@ class ReceiptBuilderTest {
 
     private static CliConfig configWithAi(AiProvider provider, String model, Path aiCacheFile) {
         return baseConfig(aiOptions(true, provider, model, null), null, aiCacheFile);
+    }
+
+    private static CliConfig configWithRedaction(boolean redact) {
+        return baseConfig(AiOptions.builder().enabled(true).provider(AiProvider.OPENAI).modelName("gpt-4o")
+                .redactComments(redact).build(), null, null);
     }
 
     private static CliConfig configWithOverride(Path overrideFile) {

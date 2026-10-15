@@ -10,3 +10,8 @@
 # Binary files should be left untouched
 *.jar           binary
 
+
+# Determinism fixture and golden outputs must be byte-identical on every OS:
+# no EOL conversion, otherwise the cross-platform determinism check would
+# compare differently-checked-out inputs (RM-D / EX-005).
+src/test/resources/determinism/** -text

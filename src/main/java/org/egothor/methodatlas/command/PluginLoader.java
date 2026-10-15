@@ -5,6 +5,7 @@ package org.egothor.methodatlas.command;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.ServiceLoader;
@@ -12,6 +13,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.egothor.methodatlas.api.CommentRedactor;
 import org.egothor.methodatlas.api.CredentialDetector;
 import org.egothor.methodatlas.api.CredentialDetectorConfig;
 import org.egothor.methodatlas.api.SourcePatcher;
@@ -69,7 +71,13 @@ public final class PluginLoader {
     /**
      * Loads all {@link TestDiscovery} providers registered via
      * {@link ServiceLoader}, configures each one with {@code config}, and
-     * returns them in registration order.
+     * returns them sorted by {@link TestDiscovery#pluginId()}.
+     *
+     * <p>
+     * The sort makes cross-language output order independent of classpath
+     * order (records are emitted provider by provider), so the same inputs
+     * produce the same output in every environment.
+     * </p>
      *
      * <p>
      * The returned providers are open resources. Callers must close them
@@ -84,7 +92,7 @@ public final class PluginLoader {
      *
      * @param config run-time configuration forwarded to every provider via
      *               {@link TestDiscovery#configure}; must not be {@code null}
-     * @return non-empty list of configured providers in registration order
+     * @return non-empty list of configured providers ordered by plugin id
      * @throws IllegalStateException if no providers are found on the classpath,
      *                               or if two providers share the same
      *                               {@link TestDiscovery#pluginId()}
@@ -103,13 +111,14 @@ public final class PluginLoader {
                     + "META-INF/services/org.egothor.methodatlas.api.TestDiscovery.");
         }
         requireUniqueDiscoveryIds(providers);
+        providers.sort(Comparator.comparing(TestDiscovery::pluginId));
         return providers;
     }
 
     /**
      * Loads all {@link SourcePatcher} providers registered via
      * {@link ServiceLoader}, configures each one with {@code config}, and
-     * returns them in registration order.
+     * returns them sorted by {@link SourcePatcher#pluginId()}.
      *
      * <p>
      * Unlike {@link #loadProviders}, returning an empty list is legitimate:
@@ -119,7 +128,7 @@ public final class PluginLoader {
      *
      * @param config run-time configuration forwarded to every patcher via
      *               {@link SourcePatcher#configure}; must not be {@code null}
-     * @return possibly-empty list of configured patchers in registration order
+     * @return possibly-empty list of configured patchers ordered by plugin id
      * @throws IllegalStateException if two patchers share the same
      *                               {@link SourcePatcher#pluginId()}
      */
@@ -130,7 +139,53 @@ public final class PluginLoader {
             patchers.add(patcher);
         }
         requireUniquePatcherIds(patchers);
+        patchers.sort(Comparator.comparing(SourcePatcher::pluginId));
         return patchers;
+    }
+
+    /**
+     * Loads all {@link CommentRedactor} providers registered via
+     * {@link ServiceLoader}, configures each one with {@code config}, and
+     * returns them sorted by {@link CommentRedactor#pluginId()}.
+     *
+     * <p>
+     * An empty list is legitimate here; whether it is acceptable is decided by
+     * {@link CommentRedaction}, which fails closed for any file without a redactor.
+     * </p>
+     *
+     * @param config run-time configuration forwarded to every redactor; must not be {@code null}
+     * @return possibly-empty list of configured redactors ordered by plugin id
+     * @throws IllegalStateException if two redactors share the same id
+     */
+    public List<CommentRedactor> loadRedactors(TestDiscoveryConfig config) {
+        List<CommentRedactor> redactors = new ArrayList<>();
+        for (CommentRedactor redactor : ServiceLoader.load(CommentRedactor.class)) {
+            redactor.configure(config);
+            redactors.add(redactor);
+        }
+        requireUniqueRedactorIds(redactors);
+        redactors.sort(Comparator.comparing(CommentRedactor::pluginId));
+        return redactors;
+    }
+
+    /**
+     * Verifies that every {@link CommentRedactor} in the list has a unique
+     * {@link CommentRedactor#pluginId()}.
+     *
+     * @param redactors redactors to validate; must not be {@code null}
+     * @throws IllegalStateException if two or more redactors share the same id
+     */
+    public static void requireUniqueRedactorIds(List<CommentRedactor> redactors) {
+        Set<String> seen = new LinkedHashSet<>();
+        for (CommentRedactor r : redactors) {
+            String id = r.pluginId();
+            if (!seen.add(id)) {
+                throw new IllegalStateException(
+                        "Duplicate CommentRedactor plugin ID \"" + id + "\": two or more "
+                        + "registered redactors claim the same pluginId(). "
+                        + "Each redactor must declare a unique identifier.");
+            }
+        }
     }
 
     /**

@@ -29,6 +29,23 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class GitHubAnnotationsEmitterTest {
 
+    @Test
+    void record_withSourcePath_usesRealPathInsteadOfJavaSuffix() {
+        java.io.StringWriter sw = new java.io.StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        GitHubAnnotationsEmitter emitter = new GitHubAnnotationsEmitter(pw, "src/");
+        AiMethodSuggestion s = new AiMethodSuggestion("TestBeta", true, "SECURITY: auth",
+                List.of("security", "auth"), "r", 0.9, 0.0);
+
+        emitter.recordWithSourcePath("fixture.beta", "TestBeta", 3, 4, null, List.of(), null, s,
+                "fixture/beta_test.go");
+        emitter.finish();
+
+        String text = sw.toString();
+        assertTrue(text.contains("file=src/fixture/beta_test.go"), text);
+        assertFalse(text.contains(".java"), text);
+    }
+
     // -------------------------------------------------------------------------
     // escapeParam
     // -------------------------------------------------------------------------

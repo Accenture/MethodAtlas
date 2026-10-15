@@ -105,6 +105,7 @@ nav:
       - Static Inventory: usage-modes/static-inventory.md
       - API AI Enrichment: usage-modes/api-ai.md
       - Manual AI Workflow: usage-modes/manual.md
+      - Comment Redaction: usage-modes/comment-redaction.md
       - Source Write-back: usage-modes/apply-tags.md
       - Apply Tags from CSV: usage-modes/apply-tags-from-csv.md
       - Delta Report: usage-modes/delta.md
@@ -112,6 +113,9 @@ nav:
       - Multi-root Scanning: usage-modes/multi-root.md
       - Control-Coverage Matrix: usage-modes/control-coverage.md
       - Evidence Packs: usage-modes/evidence-packs.md
+      - Attestation Manifest: usage-modes/attest.md
+      - Security Evidence Report: usage-modes/evidence-report.md
+      - Security-Domain Gap Report: usage-modes/security-gap-report.md
       - Credential Detection: concepts/credential-detection.md
       - Reproducibility Receipts: usage-modes/reproducibility-receipts.md
     - AI Enrichment:
@@ -123,6 +127,7 @@ nav:
       - Security Taxonomy: ai/taxonomy.md
       - Custom Taxonomy: ai/custom-taxonomy.md
       - Classification Overrides: ai/overrides.md
+      - AI Accuracy Evaluation: ai/accuracy-evaluation.md
       - Remote Overrides: ai/remote-overrides.md
       - Tag vs AI Drift: ai/drift-detection.md
     - Remediating Findings: concepts/remediation.md
@@ -138,16 +143,22 @@ nav:
     - Data Governance: concepts/data-governance.md
     - Air-Gapped Deployment: deployment/air-gapped.md
     - Onboarding Brownfield Projects: deployment/onboarding.md
+    - Supply-Chain Security: deployment/supply-chain.md
     - Regulated Environments:
       - Overview: deployment/index.md
+      - Regulated Environment Guide: compliance/regulated-deployment.md
       - PCI-DSS v4.0: deployment/pci-dss.md
       - ISO/IEC 27001:2022: deployment/iso-27001.md
       - NIST SP 800-218 (SSDF): deployment/nist-ssdf.md
       - DORA: deployment/dora.md
       - SOC 2: deployment/soc2.md
-  - Security Teams:
+  - Security:
     - Reading MethodAtlas Reports: concepts/for-security-teams.md
     - OWASP ASVS Mapping: concepts/asvs-mapping.md
+    - SABSA Security Architecture:
+      - Overview: sabsa/index.md
+      - The Six Layers: sabsa/layers.md
+      - Full Architecture: sabsa/architecture.md
   - Reference:
     - CLI Options: cli-reference.md
     - Output Formats: output-formats.md

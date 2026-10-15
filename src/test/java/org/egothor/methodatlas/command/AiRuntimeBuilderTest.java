@@ -10,10 +10,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.egothor.methodatlas.AiResultCache;
 import org.egothor.methodatlas.ai.AiOptions;
+import org.egothor.methodatlas.ai.DefaultSecurityTaxonomy;
+import org.egothor.methodatlas.ai.OptimizedSecurityTaxonomy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -87,5 +93,48 @@ class AiRuntimeBuilderTest {
         assertNotNull(descriptor);
         assertTrue(descriptor.startsWith("built-in/"),
                 "Built-in taxonomy descriptor must begin with 'built-in/'");
+    }
+
+    @Test
+    void resolveTaxonomyVersion_whenAiInactive_returnsNull() throws IOException {
+        AiOptions options = AiOptions.builder().enabled(false).build();
+
+        assertNull(new AiRuntimeBuilder().resolveTaxonomyVersion(options, false),
+                "no AI output means no taxonomy version is stamped");
+    }
+
+    @Test
+    void resolveTaxonomyVersion_builtInModes_returnRevisionIdentifiers() throws IOException {
+        AiRuntimeBuilder builder = new AiRuntimeBuilder();
+        AiOptions defaults = AiOptions.builder().build();
+        AiOptions optimized = AiOptions.builder().taxonomyMode(AiOptions.TaxonomyMode.OPTIMIZED).build();
+
+        assertEquals(DefaultSecurityTaxonomy.version(), builder.resolveTaxonomyVersion(defaults, true));
+        assertEquals(OptimizedSecurityTaxonomy.version(), builder.resolveTaxonomyVersion(optimized, true));
+    }
+
+    @Test
+    void resolveTaxonomyVersion_customFile_returnsStableContentFingerprint(@TempDir Path tempDir)
+            throws IOException {
+        Path file = tempDir.resolve("taxonomy.txt");
+        Files.writeString(file, "auth,crypto\n");
+        AiOptions options = AiOptions.builder().taxonomyFile(file).build();
+        AiRuntimeBuilder builder = new AiRuntimeBuilder();
+
+        String first = builder.resolveTaxonomyVersion(options, true);
+
+        assertTrue(first.matches("sha256:[0-9a-f]{64}"), first);
+        assertEquals(first, builder.resolveTaxonomyVersion(options, true),
+                "same taxonomy text must yield the same version");
+        Files.writeString(file, "auth,crypto,logging\n");
+        assertNotEquals(first, builder.resolveTaxonomyVersion(options, true),
+                "edited taxonomy text must yield a different version");
+    }
+
+    @Test
+    void resolveTaxonomyVersion_unreadableFile_throwsIoException(@TempDir Path tempDir) {
+        AiOptions options = AiOptions.builder().taxonomyFile(tempDir.resolve("absent.txt")).build();
+
+        assertThrows(IOException.class, () -> new AiRuntimeBuilder().resolveTaxonomyVersion(options, true));
     }
 }

@@ -1,0 +1,172 @@
+{
+  "$schema" : "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version" : "2.1.0",
+  "runs" : [ {
+    "tool" : {
+      "driver" : {
+        "name" : "MethodAtlas",
+        "version" : "dev",
+        "rules" : [ {
+          "id" : "test-method",
+          "name" : "TestMethod",
+          "shortDescription" : {
+            "text" : "JUnit test method"
+          },
+          "properties" : {
+            "tags" : [ "test" ]
+          },
+          "help" : {
+            "text" : "MethodAtlas inventories all JUnit test methods found in the scanned source tree. This result represents a test method that was not classified as security-relevant by the AI, or that was scanned without AI enrichment enabled. No action is required."
+          }
+        } ]
+      }
+    },
+    "results" : [ {
+      "ruleId" : "test-method",
+      "level" : "none",
+      "message" : {
+        "text" : "beta.TestAuthRejectsEmptyPassword"
+      },
+      "locations" : [ {
+        "physicalLocation" : {
+          "artifactLocation" : {
+            "uri" : "src/test/resources/determinism/fixture/Beta/auth_test.go"
+          },
+          "region" : {
+            "startLine" : 5
+          }
+        },
+        "logicalLocations" : [ {
+          "fullyQualifiedName" : "beta.TestAuthRejectsEmptyPassword",
+          "kind" : "member"
+        } ]
+      } ],
+      "properties" : {
+        "loc" : 5,
+        "contentHash" : "2c2e331e34f71923704c49c8a2f30f57ca6f66f4a36d7aacfe9a8160bfc7c23c"
+      }
+    }, {
+      "ruleId" : "test-method",
+      "level" : "none",
+      "message" : {
+        "text" : "com.acme.beta.BetaCryptoTest.usesAuthenticatedEncryption"
+      },
+      "locations" : [ {
+        "physicalLocation" : {
+          "artifactLocation" : {
+            "uri" : "src/test/resources/determinism/fixture/Beta/BetaCryptoTest.java"
+          },
+          "region" : {
+            "startLine" : 8
+          }
+        },
+        "logicalLocations" : [ {
+          "fullyQualifiedName" : "com.acme.beta.BetaCryptoTest.usesAuthenticatedEncryption",
+          "kind" : "member"
+        } ]
+      } ],
+      "properties" : {
+        "loc" : 6,
+        "contentHash" : "9328de012c5c9414acab71851a464769489a20a24740212225bd206801db2406",
+        "sourceTags" : "crypto"
+      }
+    }, {
+      "ruleId" : "test-method",
+      "level" : "none",
+      "message" : {
+        "text" : "com.acme.beta.BetaCryptoTest.ünïcödeNamedCase"
+      },
+      "locations" : [ {
+        "physicalLocation" : {
+          "artifactLocation" : {
+            "uri" : "src/test/resources/determinism/fixture/Beta/BetaCryptoTest.java"
+          },
+          "region" : {
+            "startLine" : 15
+          }
+        },
+        "logicalLocations" : [ {
+          "fullyQualifiedName" : "com.acme.beta.BetaCryptoTest.ünïcödeNamedCase",
+          "kind" : "member"
+        } ]
+      } ],
+      "properties" : {
+        "loc" : 3,
+        "contentHash" : "9328de012c5c9414acab71851a464769489a20a24740212225bd206801db2406"
+      }
+    }, {
+      "ruleId" : "test-method",
+      "level" : "none",
+      "message" : {
+        "text" : "com.acme.alpha.AlphaAuthTest.rejectsExpiredToken"
+      },
+      "locations" : [ {
+        "physicalLocation" : {
+          "artifactLocation" : {
+            "uri" : "src/test/resources/determinism/fixture/alpha/AlphaAuthTest.java"
+          },
+          "region" : {
+            "startLine" : 9
+          }
+        },
+        "logicalLocations" : [ {
+          "fullyQualifiedName" : "com.acme.alpha.AlphaAuthTest.rejectsExpiredToken",
+          "kind" : "member"
+        } ]
+      } ],
+      "properties" : {
+        "loc" : 10,
+        "contentHash" : "4a44b1f05c5f40b8adac3f0b2399d48c22a98982282c5694527e3c0d4e87d9ea",
+        "sourceTags" : "security;auth"
+      }
+    }, {
+      "ruleId" : "test-method",
+      "level" : "none",
+      "message" : {
+        "text" : "com.acme.alpha.AlphaAuthTest.acceptsValidToken"
+      },
+      "locations" : [ {
+        "physicalLocation" : {
+          "artifactLocation" : {
+            "uri" : "src/test/resources/determinism/fixture/alpha/AlphaAuthTest.java"
+          },
+          "region" : {
+            "startLine" : 20
+          }
+        },
+        "logicalLocations" : [ {
+          "fullyQualifiedName" : "com.acme.alpha.AlphaAuthTest.acceptsValidToken",
+          "kind" : "member"
+        } ]
+      } ],
+      "properties" : {
+        "loc" : 3,
+        "contentHash" : "4a44b1f05c5f40b8adac3f0b2399d48c22a98982282c5694527e3c0d4e87d9ea"
+      }
+    }, {
+      "ruleId" : "test-method",
+      "level" : "none",
+      "message" : {
+        "text" : "com.acme.zeta.nested.ZetaInputTest.validatesInput"
+      },
+      "locations" : [ {
+        "physicalLocation" : {
+          "artifactLocation" : {
+            "uri" : "src/test/resources/determinism/fixture/zeta/nested/ZetaInputTest.java"
+          },
+          "region" : {
+            "startLine" : 7
+          }
+        },
+        "logicalLocations" : [ {
+          "fullyQualifiedName" : "com.acme.zeta.nested.ZetaInputTest.validatesInput",
+          "kind" : "member"
+        } ]
+      } ],
+      "properties" : {
+        "loc" : 3,
+        "contentHash" : "04716a612980d4d1c69794588360fd9db980f62c8c516dafc888612b2fdadc51"
+      }
+    } ]
+  } ]
+}

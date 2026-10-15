@@ -1,5 +1,7 @@
 # MethodAtlas
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Accenture/MethodAtlas/badge)](https://scorecard.dev/viewer/?uri=github.com/Accenture/MethodAtlas)
+
 <img src="MethodAtlas.png" width="20%" align="right" alt="MethodAtlas logo" />
 
 MethodAtlas is a CLI tool that scans test source trees for test methods and emits one structured record per discovered method — with optional AI-assisted security classification. Java (JUnit 5, JUnit 4, TestNG), C# (.NET — xUnit, NUnit, MSTest), TypeScript/JavaScript (Jest, Vitest, Mocha), Go, Python (pytest), PowerShell (Pester), SAP ABAP (ABAP Unit, ecATT), and COBOL (MFUnit, COBOL-Check) are supported out of the box; additional languages can be added as plugins.
@@ -30,6 +32,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **SARIF 2.1.0 output** — first-class integration with static analysis platforms and IDE tooling
 - **AI security classification** — classifies each test method against a closed security taxonomy; supports Ollama, OpenAI, Anthropic, Azure OpenAI, Groq, xAI, GitHub Models, Mistral, and OpenRouter
 - **Confidence scoring** — per-method decimal score (`-ai-confidence`); apply a native threshold filter with `-min-confidence` or post-process the CSV
+- **Comment redaction** — `-redact-comments` blanks every comment in the class source before it is sent to an AI provider or written to a manual-prepare work file (data minimisation); fail-closed — the run aborts if a scanned language has no redactor (Java, C#, Go, PowerShell, TypeScript/JavaScript and Python are supported; Python docstrings are strings and are kept; ABAP and COBOL always fail closed), and source files and write-back are never altered; with `-detect-secrets`, secrets inside comments are still reported locally but are not sent to the AI for triage
 - **Content hash fingerprints** — SHA-256 of the class AST text (`-content-hash`); all methods in the same class share the same hash; enables incremental scanning and change detection
 - **AI result cache** — reuse previous AI classifications by hash (`-ai-cache`); unchanged classes cost zero API calls
 - **Tag vs AI drift detection** — `-drift-detect` flags methods where `@Tag("security")` in source disagrees with the AI classification
@@ -58,8 +61,11 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **Evidence packs** — `-evidence-pack <framework>` bundles a scan into a tamper-evident directory whose SHA-256 manifest is optionally signed with classical, post-quantum, or hybrid signatures; generate the signing keyring with `-gen-signing-key`
 - **Control-coverage matrix** — `-emit-coverage` maps your tests against a user-supplied tag→control mapping and reports the gaps, the primary GRC (Governance, Risk, and Compliance) deliverable
 - **Reproducibility receipts** — `-emit-receipt` records the SHA-256 of every input that influenced a scan — including a per-template checksum of each LLM prompt — so an auditor can confirm a re-run would produce the same result (schema v2)
+- **Cross-platform deterministic scan output** — the structural scan (CSV, plain, JSON, SARIF; AI off) is byte-identical on Linux, Windows and macOS: platform-independent file order, `\n` line endings on every OS, forward-slash paths, `Locale.ROOT` numbers. Enforced by a golden-file test and the `Determinism` CI workflow (see [Quality gates](docs/quality-gates.md#cross-platform-determinism))
 - **Credential detection** — `-detect-secrets` deterministically finds credential candidates (provider tokens, private keys, password/token assignments, high-entropy literals) in the scanned source with a clean-room Aho-Corasick engine over a curated rule catalog of 170+ vendor credential formats; **no live verification**. With `-ai`, an LLM assigns each candidate a credibility score and attributes it to the endpoint it authenticates against — including when the credential and its URL are written separately. Findings go to a dedicated CSV and to SARIF (severity from the score, embedded in the message text); values are masked by default. See [Credential detection](docs/concepts/credential-detection.md)
 - **Custom LLM prompts** — override the classification and credential-triage prompts with your own templates (`-classification-prompt`, `-triage-prompt`, `-dedicated-triage-prompt`); `-check-prompts` validates them and prints their checksums. Every effective prompt is fingerprinted into the reproducibility receipt, so a non-default prompt stays auditable
+- **AI accuracy evaluation** — `-eval-accuracy <labels.yaml> <predictions.csv>` scores the AI classification against human-reviewed labels and reports precision, recall, F1 and support per taxonomy tag and for `securityRelevant` (Markdown or JSON, offline, deterministic). The recommended ground truth is the `-override-file` YAML you already maintain; ongoing accuracy numbers require a maintained labelled set, and the target precision/recall is a risk-owner decision. See [AI accuracy evaluation](docs/ai/accuracy-evaluation.md)
+- **Supply-chain assurance** — release assets carry keyless SLSA build provenance (GitHub OIDC + Sigstore, no managed keys; verify with `gh attestation verify`) and the repository is scored weekly by OpenSSF Scorecard. Managed-key release-package signing is deliberately not provided, so Scorecard's `Signed-Releases` check stays unmet by design. See [Supply-chain security](docs/deployment/supply-chain.md)
 - **Multiple output modes** — CSV (default), plain text, SARIF, GitHub Actions annotations, and JSON (`-json`) with native array/number/boolean types
 
 ## Quick start
@@ -115,8 +121,9 @@ without touching the command line.
 - **Tag editor** — shows the method's current `@Tag` values alongside AI-suggested tags as interactive toggle chips; individual tags can be accepted or rejected before writing back to the source file
 - **Custom override** — enter comma-separated tags manually to complement or replace AI suggestions
 - **Staged workflow** — "Apply to Source" stages changes in memory without writing to disk; a **Save All Changes** toolbar button batches all staged patches per file into a single write, eliminating line-number drift when multiple methods in the same class are modified; staged methods are shown with an orange pencil `✎` icon in the tree; the application asks to save on exit if staged changes are present
-- **Audit trail** — every **Save All Changes** operation writes two artefacts into a hidden `.methodatlas/` directory inside the scanned project root:
-  - a timestamped **evidence CSV** (`methodatlas-YYYYMMDD-HHmmss.csv`) using the same column schema as the CLI `DeltaReport` CSV, recording the AI suggestion and the user's final decision for each patched method — never overwritten, accumulates per save operation
+- **Audit trail** — every **Save All Changes** operation writes three artefacts into a hidden `.methodatlas/` directory inside the scanned project root (audit schema version 3):
+  - a timestamped **evidence CSV** (`methodatlas-YYYYMMDD-HHmmss.csv`) using the same column schema as the CLI `DeltaReport` CSV, recording the AI suggestion and the user's final decision for each patched method, with the per-class SHA-256 `content_hash` populated and the final `ai_taxonomy_version` column naming the taxonomy the suggestion was produced under — never overwritten (a same-second collision gets a `-N` suffix), accumulates per save operation
+  - a **SHA-256 manifest** (`manifest.sha256`, `sha256sum` format) of every evidence CSV and of `overrides.yaml`, so the audit files are tamper-evident by comparison (hash only, not signed)
   - a cumulative **override YAML** (`overrides.yaml`) in the `ClassificationOverride` format consumed by the CLI `-override-file` flag, enabling future analysis runs to reproduce the same decisions without re-invoking AI; entries include an ISO-8601 timestamp and, when configured, the reviewer's identity in the `note` field
 - **Activity panel** — collapsible panel above the status bar that appears whenever analysis is running; shows the class currently being sent to AI, deterministic progress counter (`X / Y classes`), elapsed time, and a scrollable log of completed classes with per-class timing and method counts; makes it immediately visible if a long AI request has stalled
 - **AI profiles** — multiple named provider configurations (e.g. "Fast Ollama", "GPT-4o", "Java-only") coexist side by side; the active profile is selected from a toolbar combo box without opening Settings; switching profiles takes effect on the next run
@@ -210,15 +217,16 @@ For each discovered test method, MethodAtlas emits one record.
 | `ai_interaction_score` | `-ai` | Fraction of assertions that only verify method calls rather than outcomes (`0.0` = all outcome checks, `1.0` = all interaction checks) |
 | `ai_confidence` | `-ai` + `-ai-confidence` | Model confidence score `0.0–1.0` |
 | `tag_ai_drift` | `-ai` + `-drift-detect` | Disagreement between source `@Tag("security")` and AI classification |
+| `ai_taxonomy_version` | `-ai` | Taxonomy under which the row was classified: `built-in/default@1`, `built-in/optimized@1`, or `sha256:<hex>` of a custom `-ai-taxonomy` file. Always the last CSV column; blank/omitted on rows with no AI result. JSON field `ai_taxonomy_version`, SARIF property `aiTaxonomyVersion` |
 
 ## Output modes
 
 ### CSV (default)
 
 ```csv
-fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
-com.acme.auth.LoginTest,testLoginWithValidCredentials,12,,,true,SECURITY: auth - validates session token,security;auth,Verifies session token is issued on successful login.,0.0
-com.acme.util.DateTest,format_returnsIso8601,5,,,false,,,,0.1
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_taxonomy_version
+com.acme.auth.LoginTest,testLoginWithValidCredentials,12,,,true,SECURITY: auth - validates session token,security;auth,Verifies session token is issued on successful login.,0.0,built-in/default@1
+com.acme.util.DateTest,format_returnsIso8601,5,,,false,,,,0.1,built-in/default@1
 ```
 
 ### SARIF 2.1.0
@@ -264,7 +272,7 @@ See [docs/output-formats.md](docs/output-formats.md) for full format description
 
 ## Audit trail (GUI)
 
-Every **Save All Changes** operation in the desktop GUI writes two artefacts into a hidden `.methodatlas/` directory inside the scanned project root.
+Every **Save All Changes** operation in the desktop GUI writes three artefacts into a hidden `.methodatlas/` directory inside the scanned project root (audit schema version 3): the evidence CSV, the cumulative `overrides.yaml`, and a `manifest.sha256` listing the SHA-256 of both (hash only, not signed).
 
 ### Evidence CSV
 
@@ -277,6 +285,7 @@ A timestamped, immutable file named `methodatlas-YYYYMMDD-HHmmss.csv` is created
 | `loc` | Lines of code |
 | `tags` | Semicolon-separated tags written to source |
 | `display_name` | `@DisplayName` text written to source (empty = unchanged) |
+| `content_hash` | Per-class SHA-256 as emitted by the CLI `-content-hash` (computed before the patch; blank only if the source was unreadable) |
 | `ai_security_relevant` | AI classification (`true`/`false`) |
 | `ai_display_name` | AI-suggested display name |
 | `ai_tags` | Semicolon-separated AI-suggested tags |
@@ -284,6 +293,7 @@ A timestamped, immutable file named `methodatlas-YYYYMMDD-HHmmss.csv` is created
 | `ai_confidence` | AI confidence score (0.0–1.0) |
 | `ai_interaction_score` | AI interaction score |
 | `tag_ai_drift` | `none` / `tag-only` / `ai-only` — divergence between applied and AI tags |
+| `ai_taxonomy_version` | Final column. Taxonomy version under which the AI suggestion was produced (`built-in/default@<revision>`; the GUI always uses the default taxonomy); blank for rows without an AI suggestion |
 
 The file is never overwritten.  Files accumulate over time, giving an ordered history of each review session.
 

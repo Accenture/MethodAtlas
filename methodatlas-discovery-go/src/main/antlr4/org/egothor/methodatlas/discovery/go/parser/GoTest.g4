@@ -168,8 +168,10 @@ STRING_LIT
     | '`'  ~'`'* '`'
     ;
 
-// Rune literal: 'x' or '\n' etc.
-RUNE_LIT : '\'' ( '\\' . | ~['\\\r\n] ) '\'' ;
+// Rune literal: 'x', '\n', '\x41', 'é', '\U0001F600', '\377'.  The hex/octal
+// digits after the escape letter are consumed so that multi-character escapes
+// form one token (otherwise their quotes would be unrecognised characters).
+RUNE_LIT : '\'' ( '\\' . [0-9a-fA-F]* | ~['\\\r\n] ) '\'' ;
 
 // Numeric literals consumed so that digits do not interfere with other rules.
 INT_LIT   : [0-9] [0-9_xXaAbBcCdDeEfF]* ;
@@ -177,9 +179,21 @@ FLOAT_LIT : [0-9]+ '.' [0-9]* | '.' [0-9]+ ;
 
 // ── Comments and whitespace ───────────────────────────────────────────
 
-LINE_COMMENT  : '//' ~[\r\n]* -> skip ;
-BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
+// Comments go to the HIDDEN channel instead of being discarded: the parser
+// ignores them exactly as it ignored skipped tokens, while the comment
+// redactor (GoCommentRedactor) can still locate every comment in the token
+// stream.  Go has only these two comment forms.
+LINE_COMMENT  : '//' ~[\r\n]* -> channel(HIDDEN) ;
+BLOCK_COMMENT : '/*' .*? '*/' -> channel(HIDDEN) ;
 
 // Semicolons are auto-inserted by Go at line endings; since this grammar
 // does not parse statements we can simply skip all whitespace including '\n'.
 WS : [ \t\r\n]+ -> skip ;
+
+// Catch-all for characters no rule above recognises (operators such as '=',
+// ':', '+', '/', other whitespace, ...).  Hidden, so the parser sees the same
+// token stream it saw when such characters were dropped as lexer errors; as a
+// token it lets the comment redactor tell "dropped character" from "quote or
+// comment start the lexer failed to understand" and fail closed on the latter.
+// Must stay the LAST lexer rule (lowest priority).
+OTHER : . -> channel(HIDDEN) ;

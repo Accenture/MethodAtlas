@@ -63,6 +63,23 @@ artefacts: GitHub Releases, GitHub Pages, and Code Scanning results.
 Developers do **not** push directly to GitHub; Gitea handles all development
 activity and mirrors tags and commits automatically.
 
+### Determinism workflow
+
+`determinism.yml` needs no secrets or configuration. It runs on GitHub-hosted
+`ubuntu-latest`, `windows-latest` and `macos-latest` runners and compares the
+structural scan output across them. On Gitea, register runners for all three
+labels or run it on GitHub only; it is independent of the other workflows.
+
+### OpenSSF Scorecard and build provenance
+
+`scorecard.yml` needs no secrets: it uses the workflow's OIDC token to publish
+results to the OpenSSF API and uploads SARIF to Code Scanning (Code Scanning
+must be available, which it is for public repositories). `release.yml`
+additionally requests `id-token: write` and `attestations: write` to create
+keyless SLSA build provenance for the release assets. Neither workflow uses or
+stores signing keys. See [Supply-chain security](deployment/supply-chain.md),
+including why the Scorecard `Signed-Releases` check stays unmet by design.
+
 ### 1. Enable GitHub Pages (mandatory for the Pages workflow)
 
 The `pages.yml` workflow deploys Javadoc, JaCoCo, PMD, SpotBugs, and test
@@ -109,7 +126,7 @@ Code Scanning on a weekly schedule. No configuration is needed for either
 workflow beyond the `security-events: write` permission already declared in
 `pages.yml`.
 
-### 4. Adapting the MethodAtlas analysis workflow for your own project
+### 4. Adapting the MethodAtlas analysis workflow for your own project {#adapting-the-methodatlas-analysis-workflow-for-your-own-project}
 
 The [`methodatlas-analysis.yml`](https://github.com/Accenture/MethodAtlas/blob/main/.github/workflows/methodatlas-analysis.yml)
 workflow is designed to be copied and adapted. The inline comments mark
@@ -160,6 +177,7 @@ SARIF upload, and credential detection, see
 | OWASP + SpotBugs Code Scanning                  | GitHub           | Every Monday at 03:00 UTC; manual dispatch |
 | OWASP Security Scan                             | Gitea            | Every Monday at 03:00 UTC; manual dispatch |
 | PIT Mutation Testing                            | Gitea + GitHub   | Every Sunday at 04:00 UTC; manual dispatch |
+| OpenSSF Scorecard                               | GitHub           | Every Monday at 04:23 UTC; push to `main`; manual dispatch |
 
 
 ## Creating a release
@@ -175,5 +193,6 @@ git push origin release@1.2.3
 
 Gitea produces a Gitea Release; GitHub produces a GitHub Release. Both
 attach the distribution archives (`zip`, `tar`) and the CycloneDX SBOM
-(`bom.json`). The release notes are generated automatically from
+(`bom.json`). The GitHub release assets additionally carry keyless SLSA build
+provenance (verify with `gh attestation verify`). The release notes are generated automatically from
 Conventional Commit messages via `git-cliff` (configuration in `cliff.toml`).

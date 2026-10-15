@@ -3,6 +3,16 @@
 MethodAtlas supports five report modes — **CSV** (default), **plain text**, **SARIF**, **GitHub Actions annotations**, and **JSON** — plus a write-back mode (**`-apply-tags`**) that modifies source files directly instead of emitting a report.  
 All report modes produce one record per discovered test method.
 
+## Determinism of structural output
+
+CSV, plain, JSON, SARIF and GitHub-annotation output always terminate lines with
+`\n` (never the platform `\r\n`), use `/` in every path, format numbers with
+`Locale.ROOT`, and list files in code-point order of their forward-slashed
+relative path. With AI disabled the output is therefore byte-identical on every
+operating system for the same source revision; see
+[Quality gates](quality-gates.md#cross-platform-determinism). The optional
+`# scan_timestamp` metadata line is time-based and excluded from that guarantee.
+
 ## CSV mode
 
 CSV mode is the default. It produces a header row followed by one data row per test method.
@@ -35,25 +45,27 @@ The hash is a 64-character lowercase hexadecimal string (SHA-256). It is compute
 ### With AI enrichment (`-ai`)
 
 ```text
-fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto,,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0
-com.acme.tests.SampleOneTest,beta,6,param,,false,,,,0.2
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_taxonomy_version
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0,built-in/default@1
+com.acme.tests.SampleOneTest,beta,6,param,,false,,,,0.2,built-in/default@1
 ```
 
 Fields `ai_display_name`, `ai_tags`, and `ai_reason` are empty for non-security-relevant methods. `ai_interaction_score` is always present when AI is enabled — see [Interaction Score](ai/interaction-score.md) for its meaning and use in CI gates.
 
+`ai_taxonomy_version` is always the **last** column of an AI-enabled scan, after every optional column (`ai_confidence`, the drift columns, `ai_cwe`), so no existing column changes position. It identifies the taxonomy under which the row's AI classification was produced: `built-in/default@<revision>` or `built-in/optimized@<revision>` for the built-in taxonomies, or `sha256:<64 hex>` (the SHA-256 of the raw bytes of the `-ai-taxonomy` file) for a custom taxonomy. It is blank for rows without an AI result (for example a class skipped as oversized, or an AI failure). See [Taxonomy](ai/taxonomy.md#taxonomy-version-stamp).
+
 When `-content-hash` is combined with `-ai`, the `content_hash` column appears between `display_name` and `ai_security_relevant`:
 
 ```text
-fqcn,method,loc,tags,display_name,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
+fqcn,method,loc,tags,display_name,content_hash,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_taxonomy_version
 ```
 
 ### With AI enrichment and confidence scoring (`-ai -ai-confidence`)
 
 ```text
-fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_confidence
-com.acme.tests.SampleOneTest,alpha,8,fast;crypto,,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0,0.9
-com.acme.tests.SampleOneTest,beta,6,param,,false,,,,0.2,0.0
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_confidence,ai_taxonomy_version
+com.acme.tests.SampleOneTest,alpha,8,fast;crypto,,true,"SECURITY: crypto - validates encrypted happy path",security;crypto,The test exercises a crypto-related security property.,0.0,0.9,built-in/default@1
+com.acme.tests.SampleOneTest,beta,6,param,,false,,,,0.2,0.0,built-in/default@1
 ```
 
 `ai_confidence` is `0.0` for methods classified as not security-relevant. `ai_interaction_score` is always present when AI is enabled.
@@ -63,10 +75,10 @@ com.acme.tests.SampleOneTest,beta,6,param,,false,,,,0.2,0.0
 Pass `-drift-detect` alongside `-ai` to append three columns — `tag_ai_drift`, `tags_added`, and `tags_removed` — to the end of each row:
 
 ```text
-fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift,tags_added,tags_removed
-com.acme.tests.SampleOneTest,alpha,8,security;crypto,,true,"SECURITY: crypto - ...",security;crypto,The test exercises...,0.0,none,,
-com.acme.tests.SampleOneTest,beta,6,,,true,"SECURITY: auth - ...",security;auth,Verifies auth...,0.1,ai-only,,auth;security
-com.acme.tests.SampleOneTest,gamma,4,security,,,,,0.0,tag-only,security,
+fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,tag_ai_drift,tags_added,tags_removed,ai_taxonomy_version
+com.acme.tests.SampleOneTest,alpha,8,security;crypto,,true,"SECURITY: crypto - ...",security;crypto,The test exercises...,0.0,none,,,built-in/default@1
+com.acme.tests.SampleOneTest,beta,6,,,true,"SECURITY: auth - ...",security;auth,Verifies auth...,0.1,ai-only,,auth;security,built-in/default@1
+com.acme.tests.SampleOneTest,gamma,4,security,,,,,0.0,tag-only,security,,built-in/default@1
 ```
 
 `tag_ai_drift` reports whether the source `@Tag("security")` marker agrees with the AI security-relevance verdict:
@@ -105,6 +117,10 @@ fqcn,method,loc,tags,display_name,source_root,content_hash,ai_security_relevant,
 ```
 
 See [Multi-root and monorepo scanning](usage-modes/multi-root.md) for a detailed walkthrough and a CI pipeline example.
+
+### GUI evidence CSV
+
+The desktop GUI writes an evidence CSV (`.methodatlas/methodatlas-YYYYMMDD-HHmmss.csv`) on every **Save All Changes**, using this schema plus the `tags_added` and `tags_removed` columns and, as the final column, `ai_taxonomy_version` (GUI audit schema version 3; the GUI always classifies with the built-in default taxonomy, so the value is `built-in/default@<revision>` on rows that carry an AI suggestion and blank otherwise). As of GUI audit schema version 2 its `content_hash` column is populated with the same per-class SHA-256 as `-content-hash` (blank only if the class source was unreadable), and a SHA-256 manifest `.methodatlas/manifest.sha256` is written next to it. A same-second collision produces a `-N` suffixed file name instead of overwriting. See [Audit Trail](audit-trail.md).
 
 ### Metadata header
 
@@ -289,6 +305,7 @@ AI enrichment fields are stored in the result `properties` object when AI is ena
 | `tagAiDrift` | Tag-vs-AI security-classification drift (`none`, `tag-only`, or `ai-only`); present whenever AI is enabled |
 | `tagsAdded` | Source tags the AI did not suggest (sorted, `;`-joined); present whenever AI is enabled |
 | `tagsRemoved` | AI tags absent from source (sorted, `;`-joined); present whenever AI is enabled |
+| `aiTaxonomyVersion` | Taxonomy version under which the result was classified (`built-in/default@1`, `built-in/optimized@1`, or `sha256:<hex>` for a custom `-ai-taxonomy` file); present on AI-classified results, including the `security-test/placebo` result, omitted otherwise |
 
 Properties with `null` or absent values are omitted from the JSON output entirely.
 
@@ -536,6 +553,7 @@ Adding `-ai-confidence` appends an `ai_confidence` field to each record:
 | `tag_ai_drift` | string | When `-drift-detect` is passed |
 | `tags_added` | string | When `-drift-detect` is passed; source tags the AI did not suggest (sorted, `;`-joined) |
 | `tags_removed` | string | When `-drift-detect` is passed; AI tags absent from source (sorted, `;`-joined) |
+| `ai_taxonomy_version` | string | When `-ai` is enabled and the record carries an AI result; taxonomy under which it was classified (`built-in/default@1`, `built-in/optimized@1`, or `sha256:<hex>` for a custom `-ai-taxonomy` file); omitted otherwise |
 
 All filtering flags apply in JSON mode: `-security-only` drops non-security records, `-min-confidence` drops records below the confidence threshold, and `-drift-detect` adds the `tag_ai_drift`, `tags_added`, and `tags_removed` fields.
 

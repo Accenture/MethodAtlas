@@ -71,6 +71,14 @@ public final class ContentHasher {
      * size. The result is a 64-character lowercase hexadecimal string.
      * </p>
      *
+     * <p>
+     * Line endings are normalised to {@code \n} (CRLF and lone CR both become
+     * LF) before hashing, so the digest is independent of the operating system
+     * that produced the text (JavaParser pretty-printing uses the platform line
+     * separator) and of the checkout's end-of-line conversion for file-based
+     * language plugins.
+     * </p>
+     *
      * @param classSource canonical pretty-printed form of the class
      *                    declaration; must not be {@code null}
      * @return 64-character lowercase hexadecimal SHA-256 digest; never
@@ -80,9 +88,10 @@ public final class ContentHasher {
      *                               the Java SE specification
      */
     public static String hashClass(String classSource) {
+        String canonical = classSource.replace("\r\n", "\n").replace('\r', '\n');
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(classSource.getBytes(StandardCharsets.UTF_8));
+            byte[] bytes = digest.digest(canonical.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(bytes);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);

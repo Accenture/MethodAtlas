@@ -43,7 +43,12 @@ package org.egothor.methodatlas.receipt;
  * @param dedicatedTriagePromptHash SHA-256 of the effective standalone
  *                           credential-triage prompt template, or {@code null} when
  *                           AI is disabled
- * @since 4.1.0 (schema v2 — replaces the single {@code promptTemplateHash} of v1)
+ * @param redactComments     {@code true} when comment redaction was requested
+ *                           ({@code -redact-comments}), meaning the source sent to
+ *                           the AI provider had every comment blanked; always
+ *                           present, {@code false} when not requested
+ * @since 4.1.0 (schema v2 — replaces the single {@code promptTemplateHash} of v1;
+ *        {@code redactComments} added in schema v3)
  */
 /* default */ record ReceiptInputs(
         FileArtifact taxonomyFile,
@@ -54,5 +59,6 @@ package org.egothor.methodatlas.receipt;
         String aiModel,
         String classificationPromptHash,
         String triageAppendixPromptHash,
-        String dedicatedTriagePromptHash) {
+        String dedicatedTriagePromptHash,
+        boolean redactComments) {
 }

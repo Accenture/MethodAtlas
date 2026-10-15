@@ -114,6 +114,12 @@ public final class ApplyTagsCommand implements Command {
 
         AiRuntime ai = new AiRuntime(cliConfig.aiOptions(), aiEngine, override, aiCache);
 
+        // Fail-closed: with -redact-comments, abort before the first provider call or file
+        // write if any file that would reach the AI provider cannot be redacted.
+        scanOrchestrator.requireRedactable(byFile.entrySet().stream()
+                .filter(e -> patchers.stream().anyMatch(p -> p.supports(e.getKey())))
+                .map(Map.Entry::getValue).toList(), ai);
+
         int modifiedFiles = 0;
         int totalAnnotations = 0;
         int skippedFiles = 0;

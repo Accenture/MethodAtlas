@@ -253,6 +253,7 @@ final class CliArgs {
                 case FLAG_PROMOTE_AI -> promoteAi = true;
                 case FLAG_MISMATCH_LIMIT -> mismatchLimit = Integer.parseInt(nextArg(args, ++i, arg));
                 case "-content-hash" -> contentHash = true;
+                case "-redact-comments" -> aiBuilder.redactComments(true);
                 case FLAG_CONFIG -> i++; // value already consumed in pre-scan; skip here
                 case "-file-suffix" -> {
                     if (!cliFileSuffixSet) {
@@ -519,6 +520,9 @@ final class CliArgs {
         if (Boolean.TRUE.equals(aiConfig.confidence)) {
             builder.confidence(true);
         }
+        if (Boolean.TRUE.equals(aiConfig.redactComments)) {
+            builder.redactComments(true);
+        }
         if (aiConfig.apiVersion != null) {
             builder.apiVersion(aiConfig.apiVersion);
         }
@@ -618,6 +622,7 @@ final class CliArgs {
         switch (arg) {
             case "-ai" -> builder.enabled(true);
             case "-ai-confidence" -> builder.confidence(true);
+            case "-ai-redact-comments" -> builder.redactComments(true);
             case "-ai-provider" ->
                 builder.provider(AiProvider.valueOf(nextArg(args, ++idx, arg).toUpperCase(Locale.ROOT)));
             case "-ai-model" -> builder.modelName(nextArg(args, ++idx, arg));

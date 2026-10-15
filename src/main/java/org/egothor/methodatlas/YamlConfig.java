@@ -65,6 +65,7 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  *   timeoutSec: 30
  *   maxRetries: 3
  *   confidence: false
+ *   redactComments: false   # blank comments in the AI payload; aborts if a language has no redactor
  *   apiVersion: 2024-02-01 # Azure OpenAI REST API version (azure_openai only)
  * detectSecrets: false         # enable credential detection (default: false)
  * secretsInclude: "**&#47;*.java" # glob override for file mask (default: null = use fileSuffixes)
@@ -435,6 +436,10 @@ final class YamlConfig {
         /** Whether to request a confidence score for each classification. */
         @JsonProperty("confidence")
         /* default */ Boolean confidence;
+
+        /** Whether comments are blanked in the source sent to the AI provider (fail-closed). */
+        @JsonProperty("redactComments")
+        /* default */ Boolean redactComments;
 
         /**
          * Azure OpenAI REST API version appended as the {@code api-version} query

@@ -1,0 +1,43 @@
+[ {
+  "fqcn" : "beta",
+  "method" : "TestAuthRejectsEmptyPassword",
+  "loc" : 5,
+  "tags" : [ ],
+  "display_name" : "",
+  "content_hash" : "2c2e331e34f71923704c49c8a2f30f57ca6f66f4a36d7aacfe9a8160bfc7c23c"
+}, {
+  "fqcn" : "com.acme.beta.BetaCryptoTest",
+  "method" : "usesAuthenticatedEncryption",
+  "loc" : 6,
+  "tags" : [ "crypto" ],
+  "display_name" : "",
+  "content_hash" : "9328de012c5c9414acab71851a464769489a20a24740212225bd206801db2406"
+}, {
+  "fqcn" : "com.acme.beta.BetaCryptoTest",
+  "method" : "ünïcödeNamedCase",
+  "loc" : 3,
+  "tags" : [ ],
+  "display_name" : "",
+  "content_hash" : "9328de012c5c9414acab71851a464769489a20a24740212225bd206801db2406"
+}, {
+  "fqcn" : "com.acme.alpha.AlphaAuthTest",
+  "method" : "rejectsExpiredToken",
+  "loc" : 10,
+  "tags" : [ "security", "auth" ],
+  "display_name" : "rejects an expired token",
+  "content_hash" : "4a44b1f05c5f40b8adac3f0b2399d48c22a98982282c5694527e3c0d4e87d9ea"
+}, {
+  "fqcn" : "com.acme.alpha.AlphaAuthTest",
+  "method" : "acceptsValidToken",
+  "loc" : 3,
+  "tags" : [ ],
+  "display_name" : "",
+  "content_hash" : "4a44b1f05c5f40b8adac3f0b2399d48c22a98982282c5694527e3c0d4e87d9ea"
+}, {
+  "fqcn" : "com.acme.zeta.nested.ZetaInputTest",
+  "method" : "validatesInput",
+  "loc" : 3,
+  "tags" : [ ],
+  "display_name" : "",
+  "content_hash" : "04716a612980d4d1c69794588360fd9db980f62c8c516dafc888612b2fdadc51"
+} ]

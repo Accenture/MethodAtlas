@@ -55,7 +55,7 @@ Each entry is keyed by the class content hash and tagged with a *prompt-catalogu
   > results.sarif
 ```
 
-This keeps the SARIF and the cache in sync, makes AI calls only for changed classes, and keeps findings for unchanged classes present in the SARIF so GitHub Code Scanning does not close them between runs. A legacy scan CSV is still accepted by `-ai-cache` (auto-detected): its classifications are reused by content hash, but it carries no credential verdicts.
+This keeps the SARIF and the cache in sync, makes AI calls only for changed classes, and keeps findings for unchanged classes present in the SARIF so GitHub Code Scanning does not close them between runs. A legacy scan CSV is still accepted by `-ai-cache` (auto-detected) but, because it carries no prompt signature and no taxonomy provenance, its entries are never reused for classification and the affected classes are re-queried; migrate by writing a unified cache once with `-ai-cache-out`. The cache key is `<prompt signature>|<taxonomy version>`, so changing the taxonomy also forces a re-query.
 
 The reusable workflow `methodatlas-analysis.yml` shipped with this project implements exactly this single-pass pattern. See [GitHub Actions](../ci/github-actions.md) for the full workflow and [CI Setup](../ci-setup.md) for integration guidance.
 

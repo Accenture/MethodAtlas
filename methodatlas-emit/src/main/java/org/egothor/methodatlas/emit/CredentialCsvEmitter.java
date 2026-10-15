@@ -44,9 +44,9 @@ public final class CredentialCsvEmitter {
      * @param findings findings to write; never {@code null}
      */
     public void flush(final PrintWriter out, final List<CredentialFinding> findings) {
-        out.println(HEADER);
+        LineEnding.println(out, HEADER);
         for (CredentialFinding f : findings) {
-            out.println(toRow(f));
+            LineEnding.println(out, toRow(f));
         }
     }
 

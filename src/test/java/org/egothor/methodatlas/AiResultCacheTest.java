@@ -247,17 +247,17 @@ class AiResultCacheTest {
     }
 
     @Test
-    @DisplayName("legacy CSV entry serves classification by content hash but never satisfies a credential query")
+    @DisplayName("legacy CSV entry is never reused (no taxonomy provenance) and never satisfies a credential query")
     @Tag("edge-case")
-    void legacyCsvEntry_servesClassificationNotVerdicts(@TempDir Path tempDir) throws Exception {
+    void legacyCsvEntry_isAMissAndNeverServesVerdicts(@TempDir Path tempDir) throws Exception {
         String hash = "3".repeat(64);
         Path csv = buildMinimalCsv(tempDir, hash,
                 "com.acme.FooTest", "testFoo", "true", "SECURITY: foo", "security", "Reason.", "0.0");
 
         AiResultCache cache = AiResultCache.load(csv);
 
-        assertTrue(cache.classification(hash, "any-signature").isPresent(),
-                "a legacy entry (no signature) is served by content hash, preserving prior behaviour");
+        assertTrue(cache.classification(hash, "any-signature").isEmpty(),
+                "a legacy entry (no signature, no taxonomy) must be a miss so it is never mis-stamped");
         assertTrue(cache.verdicts(hash, "any-signature").isEmpty(),
                 "a legacy entry carries no verdicts and cannot satisfy a credential query");
     }

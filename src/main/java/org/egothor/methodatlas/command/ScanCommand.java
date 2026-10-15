@@ -90,7 +90,8 @@ public final class ScanCommand implements Command {
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
 
         OutputEmitter emitter = new OutputEmitter(out, aiEnabled, confidenceEnabled, contentHashEnabled,
-                cliConfig.driftDetect(), cliConfig.emitSourceRoot(), cliConfig.aiCwe());
+                cliConfig.driftDetect(), cliConfig.emitSourceRoot(), cliConfig.aiCwe(),
+                new AiRuntimeBuilder().resolveTaxonomyVersion(cliConfig.aiOptions(), aiEnabled));
 
         if (cliConfig.emitMetadata()) {
             String version = ScanCommand.class.getPackage().getImplementationVersion();

@@ -82,20 +82,15 @@ final class NodeEnvironment {
         } else {
             this.versionString = detected;
             this.majorVersion = parseMajorVersion(detected);
-            if (majorVersion < MINIMUM_MAJOR_VERSION) {
-                this.available = false;
-                this.permissionModelSupported = false;
-                if (LOG.isLoggable(Level.WARNING)) {
-                    LOG.warning("Node.js " + detected + " is below the minimum required version "
-                            + MINIMUM_MAJOR_VERSION + " — TypeScript discovery plugin is disabled.");
-                }
-            } else {
-                this.available = true;
-                this.permissionModelSupported = majorVersion >= PERMISSION_MODEL_VERSION;
-                if (LOG.isLoggable(Level.INFO)) {
-                    LOG.log(Level.INFO, "Node.js detected: {0} (major={1}, permission-model={2})",
-                            new Object[] { versionString, majorVersion, permissionModelSupported });
-                }
+            boolean tooOld = majorVersion < MINIMUM_MAJOR_VERSION;
+            this.available = !tooOld;
+            this.permissionModelSupported = !tooOld && majorVersion >= PERMISSION_MODEL_VERSION;
+            if (tooOld && LOG.isLoggable(Level.WARNING)) {
+                LOG.warning("Node.js " + detected + " is below the minimum required version "
+                        + MINIMUM_MAJOR_VERSION + " — TypeScript discovery plugin is disabled.");
+            } else if (!tooOld && LOG.isLoggable(Level.INFO)) {
+                LOG.log(Level.INFO, "Node.js detected: {0} (major={1}, permission-model={2})",
+                        new Object[] { versionString, majorVersion, permissionModelSupported });
             }
         }
     }

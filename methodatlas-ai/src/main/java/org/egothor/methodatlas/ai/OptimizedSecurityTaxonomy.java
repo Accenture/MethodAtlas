@@ -37,9 +37,28 @@ package org.egothor.methodatlas.ai;
  */
 public final class OptimizedSecurityTaxonomy {
     /**
+     * Revision number of the {@link #text()} content. Any change to the taxonomy
+     * text (including wording) must increment it; {@code TaxonomyVersionTest}
+     * pins a digest of the text so a forgotten bump fails the build.
+     */
+    /* default */ static final int REVISION = 1;
+
+    /**
      * Prevents instantiation of this utility class.
      */
     private OptimizedSecurityTaxonomy() {
+    }
+
+    /**
+     * Returns the version identifier stamped into every AI-classified record
+     * produced under this taxonomy, in the form
+     * {@code built-in/optimized@<revision>}.
+     *
+     * @return stable, non-blank version identifier of the built-in optimized taxonomy
+     * @see TaxonomyVersion
+     */
+    public static String version() {
+        return "built-in/optimized@" + REVISION;
     }
 
     /**

@@ -7,7 +7,7 @@ minimum flag set required by each standard, artifact retention expectations,
 and how to present MethodAtlas output to internal or external auditors.
 
 For standard-specific deep dives see the pages under
-[Deployment](../deployment/).
+[Deployment](../deployment/index.md).
 
 ## Why MethodAtlas matters in regulated environments
 

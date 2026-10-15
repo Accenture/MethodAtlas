@@ -1,0 +1,52 @@
+# OpenSSF Scorecard supply-chain posture analysis (roadmap RM-F, SABSA EX-010).
+# Results are published to the OpenSSF API (badge + scorecard.dev) because the
+# repository is public, and uploaded to GitHub code scanning as SARIF.
+# Note: the 'Signed-Releases' check is expected to stay unmet — managed-key
+# release signing is deliberately not used (owner decision D-1); keyless build
+# provenance (D-4) is produced by release.yml instead.
+name: Scorecard supply-chain security
+
+on:
+  schedule:
+    - cron: '23 4 * * 1'   # weekly, Monday 04:23 UTC
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Deny everything at workflow level; the job grants only what it needs.
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # upload SARIF to code scanning
+      id-token: write          # publish results to the OpenSSF API (OIDC)
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Run OpenSSF Scorecard
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload SARIF artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload SARIF to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@48ab28a6f5dbc2a99bf1e0131198dd8f1df78169 # v3.28.0
+        with:
+          sarif_file: results.sarif

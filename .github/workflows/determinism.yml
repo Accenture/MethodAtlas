@@ -1,0 +1,111 @@
+# Cross-platform determinism of the STRUCTURAL scan output (roadmap RM-D, SABSA exception EX-005).
+#
+# Contract: for the same source revision, the structural layer (FQCN, method,
+# LOC, source @Tag, content hash, source root, SARIF locations) is
+# byte-identical on every machine. The AI layer and audit timestamps are out of
+# scope; this workflow never enables AI.
+#
+# Two independent checks, either of which fails the workflow:
+#   1. every OS leg runs MethodAtlasAppDeterminismTest, which compares the
+#      scan of src/test/resources/determinism/fixture to the committed golden
+#      files in src/test/resources/determinism/expected;
+#   2. the compare job downloads the output each leg actually produced and
+#      asserts the three sets are byte-identical to each other.
+name: Determinism
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: determinism-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Structural scan (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Only the determinism test: no AI, no static analysis, no coverage.
+      - name: Run structural determinism test
+        shell: bash
+        env:
+          METHODATLAS_DETERMINISM_OUT: ${{ github.workspace }}/determinism-out
+        run: ./gradlew :test --tests "org.egothor.methodatlas.MethodAtlasAppDeterminismTest" -x jacocoTestReport --console=plain
+
+      - name: Show produced output digests
+        if: always()
+        shell: bash
+        run: |
+          if [ -d determinism-out ]; then
+            (cd determinism-out && sha256sum * | sort -k2)
+          fi
+
+      - name: Upload normalized output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-${{ matrix.os }}
+          path: determinism-out/
+          if-no-files-found: error
+
+  compare:
+    name: Compare outputs across operating systems
+    needs: scan
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download all legs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: determinism-*
+          path: legs
+
+      - name: Assert byte-identical output on ubuntu, windows and macos
+        shell: bash
+        run: |
+          set -euo pipefail
+          legs=(ubuntu-latest windows-latest macos-latest)
+          for leg in "${legs[@]}"; do
+            if [ ! -d "legs/determinism-$leg" ]; then
+              echo "::error::missing output from $leg leg (its scan job failed or did not run)"
+              exit 1
+            fi
+          done
+          status=0
+          for leg in windows-latest macos-latest; do
+            if ! diff -r "legs/determinism-ubuntu-latest" "legs/determinism-$leg"; then
+              echo "::error::structural scan output on $leg differs from ubuntu-latest"
+              status=1
+            fi
+          done
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          echo "Structural scan output is byte-identical on: ${legs[*]}"
+          (cd legs/determinism-ubuntu-latest && sha256sum * | sort -k2)

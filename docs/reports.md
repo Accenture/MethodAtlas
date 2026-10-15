@@ -65,7 +65,7 @@ To access: go to the **Security scan** workflow run in the Actions tab and downl
 
 A [CycloneDX](https://cyclonedx.org/) 1.5 software bill of materials listing all runtime dependencies with their versions, licences, and purl identifiers. Generated at release time and attached as `bom.json` to every GitHub Release asset.
 
-To access: go to the [Releases](../../releases) page and download `bom.json` from the relevant release.
+To access: go to the [Releases](https://github.com/Accenture/MethodAtlas/releases) page and download `bom.json` from the relevant release.
 
 !!! note "Task name aliasing"
     The public Gradle task name `cyclonedxBom` is wired in `settings.gradle` to invoke `:cyclonedxDirectBom` internally. Historical CI references rely on this alias — do not rename either task. The artefact path is `build/reports/cyclonedx-direct/bom.json`.
@@ -205,6 +205,24 @@ The Mermaid diagrams embedded in the documentation are rendered to PNG before th
 
 | Asset | Where to download |
 |---|---|
-| `MethodAtlas-<version>.pdf` | [GitHub Releases](../../releases) — attached to every `release@*` tag from `2026.05` onward |
+| `MethodAtlas-<version>.pdf` | [GitHub Releases](https://github.com/Accenture/MethodAtlas/releases) — attached to every `release@*` tag from `2026.05` onward |
 | `methodatlas-<version>.zip` / `.tar` | Distribution archives (CLI + GUI sharing one `lib/`) |
 | `bom.json` | CycloneDX 1.5 SBOM |
+
+Every release asset above carries a keyless SLSA build-provenance attestation
+(verify with `gh attestation verify <file> --repo Accenture/MethodAtlas`). See
+[Supply-chain security](deployment/supply-chain.md).
+
+### OpenSSF Scorecard
+
+The `Scorecard` workflow uploads its SARIF to GitHub code scanning and keeps a
+5-day `scorecard-sarif` artefact; the public result is published at
+`https://scorecard.dev/viewer/?uri=github.com/Accenture/MethodAtlas`.
+
+### Determinism artefacts
+
+The `Determinism` workflow uploads `determinism-ubuntu-latest`,
+`determinism-windows-latest` and `determinism-macos-latest` artefacts, each
+holding the CSV, plain, JSON and SARIF structural scan output of that
+operating system. They are compared byte for byte by the workflow's `compare`
+job; see [Quality gates](quality-gates.md#cross-platform-determinism).

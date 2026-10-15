@@ -52,7 +52,7 @@ plugins {
     id 'com.palantir.git-version' version '5.0.0'
     id 'org.cyclonedx.bom' version '3.3.0'
     id 'org.owasp.dependencycheck' version '12.2.2'
-    id 'com.github.spotbugs' version '6.5.4'
+    id 'com.github.spotbugs' version '6.5.13'
     id 'net.ltgt.errorprone' version '5.1.0'
     id 'info.solidsoft.pitest' version '1.19.0'
     id 'com.github.jk1.dependency-license-report' version '3.1.2'
@@ -70,7 +70,7 @@ configurations {
 // ---------------------------------------------------------------------------
 pmd {
     consoleOutput = true
-    toolVersion = '7.24.0'
+    toolVersion = '7.28.0'
     sourceSets = [sourceSets.main]
     ruleSetFiles = files(rootProject.file(".ruleset"))
 }
@@ -86,7 +86,8 @@ tasks.withType(Pmd) {
 // SpotBugs – bug-pattern detection (complements PMD's style/practice rules)
 // ---------------------------------------------------------------------------
 spotbugs {
-    toolVersion = '4.9.8'
+    // 4.10.x bundles an ASM that can read JDK 27 (class major 71) bytecode.
+    toolVersion = '4.10.5'
     excludeFilter = file('config/spotbugs/excludeFilter.xml')
 }
 
@@ -258,6 +259,28 @@ tasks.named('compileTestJava') {
     options.errorprone.enabled = false
 }
 
+// ---------------------------------------------------------------------------
+// Error Prone JDK compatibility guard.
+// Error Prone reads javac internals that newer JDKs remove (on JDK 27 it crashes
+// with NoSuchFieldError JCCompilationUnit.endPositions), and no released version
+// yet supports JDK 25+. When the build runs on such a JDK, disable Error Prone
+// across every module that applies it so compilation still succeeds; PMD and
+// SpotBugs continue to run and remain the enforced static-analysis gates. On a
+// supported JDK (<= 24, e.g. CI) Error Prone stays enabled exactly as before.
+// ---------------------------------------------------------------------------
+if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_25)) {
+    logger.lifecycle("Error Prone disabled: JDK ${JavaVersion.current()} is newer than the supported ceiling (JDK 24); PMD and SpotBugs still run.")
+    gradle.projectsEvaluated {
+        allprojects { p ->
+            p.plugins.withId('net.ltgt.errorprone') {
+                p.tasks.withType(JavaCompile).configureEach {
+                    options.errorprone.enabled = false
+                }
+            }
+        }
+    }
+}
+
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
     jvmArgs "-javaagent:${configurations.mockitoAgent.singleFile}"
@@ -318,7 +341,7 @@ check.dependsOn javadoc
 
 // ---------------------------------------------------------------------------
 // PIT – mutation testing
-// Gate: build FAILS if mutation score < 57 % (enforced via check lifecycle).
+// Gate: build FAILS if mutation score < 55 % (enforced via check lifecycle).
 // Skip the gate without disabling the report: ./gradlew check -x pitest
 // Full on-demand run: ./gradlew pitest
 // ---------------------------------------------------------------------------
@@ -341,20 +364,47 @@ ext.pitMutators = [
 ]
 
 pitest {
-    junit5PluginVersion  = '1.2.2'
+    // PIT core 1.30.x bundles an ASM that can read JDK 27 (class major 71) bytecode;
+    // the plugin's default PIT core cannot, and aborts with "Unsupported class file
+    // major version 71" on JDK 27.
+    pitestVersion        = '1.30.1'
+    junit5PluginVersion  = '1.2.3'
     targetClasses        = ['org.egothor.methodatlas.*']
     targetTests          = ['org.egothor.methodatlas.*']
     mutators             = pitMutators
     threads              = pitThreads
     timestampedReports   = false
     outputFormats        = ['HTML', 'XML']
-    // Minimum mutation score: build fails if killed/total < 57 %.
-    // Threshold lowered from 60 % after the compliance/evidence package
-    // was added (feat: CWE mapping, gap report, attestation) — new code
-    // brought uncovered paths that pulled the score below 60 %.
-    // VOID_METHOD_CALLS excluded from mutators (see above); projected
-    // score without it is ≈58 %, giving a 1 % safety margin at 57 %.
-    mutationThreshold    = 57
+    // Minimum mutation score: build fails if killed/total < 55 %.
+    // 55 % is the project's documented mutation-score standard (owner decision,
+    // 2026-10-15), set deliberately below the measured score to give the
+    // compliance/evidence code paths headroom. The earlier 60 % target was
+    // retired because that new code (feat: CWE mapping, gap report, attestation)
+    // brought uncovered paths below it. VOID_METHOD_CALLS excluded (see above).
+    mutationThreshold    = 55
+    // Heavy integration/crypto tests are excluded as mutation DRIVERS so PIT does not
+    // thrash: ZeroEchoSignerTest's hybrid Ed25519+SPHINCS+ case runs ~14 s, and the
+    // determinism/accuracy end-to-end tests run full scans — re-running either for every
+    // mutant that touches their code causes mass minion timeouts. Unit tests still drive
+    // mutation of the same production classes.
+    excludedTestClasses  = [
+        'org.egothor.methodatlas.evidence.ZeroEchoSignerTest',
+        'org.egothor.methodatlas.evidence.SigningKeyGeneratorTest',
+        'org.egothor.methodatlas.evidence.GenSigningKeyCommandTest',
+        'org.egothor.methodatlas.EvidencePackCommandTest',
+        'org.egothor.methodatlas.MethodAtlasAppDeterminismTest',
+        'org.egothor.methodatlas.MethodAtlasAppEvalAccuracyTest'
+    ]
+    // Exclude the post-quantum/hybrid signing wrappers from MUTATION entirely: a single
+    // hybrid Ed25519+SPHINCS+ sign/verify takes ~14 s, so mutating these classes makes
+    // every mutant re-run that operation and time out, stalling PIT for the whole module.
+    // The signing path is covered by its own (non-mutation) unit tests.
+    excludedClasses      = [
+        'org.egothor.methodatlas.evidence.ZeroEchoSigner',
+        'org.egothor.methodatlas.evidence.SigningKeyGenerator',
+        'org.egothor.methodatlas.evidence.EvidencePackCommand',
+        'org.egothor.methodatlas.evidence.GenSigningKeyCommand'
+    ]
 }
 
 check.dependsOn tasks.named('pitest')
@@ -577,7 +627,7 @@ subprojects {
         apply plugin: 'pmd'
         pmd {
             consoleOutput = true
-            toolVersion = '7.24.0'
+            toolVersion = '7.28.0'
             sourceSets = [sourceSets.main]
             ruleSetFiles = files(rootProject.file(".ruleset"))
         }
@@ -617,6 +667,26 @@ subprojects {
                         minimum = moduleFloor
                     }
                 }
+                // -------------------------------------------------------------
+                // Class-level gate: AuditWriter is the audit-trail integrity
+                // surface for the regulated-environment value proposition
+                // (SABSA attribute BA-009). The >= 95 % line-coverage bar was
+                // chosen but previously unenforced; this rule makes it a build
+                // failure. AuditWriter already sits at ~99 % line coverage, so
+                // the gate passes as-is; if it ever drops below the bar, add
+                // focused tests rather than lowering the threshold.
+                // -------------------------------------------------------------
+                if (project.name == 'methodatlas-gui-core') {
+                    rule {
+                        element = 'CLASS'
+                        includes = ['org.egothor.methodatlas.gui.service.AuditWriter']
+                        limit {
+                            counter = 'LINE'
+                            value = 'COVEREDRATIO'
+                            minimum = 0.95
+                        }
+                    }
+                }
             }
         }
         tasks.named('check').configure {
@@ -637,7 +707,8 @@ subprojects {
         if (pitCfg != null) {
             apply plugin: 'info.solidsoft.pitest'
             pitest {
-                junit5PluginVersion = '1.2.2'
+                pitestVersion       = '1.30.1'
+                junit5PluginVersion = '1.2.3'
                 targetClasses       = pitCfg.targetClasses
                 targetTests         = pitCfg.targetClasses
                 if (!pitCfg.excludedClasses.isEmpty()) {

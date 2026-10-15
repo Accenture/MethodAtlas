@@ -29,6 +29,9 @@ import org.egothor.methodatlas.ai.AiClassSuggestion;
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.AiSuggestionEngineImpl;
 import org.egothor.methodatlas.ai.AiSuggestionException;
+import org.egothor.methodatlas.ai.DefaultSecurityTaxonomy;
+import org.egothor.methodatlas.ai.OptimizedSecurityTaxonomy;
+import org.egothor.methodatlas.ai.TaxonomyVersion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedConstruction;
@@ -57,7 +60,7 @@ class MethodAtlasAppAiTest {
             List<String> lines = nonEmptyLines(output);
 
             assertEquals(20, lines.size(), "Expected header + 19 method rows across 5 fixtures");
-            assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score", lines.get(0));
+            assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_taxonomy_version", lines.get(0));
 
             Map<String, List<String>> rows = parseCsvAiRows(lines);
 
@@ -155,13 +158,14 @@ class MethodAtlasAppAiTest {
             List<String> lines = nonEmptyLines(output);
 
             assertEquals(2, lines.size(), "Expected header + 1 emitted method row");
-            assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score", lines.get(0));
+            assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_taxonomy_version", lines.get(0));
 
             Map<String, List<String>> rows = parseCsvAiRows(lines);
             List<String> row = rows.get("com.acme.big.HugeAiSkipTest#hugeSecurityTest");
 
             assertNotNull(row, "Missing oversized-class row");
-            assertEquals(10, row.size());
+            assertEquals(11, row.size());
+            assertEquals("", row.get(10), "skipped class has no AI result, so no taxonomy version");
             assertEquals("security", row.get(3));
             assertEquals("", row.get(4));
             assertEquals("", row.get(5));
@@ -372,7 +376,10 @@ class MethodAtlasAppAiTest {
         List<String> fields = rows.get(fqcn + "#" + method);
         assertNotNull(fields, "Missing row for " + fqcn + "#" + method);
 
-        assertEquals(10, fields.size(), "Expected 10 CSV fields for " + fqcn + "#" + method);
+        assertEquals(11, fields.size(), "Expected 11 CSV fields for " + fqcn + "#" + method);
+        // ai_taxonomy_version is the last column: stamped only on AI-classified rows
+        assertEquals(expectedAiSecurityRelevant.isEmpty() ? "" : DefaultSecurityTaxonomy.version(),
+                fields.get(10), "Taxonomy version mismatch for " + fqcn + "#" + method);
         assertEquals(expectedTagsText, fields.get(3), "Source tags mismatch for " + fqcn + "#" + method);
         assertEquals(expectedAiSecurityRelevant, fields.get(5), "AI security flag mismatch for " + fqcn + "#" + method);
         assertEquals(expectedAiDisplayName, fields.get(6), "AI display name mismatch for " + fqcn + "#" + method);
@@ -386,18 +393,30 @@ class MethodAtlasAppAiTest {
         copyFixtures(tempDir, "SampleOneTest.java");
         AiClassSuggestion suggestion = sampleOneSuggestion();
 
-        // Run 1: normal scan with -content-hash; capture the CSV output as the cache.
-        Path cacheFile = tempDir.resolve("cache.csv");
+        // Run 1: normal scan with -content-hash; persist the unified AI cache (-ai-cache-out) and
+        // keep the CSV output as the reference. A legacy scan CSV is deliberately not used as the
+        // cache: it carries no taxonomy provenance and is therefore never reused.
+        Path cacheFile = tempDir.resolve("cache.json");
+        Path referenceCsv = tempDir.resolve("reference.csv");
         try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
                 (mock, ctx) -> when(mock.suggestForClass(anyString(), anyString(), anyString(), any()))
                         .thenReturn(suggestion))) {
 
             String csv = runAppCapturingStdout(
                     new String[] { "-ai", "-content-hash", tempDir.toString() });
-            Files.writeString(cacheFile, csv, java.nio.charset.StandardCharsets.UTF_8);
+            Files.writeString(referenceCsv, csv, java.nio.charset.StandardCharsets.UTF_8);
 
             assertEquals(1, mocked.constructed().size());
             verify(mocked.constructed().get(0)).suggestForClass(anyString(), anyString(), anyString(), any());
+        }
+
+        // Run 1b: a SARIF pass writes the unified cache (only the scan()-based modes emit -ai-cache-out).
+        try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
+                (mock, ctx) -> when(mock.suggestForClass(anyString(), anyString(), anyString(), any()))
+                        .thenReturn(suggestion))) {
+            runAppCapturingStdout(new String[] { "-sarif", "-ai", "-content-hash", "-ai-cache-out",
+                    cacheFile.toString(), tempDir.toString() });
+            assertEquals(1, mocked.constructed().size());
         }
 
         // Run 2: same source file (unchanged hash) + -ai-cache → engine must NOT call suggestForClass.
@@ -410,7 +429,7 @@ class MethodAtlasAppAiTest {
                             tempDir.toString() });
 
             // CSV structure should be identical (same AI data, same hash).
-            assertEquals(nonEmptyLines(Files.readString(cacheFile, java.nio.charset.StandardCharsets.UTF_8)),
+            assertEquals(nonEmptyLines(Files.readString(referenceCsv, java.nio.charset.StandardCharsets.UTF_8)),
                     nonEmptyLines(cachedOutput), "Cached run should produce the same output");
 
             if (!mocked.constructed().isEmpty()) {
@@ -447,11 +466,63 @@ class MethodAtlasAppAiTest {
         }
     }
 
+    private static String runAiScanWithSampleOne(Path tempDir, String... extraArgs) throws Exception {
+        copyFixtures(tempDir, "SampleOneTest.java");
+        try (MockedConstruction<AiSuggestionEngineImpl> mocked = mockConstruction(AiSuggestionEngineImpl.class,
+                (mock, ctx) -> when(mock.suggestForClass(anyString(), eq("com.acme.tests.SampleOneTest"),
+                        anyString(), any())).thenReturn(sampleOneSuggestion()))) {
+            String[] args = new String[extraArgs.length + 2];
+            args[0] = "-ai";
+            System.arraycopy(extraArgs, 0, args, 1, extraArgs.length);
+            args[args.length - 1] = tempDir.toString();
+            return runAppCapturingStdout(args);
+        }
+    }
+
+    @Test
+    void csvMode_customTaxonomyFile_stampsContentFingerprint(@TempDir Path tempDir) throws Exception {
+        Path taxonomy = tempDir.resolve("custom-taxonomy.txt");
+        Files.writeString(taxonomy, "custom taxonomy text\n", StandardCharsets.UTF_8);
+        Path src = Files.createDirectory(tempDir.resolve("src"));
+
+        String output = runAiScanWithSampleOne(src, "-ai-taxonomy", taxonomy.toString());
+
+        String expected = TaxonomyVersion.ofFile(taxonomy);
+        assertTrue(expected.startsWith("sha256:"), expected);
+        List<String> lines = nonEmptyLines(output);
+        assertTrue(lines.get(0).endsWith(",ai_taxonomy_version"), lines.get(0));
+        assertTrue(lines.get(1).endsWith("," + expected), lines.get(1));
+    }
+
+    @Test
+    void csvMode_optimizedTaxonomyMode_stampsOptimizedRevision(@TempDir Path tempDir) throws Exception {
+        String output = runAiScanWithSampleOne(tempDir, "-ai-taxonomy-mode", "optimized");
+
+        List<String> lines = nonEmptyLines(output);
+        assertTrue(lines.get(1).endsWith("," + OptimizedSecurityTaxonomy.version()), lines.get(1));
+    }
+
+    @Test
+    void jsonMode_aiEnabled_stampsTaxonomyVersionOnAiRecords(@TempDir Path tempDir) throws Exception {
+        String output = runAiScanWithSampleOne(tempDir, "-json");
+
+        assertTrue(output.contains("\"ai_taxonomy_version\""), output);
+        assertTrue(output.contains(DefaultSecurityTaxonomy.version()), output);
+    }
+
+    @Test
+    void sarifMode_aiEnabled_stampsTaxonomyVersionProperty(@TempDir Path tempDir) throws Exception {
+        String output = runAiScanWithSampleOne(tempDir, "-sarif");
+
+        assertTrue(output.contains("\"aiTaxonomyVersion\""), output);
+        assertTrue(output.contains(DefaultSecurityTaxonomy.version()), output);
+    }
+
     private static Map<String, List<String>> parseCsvAiRows(List<String> lines) {
         Map<String, List<String>> rows = new HashMap<>();
         for (int i = 1; i < lines.size(); i++) {
             List<String> fields = parseCsvFields(lines.get(i));
-            assertEquals(10, fields.size(), "Expected 10 CSV fields, got " + fields.size() + " from: " + lines.get(i));
+            assertEquals(11, fields.size(), "Expected 11 CSV fields, got " + fields.size() + " from: " + lines.get(i));
             rows.put(fields.get(0) + "#" + fields.get(1), fields);
         }
         return rows;

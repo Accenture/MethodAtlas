@@ -19,6 +19,22 @@
 //                      "loc":       <int> } ],
 //     "error":     null | "<message>" }
 //
+// Redaction request (Java → worker), used by -redact-comments:
+//   { "requestId": "<uuid>",
+//     "mode":      "redact",
+//     "filePath":  "<path; only its extension selects the dialect, never read>",
+//     "source":    "<full source text>" }
+//
+// Redaction response (worker → Java):
+//   { "requestId": "<uuid>",
+//     "length":    <int>,                       // UTF-16 length of the source received
+//     "comments":  [ [start, end], ... ],       // half-open UTF-16 offsets, ascending
+//     "error":     null | "<message>" }
+//
+// The worker only reports where the comments are; the Java side blanks them
+// and re-checks the result, so the length invariant and the fail-closed
+// decision stay in one place.
+//
 // The worker stays alive processing requests until stdin closes, then exits 0.
 // A fatal startup error causes an exit with a non-zero code and a JSON error
 // line written to stdout so the Java side can detect and log the failure.
@@ -66,6 +82,10 @@ rl.on('line', (line) => {
     try {
         const req = JSON.parse(trimmed);
         requestId = req.requestId != null ? String(req.requestId) : null;
+        if (req.mode === 'redact') {
+            writeLine(redactSource(requestId, req.filePath, req.source));
+            return;
+        }
         const functionNames =
             Array.isArray(req.functionNames) && req.functionNames.length > 0
                 ? req.functionNames.map(String)
@@ -80,6 +100,61 @@ rl.on('line', (line) => {
 rl.on('close', () => {
     process.exit(0);
 });
+
+// ---------------------------------------------------------------------------
+// Comment location (-redact-comments)
+// ---------------------------------------------------------------------------
+
+/**
+ * Locates every comment in the given source text.
+ *
+ * The text is parsed as provided (nothing is read from disk), so string,
+ * template and regular-expression literals are classified by the real parser
+ * and a comment marker inside one is never reported. A leading hashbang line
+ * is not reported by the parser as a comment but is one, so it is added.
+ * Any parse failure is returned as an error: the caller must then not use the
+ * text.
+ *
+ * @param {string|null} requestId - Correlation id echoed in the response.
+ * @param {string} filePath - Path whose extension selects JSX handling.
+ * @param {string} source - Full source text.
+ * @returns {{requestId:string|null, length:number, comments:number[][], error:string|null}}
+ */
+function redactSource(requestId, filePath, source) {
+    if (typeof source !== 'string') {
+        return { requestId, length: 0, comments: [], error: 'redact request has no source text' };
+    }
+    const name = typeof filePath === 'string' ? filePath : '';
+    const ext = path.extname(name).toLowerCase();
+    const jsx = ext === '.tsx' || ext === '.jsx';
+    let ast;
+    try {
+        ast = parse(source, {
+            jsx,
+            loc: true,
+            range: true,
+            comment: true,
+            tokens: false,
+            errorOnUnknownASTType: false,
+            filePath: name || undefined,
+            loggerFn: false,
+        });
+    } catch (parseErr) {
+        return { requestId, length: source.length, comments: [], error: 'Parse error: ' + String(parseErr) };
+    }
+    const comments = [];
+    if (source.startsWith('#!')) {
+        const eol = source.search(new RegExp('[' + '\\n\\r' + String.fromCharCode(0x2028, 0x2029) + ']'));
+        comments.push([0, eol < 0 ? source.length : eol]);
+    }
+    for (const c of ast.comments || []) {
+        if (!Array.isArray(c.range) || c.range.length !== 2) {
+            return { requestId, length: source.length, comments: [], error: 'comment without range' };
+        }
+        comments.push([c.range[0], c.range[1]]);
+    }
+    return { requestId, length: source.length, comments, error: null };
+}
 
 // ---------------------------------------------------------------------------
 // Core scanning logic

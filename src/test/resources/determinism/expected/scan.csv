@@ -1,0 +1,7 @@
+fqcn,method,loc,tags,display_name,source_root,content_hash
+beta,TestAuthRejectsEmptyPassword,5,,,src/test/resources/determinism/fixture/,2c2e331e34f71923704c49c8a2f30f57ca6f66f4a36d7aacfe9a8160bfc7c23c
+com.acme.beta.BetaCryptoTest,usesAuthenticatedEncryption,6,crypto,,src/test/resources/determinism/fixture/,9328de012c5c9414acab71851a464769489a20a24740212225bd206801db2406
+com.acme.beta.BetaCryptoTest,ünïcödeNamedCase,3,,,src/test/resources/determinism/fixture/,9328de012c5c9414acab71851a464769489a20a24740212225bd206801db2406
+com.acme.alpha.AlphaAuthTest,rejectsExpiredToken,10,security;auth,rejects an expired token,src/test/resources/determinism/fixture/,4a44b1f05c5f40b8adac3f0b2399d48c22a98982282c5694527e3c0d4e87d9ea
+com.acme.alpha.AlphaAuthTest,acceptsValidToken,3,,,src/test/resources/determinism/fixture/,4a44b1f05c5f40b8adac3f0b2399d48c22a98982282c5694527e3c0d4e87d9ea
+com.acme.zeta.nested.ZetaInputTest,validatesInput,3,,,src/test/resources/determinism/fixture/,04716a612980d4d1c69794588360fd9db980f62c8c516dafc888612b2fdadc51

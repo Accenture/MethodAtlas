@@ -120,7 +120,7 @@ value replaces the entire default set; subsequent values append to it.
 
 The JVM discovery plugin itself does not consume any property keys. The `properties`
 map is used by the Java **source patcher** for write-back configuration (see
-[Tag and display-name write-back](#tag-and-display-name-write-back-1) below). Any
+[Tag and display-name write-back](#tag-and-display-name-write-back) below). Any
 unrecognised keys are silently ignored by both the discovery plugin and the patcher.
 
 ### Tag and display-name write-back
@@ -880,7 +880,7 @@ formatting-preserving edit.
 
 | Plugin     | Discovery | `SourcePatcher`            | What `-apply-tags` does |
 |------------|-----------|----------------------------|--------------------------|
-| jvm        | ✓         | `JavaSourcePatcher`        | JUnit 5: inserts `@Tag("value")` and `@DisplayName` via JavaParser; JUnit 4: inserts `@Category(SomeClass.class)` using a configurable tag→class mapping — see [Tag and display-name write-back](#tag-and-display-name-write-back-1) |
+| jvm        | ✓         | `JavaSourcePatcher`        | JUnit 5: inserts `@Tag("value")` and `@DisplayName` via JavaParser; JUnit 4: inserts `@Category(SomeClass.class)` using a configurable tag→class mapping — see [Tag and display-name write-back](#tag-and-display-name-write-back) |
 | dotnet     | ✓         | `DotNetSourcePatcher`      | Inserts `[Category]` / `[Trait]` / `[TestCategory]` and xUnit `DisplayName=` |
 | typescript | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |
 | go         | ✓         | *(none)*                   | File is recognised but skipped with a per-file notice |

@@ -52,6 +52,15 @@ import tools.jackson.databind.node.ObjectNode;
  * </pre>
  *
  * <p>
+ * A redaction request (used by {@link TypeScriptCommentRedactor}) carries the
+ * source text itself and asks only for the comment locations:
+ * </p>
+ * <pre>
+ * {"requestId":"&lt;uuid&gt;","mode":"redact","filePath":"&lt;path&gt;","source":"..."}
+ * {"requestId":"&lt;uuid&gt;","length":123,"comments":[[0,12],[40,52]],"error":null}
+ * </pre>
+ *
+ * <p>
  * The {@code stderr} of the worker process is read asynchronously and logged
  * at {@code FINE} level so that Node.js warnings do not block the scan.
  * </p>
@@ -210,6 +219,45 @@ final class TypeScriptWorker {
     }
 
     /**
+     * Asks the worker to locate every comment in {@code source}.
+     *
+     * <p>
+     * The text is parsed as given; {@code filePath} only selects the dialect
+     * (JSX or not) and is never read by the worker.  A parse failure is not a
+     * worker fault: it is reported in {@link RedactionRanges#error()} and the
+     * worker stays usable.
+     * </p>
+     *
+     * @param filePath path whose extension selects the dialect; must not be
+     *                 {@code null}
+     * @param source   full source text; must not be {@code null}
+     * @return the comment ranges or the worker's parse error; never
+     *         {@code null}
+     * @throws WorkerException if the worker is dead, times out, or answers
+     *         with a mismatching request id
+     * @throws IOException if writing to stdin, reading stdout or decoding the
+     *         response fails
+     */
+    /* default */ RedactionRanges redact(Path filePath, String source) throws IOException, WorkerException {
+        if (process == null || !process.isAlive()) {
+            throw new WorkerException("Worker process is not alive");
+        }
+        String requestId = UUID.randomUUID().toString();
+        ObjectNode req = MAPPER.createObjectNode();
+        req.put("requestId", requestId);
+        req.put("mode", "redact");
+        req.put("filePath", filePath.toString());
+        req.put("source", source);
+
+        stdin.write(MAPPER.writeValueAsString(req));
+        stdin.newLine();
+        stdin.flush();
+
+        String responseLine = readWithTimeout(filePath, requestId);
+        return parseRedactionResponse(responseLine, requestId, filePath);
+    }
+
+    /**
      * Returns {@code true} when the underlying Node.js process is alive.
      *
      * @return {@code true} if the worker can process requests
@@ -287,20 +335,45 @@ final class TypeScriptWorker {
     private List<String> buildCommand(Path allowedRoot) {
         List<String> cmd = new ArrayList<>();
         cmd.add("node");
+        // Node resolves the real (symlink-free) path of every file it loads and matches
+        // its permission model's --allow-fs-read grants against those real paths. On
+        // macOS the temp directory (java.io.tmpdir / $TMPDIR) is itself a symlink
+        // (/var/folders/... -> /private/var/folders/...), so a grant built from the
+        // non-canonical path never matches and the worker dies in realpathSync during
+        // module resolution. Grant and launch using the canonical path so the match
+        // holds on every platform.
+        String scriptStr = fsReadPath(bundlePath);
         if (nodeEnv.isPermissionModelSupported() && allowedRoot != null) {
             cmd.add(nodeEnv.permissionFlagName());
             // Use separate --allow-fs-read flags (comma-separated form is unreliable
-            // across Node.js versions). Convert backslashes to forward slashes so
-            // the permission model's path matching works correctly on Windows.
-            // Append /** to the scan root so recursive access is granted (Node.js v22+
-            // requires explicit glob or trailing slash for directory recursion).
-            String bundleStr = bundlePath.toAbsolutePath().toString().replace('\\', '/');
-            String rootStr   = allowedRoot.toAbsolutePath().toString().replace('\\', '/');
-            cmd.add("--allow-fs-read=" + bundleStr);
-            cmd.add("--allow-fs-read=" + rootStr + "/**");
+            // across Node.js versions). Append /** to the scan root so recursive access
+            // is granted (Node.js v22+ requires an explicit glob or trailing slash for
+            // directory recursion).
+            cmd.add("--allow-fs-read=" + scriptStr);
+            cmd.add("--allow-fs-read=" + fsReadPath(allowedRoot) + "/**");
         }
-        cmd.add(bundlePath.toAbsolutePath().toString());
+        cmd.add(scriptStr);
         return cmd;
+    }
+
+    /**
+     * Resolves the canonical, forward-slash file-system path used both to launch the
+     * worker and to build its {@code --allow-fs-read} grants. Node's permission model
+     * matches grants against the real (symlink-resolved) path, so the path is
+     * canonicalised with {@link Path#toRealPath}; if the real path cannot be resolved
+     * the absolute path is used as a best effort.
+     *
+     * @param p path to resolve; never {@code null}
+     * @return canonical path with forward slashes
+     */
+    private static String fsReadPath(Path p) {
+        Path resolved;
+        try {
+            resolved = p.toRealPath();
+        } catch (IOException e) {
+            resolved = p.toAbsolutePath();
+        }
+        return resolved.toString().replace('\\', '/');
     }
 
     /**
@@ -446,6 +519,42 @@ final class TypeScriptWorker {
     }
 
     /**
+     * Parses a redaction response line.
+     *
+     * @param responseLine raw JSON line from the worker
+     * @param requestId    expected request id
+     * @param filePath     file concerned (for error messages)
+     * @return ranges, or a result carrying the worker-side error
+     * @throws WorkerException if the request id does not match or a range is
+     *         malformed
+     * @throws IOException if JSON parsing fails
+     */
+    private static RedactionRanges parseRedactionResponse(String responseLine, String requestId,
+            Path filePath) throws IOException, WorkerException {
+        JsonNode root = MAPPER.readTree(responseLine);
+        String responseId = root.path("requestId").asString(null);
+        if (!requestId.equals(responseId)) {
+            throw new WorkerException("Response requestId mismatch: expected=" + requestId
+                    + ", got=" + responseId + " for file " + filePath);
+        }
+        JsonNode errorNode = root.path("error");
+        if (!errorNode.isNull() && !errorNode.isMissingNode()) {
+            String errorMsg = errorNode.asString();
+            if (errorMsg != null && !errorMsg.isBlank()) {
+                return new RedactionRanges(0, List.of(), errorMsg);
+            }
+        }
+        List<CommentRange> ranges = new ArrayList<>();
+        for (JsonNode pair : root.path("comments")) {
+            if (!pair.isArray() || pair.size() != 2 || !pair.get(0).isInt() || !pair.get(1).isInt()) {
+                throw new WorkerException("Malformed comment range in response for " + filePath);
+            }
+            ranges.add(new CommentRange(pair.get(0).asInt(), pair.get(1).asInt()));
+        }
+        return new RedactionRanges(root.path("length").asInt(-1), List.copyOf(ranges), null);
+    }
+
+    /**
      * Starts a daemon thread that drains the worker's stderr stream and logs
      * each line at {@code FINE} level.
      *
@@ -497,6 +606,25 @@ final class TypeScriptWorker {
             int beginLine,
             int endLine,
             int loc) {}
+
+    /**
+     * Half-open range of UTF-16 code units occupied by one comment.
+     *
+     * @param start offset of the first code unit
+     * @param end   offset after the last code unit
+     */
+    /* default */ record CommentRange(int start, int end) {}
+
+    /**
+     * Result of a redaction request.
+     *
+     * @param length UTF-16 length of the text the worker parsed, or {@code -1}
+     *               if the worker did not report one
+     * @param ranges comment locations; empty when {@code error} is set
+     * @param error  worker-side failure (typically a parse error), or
+     *               {@code null} on success
+     */
+    /* default */ record RedactionRanges(int length, List<CommentRange> ranges, String error) {}
 
     /**
      * Signals that the worker process failed to produce a valid response.

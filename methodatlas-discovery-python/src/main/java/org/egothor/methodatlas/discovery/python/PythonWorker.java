@@ -51,6 +51,15 @@ import tools.jackson.databind.node.ObjectNode;
  * {"requestId":"&lt;uuid&gt;","methods":[...],"error":null}
  * </pre>
  *
+ * <p>
+ * A redaction request (used by {@link PythonCommentRedactor}) carries the
+ * source text itself and asks only for the comment locations:
+ * </p>
+ * <pre>
+ * {"requestId":"&lt;uuid&gt;","mode":"redact","source":"..."}
+ * {"requestId":"&lt;uuid&gt;","length":123,"comments":[[0,12],[40,52]],"error":null}
+ * </pre>
+ *
  * <h2>Thread safety</h2>
  *
  * <p>
@@ -151,6 +160,42 @@ final class PythonWorker {
 
         String responseLine = readWithTimeout(filePath, requestId);
         return parseResponse(responseLine, requestId, filePath);
+    }
+
+    /**
+     * Asks the worker to locate every comment in {@code source}.
+     *
+     * <p>
+     * The text is tokenized as given and never read from disk. A tokenizer
+     * failure is not a worker fault: it is reported in
+     * {@link RedactionRanges#error()} and the worker stays usable.
+     * </p>
+     *
+     * @param filePath file the text belongs to; used for diagnostics only
+     * @param source   full source text; must not be {@code null}
+     * @return the comment ranges or the worker's tokenizer error; never
+     *         {@code null}
+     * @throws WorkerException if the worker is dead, times out, or answers
+     *         with a mismatching request id or a malformed range
+     * @throws IOException if writing to stdin, reading stdout or decoding the
+     *         response fails
+     */
+    /* default */ RedactionRanges redact(Path filePath, String source) throws IOException, WorkerException {
+        if (process == null || !process.isAlive()) {
+            throw new WorkerException("Worker process is not alive");
+        }
+        String requestId = UUID.randomUUID().toString();
+        ObjectNode req = MAPPER.createObjectNode();
+        req.put("requestId", requestId);
+        req.put("mode", "redact");
+        req.put("source", source);
+
+        stdin.write(MAPPER.writeValueAsString(req));
+        stdin.newLine();
+        stdin.flush();
+
+        String responseLine = readWithTimeout(filePath, requestId);
+        return parseRedactionResponse(responseLine, requestId, filePath);
     }
 
     /**
@@ -280,6 +325,42 @@ final class PythonWorker {
         return methods;
     }
 
+    /**
+     * Parses a redaction response line.
+     *
+     * @param responseLine raw JSON line from the worker
+     * @param requestId    expected request id
+     * @param filePath     file concerned (for error messages)
+     * @return ranges, or a result carrying the worker-side error
+     * @throws WorkerException if the request id does not match or a range is
+     *         malformed
+     * @throws IOException if JSON parsing fails
+     */
+    private static RedactionRanges parseRedactionResponse(String responseLine, String requestId,
+            Path filePath) throws IOException, WorkerException {
+        JsonNode root = MAPPER.readTree(responseLine);
+        String responseId = root.path("requestId").asString(null);
+        if (!requestId.equals(responseId)) {
+            throw new WorkerException("Response requestId mismatch: expected=" + requestId
+                    + ", got=" + responseId + " for file " + filePath);
+        }
+        JsonNode errorNode = root.path("error");
+        if (!errorNode.isNull() && !errorNode.isMissingNode()) {
+            String errorMsg = errorNode.asString();
+            if (errorMsg != null && !errorMsg.isBlank()) {
+                return new RedactionRanges(0, List.of(), errorMsg);
+            }
+        }
+        List<CommentRange> ranges = new ArrayList<>();
+        for (JsonNode pair : root.path("comments")) {
+            if (!pair.isArray() || pair.size() != 2 || !pair.get(0).isInt() || !pair.get(1).isInt()) {
+                throw new WorkerException("Malformed comment range in response for " + filePath);
+            }
+            ranges.add(new CommentRange(pair.get(0).asInt(), pair.get(1).asInt()));
+        }
+        return new RedactionRanges(root.path("length").asInt(-1), List.copyOf(ranges), null);
+    }
+
     private static Thread startStderrDrainer(Process proc, int workerIndex, long processId) {
         Thread t = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(
@@ -321,6 +402,25 @@ final class PythonWorker {
             int endLine,
             int loc,
             List<String> tags) {}
+
+    /**
+     * Half-open range of UTF-16 code units occupied by one comment.
+     *
+     * @param start offset of the first code unit
+     * @param end   offset after the last code unit
+     */
+    /* default */ record CommentRange(int start, int end) {}
+
+    /**
+     * Result of a redaction request.
+     *
+     * @param length UTF-16 length of the text the worker tokenized, or
+     *               {@code -1} if the worker did not report one
+     * @param ranges comment locations; empty when {@code error} is set
+     * @param error  worker-side failure (typically a tokenizer error), or
+     *               {@code null} on success
+     */
+    /* default */ record RedactionRanges(int length, List<CommentRange> ranges, String error) {}
 
     /**
      * Signals that the worker process failed to produce a valid response.

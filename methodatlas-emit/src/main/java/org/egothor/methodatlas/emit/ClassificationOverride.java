@@ -263,6 +263,31 @@ public final class ClassificationOverride {
     }
 
     /**
+     * Returns every override entry in a deterministic order: by {@code fqcn}
+     * (natural string order), and within a class in the order the entries were
+     * declared in the file.
+     *
+     * <p>
+     * Used by the accuracy evaluation to read the human-reviewed decisions as a
+     * labelled ground-truth set. The result is a snapshot; it never changes the
+     * override set and the returned list is unmodifiable.
+     * </p>
+     *
+     * @return all entries, class-level and method-level; never {@code null},
+     *         empty for {@link #empty()}
+     * @since 6.1.0
+     */
+    public List<Entry> entries() {
+        List<String> classes = new ArrayList<>(byClass.keySet());
+        classes.sort(null);
+        List<Entry> all = new ArrayList<>();
+        for (String fqcn : classes) {
+            all.addAll(byClass.get(fqcn));
+        }
+        return List.copyOf(all);
+    }
+
+    /**
      * Applies override entries to an existing AI classification result.
      *
      * <p>

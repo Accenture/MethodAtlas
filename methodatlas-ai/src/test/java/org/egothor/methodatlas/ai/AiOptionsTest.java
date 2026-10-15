@@ -155,7 +155,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullProvider() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, null, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false, false,
                         AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("provider", ex.getMessage());
@@ -167,7 +167,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullModelName() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, null, "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false, false,
                         AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("modelName", ex.getMessage());
@@ -179,7 +179,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullTimeout() {
         NullPointerException ex = assertThrows(NullPointerException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, null, 1, false,
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, null, 1, false, false,
                         AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("timeout", ex.getMessage());
@@ -191,7 +191,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNullTaxonomyMode() {
         NullPointerException ex = assertThrows(NullPointerException.class, () -> new AiOptions(true, AiProvider.OPENAI,
                 "gpt-4o-mini", "https://api.openai.com", null, null, null, null, 40_000, Duration.ofSeconds(30), 1,
-                false, AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
+                false, false, AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("taxonomyMode", ex.getMessage());
     }
@@ -203,7 +203,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsBlankBaseUrl() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "   ", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false,
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false, false,
                         AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("baseUrl must not be blank", ex.getMessage());
@@ -215,7 +215,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNonPositiveMaxClassChars() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 0, Duration.ofSeconds(30), 1, false,
+                        AiOptions.TaxonomyMode.DEFAULT, 0, Duration.ofSeconds(30), 1, false, false,
                         AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("maxClassChars must be > 0", ex.getMessage());
@@ -227,7 +227,7 @@ class AiOptionsTest {
     void canonicalConstructor_rejectsNegativeMaxRetries() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), -1, false,
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), -1, false, false,
                         AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults()));
 
         assertEquals("maxRetries must be >= 0", ex.getMessage());
@@ -238,7 +238,7 @@ class AiOptionsTest {
     @Tag("edge-case")
     void canonicalConstructor_acceptsMaxClassCharsOfOne() {
         AiOptions options = new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com",
-                null, null, null, AiOptions.TaxonomyMode.DEFAULT, 1, Duration.ofSeconds(30), 1, false,
+                null, null, null, AiOptions.TaxonomyMode.DEFAULT, 1, Duration.ofSeconds(30), 1, false, false,
                 AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults());
 
         assertEquals(1, options.maxClassChars());
@@ -249,7 +249,7 @@ class AiOptionsTest {
     @Tag("edge-case")
     void canonicalConstructor_acceptsMaxRetriesOfZero() {
         AiOptions options = new AiOptions(true, AiProvider.OPENAI, "gpt-4o-mini", "https://api.openai.com",
-                null, null, null, AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 0, false,
+                null, null, null, AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 0, false, false,
                 AiOptions.DEFAULT_API_VERSION, PromptTemplateSet.defaults());
 
         assertEquals(0, options.maxRetries());
@@ -338,9 +338,15 @@ class AiOptionsTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new AiOptions(true, AiProvider.AZURE_OPENAI, "my-deployment",
                         "https://contoso.openai.azure.com", null, null, null,
-                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false, "",
+                        AiOptions.TaxonomyMode.DEFAULT, 40_000, Duration.ofSeconds(30), 1, false, false, "",
                         PromptTemplateSet.defaults()));
 
         assertEquals("apiVersion must not be blank", ex.getMessage());
+    }
+
+    @org.junit.jupiter.api.Test
+    void redactComments_defaultsToFalseAndBuilderSetsIt() {
+        assertEquals(false, AiOptions.builder().build().redactComments());
+        assertEquals(true, AiOptions.builder().redactComments(true).build().redactComments());
     }
 }

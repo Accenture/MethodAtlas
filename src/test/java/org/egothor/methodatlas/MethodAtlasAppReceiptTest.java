@@ -69,7 +69,7 @@ class MethodAtlasAppReceiptTest {
 
         assertTrue(Files.isRegularFile(target), "Receipt file must be created at custom path");
         JsonNode root = new ObjectMapper().readTree(target.toFile());
-        assertEquals("2", root.path("schemaVersion").asString());
+        assertEquals("3", root.path("schemaVersion").asString());
         assertEquals("CSV", root.path("outputMode").asString());
     }
 
@@ -145,6 +145,7 @@ class MethodAtlasAppReceiptTest {
         keys.put("dedicatedTriagePromptHash", text(inputs, "dedicatedTriagePromptHash"));
         keys.put("methodAtlasVersion", root.path("methodAtlasVersion").asString());
         keys.put("overrideFileSha256", artifactSha(inputs, "overrideFile"));
+        keys.put("redactComments", inputs.path("redactComments").asString());
         keys.put("taxonomyFileSha256", artifactSha(inputs, "taxonomyFile"));
         keys.put("triageAppendixPromptHash", text(inputs, "triageAppendixPromptHash"));
 

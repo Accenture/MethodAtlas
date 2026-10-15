@@ -5,6 +5,7 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiProvider;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
+import org.egothor.methodatlas.ai.TaxonomyVersion;
 import org.egothor.methodatlas.ai.AiSuggestionException;
 import org.egothor.methodatlas.ai.PromptBuilder;
 import org.egothor.methodatlas.ai.RateLimitListener;
@@ -356,6 +357,23 @@ public final class AnalysisService extends SwingWorker<Void, AnalysisService.Upd
         List<String> ids = new ArrayList<>();
         ServiceLoader.load(TestDiscovery.class).forEach(p -> ids.add(p.pluginId()));
         return ids;
+    }
+
+    /**
+     * Returns the taxonomy version identifier under which this service's AI
+     * suggestions are produced, for the {@code ai_taxonomy_version} audit column.
+     *
+     * <p>The GUI configures neither an external taxonomy file nor a taxonomy
+     * mode (see {@link #buildAiOptions()}), so the engine always runs with the
+     * default built-in taxonomy. This does not depend on the mutable settings,
+     * so it is safe to call after the analysis has finished.</p>
+     *
+     * @return built-in default taxonomy version identifier, e.g.
+     *         {@code built-in/default@1}; never {@code null}
+     * @since 6.1.0
+     */
+    public static String taxonomyVersion() {
+        return TaxonomyVersion.builtIn(AiOptions.TaxonomyMode.DEFAULT);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

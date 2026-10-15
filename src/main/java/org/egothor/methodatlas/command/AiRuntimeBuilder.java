@@ -12,6 +12,7 @@ import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.ai.AiSuggestionEngineImpl;
 import org.egothor.methodatlas.ai.AiSuggestionException;
+import org.egothor.methodatlas.ai.TaxonomyVersion;
 
 /**
  * Constructs the per-run AI infrastructure: the suggestion engine, the result
@@ -150,5 +151,28 @@ public final class AiRuntimeBuilder {
             return "file:" + aiOptions.taxonomyFile().toAbsolutePath();
         }
         return "built-in/" + aiOptions.taxonomyMode().name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Resolves the taxonomy version identifier stamped into each AI-classified
+     * record ({@code ai_taxonomy_version}).
+     *
+     * <p>
+     * Built-in taxonomies report their revision (for example
+     * {@code built-in/default@1}); a custom {@code -ai-taxonomy} file reports
+     * {@code sha256:<hex>} of its raw bytes, the same digest the reproducibility
+     * receipt records as {@code taxonomyFileSha256}. See {@link TaxonomyVersion}.
+     * </p>
+     *
+     * @param aiOptions AI configuration for the current run; must not be
+     *                  {@code null}
+     * @param aiActive  whether an AI engine is active for this run
+     * @return version identifier, or {@code null} when no AI engine is active
+     *         (no record carries AI output, so none is stamped)
+     * @throws IOException if a configured taxonomy file cannot be read
+     * @since 6.1.0
+     */
+    public String resolveTaxonomyVersion(AiOptions aiOptions, boolean aiActive) throws IOException {
+        return aiActive ? TaxonomyVersion.resolve(aiOptions) : null;
     }
 }

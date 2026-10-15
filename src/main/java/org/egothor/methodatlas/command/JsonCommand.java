@@ -97,7 +97,8 @@ public final class JsonCommand implements Command {
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
 
         JsonEmitter jsonEmitter = new JsonEmitter(aiEnabled, confidenceEnabled, contentHashEnabled,
-                cliConfig.driftDetect(), emitSourceRoot);
+                cliConfig.driftDetect(), emitSourceRoot,
+                new AiRuntimeBuilder().resolveTaxonomyVersion(cliConfig.aiOptions(), aiEnabled));
 
         List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
         boolean hadErrors = false;

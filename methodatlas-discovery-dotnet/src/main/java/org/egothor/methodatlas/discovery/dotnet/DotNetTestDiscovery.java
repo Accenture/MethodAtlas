@@ -16,6 +16,7 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
+import org.egothor.methodatlas.api.PortablePathOrder;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
@@ -108,7 +109,7 @@ public final class DotNetTestDiscovery implements TestDiscovery {
             return Stream.empty();
         }
         List<DiscoveredMethod> results = new ArrayList<>();
-        try (Stream<Path> walk = Files.walk(root)) {
+        try (Stream<Path> walk = Files.walk(root).sorted(PortablePathOrder.INSTANCE)) {
             walk.filter(Files::isRegularFile)
                 .filter(this::isCSharpFile)
                 .forEach(file -> {

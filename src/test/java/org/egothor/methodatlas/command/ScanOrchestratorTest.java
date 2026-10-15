@@ -62,7 +62,53 @@ class ScanOrchestratorTest {
         assertEquals(null, target.endLine());
     }
 
+    // ── relativeSourcePath ──────────────────────────────────────────────────
+
+    @Test
+    void relativeSourcePath_fileUnderRoot_isForwardSlashRelative() {
+        java.nio.file.Path root = java.nio.file.Path.of("fixture");
+        java.nio.file.Path file = root.resolve("pkg").resolve("beta_test.go");
+
+        assertEquals("pkg/beta_test.go", SourcePaths.relativeSourcePath(root, file));
+    }
+
+    @Test
+    void relativeSourcePath_nullOrOutsideRoot_isNull() {
+        java.nio.file.Path root = java.nio.file.Path.of("fixture");
+
+        assertEquals(null, SourcePaths.relativeSourcePath(root, null));
+        assertEquals(null, SourcePaths.relativeSourcePath(root, java.nio.file.Path.of("elsewhere", "X.go")));
+    }
+
     // ── filterSink ──────────────────────────────────────────────────────────
+
+    @Test
+    void filterSink_forwardsRealSourcePathToDelegate() {
+        ScanOrchestrator orchestrator = new ScanOrchestrator(new PluginLoader());
+        List<String> paths = new ArrayList<>();
+        TestMethodSink capturing = new TestMethodSink() {
+            @Override
+            public void record(String fqcn, String m, int b, int l, String h, List<String> t, String dn,
+                    AiMethodSuggestion s) {
+                paths.add("no-path");
+            }
+
+            @Override
+            public void recordWithSourcePath(String fqcn, String m, int b, int l, String h, List<String> t, String dn,
+                    AiMethodSuggestion s, String sourcePath) {
+                paths.add(sourcePath);
+            }
+        };
+
+        TestMethodSink filtered = orchestrator.filterSink(capturing, true, 0.0, false);
+        filtered.recordWithSourcePath("c", "sec", 1, 1, null, List.of(), null, suggestion(true, 0.0),
+                "pkg/a_test.go");
+        filtered.recordWithSourcePath("c", "other", 1, 1, null, List.of(), null, suggestion(false, 0.0),
+                "pkg/b_test.go");
+
+        assertEquals(List.of("pkg/a_test.go"), paths,
+                "the filter must pass the real source path through and still drop filtered records");
+    }
 
     @Test
     void filterSink_neitherFilterActive_returnsDelegateUnchanged() {

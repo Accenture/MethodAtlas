@@ -624,7 +624,7 @@ fragment INTERP_HOLE
     ;
 
 CHAR_LITERAL
-    : '\'' ( ~['\\\r\n] | '\\' . ) '\''
+    : '\'' ( ~['\\\r\n] | '\\' . [0-9a-fA-F]* ) '\''
     ;
 
 // ── Numeric literals ──────────────────────────────────────────────────
@@ -668,7 +668,14 @@ IDENTIFIER
 
 // ── Comments and whitespace ───────────────────────────────────────────
 
-LINE_COMMENT  : '//' ~[\r\n]* -> skip ;
-BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
-PREPROCESSOR  : '#' ~[\r\n]* -> skip ;
+// Comments go to the HIDDEN channel instead of being discarded: the parser
+// ignores them exactly as it ignored skipped tokens, while the comment
+// redactor (DotNetCommentRedactor) can still locate every comment in the token
+// stream.  LINE_COMMENT also covers '///' XML-doc comments.  Preprocessor
+// directives are deliberately NOT comments (see DotNetCommentRedactor).
+LINE_COMMENT  : '//' ~[\r\n]* -> channel(HIDDEN) ;
+BLOCK_COMMENT : '/*' .*? '*/' -> channel(HIDDEN) ;
+// Preprocessor directives are not comments but a directive line may end in a
+// '//' comment, so the redactor needs to see the token (hidden, not skipped).
+PREPROCESSOR  : '#' ~[\r\n]* -> channel(HIDDEN) ;
 WS            : [ \t\r\n\f]+ -> skip ;

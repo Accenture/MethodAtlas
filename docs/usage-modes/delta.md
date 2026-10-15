@@ -156,7 +156,7 @@ machine-readable change log of the security-test layer:
 Store the delta output alongside the scan CSV in your artifact repository or
 compliance folder.
 
-### CI gating — detecting regressions
+### CI gating — detecting regressions {#168-ci-gating--detecting-regressions}
 
 A simple shell gate that fails the build if any security-relevant test is removed
 or reclassified away from security:

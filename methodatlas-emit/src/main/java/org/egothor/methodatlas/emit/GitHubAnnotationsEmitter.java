@@ -2,6 +2,7 @@ package org.egothor.methodatlas.emit;
 
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Locale;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 
@@ -20,7 +21,10 @@ import org.egothor.methodatlas.ai.AiMethodSuggestion;
  * </ul>
  *
  * <p>The file path in each annotation is constructed as
- * {@code <filePrefix><fqcn-as-path>.java}, where {@code filePrefix} is
+ * {@code <filePrefix><sourcePath>}, where {@code sourcePath} is the real
+ * scan-root-relative path of the declaring file (so Go, C#, TypeScript, Python
+ * and other languages are located correctly; it falls back to
+ * {@code <fqcn-as-path>.java} only when no path is supplied) and {@code filePrefix} is
  * derived from the first configured scan root (e.g. {@code src/test/java/}).
  * This produces paths like {@code src/test/java/com/acme/AuthTest.java},
  * which GitHub resolves to the correct inline position in the PR diff for
@@ -56,10 +60,25 @@ public final class GitHubAnnotationsEmitter implements TestMethodSink, RecordEmi
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion) {
-        String filePath = filePrefix + fqcn.replace('.', '/') + ".java";
+        recordWithSourcePath(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion, null);
+    }
+
+    /**
+     * Emits annotations for one method using the real source path when known.
+     *
+     * <p>
+     * When {@code sourcePath} is {@code null} (programmatic callers that do not know
+     * the file) the path falls back to the Java-style {@code <fqcn-as-path>.java}.
+     * </p>
+     */
+    @Override
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
+    public void recordWithSourcePath(String fqcn, String method, int beginLine, int loc, String contentHash,
+            List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourcePath) {
+        String filePath = filePrefix + (sourcePath != null ? sourcePath : fqcn.replace('.', '/') + ".java");
 
         if (displayName != null && displayName.isEmpty()) {
-            out.println(formatCommand("notice", filePath, beginLine,
+            LineEnding.println(out, formatCommand("notice", filePath, beginLine,
                     "@DisplayName(\"\") on " + fqcn + "#" + method,
                     "@DisplayName(\"\") declares an empty display name — "
                             + "the test will appear unnamed in reports, obscuring the audit trail. "
@@ -81,7 +100,7 @@ public final class GitHubAnnotationsEmitter implements TestMethodSink, RecordEmi
         TagAiDrift drift = TagAiDrift.compute(tags, suggestion);
         String message = buildMessage(suggestion, isPlacebo, drift);
 
-        out.println(formatCommand(level, filePath, beginLine, title, message));
+        LineEnding.println(out, formatCommand(level, filePath, beginLine, title, message));
     }
 
     /**
@@ -129,7 +148,7 @@ public final class GitHubAnnotationsEmitter implements TestMethodSink, RecordEmi
         if (isPlacebo) {
             appendSep(sb);
             sb.append("Interaction score ")
-              .append(String.format("%.1f", suggestion.interactionScore()))
+              .append(String.format(Locale.ROOT, "%.1f", suggestion.interactionScore()))
               .append(": assertions only verify method calls, not output values or state");
         }
         if (drift == TagAiDrift.TAG_ONLY) {

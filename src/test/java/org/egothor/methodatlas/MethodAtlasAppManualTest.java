@@ -176,7 +176,7 @@ public class MethodAtlasAppManualTest {
         List<String> lines = nonEmptyLines(output);
 
         // CSV header includes AI columns
-        assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score",
+        assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_taxonomy_version",
                 lines.get(0), "Should emit full AI-enriched CSV header");
 
         // Find the enriched row
@@ -210,14 +210,15 @@ public class MethodAtlasAppManualTest {
         List<String> lines = nonEmptyLines(output);
 
         // Header still present with AI columns
-        assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score",
+        assertEquals("fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_taxonomy_version",
                 lines.get(0));
 
-        // All data rows should have empty AI columns (five trailing empty fields → five commas at end)
+        // All data rows should have empty AI columns, including the taxonomy version
+        // (six trailing empty fields → six commas at end)
         for (int i = 1; i < lines.size(); i++) {
             String row = lines.get(i);
             assertTrue(row.startsWith(FQCN_ACCESS_CONTROL), "Row should belong to the expected class");
-            assertTrue(row.endsWith(",,,,,"), "AI columns should be empty for: " + row);
+            assertTrue(row.endsWith(",,,,,,"), "AI columns should be empty for: " + row);
         }
     }
 

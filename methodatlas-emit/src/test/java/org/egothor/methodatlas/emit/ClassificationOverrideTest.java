@@ -463,6 +463,37 @@ class ClassificationOverrideTest {
         assertTrue(co.hasOverrideFor("com.acme.AuthTest", "any_arbitrary_name"));
     }
 
+    @Test
+    @DisplayName("entries() returns every entry ordered by fqcn then declaration order")
+    @Tag("positive")
+    void entries_areDeterministicallyOrdered(@TempDir Path tmp) throws IOException {
+        Path file = writeOverride(tmp, """
+                overrides:
+                  - fqcn: com.acme.ZetaTest
+                    method: z1
+                    securityRelevant: true
+                  - fqcn: com.acme.AlphaTest
+                    method: a2
+                  - fqcn: com.acme.AlphaTest
+                    securityRelevant: false
+                """);
+
+        List<ClassificationOverride.Entry> entries = ClassificationOverride.load(file).entries();
+
+        assertEquals(3, entries.size());
+        assertEquals("com.acme.AlphaTest", entries.get(0).fqcn());
+        assertEquals("a2", entries.get(0).method());
+        assertNull(entries.get(1).method());
+        assertEquals("com.acme.ZetaTest", entries.get(2).fqcn());
+    }
+
+    @Test
+    @DisplayName("entries() of the empty override set is empty")
+    @Tag("boundary")
+    void entries_emptyOverride_isEmpty() {
+        assertTrue(ClassificationOverride.empty().entries().isEmpty());
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

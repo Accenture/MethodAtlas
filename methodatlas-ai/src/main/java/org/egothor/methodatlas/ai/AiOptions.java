@@ -54,6 +54,10 @@ import java.util.Objects;
  *                      confidence score for each security-relevant method
  *                      classification; requires model support and increases
  *                      token usage slightly
+ * @param redactComments whether comments are replaced by blanks in the class
+ *                      source before it is sent to the AI provider (data
+ *                      minimisation); fail-closed when no redactor supports a
+ *                      scanned language
  * @param apiVersion    Azure OpenAI REST API version used to construct the
  *                      deployment endpoint; only consulted when
  *                      {@link AiProvider#AZURE_OPENAI} is selected; defaults
@@ -69,7 +73,7 @@ import java.util.Objects;
  */
 public record AiOptions(boolean enabled, AiProvider provider, String modelName, String baseUrl, String apiKey,
         String apiKeyEnv, Path taxonomyFile, TaxonomyMode taxonomyMode, int maxClassChars, Duration timeout,
-        int maxRetries, boolean confidence, String apiVersion, PromptTemplateSet promptTemplates) {
+        int maxRetries, boolean confidence, boolean redactComments, String apiVersion, PromptTemplateSet promptTemplates) {
     /**
      * Built-in taxonomy modes used for security classification.
      *
@@ -228,6 +232,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         private Duration timeout = Duration.ofSeconds(90);
         private int maxRetries = 1;
         private boolean confidence;
+        private boolean redactComments;
         private String apiVersion = DEFAULT_API_VERSION;
         private PromptTemplateSet promptTemplates = PromptTemplateSet.defaults();
 
@@ -370,6 +375,24 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
         }
 
         /**
+         * Enables or disables comment redaction of the class source sent to the AI
+         * provider.
+         *
+         * <p>
+         * When enabled, every comment is blanked before the source leaves the
+         * process and the run fails closed if a scanned language has no redactor.
+         * The default is {@code false}.
+         * </p>
+         *
+         * @param redactComments {@code true} to redact comments
+         * @return this builder
+         */
+        public Builder redactComments(boolean redactComments) {
+            this.redactComments = redactComments;
+            return this;
+        }
+
+        /**
          * Sets the Azure OpenAI REST API version used to construct the deployment
          * endpoint.
          *
@@ -435,7 +458,7 @@ public record AiOptions(boolean enabled, AiProvider provider, String modelName, 
             }
 
             return new AiOptions(enabled, effectiveProvider, modelName, effectiveBaseUrl, apiKey, apiKeyEnv,
-                    taxonomyFile, taxonomyMode, maxClassChars, timeout, maxRetries, confidence, apiVersion,
+                    taxonomyFile, taxonomyMode, maxClassChars, timeout, maxRetries, confidence, redactComments, apiVersion,
                     promptTemplates);
         }
     }

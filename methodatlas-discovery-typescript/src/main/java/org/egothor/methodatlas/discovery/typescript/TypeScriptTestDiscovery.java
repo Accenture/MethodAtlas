@@ -11,6 +11,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
+import org.egothor.methodatlas.api.PortablePathOrder;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
@@ -238,7 +239,7 @@ public final class TypeScriptTestDiscovery implements TestDiscovery {
         // Projects with no TypeScript/JavaScript test files return here without
         // ever running 'node --version' or spawning a worker process.
         List<Path> files;
-        try (Stream<Path> walk = Files.walk(root)) {
+        try (Stream<Path> walk = Files.walk(root).sorted(PortablePathOrder.INSTANCE)) {
             files = walk
                     .filter(p -> fileSuffixes.stream()
                             .anyMatch(s -> p.getFileName() != null

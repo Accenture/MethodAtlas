@@ -48,9 +48,10 @@ Three buttons appear in the bottom-right of the tag editor panel.  Understanding
 
 ## Audit trail
 
-Every **Save All Changes** writes two artefacts into `.methodatlas/` inside the scanned directory:
+Every **Save All Changes** writes three artefacts into `.methodatlas/` inside the scanned directory (audit schema version 3; see [Audit Trail](audit-trail.md)):
 
-- **`methodatlas-YYYYMMDD-HHmmss.csv`** — immutable timestamped record of every patched method: AI suggestion, user decision, the `tag_ai_drift` security-classification drift (the same definition as the CLI), and `tags_added`/`tags_removed` recording the reviewer's tag changes relative to the AI suggestion.  Uses the CLI `DeltaReport` column schema extended with the two delta columns; `DeltaReport` resolves columns by name and reads it unchanged.
+- **`methodatlas-YYYYMMDD-HHmmss.csv`** — immutable timestamped record of every patched method: AI suggestion, user decision, the `tag_ai_drift` security-classification drift (the same definition as the CLI), and `tags_added`/`tags_removed` recording the reviewer's tag changes relative to the AI suggestion.  Uses the CLI `DeltaReport` column schema extended with the two delta columns and, as the final column, `ai_taxonomy_version` (the built-in default taxonomy version the AI suggestion was produced under; blank when the row has no AI suggestion); `DeltaReport` resolves columns by name and reads it unchanged.
+- **`manifest.sha256`** — SHA-256 of every evidence CSV and of `overrides.yaml` (`sha256sum` format) so the audit files are tamper-evident by comparison; hash only, not signed. The CSV `content_hash` column carries the per-class SHA-256 the CLI emits, and a same-second collision gets a `-N` file-name suffix instead of overwriting.
 - **`overrides.yaml`** — cumulative `ClassificationOverride` YAML; pass it to a future CLI run via `-override-file .methodatlas/overrides.yaml` to reproduce the same decisions without re-invoking the AI.
 
 The `note` field in each YAML entry carries `"Reviewed <ISO-8601> by <operator>"` when an operator name is configured in **Settings → Audit**.

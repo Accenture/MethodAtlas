@@ -63,6 +63,45 @@ final class PythonWorkerPool extends WorkerPool<PythonWorker, Void> {
     }
 
     /**
+     * Locates the comments of one source text by delegating to a pooled
+     * worker.
+     *
+     * <p>
+     * Unlike {@link #scan(Path)}, every failure is reported to the caller: an
+     * open circuit, a missing worker or a worker fault must stop redaction,
+     * never yield an empty result that would look like "no comments". A faulty
+     * worker is killed and replaced.
+     * </p>
+     *
+     * @param filePath file the text belongs to; diagnostics only, never read
+     * @param source   source text to analyse
+     * @return the comment ranges, or the worker's tokenizer error
+     * @throws IOException if no worker could be obtained or the worker failed
+     */
+    /* default */ PythonWorker.RedactionRanges redact(Path filePath, String source) throws IOException {
+        if (isCircuitOpen()) {
+            throw new IOException("Python worker pool circuit breaker is open");
+        }
+        PythonWorker worker = borrow(null);
+        if (worker == null) {
+            throw new IOException("No Python worker available within " + borrowTimeoutMillis() + " ms");
+        }
+        try {
+            PythonWorker.RedactionRanges result = worker.redact(filePath, source);
+            returnWorker(worker);
+            return result;
+        } catch (PythonWorker.WorkerException e) {
+            worker.kill("redact error: " + e.getMessage());
+            replaceWorker(null);
+            throw new IOException("Python worker failed redacting " + filePath + ": " + e.getMessage(), e);
+        } catch (IOException e) {
+            worker.kill("redact I/O error: " + e.getMessage());
+            replaceWorker(null);
+            throw e;
+        }
+    }
+
+    /**
      * Scans one Python file by delegating to a pooled worker.
      *
      * @param filePath absolute path of the file to scan

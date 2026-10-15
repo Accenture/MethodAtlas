@@ -2,6 +2,8 @@ package org.egothor.methodatlas.emit;
 
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
 import org.egothor.methodatlas.ai.AiMethodSuggestion;
 import org.egothor.methodatlas.ai.CweMapping;
@@ -27,6 +29,7 @@ import org.egothor.methodatlas.ai.CweMapping;
  *
  * @see OutputMode
  */
+@SuppressWarnings("PMD.CyclomaticComplexity") // combinatorial optional CSV/plain columns; inherent to the format
 public final class OutputEmitter implements RecordEmitter {
 
     private static final String PLAIN_ABSENT = "-";
@@ -39,6 +42,26 @@ public final class OutputEmitter implements RecordEmitter {
     private final boolean driftDetect;
     private final boolean emitSourceRoot;
     private final boolean cweEnabled;
+    private final String taxonomyVersion;
+
+    /**
+     * Creates a new output emitter bound to the supplied writer, without a
+     * taxonomy version (the {@code ai_taxonomy_version} column is emitted blank).
+     *
+     * @param out                writer to which all records are emitted
+     * @param aiEnabled          whether AI enrichment columns should be included
+     * @param confidenceEnabled  whether the {@code ai_confidence} column is included
+     * @param contentHashEnabled whether the {@code content_hash} column is included
+     * @param driftDetect        whether the drift columns are included
+     * @param emitSourceRoot     whether the {@code source_root} column is included
+     * @param cweEnabled         whether the {@code ai_cwe} column is included
+     */
+    public OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled,
+            boolean contentHashEnabled, boolean driftDetect, boolean emitSourceRoot,
+            boolean cweEnabled) {
+        this(out, aiEnabled, confidenceEnabled, contentHashEnabled, driftDetect, emitSourceRoot,
+                cweEnabled, null);
+    }
 
     /**
      * Creates a new output emitter bound to the supplied writer.
@@ -61,10 +84,17 @@ public final class OutputEmitter implements RecordEmitter {
      *                           under different source trees
      * @param cweEnabled         whether the {@code ai_cwe} column should be included;
      *                           only meaningful when {@code aiEnabled} is {@code true}
+     * @param taxonomyVersion    taxonomy version identifier stamped into the final
+     *                           {@code ai_taxonomy_version} column of every
+     *                           AI-classified row; {@code null} leaves it blank.
+     *                           The column itself is present whenever
+     *                           {@code aiEnabled} is {@code true}
+     * @since 6.1.0
      */
     public OutputEmitter(PrintWriter out, boolean aiEnabled, boolean confidenceEnabled,
             boolean contentHashEnabled, boolean driftDetect, boolean emitSourceRoot,
-            boolean cweEnabled) {
+            boolean cweEnabled, String taxonomyVersion) {
+        this.taxonomyVersion = Objects.toString(taxonomyVersion, "");
         this.out = out;
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
@@ -82,9 +112,9 @@ public final class OutputEmitter implements RecordEmitter {
      * @param taxonomyInfo  human-readable taxonomy descriptor
      */
     public void emitMetadata(String version, String scanTimestamp, String taxonomyInfo) {
-        out.println("# tool_version: " + version);
-        out.println("# scan_timestamp: " + scanTimestamp);
-        out.println("# taxonomy: " + taxonomyInfo);
+        LineEnding.println(out, "# tool_version: " + version);
+        LineEnding.println(out, "# scan_timestamp: " + scanTimestamp);
+        LineEnding.println(out, "# taxonomy: " + taxonomyInfo);
     }
 
     /**
@@ -118,8 +148,11 @@ public final class OutputEmitter implements RecordEmitter {
             if (cweEnabled) {
                 header.append(",ai_cwe");
             }
+            // Always last: appended after every optional column so no existing
+            // column position moves (audit / schema stability).
+            header.append(",ai_taxonomy_version");
         }
-        out.println(header.toString());
+        LineEnding.println(out, header.toString());
     }
 
     /**
@@ -198,7 +231,7 @@ public final class OutputEmitter implements RecordEmitter {
             appendAiPlainFields(line, suggestion, drift);
         }
 
-        out.println(line.toString());
+        LineEnding.println(out, line.toString());
     }
 
     @SuppressWarnings({"PMD.NPathComplexity", "PMD.CyclomaticComplexity"})
@@ -212,7 +245,7 @@ public final class OutputEmitter implements RecordEmitter {
                 ? PLAIN_ABSENT : suggestion.reason();
 
         String aiInteractionScore = suggestion == null ? PLAIN_ABSENT
-                : String.format("%.1f", suggestion.interactionScore());
+                : String.format(Locale.ROOT, "%.1f", suggestion.interactionScore());
 
         line.append(", AI_SECURITY=").append(aiSecurity)
                 .append(", AI_DISPLAY=").append(aiDisplayName)
@@ -222,7 +255,7 @@ public final class OutputEmitter implements RecordEmitter {
 
         if (confidenceEnabled) {
             String aiConfidence = suggestion == null ? PLAIN_ABSENT
-                    : String.format("%.1f", suggestion.confidence());
+                    : String.format(Locale.ROOT, "%.1f", suggestion.confidence());
             line.append(", AI_CONFIDENCE=").append(aiConfidence);
         }
         if (driftDetect) {
@@ -233,6 +266,19 @@ public final class OutputEmitter implements RecordEmitter {
                     ? List.of() : CweMapping.forTags(suggestion.tags());
             line.append(", AI_CWE=").append(cweIds.isEmpty() ? PLAIN_ABSENT : String.join(";", cweIds));
         }
+        line.append(", AI_TAXONOMY_VERSION=").append(stampedVersion(suggestion, PLAIN_ABSENT));
+    }
+
+    /**
+     * Returns the taxonomy version for a row: the configured version when the
+     * row carries an AI suggestion, otherwise the supplied absent marker.
+     *
+     * @param suggestion AI suggestion for the row, or {@code null}
+     * @param absent     marker to use when the row is not AI-classified
+     * @return version identifier or {@code absent}
+     */
+    private String stampedVersion(AiMethodSuggestion suggestion, String absent) {
+        return suggestion == null || taxonomyVersion.isEmpty() ? absent : taxonomyVersion;
     }
 
     private void emitCsv(String fqcn, String method, int loc, String contentHash,
@@ -257,7 +303,7 @@ public final class OutputEmitter implements RecordEmitter {
             appendAiCsvFields(line, tags, suggestion, drift);
         }
 
-        out.println(line.toString());
+        LineEnding.println(out, line.toString());
     }
 
     @SuppressWarnings({"PMD.NPathComplexity", "PMD.CyclomaticComplexity"})
@@ -272,7 +318,7 @@ public final class OutputEmitter implements RecordEmitter {
                 ? CSV_ABSENT : suggestion.reason();
 
         String aiInteractionScore = suggestion == null ? CSV_ABSENT
-                : String.format("%.1f", suggestion.interactionScore());
+                : String.format(Locale.ROOT, "%.1f", suggestion.interactionScore());
 
         line.append(',').append(csvEscape(aiSecurity))
                 .append(',').append(csvEscape(aiDisplayName))
@@ -282,7 +328,7 @@ public final class OutputEmitter implements RecordEmitter {
 
         if (confidenceEnabled) {
             String aiConfidence = suggestion == null ? CSV_ABSENT
-                    : String.format("%.1f", suggestion.confidence());
+                    : String.format(Locale.ROOT, "%.1f", suggestion.confidence());
             line.append(',').append(csvEscape(aiConfidence));
         }
         if (driftDetect) {
@@ -301,6 +347,7 @@ public final class OutputEmitter implements RecordEmitter {
                     ? List.of() : CweMapping.forTags(suggestion.tags());
             line.append(',').append(csvEscape(cweIds.isEmpty() ? CSV_ABSENT : String.join(";", cweIds)));
         }
+        line.append(',').append(csvEscape(stampedVersion(suggestion, CSV_ABSENT)));
     }
 
     /**

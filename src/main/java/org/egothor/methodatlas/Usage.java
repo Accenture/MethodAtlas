@@ -52,6 +52,7 @@ final class Usage {
               -ai-provider <name>    auto | ollama | openai | anthropic | azure_openai | ...
               -ai-model <model>      Provider-specific model name
               -ai-api-key-env <env>  Resolve the API key from an environment variable
+              -redact-comments       Blank comments in the AI payload; aborts if a language has no redactor
               (see the reference for the full -ai-* and manual-workflow options)
 
             Custom prompt templates (advanced; recorded in the reproducibility receipt):
@@ -59,6 +60,13 @@ final class Usage {
               -triage-prompt <file>             Override the folded credential-triage appendix
               -dedicated-triage-prompt <file>   Override the standalone credential-triage prompt
               -check-prompts                    Validate the templates, print their SHA-256, and exit
+
+            Accuracy evaluation:
+              -eval-accuracy <labels.yaml> <predictions.csv>
+                                     Score the AI classification in an -ai scan CSV against human-reviewed
+                                     labels (override-file format): precision/recall/F1/support, then exit
+              -eval-format <fmt>     markdown (default) | json
+              -eval-min-f1 <0..1>    Exit 1 when the securityRelevant or tag F1 is below the threshold
 
             Source write-back:
               -apply-tags            Write AI @Tag/@DisplayName back to source (requires -ai)

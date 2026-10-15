@@ -63,6 +63,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
     /** Shared, thread-safe indenting JSON mapper (immutable after build). */
     private static final JsonMapper MAPPER = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
+            .defaultPrettyPrinter(LineEnding.prettyPrinter())
             .build();
     private static final int SINGLE_CHAR_LENGTH = 1;
     private static final int RULE_ID_PART_COUNT = 2;
@@ -124,6 +125,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
     private final boolean scoresInMessage;
     private final String filePrefix;
     private final String toolVersion;
+    private final String taxonomyVersion;
     private final List<ResultRecord> records = new ArrayList<>();
     private final List<SecretResultRecord> secretRecords = new ArrayList<>();
 
@@ -165,6 +167,30 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
      */
     public SarifEmitter(boolean aiEnabled, boolean confidenceEnabled, String filePrefix,
             boolean scoresInMessage) {
+        this(aiEnabled, confidenceEnabled, filePrefix, scoresInMessage, null);
+    }
+
+    /**
+     * Creates a new SARIF emitter that stamps a taxonomy version into the
+     * properties of every AI-classified result.
+     *
+     * @param aiEnabled         whether AI enrichment properties should be included
+     * @param confidenceEnabled whether the {@code aiConfidence} property should
+     *                          be included; only meaningful when {@code aiEnabled}
+     *                          is {@code true}
+     * @param filePrefix        forward-slash path prefix prepended to every
+     *                          artifact URI; empty string when the scan root is
+     *                          already the repository root
+     * @param scoresInMessage   whether scores are embedded in the result message
+     *                          text
+     * @param taxonomyVersion   value of the {@code aiTaxonomyVersion} property for
+     *                          results that carry an AI suggestion; {@code null}
+     *                          or empty omits the property
+     * @since 6.1.0
+     */
+    public SarifEmitter(boolean aiEnabled, boolean confidenceEnabled, String filePrefix,
+            boolean scoresInMessage, String taxonomyVersion) {
+        this.taxonomyVersion = taxonomyVersion == null || taxonomyVersion.isEmpty() ? null : taxonomyVersion;
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
         this.scoresInMessage = scoresInMessage;
@@ -180,7 +206,28 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
             List<String> tags, String displayName, AiMethodSuggestion suggestion) {
-        records.add(new ResultRecord(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion));
+        recordWithSourcePath(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion, null);
+    }
+
+    /**
+     * Buffers a single test method record with the real source path of its file.
+     *
+     * <p>
+     * The path becomes the SARIF {@code artifactLocation.uri} (after {@code filePrefix}),
+     * so non-Java sources are located correctly. When {@code sourcePath} is {@code null}
+     * the URI falls back to the Java-style {@code <fqcn-as-path>.java}.
+     * </p>
+     */
+    @Override
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
+    public void recordWithSourcePath(String fqcn, String method, int beginLine, int loc, String contentHash,
+            List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourcePath) {
+        records.add(new ResultRecord(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion,
+                sourcePath));
+    }
+
+    private String artifactUri(ResultRecord rec) {
+        return filePrefix + (rec.sourcePath() != null ? rec.sourcePath() : rec.fqcn().replace('.', '/') + ".java");
     }
 
     /**
@@ -360,7 +407,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
         String level = RULE_TEST_METHOD.equals(ruleId) ? LEVEL_NONE : LEVEL_NOTE;
         String messageText = resolveMessageText(rec);
 
-        String artifactUri = filePrefix + rec.fqcn().replace('.', '/') + ".java";
+        String artifactUri = artifactUri(rec);
         SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, null);
 
         SarifRegion region = rec.beginLine() > 0 ? new SarifRegion(rec.beginLine()) : null;
@@ -449,7 +496,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
 
         if (!aiEnabled || s == null) {
             return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
-                    null, null, null, null, null, null, null, null, null, securitySeverity);
+                    null, null, null, null, null, null, null, null, null, securitySeverity, null);
         }
 
         String aiTags = s.tags() == null || s.tags().isEmpty() ? null : String.join(";", s.tags());
@@ -462,11 +509,11 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
         String tagsRemoved = TagAiDrift.tagDifference(s.tags(), rec.tags());
         return new SarifProperties(rec.loc(), rec.contentHash(), sourceTags,
                 s.securityRelevant(), aiDisplayName, aiTags, aiReason, s.interactionScore(), aiConfidence,
-                tagAiDrift, tagsAdded, tagsRemoved, securitySeverity);
+                tagAiDrift, tagsAdded, tagsRemoved, securitySeverity, taxonomyVersion);
     }
 
     private SarifResult buildEmptyDisplayNameResult(ResultRecord rec) {
-        String artifactUri = filePrefix + rec.fqcn().replace('.', '/') + ".java";
+        String artifactUri = artifactUri(rec);
         SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, null);
         SarifRegion region = rec.beginLine() > 0 ? new SarifRegion(rec.beginLine()) : null;
         SarifPhysicalLocation physicalLocation = new SarifPhysicalLocation(artifactLocation, region);
@@ -479,13 +526,13 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
                 + "@DisplayName(\"Verifies that ...\").";
         String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
         SarifProperties properties = new SarifProperties(rec.loc(), null, sourceTags,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
         return new SarifResult(RULE_EMPTY_DISPLAY_NAME, LEVEL_NOTE,
                 new SarifMessage(message), List.of(location), properties);
     }
 
     private SarifResult buildPlaceboResult(ResultRecord rec) {
-        String artifactUri = filePrefix + rec.fqcn().replace('.', '/') + ".java";
+        String artifactUri = artifactUri(rec);
         SarifArtifactLocation artifactLocation = new SarifArtifactLocation(artifactUri, null);
         SarifRegion region = rec.beginLine() > 0 ? new SarifRegion(rec.beginLine()) : null;
         SarifPhysicalLocation physicalLocation = new SarifPhysicalLocation(artifactLocation, region);
@@ -510,7 +557,8 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
 
         String sourceTags = rec.tags().isEmpty() ? null : String.join(";", rec.tags());
         SarifProperties properties = new SarifProperties(rec.loc(), null, sourceTags,
-                null, null, null, null, s.interactionScore(), null, null, null, null, SEVERITY_PLACEBO);
+                null, null, null, null, s.interactionScore(), null, null, null, null, SEVERITY_PLACEBO,
+                taxonomyVersion);
         return new SarifResult(RULE_SECURITY_PLACEBO, LEVEL_WARNING,
                 new SarifMessage(message), List.of(location), properties);
     }
@@ -553,7 +601,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
         final SarifLocation location = new SarifLocation(physicalLocation, List.of());
 
         final SarifProperties properties = new SarifProperties(0, null, null, null, null, null, null,
-                null, null, null, null, null, secretSeverity(f.credibilityScore()));
+                null, null, null, null, null, secretSeverity(f.credibilityScore()), null);
 
         return new SarifResult(ruleId, level, new SarifMessage(secretMessage(f)),
                 List.of(location), properties);
@@ -610,7 +658,8 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
     // -------------------------------------------------------------------------
 
     private record ResultRecord(String fqcn, String method, int beginLine, int loc,
-            String contentHash, List<String> tags, String displayName, AiMethodSuggestion suggestion) {
+            String contentHash, List<String> tags, String displayName, AiMethodSuggestion suggestion,
+            String sourcePath) {
     }
 
     private record SecretResultRecord(String fileUri, CredentialFinding finding) {
@@ -691,6 +740,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
             String tagAiDrift,
             String tagsAdded,
             String tagsRemoved,
-            @JsonProperty("security-severity") String securitySeverity) {
+            @JsonProperty("security-severity") String securitySeverity,
+            String aiTaxonomyVersion) {
     }
 }

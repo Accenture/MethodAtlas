@@ -106,6 +106,8 @@ import org.egothor.methodatlas.api.TestDiscoveryConfig;
  * @see Command
  * @since 1.0.0
  */
+// Class-level total complexity grows with every orchestrated mode; no single method exceeds the cap.
+@SuppressWarnings("PMD.CyclomaticComplexity")
 public final class ScanOrchestrator {
 
     private static final Logger LOG = Logger.getLogger(ScanOrchestrator.class.getName());
@@ -124,6 +126,12 @@ public final class ScanOrchestrator {
      * before records are emitted in the original discovery order.
      */
     private final boolean parallelAi;
+
+    /**
+     * Redaction service applied to the AI payload when {@code -redact-comments}
+     * is set; never {@code null}.
+     */
+    private final CommentRedaction redaction;
 
     /**
      * Creates a new orchestrator with no extra sink and parallel AI disabled.
@@ -173,9 +181,35 @@ public final class ScanOrchestrator {
      */
     public ScanOrchestrator(PluginLoader pluginLoader, Optional<TestMethodSink> extraSink,
             boolean parallelAi) {
+        this(pluginLoader, extraSink, parallelAi, CommentRedaction.none());
+    }
+
+    /**
+     * Creates a new orchestrator with full configuration and a comment-redaction
+     * service.
+     *
+     * @param pluginLoader plugin loader; must not be {@code null}
+     * @param extraSink    optional secondary sink; must not be {@code null}
+     * @param parallelAi   when {@code true}, AI classification calls are issued concurrently
+     * @param redaction    redaction service consulted when {@code -redact-comments} is set;
+     *                     must not be {@code null}
+     */
+    public ScanOrchestrator(PluginLoader pluginLoader, Optional<TestMethodSink> extraSink,
+            boolean parallelAi, CommentRedaction redaction) {
         this.pluginLoader = pluginLoader;
         this.extraSink = extraSink.orElse(null);
         this.parallelAi = parallelAi;
+        this.redaction = redaction;
+    }
+
+    /**
+     * Returns the redaction service this orchestrator applies to AI payloads, so
+     * other AI-sending components (credential triage) share the same fail-closed policy.
+     *
+     * @return the redaction service; never {@code null}
+     */
+    public CommentRedaction redaction() {
+        return redaction;
     }
 
     /**
@@ -306,14 +340,18 @@ public final class ScanOrchestrator {
         AiRuntime ai = new AiRuntime(aiOptions, aiEngine, override, aiCache);
         // The prompt-catalogue signature gates cache reuse and tags written entries;
         // only meaningful when AI is enabled.
-        String promptSignature = aiEngine == null ? null : aiOptions.promptTemplates().signature();
+        String promptSignature = aiEngine == null ? null : AiCacheKey.signature(aiOptions);
+
+        // Fail-closed pre-pass: redact every class first so an unredactable file aborts
+        // the run before the first provider call.
+        Map<String, String> redacted = redactClasses(byClass, aiOptions, aiEngine != null);
 
         Map<String, ClassResolution> resolutions = resolveAll(
-                byClass, ai, promptSignature, contentHashEnabled, secretCtx);
+                byClass, redacted, ai, promptSignature, contentHashEnabled, secretCtx);
 
         Map<String, AiCacheEntry> cacheEntries = new LinkedHashMap<>();
         for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
-            emitClass(entry, resolutions.get(entry.getKey()), promptSignature, effectiveSink, cacheEntries);
+            emitClass(entry, resolutions.get(entry.getKey()), promptSignature, effectiveSink, cacheEntries, root);
         }
 
         return new DiscoveryResult(hadErrors, cacheEntries);
@@ -326,6 +364,7 @@ public final class ScanOrchestrator {
      * {@code byClass} for emission order).
      *
      * @param byClass         methods grouped by FQCN
+     * @param redacted        redacted class sources by FQCN (empty when redaction is off)
      * @param ai              AI runtime (engine, override, cache)
      * @param promptSignature current prompt-catalogue signature, or {@code null}
      * @param contentHashEnabled whether content hashes should be computed
@@ -333,18 +372,18 @@ public final class ScanOrchestrator {
      * @return per-FQCN resolution results; never {@code null}
      */
     private Map<String, ClassResolution> resolveAll(
-            Map<String, List<DiscoveredMethod>> byClass, AiRuntime ai,
+            Map<String, List<DiscoveredMethod>> byClass, Map<String, String> redacted, AiRuntime ai,
             String promptSignature, boolean contentHashEnabled, CredentialTriageContext secretCtx) {
         if (parallelAi) {
             Map<String, ClassResolution> result = new ConcurrentHashMap<>(byClass.size() * 2);
             byClass.entrySet().parallelStream().forEach(entry ->
                     result.put(entry.getKey(),
-                            resolveClass(entry, ai, promptSignature, contentHashEnabled, secretCtx)));
+                            resolveClass(entry, redacted, ai, promptSignature, contentHashEnabled, secretCtx)));
             return result;
         }
         Map<String, ClassResolution> result = new LinkedHashMap<>(byClass.size() * 2);
         for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
-            result.put(entry.getKey(), resolveClass(entry, ai, promptSignature, contentHashEnabled, secretCtx));
+            result.put(entry.getKey(), resolveClass(entry, redacted, ai, promptSignature, contentHashEnabled, secretCtx));
         }
         return result;
     }
@@ -356,6 +395,8 @@ public final class ScanOrchestrator {
      * method may be called from a parallel stream.
      *
      * @param entry           one class's discovered methods, keyed by FQCN
+     * @param redacted        redacted class sources by FQCN; a class present here is hashed and
+     *                        sent in this form instead of the source on disk
      * @param ai              AI runtime (engine, override, cache)
      * @param promptSignature current prompt-catalogue signature, or {@code null}
      * @param contentHashEnabled whether content hashes should be computed
@@ -363,7 +404,7 @@ public final class ScanOrchestrator {
      * @return the resolution result for this class; never {@code null}
      */
     private static ClassResolution resolveClass(Map.Entry<String, List<DiscoveredMethod>> entry,
-            AiRuntime ai, String promptSignature, boolean contentHashEnabled,
+            Map<String, String> redacted, AiRuntime ai, String promptSignature, boolean contentHashEnabled,
             CredentialTriageContext secretCtx) {
         String fqcn = entry.getKey();
         List<DiscoveredMethod> classMethods = entry.getValue();
@@ -372,9 +413,11 @@ public final class ScanOrchestrator {
         // present; it is the representative carrying the class-level fields (source
         // content and file stem are identical across a class's methods).
         DiscoveredMethod representative = classMethods.get(0);
-        String classSource = representative.sourceContent().get().orElse(null);
+        String classSource = redacted.containsKey(fqcn) ? redacted.get(fqcn)
+                : representative.sourceContent().get().orElse(null);
 
-        // The content hash is needed to read the cache, to emit the hash column, and to
+        // The content hash (computed on the redacted text when redaction is on, so it reflects
+        // what was sent) is needed to read the cache, to emit the hash column, and to
         // key a written cache entry — so compute it whenever any of those apply.
         String lookupHash = (contentHashEnabled || ai.cache().isActive() || ai.engine() != null)
                 && classSource != null
@@ -401,18 +444,21 @@ public final class ScanOrchestrator {
      * @param promptSignature current prompt-catalogue signature, or {@code null}
      * @param effectiveSink   sink receiving the per-method records
      * @param cacheEntries    accumulator for cache entries, keyed by content hash
+     * @param root            scan root the methods were discovered under; used to derive each
+     *                        method's root-relative source path for location-bearing sinks
      * @throws IOException if the sink fails to record a method
      */
     private static void emitClass(Map.Entry<String, List<DiscoveredMethod>> entry,
             ClassResolution resolution, String promptSignature,
-            TestMethodSink effectiveSink, Map<String, AiCacheEntry> cacheEntries) throws IOException {
+            TestMethodSink effectiveSink, Map<String, AiCacheEntry> cacheEntries,
+            Path root) throws IOException {
         SuggestionLookup suggestions = resolution.resolved().lookup();
         String outputHash = resolution.outputHash();
 
         for (DiscoveredMethod m : entry.getValue()) {
-            effectiveSink.record(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
+            effectiveSink.recordWithSourcePath(m.fqcn(), m.method(), m.beginLine(), m.loc(), outputHash,
                     m.tags(), m.displayName(),
-                    suggestions.find(m.method()).orElse(null));
+                    suggestions.find(m.method()).orElse(null), SourcePaths.relativeSourcePath(root, m.filePath()));
         }
 
         String lookupHash = resolution.lookupHash();
@@ -496,7 +542,8 @@ public final class ScanOrchestrator {
     public void gatherAiSuggestionsForFile(Map<String, List<DiscoveredMethod>> byClass,
             AiRuntime ai, AiResultCache aiCache,
             Map<String, List<String>> tagsToApply, Map<String, String> displayNames) {
-        String promptSignature = ai.engine() == null ? null : ai.options().promptTemplates().signature();
+        String promptSignature = ai.engine() == null ? null : AiCacheKey.signatureUnchecked(ai.options());
+        Map<String, String> redacted = redactClasses(byClass, ai.options(), ai.engine() != null);
         for (Map.Entry<String, List<DiscoveredMethod>> classEntry : byClass.entrySet()) {
             String fqcn = classEntry.getKey();
             List<DiscoveredMethod> classMethods = classEntry.getValue();
@@ -505,7 +552,8 @@ public final class ScanOrchestrator {
             // representative carrying the class-level fields (source content and file
             // stem are identical across a class's methods).
             DiscoveredMethod representative = classMethods.get(0);
-            String classSource = representative.sourceContent().get().orElse(null);
+            String classSource = redacted.containsKey(fqcn) ? redacted.get(fqcn)
+                    : representative.sourceContent().get().orElse(null);
             String lookupHash = aiCache.isActive() && classSource != null
                     ? ContentHasher.hashClass(classSource) : null;
             String fileStem = representative.fileStem();
@@ -530,6 +578,24 @@ public final class ScanOrchestrator {
                     tagsToApply.putIfAbsent(m.method(), suggestion.tags());
                 }
             }
+        }
+    }
+
+    /**
+     * Verifies up front that every class of every given file can be redacted, so an
+     * unredactable file aborts a multi-file run (apply-tags) before the first provider
+     * call. A no-op unless {@code -redact-comments} is set and an AI engine is active.
+     *
+     * @param methodsPerFile discovered methods of each file that would reach the AI provider
+     * @param ai             AI runtime carrying the options and engine
+     * @throws RedactionAbortedException if any class cannot be redacted
+     */
+    public void requireRedactable(java.util.Collection<List<DiscoveredMethod>> methodsPerFile, AiRuntime ai) {
+        for (List<DiscoveredMethod> methods : methodsPerFile) {
+            Map<String, List<DiscoveredMethod>> byClass = methods.stream()
+                    .collect(Collectors.groupingBy(DiscoveredMethod::fqcn,
+                            LinkedHashMap::new, Collectors.toList()));
+            redactClasses(byClass, ai.options(), ai.engine() != null);
         }
     }
 
@@ -575,23 +641,47 @@ public final class ScanOrchestrator {
             double minConfidence, boolean confidenceEnabled) {
         TestMethodSink sink = delegate;
         if (securityOnly) {
-            final TestMethodSink next = sink;
-            sink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) -> {
-                if (suggestion != null && suggestion.securityRelevant()) {
-                    next.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
-                }
-            };
+            sink = new FilteringSink(sink, s -> s != null && s.securityRelevant());
         }
         if (confidenceEnabled && minConfidence > 0.0) {
             final double threshold = minConfidence;
-            final TestMethodSink next = sink;
-            sink = (fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion) -> {
-                if (suggestion != null && suggestion.confidence() >= threshold) {
-                    next.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
-                }
-            };
+            sink = new FilteringSink(sink, s -> s != null && s.confidence() >= threshold);
         }
         return sink;
+    }
+
+    /**
+     * Forwards only records whose AI suggestion satisfies a predicate, preserving the
+     * real source path so location-bearing downstream sinks (SARIF, GitHub annotations)
+     * still receive it.
+     */
+    private static final class FilteringSink implements TestMethodSink {
+        private final TestMethodSink next;
+        private final java.util.function.Predicate<AiMethodSuggestion> accept;
+
+        /* default */ FilteringSink(TestMethodSink next, java.util.function.Predicate<AiMethodSuggestion> accept) {
+            this.next = next;
+            this.accept = accept;
+        }
+
+        @Override
+        @SuppressWarnings("PMD.UseObjectForClearerAPI")
+        public void record(String fqcn, String method, int beginLine, int loc, String contentHash,
+                List<String> tags, String displayName, AiMethodSuggestion suggestion) {
+            if (accept.test(suggestion)) {
+                next.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
+            }
+        }
+
+        @Override
+        @SuppressWarnings("PMD.UseObjectForClearerAPI")
+        public void recordWithSourcePath(String fqcn, String method, int beginLine, int loc, String contentHash,
+                List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourcePath) {
+            if (accept.test(suggestion)) {
+                next.recordWithSourcePath(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion,
+                        sourcePath);
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -622,6 +712,33 @@ public final class ScanOrchestrator {
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Redacts the representative source of every class when {@code -redact-comments} is
+     * active, sequentially, before any provider call. Sources are transformed in memory;
+     * the files on disk (and therefore source write-back) are never touched.
+     *
+     * @param byClass  discovered methods grouped by FQCN
+     * @param options  AI options of the run
+     * @param aiActive whether an AI engine will receive class source
+     * @return redacted source by FQCN; empty when redaction is off or nothing is sent
+     * @throws RedactionAbortedException if any class cannot be redacted
+     */
+    private Map<String, String> redactClasses(Map<String, List<DiscoveredMethod>> byClass,
+            AiOptions options, boolean aiActive) {
+        if (!aiActive || options == null || !options.redactComments()) {
+            return Map.of();
+        }
+        Map<String, String> redacted = new LinkedHashMap<>(byClass.size() * 2);
+        for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
+            DiscoveredMethod representative = entry.getValue().get(0);
+            String source = representative.sourceContent().get().orElse(null);
+            if (source != null) {
+                redacted.put(entry.getKey(), redaction.redactOrThrow(representative.filePath(), source));
+            }
+        }
+        return redacted;
+    }
 
     /**
      * Resolves the AI answer for one class, consulting the signature-gated cache

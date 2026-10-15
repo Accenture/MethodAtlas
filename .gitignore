@@ -125,3 +125,36 @@ build
 methodatlas-receipt.json
 controls-coverage.json
 
+methodatlas-credentials.csv
+security-evidence-report.md
+security-gap-report.json
+security-tests.attestation.json
+
+##---------------------------------------------------------------------------------------- Local tooling / assistant artefacts (never publish)
+# AI-assisted / layered-delivery and review working files
+.fabric/
+.findings/
+.claude/
+CLAUDE.md
+# Release commit-message drafts (wildcard — the version differs each release)
+COMMIT_MSG*.txt
+COMMIT_MSG*
+# SABSA security-architecture library source and its doc-generation helper are kept
+# local; only the rendered chapter under docs/sabsa/ is published.
+sabsa/
+tools/sabsa-docs/
+
+##---------------------------------------------------------------------------------------- macOS
+.DS_Store
+**/.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+##---------------------------------------------------------------------------------------- Eclipse (subproject IDE files; keep local, do not publish)
+.project
+.classpath
+.settings/
+.metadata/

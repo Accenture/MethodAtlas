@@ -52,4 +52,17 @@ public final class CompositeTestMethodSink implements TestMethodSink {
             sink.record(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion);
         }
     }
+
+    /**
+     * Forwards a record, including its real source path, to every wrapped sink in order.
+     */
+    @Override
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
+    public void recordWithSourcePath(String fqcn, String method, int beginLine, int loc, String contentHash,
+            List<String> tags, String displayName, AiMethodSuggestion suggestion, String sourcePath) {
+        for (TestMethodSink sink : sinks) {
+            sink.recordWithSourcePath(fqcn, method, beginLine, loc, contentHash, tags, displayName, suggestion,
+                    sourcePath);
+        }
+    }
 }

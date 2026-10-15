@@ -95,6 +95,23 @@ class ContentHasherTest {
                 "Prefix must use forward slashes regardless of host OS");
     }
 
+    @Test
+    void hashClass_crlfAndLfVariantsHashEqual() {
+        String lf = "class A {\n    void t() {}\n}\n";
+        String crlf = "class A {\r\n    void t() {}\r\n}\r\n";
+        String cr = "class A {\r    void t() {}\r}\r";
+        assertEquals(ContentHasher.hashClass(lf), ContentHasher.hashClass(crlf),
+                "CRLF and LF variants of the same text must hash equal");
+        assertEquals(ContentHasher.hashClass(lf), ContentHasher.hashClass(cr),
+                "Lone-CR variant must hash equal to LF");
+    }
+
+    @Test
+    void hashClass_stillDistinguishesDifferentContentAcrossLineEndings() {
+        assertNotEquals(ContentHasher.hashClass("a\r\nb"), ContentHasher.hashClass("a\nc"),
+                "Normalisation must not collapse genuinely different content");
+    }
+
     // ── hashFile ─────────────────────────────────────────────────────────────
 
     @Test

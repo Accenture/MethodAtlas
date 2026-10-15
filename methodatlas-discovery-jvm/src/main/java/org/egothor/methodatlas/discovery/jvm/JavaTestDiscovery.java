@@ -11,6 +11,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
+import org.egothor.methodatlas.api.PortablePathOrder;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
@@ -192,7 +193,7 @@ public final class JavaTestDiscovery implements TestDiscovery {
 
         List<DiscoveredMethod> result = new ArrayList<>();
 
-        try (Stream<Path> walk = Files.walk(root)) {
+        try (Stream<Path> walk = Files.walk(root).sorted(PortablePathOrder.INSTANCE)) {
             List<Path> files = walk
                     .filter(Files::isRegularFile)
                     .filter(path -> {

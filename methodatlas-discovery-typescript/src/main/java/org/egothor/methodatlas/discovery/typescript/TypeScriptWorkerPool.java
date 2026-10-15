@@ -64,6 +64,48 @@ final class TypeScriptWorkerPool extends WorkerPool<TypeScriptWorker, Path> {
     }
 
     /**
+     * Locates the comments of one source text by delegating to a pooled
+     * worker.
+     *
+     * <p>
+     * Unlike {@link #scan}, every failure is reported to the caller: an open
+     * circuit, a missing worker or a worker fault must stop redaction, never
+     * yield an empty result that would look like "no comments".  A faulty
+     * worker is killed and replaced.
+     * </p>
+     *
+     * @param filePath    path whose extension selects the dialect; never read
+     * @param source      source text to analyse
+     * @param allowedRoot sandbox root forwarded to a newly started worker; may
+     *                    be {@code null}
+     * @return the comment ranges, or the worker's parse error
+     * @throws IOException if no worker could be obtained or the worker failed
+     */
+    /* default */ TypeScriptWorker.RedactionRanges redact(Path filePath, String source, Path allowedRoot)
+            throws IOException {
+        if (isCircuitOpen()) {
+            throw new IOException("TypeScript worker pool circuit breaker is open");
+        }
+        TypeScriptWorker worker = borrow(allowedRoot);
+        if (worker == null) {
+            throw new IOException("No TypeScript worker available within " + borrowTimeoutMillis() + " ms");
+        }
+        try {
+            TypeScriptWorker.RedactionRanges result = worker.redact(filePath, source);
+            returnWorker(worker);
+            return result;
+        } catch (TypeScriptWorker.WorkerException e) {
+            worker.kill("redact error: " + e.getMessage());
+            replaceWorker(allowedRoot);
+            throw new IOException("TypeScript worker failed redacting " + filePath + ": " + e.getMessage(), e);
+        } catch (IOException e) {
+            worker.kill("redact I/O error: " + e.getMessage());
+            replaceWorker(allowedRoot);
+            throw e;
+        }
+    }
+
+    /**
      * Scans one TypeScript file by delegating to a pooled worker.
      *
      * @param filePath      absolute path of the file to scan

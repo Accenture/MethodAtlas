@@ -27,7 +27,7 @@ Many well-known AI assistants are end-user products — not developer APIs. When
 
 **Meta Llama** models have no official hosted API. They are available through third-party services: Groq hosts several Llama variants on free-tier LPU hardware (`groq`), OpenRouter aggregates Llama access across many providers (`openrouter`), and Ollama runs them locally (`ollama`).
 
-## Ollama — local inference
+## Ollama — local inference {#ollama--local-inference}
 
 **Provider value:** `ollama`
 

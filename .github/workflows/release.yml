@@ -8,13 +8,16 @@ on:
     tags:
       - 'release@*'
 
-permissions:
-  contents: write   # required to create GitHub Releases and upload assets
+permissions: read-all   # least privilege; write scopes are granted on the job only
 
 jobs:
   build-and-release:
     name: Build distribution and publish release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write       # required to create GitHub Releases and upload assets
+      id-token: write       # keyless build provenance: GitHub OIDC token for Sigstore (D-4)
+      attestations: write   # store the SLSA provenance attestation
 
     steps:
       - name: Checkout repository
@@ -193,6 +196,23 @@ jobs:
         run: |
           git-cliff --tag "$GITHUB_REF_NAME" \
                     --output /tmp/CHANGELOG_RELEASE.md
+
+      # -----------------------------------------------------------------------
+      # SLSA build provenance (owner decision D-4).  KEYLESS: the signing
+      # identity is the short-lived GitHub OIDC token of this workflow run,
+      # recorded in the public Sigstore transparency log.  No key material is
+      # held or managed (D-1 still forbids managed-key release signing).
+      # Every file published below is attested; verify a download with
+      #   gh attestation verify <file> --repo Accenture/MethodAtlas
+      # -----------------------------------------------------------------------
+      - name: Attest build provenance (keyless)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            build/distributions/*.zip
+            build/distributions/*.tar
+            build/reports/cyclonedx-direct/bom.json
+            methodatlas-docs/build/MethodAtlas-*.pdf
 
       # -----------------------------------------------------------------------
       # Publish release

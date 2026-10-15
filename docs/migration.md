@@ -21,6 +21,32 @@ MethodAtlas follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 A major version increment means at least one breaking change that requires
 action from the operator.
 
+## One-time cache and hash invalidation (6.1.0)
+
+Three correctness fixes change values that earlier runs persisted. Each is a **one-time** invalidation; afterwards behaviour is stable.
+
+| Area | What changed | Effect on existing artefacts | Action required |
+|---|---|---|---|
+| `content_hash` is OS-independent | Line endings are normalised to `\n` before hashing, for the Java (JavaParser pretty-printed text) and file-based (Python, TypeScript, Go, C#, PowerShell, ABAP, COBOL) plugins. Previously the Java hash used the platform line separator, and file-based plugins hashed the raw checkout bytes, so the same source hashed differently on Windows and Linux/macOS (or under `autocrlf`) | Hashes created on **Windows** (or from CRLF checkouts) change once. `-ai-cache` / `-ai-cache-out` files and evidence packs carrying old `content_hash` values no longer match, so the affected classes are re-queried | Regenerate the AI cache once; re-baseline any stored `content_hash` values. Hashes created on Linux/macOS with LF sources are unchanged |
+| AI cache key includes the taxonomy | The cache key is now `<prompt-catalogue signature>` + `\|` + `<taxonomy version>`. Previously a result classified under taxonomy A could be reused and stamped with taxonomy B's `ai_taxonomy_version` | Existing cache entries no longer match and are re-queried once. Legacy entries without a signature (including a legacy scan CSV given to `-ai-cache`) are no longer reused for classification at all, because they carry no taxonomy provenance | Rebuild the cache with one `-ai-cache-out` run; switching `-ai-taxonomy-mode` or editing a custom taxonomy file now also invalidates the cache |
+| Plugin order is fixed | Discovery providers are ordered by `pluginId()` instead of classpath order | Output order across languages may change once for multi-language scans | Re-baseline stored scan outputs |
+
+The SARIF `artifactLocation.uri` and the GitHub annotation `file=` path now use the real scan-root-relative source path instead of a synthesised `<fqcn-as-path>.java`; for non-Java languages (Go, C#, TypeScript, Python, ...) this corrects previously wrong locations.
+
+The `-eval-accuracy` macro-average F1 now covers every tag present in any prediction or label (scikit-learn convention), so hallucinated tags lower it; the figure can drop relative to earlier reports. The `-eval-min-f1` gate is unchanged (relevance F1 and micro tag F1).
+
+## Additive change: `ai_taxonomy_version` (6.1.0)
+
+This is an additive schema change, not a breaking one, but it moves the column count of AI-enabled outputs, so positional parsers must be checked.
+
+| Area | What changed | Action required |
+|---|---|---|
+| Scan CSV | AI-enabled scans (`-ai`) gain a final column `ai_taxonomy_version`, appended **after** every optional column (`ai_confidence`, `tag_ai_drift`/`tags_added`/`tags_removed`, `ai_cwe`); no existing column moved | None for name-based consumers (`DeltaReport` resolves columns by name); positional parsers must account for one new trailing column. The column is blank for rows without an AI result |
+| JSON / SARIF | `ai_taxonomy_version` (JSON field) and `aiTaxonomyVersion` (SARIF result property) on AI-classified records | None — new optional field |
+| GUI evidence CSV | Audit schema version 2 becomes **3**: `ai_taxonomy_version` is appended as the last column | None for name-based consumers; positional parsers must account for one new trailing column |
+
+The value identifies the taxonomy under which a classification was produced: `built-in/default@<revision>`, `built-in/optimized@<revision>`, or `sha256:<hex>` of the `-ai-taxonomy` file's bytes. See [Taxonomy](ai/taxonomy.md#taxonomy-version-stamp).
+
 ## Upgrading from 5.x to 6.x
 
 ### Summary of breaking changes
@@ -114,7 +140,7 @@ These additions are opt-in and do not affect existing pipelines:
 |---|---|---|
 | Credential detection | New `-detect-secrets` mode (a clean-room engine over 170+ vendor formats, with optional AI triage) and a `CredentialDetector` SPI | None — opt-in |
 | Custom LLM prompts | `-classification-prompt`, `-triage-prompt`, `-dedicated-triage-prompt`, and `-check-prompts`; the effective prompt is checksummed into the receipt | None — the built-in templates remain the default |
-| AI result cache | A unified JSON-Lines cache (`-ai-cache-out`) stores classifications **and** credential verdicts; one combined pass replaces the CSV-then-SARIF two-pass. `-ai-cache` still reads a legacy scan CSV | None required — legacy CSV caches are still read. Recommended: switch CI to a single `-ai-cache cache.json -ai-cache-out cache.json` pass; see [AI Result Caching](ai/caching.md) |
+| AI result cache | A unified JSON-Lines cache (`-ai-cache-out`) stores classifications **and** credential verdicts; one combined pass replaces the CSV-then-SARIF two-pass. `-ai-cache` still reads a legacy scan CSV, but from 6.1.0 its entries are no longer reused (no taxonomy provenance) | None required for reading; the first run re-queries the AI and writes a unified cache. Recommended: switch CI to a single `-ai-cache cache.json -ai-cache-out cache.json` pass; see [AI Result Caching](ai/caching.md) |
 
 ### Checklist: upgrading from 4.x to 5.x
 
@@ -155,7 +181,7 @@ The reviewer's broader tag changes — which the old GUI definition tried to fol
 | YAML key | New `properties:` key added | No action required; key is optional |
 | CLI flag | New `-property key=value` flag added | No action required; flag is optional |
 
-### `-test-annotation` → `-test-marker`
+### `-test-annotation` → `-test-marker` {#-test-annotation--test-marker}
 
 The CLI flag has been renamed from `-test-annotation` to `-test-marker` to
 reflect that the concept is language-neutral (annotations in Java, attributes

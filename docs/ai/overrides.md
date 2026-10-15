@@ -2,6 +2,8 @@
 
 The override file is a YAML document that records human-reviewed corrections to AI classifications. Overrides are applied after AI classification on every run, so decisions persist across re-runs without touching source code.
 
+Overrides double as the ground truth for measuring AI accuracy: see [AI Accuracy Evaluation](accuracy-evaluation.md).
+
 ## When to use
 
 | Scenario                                                             | Override action                                               |

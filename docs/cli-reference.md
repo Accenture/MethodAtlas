@@ -87,8 +87,9 @@ Credential triage requires `-ai`. Without it, deterministic candidates are emitt
 | `-ai-api-key-env <name>` | Read API key from an environment variable | — |
 | `-ai-taxonomy <path>` | Load taxonomy text from an external file | Built-in taxonomy |
 | `-ai-taxonomy-mode <mode>` | Select built-in taxonomy variant: `default` or `optimized` | `default` |
-| `-ai-cache <file>` | Read a unified AI cache (JSON Lines) — or a legacy scan CSV — from a previous run; a class whose content hash **and** prompt-catalogue signature match is reused (classification *and* any credential verdicts) without calling the provider | — |
+| `-ai-cache <file>` | Read a unified AI cache (JSON Lines) — or a legacy scan CSV — from a previous run; a class whose content hash **and** prompt-catalogue signature (which includes the taxonomy version) match is reused (classification *and* any credential verdicts) without calling the provider | — |
 | `-ai-cache-out <file>` | Write the unified AI cache (JSON Lines) after the scan. Pair with `-ai-cache` at the same path for an incremental read-update cache — one combined run caches both classification and credential triage, with no two-pass workaround | — |
+| `-redact-comments` (alias `-ai-redact-comments`) | Blank every comment in the class source before it is sent to the AI provider (data minimisation). Fail-closed: the run aborts with a non-zero exit if any scanned file has no comment redactor. Affects only the AI payload; source files and `-apply-tags` write-back are untouched | Off |
 | `-ai-max-class-chars <count>` | Skip AI for classes larger than this character count | `40000` |
 | `-ai-timeout-sec <seconds>` | Request timeout for provider calls | `90` |
 | `-ai-max-retries <count>` | Retry limit for AI operations | `1` |
@@ -104,6 +105,14 @@ Override the prompts MethodAtlas sends to the AI provider. Each is a plain-text 
 | `-triage-prompt <file>` | Override the folded credential-triage appendix (combined mode) | Built-in |
 | `-dedicated-triage-prompt <file>` | Override the standalone credential-triage prompt (separate mode) | Built-in |
 | `-check-prompts` | Validate the templates (defaults, or the overrides passed alongside), print each one's SHA-256, and exit; non-zero exit if any is invalid. A utility mode — no scan runs | — |
+
+## Accuracy evaluation options
+
+| Argument | Meaning | Default |
+| --- | --- | --- |
+| `-eval-accuracy <labels.yaml> <predictions.csv>` | Score the AI classification in a `-ai` scan CSV against human-reviewed labels (the `-override-file` YAML format) and report precision, recall, F1 and support per tag and for `securityRelevant`, then exit. An offline utility mode; all other flags are ignored. See [AI Accuracy Evaluation](ai/accuracy-evaluation.md) | — |
+| `-eval-format markdown\|json` | Report format | `markdown` |
+| `-eval-min-f1 <0..1>` | Exit `1` when the `securityRelevant` F1 or the micro-averaged tag F1 is below the threshold, or when neither can be computed | no gate |
 
 ## Manual AI options
 
@@ -155,6 +164,7 @@ ai:
   timeoutSec: 90
   maxRetries: 1
   confidence: false
+  redactComments: false      # blank comments in the AI payload; fail-closed (see -redact-comments)
   apiVersion: 2024-02-01   # Azure OpenAI REST API version (azure_openai only)
 driftDetect: false       # append tag_ai_drift column to CSV/plain output  (default: false)
 includeNonSecurity: false  # include non-security methods in SARIF output  (default: false)
@@ -202,6 +212,7 @@ The JSON representation differs from CSV in the following ways:
 - `tags` and `ai_tags` are JSON arrays, not semicolon-separated strings.
 - Numeric fields (`loc`, `ai_interaction_score`, `ai_confidence`) are JSON numbers.
 - `ai_security_relevant` is a JSON boolean.
+- `ai_taxonomy_version` (the taxonomy the record was classified under) is present on AI-classified records and omitted otherwise; in CSV it is always the last column.
 - Optional columns are **omitted entirely** when their flag is not set, rather than being left blank.
 
 Example output without AI enrichment:
@@ -237,7 +248,8 @@ Example output with `-ai -ai-confidence`:
     "ai_tags": ["security", "crypto"],
     "ai_reason": "The test exercises a crypto-related security property.",
     "ai_interaction_score": 0.0,
-    "ai_confidence": 0.9
+    "ai_confidence": 0.9,
+    "ai_taxonomy_version": "built-in/default@1"
   }
 ]
 ```
@@ -661,7 +673,7 @@ Apply-tags-from-csv complete: 7 change(s) in 2 file(s); 0 mismatch(es) skipped. 
 
 See [Apply Tags from CSV](usage-modes/apply-tags-from-csv.md) for the complete workflow, mismatch handling details, and CI integration.
 
-### `-mismatch-limit <n>`
+### `-mismatch-limit <n>` {#-mismatch-limit}
 
 Used with `-apply-tags-from-csv`. Controls what happens when the CSV and the current source tree disagree (a method appears in one but not the other):
 
@@ -877,6 +889,18 @@ This flag is compatible with all other flags including `-detect-secrets`. It can
 
 Enables AI enrichment. Without this flag, MethodAtlas behaves as a pure static scanner. When present, a suggestion engine is initialized before scanning begins.
 
+### `-redact-comments`
+
+Replaces every comment in the class source with spaces before the source is sent to an AI provider (or written to a `-manual-prepare` work file). Newlines and the character count are preserved, so line numbers and offsets are unchanged. YAML equivalent: `ai.redactComments: true`; the CLI flag wins over YAML. `-ai-redact-comments` is an alias.
+
+**Fail-closed.** If any scanned file belongs to a language without a registered comment redactor, or a redactor cannot guarantee redaction, MethodAtlas aborts with a non-zero exit code and a message naming the file and language. The check runs for every class of a scan root before the first provider call for that root (and, for `-manual-prepare`, before any work file is written). With several scan roots the guarantee is **per scan root**, not global: root N can abort after root N-1 has already produced its (redacted) output, but no un-redacted source ever reaches the provider. The same all-files-first pre-flight protects credential triage (`-detect-secrets` with AI), so a single unredactable file aborts before any triage call. Every redactor result is also verified (same length, line terminators untouched, only blanking), and a redactor that throws or returns a malformed result aborts the run the same way. `-redact-comments` therefore requires a redactor for every scanned language. Without `-ai` or `-manual-prepare` nothing is sent and the flag has no effect.
+
+Only the AI payload is affected. Source files on disk, `-apply-tags` write-back and discovery are untouched. Because the `-content-hash` and the AI cache key are computed on the redacted text, a hash produced with `-redact-comments` differs from one produced without it, and cache entries are not shared between the two modes. String literals and Python docstrings are not comments and are not redacted. **Supported languages:** Java (Javadoc, block and `//` comments, including inline and orphan comments; string literals and text blocks are left intact); C# (`//`, `///` XML-doc and `/* */` comments; regular, verbatim, interpolated and raw strings and char literals are left intact; preprocessor directives are not comments and keep their keyword and operands (`#if`, `#pragma`, `#define`, `#nullable`, the file name of `#line`/`#pragma checksum`), but the free text of `#region`/`#endregion` (the region name) and of `#error`/`#warning` (the message) is blanked, keeping only the keyword, and a `//` comment trailing a directive like `#if X // note` is blanked); Go (`//` and `/* */` comments; interpreted and raw strings and runes are left intact); PowerShell (`#` and `<# #>` comments including comment-based help; single-, double- and here-strings are left intact; a `#requires` line is kept only if it matches the strict `#requires` grammar - `-Version`, `-PSEdition`, `-RunAsAdministrator`, `-Modules`, `-Assembly`, `-ShellId` with bare-name or module-hashtable operands and nothing else - any other `#requires ...` text is a comment and is blanked). The C#, Go and PowerShell redactors are lexer-based and fail closed on anything they cannot classify with certainty (an unterminated string or comment, a comment marker inside a C# interpolation hole, a C# raw string with four or more quotes, a typographic quote in a PowerShell string, a `#` or `<#` inside a `$( ... )` sub-expression of a PowerShell double-quoted or here-string); TypeScript/JavaScript (`//` line, `/* */` block and JSDoc comments and a leading `#!` hashbang line; string, template (including `${...}` substitutions) and regular-expression literals and JSX text are left intact; needs Node.js 18+, otherwise the run aborts); Python (`#` comments including shebang and encoding lines; string and f-string literals are left intact, **docstrings are strings, not comments, and are not redacted**; needs Python 3.8+, otherwise the run aborts). The TypeScript/JavaScript and Python redactors ask the plugin's scanner subprocess (typescript-estree, respectively the standard-library `tokenize`) for the comment positions, blank them in-process and re-check the result; they fail closed on source that does not parse or tokenize. **Fail-closed by design:** ABAP and COBOL have no redactor and always abort under this flag. Supported languages are therefore Java, C#, Go, PowerShell, TypeScript/JavaScript and Python; ABAP and COBOL are fail-closed. When the Node.js or Python runtime a redactor needs is missing, a WARNING naming the runtime is logged and the run aborts (fail-closed).
+
+**Credential detection (`-detect-secrets`) with AI.** The deterministic credential report (CSV/SARIF, produced locally, no AI) always scans the full original source and lists secrets found inside comments - that is the detector's value. With `-redact-comments`, however, source sent to the AI for triage is redacted (folded into the classification call or in a separate `-secrets-separate-llm`/`-secrets-include` call), and a candidate located inside a comment is **not sent to the AI for triage**: its value is not placed in the prompt and the candidate stays in the local report without a triage verdict. In short: secrets detected inside comments are still reported locally but are NOT sent to the AI for triage.
+
+**GUI.** The desktop GUI does not support `-redact-comments`; see [Data governance](concepts/data-governance.md#comment-redaction-redact-comments). The reproducibility receipt records the flag as `inputs.redactComments`.
+
 ### `-ai-confidence`
 
 Instructs the model to include a confidence score for each classification. The score appears as `ai_confidence` in CSV output (or `AI_CONFIDENCE=` in plain mode). Scores range from `0.0` (not security-relevant) to `1.0` (explicitly and unambiguously tests a named security property). See [Confidence scoring](ai/confidence.md) for the full interpretation table.
@@ -995,7 +1019,7 @@ sarifOmitScores: true
 
 The interaction score and threshold are always present in the `security-test/placebo` message regardless of this flag. The score and threshold *are* the finding — a placebo finding without them would not tell the operator what to investigate. Only the supplementary confidence line is gated by `-sarif-omit-scores`.
 
-### `-ai-cache <file>`
+### `-ai-cache <file>` {#-ai-cache}
 
 Loads a previous MethodAtlas scan output as an AI result cache. Before calling the AI provider for a class, MethodAtlas computes the class's SHA-256 content fingerprint and checks whether that hash appears in `<file>`. If it does, the stored classification is reused directly — no API call is made. Classes with a changed or new hash are classified normally.
 
@@ -1009,7 +1033,7 @@ Loads a previous MethodAtlas scan output as an AI result cache. Before calling t
 
 The cache file must have been produced with `-content-hash -ai`; if either column is absent the cache degrades silently to a no-op. See [Result Caching](ai/caching.md) for a CI pipeline example.
 
-### `-ai-provider <provider>`
+### `-ai-provider <provider>` {#-ai-provider}
 
 Selects the provider implementation. Values are case-insensitive.
 
@@ -1030,7 +1054,7 @@ Selects the provider implementation. Values are case-insensitive.
 
 Specifies the model name passed to the provider. For Ollama the name must match a downloaded model. For hosted providers it is the model identifier returned by the provider's API.
 
-### `-ai-base-url <url>`
+### `-ai-base-url <url>` {#-ai-base-url}
 
 Overrides the provider's default base URL. Useful for self-hosted gateways, proxies, or non-default local deployments.
 
@@ -1061,9 +1085,11 @@ export OPENROUTER_API_KEY=sk-...
 
 If neither `-ai-api-key` nor `-ai-api-key-env` is provided, providers that require hosted authentication will be unavailable.
 
-### `-ai-taxonomy <path>`
+### `-ai-taxonomy <path>` {#-ai-taxonomy}
 
 Loads taxonomy text from an external file instead of the built-in taxonomy. The file contents replace the taxonomy text verbatim. When combined with `-ai-taxonomy-mode`, the external file takes precedence.
+
+Every AI-classified record is stamped with a taxonomy version (`ai_taxonomy_version`). For a custom file it is `sha256:<hex>` of the file's raw bytes, so any edit to the file changes the stamp; the same digest is recorded in the reproducibility receipt as `taxonomyFileSha256`. See [Taxonomy version stamp](ai/taxonomy.md#taxonomy-version-stamp).
 
 ### `-ai-taxonomy-mode <mode>`
 
@@ -1072,7 +1098,9 @@ Selects a built-in taxonomy variant:
 - `default` — descriptive, human-readable; suitable for teams building familiarity with the taxonomy
 - `optimized` — compact; reduces prompt size and tends to improve classification reliability with smaller models
 
-### `-ai-max-class-chars <count>`
+The selected variant's revision is stamped into every AI-classified record as `ai_taxonomy_version` (`built-in/default@1` or `built-in/optimized@1`).
+
+### `-ai-max-class-chars <count>` {#-ai-max-class-chars}
 
 Sets a ceiling on the serialized class size eligible for AI analysis. If a class source exceeds this number of characters, AI classification is skipped for that class; the scan continues and the row is emitted with blank AI columns.
 
@@ -1084,11 +1112,11 @@ Sets the timeout applied to each AI provider request. The default is 90 seconds.
 
 Sets the retry limit for failed AI operations. The default is 1.
 
-### `-manual-prepare <workdir> <responsedir>`
+### `-manual-prepare <workdir> <responsedir>` {#-manual-prepare}
 
 Runs the prepare phase of the manual AI workflow. For each test class MethodAtlas writes a work file containing the AI prompt and creates an empty response placeholder. No CSV is emitted. See [Manual AI workflow](usage-modes/manual.md) for the full workflow.
 
-### `-manual-consume <workdir> <responsedir>`
+### `-manual-consume <workdir> <responsedir>` {#-manual-consume}
 
 Runs the consume phase. MethodAtlas reads operator-filled response files and merges the AI JSON into the output CSV. Missing or empty response files are treated as absent AI data; the scan continues.
 
@@ -1176,6 +1204,9 @@ The keyring holds the private key in clear text. Keep it out of version control,
 | `1` | `-apply-tags-from-csv` aborted because the mismatch count reached or exceeded `-mismatch-limit` |
 | `1` | A source file could not be read or written during `-apply-tags-from-csv` |
 | `1` | A required argument value is missing or malformed (printed to stderr before exit) |
+| `1` | `-eval-accuracy` with `-eval-min-f1`: the F1 is below the threshold, or no labelled data could be evaluated |
+| `1` | `-eval-accuracy` with `-eval-min-f1`: the F1 is below the threshold, or no labelled data could be evaluated |
+| `1` | `-eval-accuracy` with `-eval-min-f1`: the F1 is below the threshold, or no labelled data could be evaluated |
 | `2` | `-emit-coverage` was used without `-coverage-mapping`, or the supplied mapping file is missing or fails schema validation |
 | `2` | `-evidence-pack` was given an unrecognised framework token |
 | `2` | `-gen-signing-key` was given no keyring path or an unsupported `-key-algo` |

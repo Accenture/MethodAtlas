@@ -72,7 +72,7 @@
  * <ul>
  * <li><b>CSV (default)</b> <pre>{@code fqcn,method,loc,tags,display_name}</pre> or, when AI
  * enrichment is enabled:
- * <pre>{@code fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score}</pre>
+ * <pre>{@code fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score,ai_taxonomy_version}</pre>
  * </li>
  * <li><b>Plain text</b>, enabled using the {@code -plain} command-line option
  * </li>

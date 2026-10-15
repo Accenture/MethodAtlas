@@ -26,6 +26,7 @@ import org.egothor.methodatlas.AiResultCache;
 import org.egothor.methodatlas.CliConfig;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
+import org.egothor.methodatlas.command.AiRuntimeBuilder;
 import org.egothor.methodatlas.command.ContentHasher;
 import org.egothor.methodatlas.command.ScanOrchestrator;
 import org.egothor.methodatlas.emit.ClassificationOverride;
@@ -241,15 +242,17 @@ public final class EvidencePackCommand {
         boolean confidenceEnabled = aiEnabled && cliConfig.aiOptions().confidence();
         String filePrefix = ContentHasher.filePrefix(roots);
 
+        String taxonomyVersion = new AiRuntimeBuilder().resolveTaxonomyVersion(cliConfig.aiOptions(), aiEnabled);
+
         SarifEmitter sarifEmitter = new SarifEmitter(aiEnabled, confidenceEnabled, filePrefix,
-                !cliConfig.sarifOmitScores());
+                !cliConfig.sarifOmitScores(), taxonomyVersion);
 
         try (PrintWriter csvWriter = new PrintWriter(
                 new OutputStreamWriter(
                         Files.newOutputStream(outputDir.resolve(CSV_FILE)),
                         StandardCharsets.UTF_8), true)) {
             OutputEmitter csvEmitter = new OutputEmitter(csvWriter, aiEnabled, confidenceEnabled,
-                    cliConfig.contentHash(), cliConfig.driftDetect(), false, false);
+                    cliConfig.contentHash(), cliConfig.driftDetect(), false, false, taxonomyVersion);
             csvEmitter.emitCsvHeader(OutputMode.CSV);
 
             TestMethodSink csvSink = (fqcn, method, beginLine, loc, contentHash, tags,

@@ -1,6 +1,7 @@
 package org.egothor.methodatlas.gui;
 
 import org.egothor.methodatlas.api.SourcePatcher;
+import org.egothor.methodatlas.command.ContentHasher;
 import org.egothor.methodatlas.api.TestDiscoveryConfig;
 import org.egothor.methodatlas.gui.dialog.SettingsDialog;
 import org.egothor.methodatlas.gui.model.AiProfile;
@@ -417,6 +418,14 @@ public final class MainWindow extends JFrame {
             }
         }
 
+        // Hash the class as scanned, before the patch rewrites the file, with the
+        // same hashing the CLI emits as content_hash.
+        Map<MethodEntry, String> hashes = new LinkedHashMap<>();
+        for (MethodEntry e : entries) {
+            hashes.put(e, e.discovered().sourceContent().get()
+                    .map(ContentHasher::hashClass).orElse(null));
+        }
+
         StringWriter sw = new StringWriter();
         try {
             patcher.patch(filePath, tagsToApply, displayNames, new PrintWriter(sw));
@@ -428,7 +437,9 @@ public final class MainWindow extends JFrame {
                         e.discovered().loc(),
                         e.getPendingTags(),
                         e.getPendingDisplayName(),
-                        e.suggestion()));
+                        e.suggestion(),
+                        hashes.get(e),
+                        AnalysisService.taxonomyVersion()));
                 e.setAppliedTags(e.getPendingTags());
                 e.clearStagedPatch();
                 model.notifyEntryChanged(e);

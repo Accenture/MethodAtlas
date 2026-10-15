@@ -39,10 +39,12 @@ final class ReceiptBuilder {
      * v2 (4.1.0) replaced the single {@code inputs.promptTemplateHash} of v1 with
      * three per-template hashes ({@code classificationPromptHash},
      * {@code triageAppendixPromptHash}, {@code dedicatedTriagePromptHash}) and folds
-     * all three into {@code configHash}. See {@code docs/usage-modes/reproducibility-receipts.md}.
+     * all three into {@code configHash}. v3 adds {@code inputs.redactComments} (also
+     * folded into {@code configHash}), because comment redaction changes the bytes
+     * sent to the provider. See {@code docs/usage-modes/reproducibility-receipts.md}.
      * </p>
      */
-    private static final String SCHEMA_VERSION = "2";
+    private static final String SCHEMA_VERSION = "3";
 
     /** Algorithm string passed to {@link MessageDigest#getInstance(String)}. */
     private static final String SHA256_ALGO = "SHA-256";
@@ -76,6 +78,8 @@ final class ReceiptBuilder {
     private static final String KEY_METHOD_ATLAS_VERSION = "methodAtlasVersion";
     /** TreeMap key for the override file fingerprint. */
     private static final String KEY_OVERRIDE_FILE_SHA = "overrideFileSha256";
+    /** TreeMap key for the comment-redaction flag. */
+    private static final String KEY_REDACT_COMMENTS = "redactComments";
     /** TreeMap key for the effective method-classification prompt template hash. */
     private static final String KEY_CLASSIFICATION_PROMPT = "classificationPromptHash";
     /** TreeMap key for the effective folded credential-triage appendix template hash. */
@@ -149,11 +153,10 @@ final class ReceiptBuilder {
 
         ReceiptInputs inputs = new ReceiptInputs(taxonomyArtifact, builtInTaxonomy,
                 overrideArtifact, aiCacheArtifact, aiProvider, aiModel,
-                classificationPromptHash, triageAppendixPromptHash, dedicatedTriagePromptHash);
+                classificationPromptHash, triageAppendixPromptHash, dedicatedTriagePromptHash,
+                ai.redactComments());
 
-        String configHash = computeConfigHash(toolVersion, ai, overrideArtifact, aiCacheArtifact,
-                taxonomyArtifact, builtInTaxonomy,
-                classificationPromptHash, triageAppendixPromptHash, dedicatedTriagePromptHash);
+        String configHash = computeConfigHash(toolVersion, inputs);
 
         return new ReproducibilityReceipt(
                 SCHEMA_VERSION,
@@ -225,32 +228,22 @@ final class ReceiptBuilder {
      * Produces the SHA-256 hex of the canonical {@code key=value} buffer.
      *
      * @param toolVersion        MethodAtlas tool version string
-     * @param ai                 parsed AI options
-     * @param overrideArtifact   override file artefact, or {@code null}
-     * @param aiCacheArtifact    AI cache file artefact, or {@code null}
-     * @param taxonomyArtifact   taxonomy file artefact, or {@code null}
-     * @param builtInTaxonomy    built-in taxonomy mode name, or {@code null}
-     * @param classificationPromptHash effective classification template hash, or {@code null}
-     * @param triageAppendixPromptHash effective folded triage-appendix template hash, or {@code null}
-     * @param dedicatedTriagePromptHash effective standalone triage template hash, or {@code null}
+     * @param in                 the receipt inputs section whose fields are fingerprinted
      * @return 64-character lowercase hex SHA-256
      */
-    private static String computeConfigHash(String toolVersion, AiOptions ai,
-            FileArtifact overrideArtifact, FileArtifact aiCacheArtifact,
-            FileArtifact taxonomyArtifact, String builtInTaxonomy,
-            String classificationPromptHash, String triageAppendixPromptHash,
-            String dedicatedTriagePromptHash) {
+    private static String computeConfigHash(String toolVersion, ReceiptInputs in) {
         Map<String, String> keys = new TreeMap<>();
-        keys.put(KEY_AI_CACHE_FILE_SHA, shaOrEmpty(aiCacheArtifact));
-        keys.put(KEY_AI_MODEL, ai.enabled() && ai.modelName() != null ? ai.modelName() : EMPTY);
-        keys.put(KEY_AI_PROVIDER, ai.enabled() ? ai.provider().name() : EMPTY);
-        keys.put(KEY_BUILT_IN_TAXONOMY, builtInTaxonomy == null ? EMPTY : builtInTaxonomy);
-        keys.put(KEY_CLASSIFICATION_PROMPT, classificationPromptHash == null ? EMPTY : classificationPromptHash);
-        keys.put(KEY_DEDICATED_TRIAGE_PROMPT, dedicatedTriagePromptHash == null ? EMPTY : dedicatedTriagePromptHash);
+        keys.put(KEY_AI_CACHE_FILE_SHA, shaOrEmpty(in.aiCacheFile()));
+        keys.put(KEY_AI_MODEL, orEmpty(in.aiModel()));
+        keys.put(KEY_AI_PROVIDER, orEmpty(in.aiProvider()));
+        keys.put(KEY_BUILT_IN_TAXONOMY, orEmpty(in.builtInTaxonomy()));
+        keys.put(KEY_CLASSIFICATION_PROMPT, orEmpty(in.classificationPromptHash()));
+        keys.put(KEY_DEDICATED_TRIAGE_PROMPT, orEmpty(in.dedicatedTriagePromptHash()));
         keys.put(KEY_METHOD_ATLAS_VERSION, toolVersion);
-        keys.put(KEY_OVERRIDE_FILE_SHA, shaOrEmpty(overrideArtifact));
-        keys.put(KEY_TAXONOMY_FILE_SHA, shaOrEmpty(taxonomyArtifact));
-        keys.put(KEY_TRIAGE_APPENDIX_PROMPT, triageAppendixPromptHash == null ? EMPTY : triageAppendixPromptHash);
+        keys.put(KEY_OVERRIDE_FILE_SHA, shaOrEmpty(in.overrideFile()));
+        keys.put(KEY_REDACT_COMMENTS, Boolean.toString(in.redactComments()));
+        keys.put(KEY_TAXONOMY_FILE_SHA, shaOrEmpty(in.taxonomyFile()));
+        keys.put(KEY_TRIAGE_APPENDIX_PROMPT, orEmpty(in.triageAppendixPromptHash()));
 
         StringBuilder canonical = new StringBuilder(CANONICAL_BUFFER_CAPACITY);
         keys.forEach((k, v) -> canonical.append(k).append(CONFIG_HASH_KV_SEP)
@@ -272,6 +265,10 @@ final class ReceiptBuilder {
      * @param artifact artefact to inspect; may be {@code null}
      * @return SHA-256 hex or {@code ""}
      */
+    private static String orEmpty(String value) {
+        return value == null ? EMPTY : value;
+    }
+
     private static String shaOrEmpty(FileArtifact artifact) {
         return artifact == null ? EMPTY : artifact.sha256();
     }

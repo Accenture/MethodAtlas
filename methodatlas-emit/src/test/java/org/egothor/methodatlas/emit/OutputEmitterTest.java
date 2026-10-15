@@ -204,7 +204,7 @@ class OutputEmitterTest {
     void emitCsvHeader_csvMode_withDriftDetect_appendsTagAiDriftColumn() {
         String header = captureOutput(emitter -> emitter.emitCsvHeader(OutputMode.CSV),
                 true, false, false, true).trim();
-        assertTrue(header.endsWith(",tag_ai_drift,tags_added,tags_removed"),
+        assertTrue(header.endsWith(",tag_ai_drift,tags_added,tags_removed,ai_taxonomy_version"),
                 "drift detection appends tag_ai_drift then tags_added and tags_removed: " + header);
     }
 
@@ -298,9 +298,10 @@ class OutputEmitterTest {
         assertTrue(line.contains("SECURITY: auth - login"), line);
         assertTrue(line.contains("security;auth"), line);
         assertTrue(line.contains("Validates auth"), line);
-        // interaction score present, no confidence column
-        assertTrue(line.endsWith(",0.0"), line);
-        assertFalse(line.endsWith(",0.9"), line);
+        // interaction score present, no confidence column; the trailing empty
+        // field is ai_taxonomy_version (no version configured by this helper)
+        assertTrue(line.endsWith(",0.0,"), line);
+        assertFalse(line.endsWith(",0.9,"), line);
     }
 
     @Test
@@ -313,8 +314,8 @@ class OutputEmitterTest {
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
                         List.of(), "", suggestion, null),
                 true, true, false);
-        // column order: ...,ai_reason,ai_interaction_score,ai_confidence
-        assertTrue(output.trim().endsWith(",0.9"), output);
+        // column order: ...,ai_reason,ai_interaction_score,ai_confidence,ai_taxonomy_version
+        assertTrue(output.trim().endsWith(",0.9,"), output);
     }
 
     @Test
@@ -325,19 +326,20 @@ class OutputEmitterTest {
                 emitter -> emitter.emit(OutputMode.CSV, "com.acme.FooTest", "testFoo", 5, null,
                         List.of(), "", null, null),
                 true, false, false);
-        // Format: fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,ai_interaction_score
-        assertEquals("com.acme.FooTest,testFoo,5,,,,,,,", output.trim());
+        // Format: fqcn,method,loc,tags,display_name,ai_security_relevant,ai_display_name,ai_tags,ai_reason,
+        // ai_interaction_score,ai_taxonomy_version
+        assertEquals("com.acme.FooTest,testFoo,5,,,,,,,,", output.trim());
     }
 
     // -------------------------------------------------------------------------
     // emit() – CSV mode with drift detection
     // -------------------------------------------------------------------------
 
-    // Helper: drift-detect rows end with ...,tag_ai_drift,tags_added,tags_removed.
+    // Helper: drift-detect rows end with ...,tag_ai_drift,tags_added,tags_removed,ai_taxonomy_version.
     // Tag values here contain no commas, so a plain split is safe.
     private static String[] tailThree(String csvRow) {
         String[] f = csvRow.split(",", -1);
-        return new String[] { f[f.length - 3], f[f.length - 2], f[f.length - 1] };
+        return new String[] { f[f.length - 4], f[f.length - 3], f[f.length - 2] };
     }
 
     @Test

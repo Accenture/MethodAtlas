@@ -21,7 +21,9 @@ import org.egothor.methodatlas.emit.ClassificationOverride;
 import org.egothor.methodatlas.emit.OutputMode;
 import org.egothor.methodatlas.command.ApplyTagsFromCsvCommand;
 import org.egothor.methodatlas.command.CheckPromptsCommand;
+import org.egothor.methodatlas.command.CommentRedaction;
 import org.egothor.methodatlas.command.DiffCommand;
+import org.egothor.methodatlas.command.EvalAccuracyCommand;
 import org.egothor.methodatlas.command.GitHubAnnotationsCommand;
 import org.egothor.methodatlas.command.JsonCommand;
 import org.egothor.methodatlas.command.ManualPrepareCommand;
@@ -30,6 +32,7 @@ import org.egothor.methodatlas.command.PluginLoader;
 import org.egothor.methodatlas.command.SarifCommand;
 import org.egothor.methodatlas.command.ScanCommand;
 import org.egothor.methodatlas.command.ScanOrchestrator;
+import org.egothor.methodatlas.command.RedactionAbortedException;
 import org.egothor.methodatlas.coverage.CoverageFacade;
 import org.egothor.methodatlas.attest.AttestFacade;
 import org.egothor.methodatlas.evidencereport.EvidenceReportFacade;
@@ -307,6 +310,9 @@ public final class MethodAtlasApp {
             if (GenSigningKeyCommand.FLAG_GEN_SIGNING_KEY.equals(args[i])) {
                 return GenSigningKeyCommand.run(args, out);
             }
+            if (EvalAccuracyCommand.FLAG_EVAL_ACCURACY.equals(args[i])) {
+                return EvalAccuracyCommand.fromArgs(args).execute(out);
+            }
             if (CheckPromptsCommand.FLAG_CHECK_PROMPTS.equals(args[i])) {
                 return CheckPromptsCommand.fromArgs(args).execute(out);
             }
@@ -348,6 +354,11 @@ public final class MethodAtlasApp {
             writeSideCarReports(cliConfig, version, coverageHandle, gapHandle, evidenceHandle,
                     attestHandle);
             return exit;
+        } catch (RedactionAbortedException e) {
+            // Fail-closed by design: a clear one-line reason (file and language), no stack
+            // trace, and no side-car reports for an aborted run.
+            System.err.println("methodatlas: " + e.getMessage());
+            return EXIT_RUN_ERROR;
         } finally {
             ScanRunContext.clear();
         }
@@ -646,8 +657,11 @@ public final class MethodAtlasApp {
         PluginLoader pluginLoader = new PluginLoader();
         java.util.Optional<org.egothor.methodatlas.emit.TestMethodSink> extraSink =
                 buildExtraSink(coverageHandle, gapHandle, evidenceHandle, attestHandle);
+        CommentRedaction redaction = cliConfig.aiOptions().redactComments()
+                ? new CommentRedaction(pluginLoader.loadRedactors(discoveryConfig))
+                : CommentRedaction.none();
         ScanOrchestrator scanOrchestrator = new ScanOrchestrator(pluginLoader, extraSink,
-                cliConfig.parallelAi());
+                cliConfig.parallelAi(), redaction);
 
         // Manual prepare phase: write AI prompt work files; no CSV output.
         if (cliConfig.manualMode() instanceof ManualMode.Prepare prepare) {

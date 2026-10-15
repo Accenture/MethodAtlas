@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import tools.jackson.databind.ObjectMapper;
@@ -42,7 +43,7 @@ class AuditWriterTest {
     private static SavedEntry entry(String fqcn, String method, int loc,
             List<String> appliedTags, String displayName,
             AiMethodSuggestion suggestion) {
-        return new SavedEntry(fqcn, method, loc, appliedTags, displayName, suggestion);
+        return new SavedEntry(fqcn, method, loc, appliedTags, displayName, suggestion, null);
     }
 
     private static AiMethodSuggestion suggestion(boolean securityRelevant,
@@ -92,9 +93,30 @@ class AuditWriterTest {
         assertEquals(
                 "fqcn,method,loc,tags,display_name,content_hash,"
                         + "ai_security_relevant,ai_display_name,ai_tags,ai_reason,"
-                        + "ai_interaction_score,ai_confidence,tag_ai_drift,tags_added,tags_removed",
+                        + "ai_interaction_score,ai_confidence,tag_ai_drift,tags_added,tags_removed,"
+                        + "ai_taxonomy_version",
                 firstLine,
-                "Header must be the DeltaReport schema plus the tags_added/tags_removed columns");
+                "Header must be the DeltaReport schema plus tags_added/tags_removed and, last, "
+                        + "ai_taxonomy_version");
+    }
+
+    @Test
+    void evidenceCsv_stampsTaxonomyVersionOnAiRowsOnly(@TempDir Path tempDir) throws IOException {
+        SavedEntry withAi = new SavedEntry("c", "withAi", 5, List.of("security"), null,
+                suggestion(true, List.of("security"), "r", 0.0), null, "built-in/default@1");
+        SavedEntry withoutAi = new SavedEntry("c", "noAi", 5, List.of("security"), null,
+                null, null, "built-in/default@1");
+        SavedEntry unversioned = entry("c", "unversioned", 5, List.of("security"), null,
+                suggestion(true, List.of("security"), "r", 0.0));
+
+        AuditWriter.write(tempDir, List.of(withAi, withoutAi, unversioned), "");
+
+        List<String> lines = Files.readAllLines(findEvidenceCsv(tempDir.resolve(".methodatlas")),
+                StandardCharsets.UTF_8);
+        assertTrue(lines.get(1).endsWith(",built-in/default@1"), lines.get(1));
+        assertTrue(lines.get(2).endsWith(","), "row without AI suggestion must be blank: " + lines.get(2));
+        assertFalse(lines.get(2).contains("built-in"), lines.get(2));
+        assertTrue(lines.get(3).endsWith(","), "unversioned row must be blank: " + lines.get(3));
     }
 
     @Test
@@ -349,6 +371,221 @@ class AuditWriterTest {
                 "Method name with non-ASCII characters must round-trip via UTF-8");
         assertTrue(csv.contains("héllo wörld"),
                 "AI reason with non-ASCII characters must round-trip via UTF-8");
+    }
+
+    // ── content_hash ─────────────────────────────────────────────────────────
+
+    private static final String HASH_ABC =
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    private static final int COL_CONTENT_HASH = 5;
+
+    private static SavedEntry hashed(String hash) {
+        return new SavedEntry("c", "m", 1, List.of("security"), null, null, hash);
+    }
+
+    @Test
+    void evidenceCsv_contentHashIsWrittenVerbatim(@TempDir Path tempDir) throws IOException {
+        AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "");
+
+        assertEquals(HASH_ABC, dataFields(tempDir)[COL_CONTENT_HASH],
+                "content_hash must carry the supplied per-class SHA-256");
+    }
+
+    @Test
+    void evidenceCsv_contentHashBlankWhenSourceUnavailable(@TempDir Path tempDir) throws IOException {
+        AuditWriter.write(tempDir, List.of(hashed(null)), "");
+
+        assertEquals("", dataFields(tempDir)[COL_CONTENT_HASH],
+                "content_hash must be blank when the class source was unavailable");
+    }
+
+    // ── SHA-256 manifest ─────────────────────────────────────────────────────
+
+    private static String sha256(Path file) throws Exception {
+        return java.util.HexFormat.of().formatHex(
+                java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)));
+    }
+
+    private static List<String> manifestLines(Path tempDir) throws IOException {
+        return Files.readAllLines(tempDir.resolve(".methodatlas").resolve(AuditWriter.MANIFEST_FILE),
+                StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void manifest_recordsCorrectSha256OfCsvAndOverrides(@TempDir Path tempDir) throws Exception {
+        AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "Jane");
+
+        Path dir = tempDir.resolve(".methodatlas");
+        Path csv = findEvidenceCsv(dir);
+        List<String> expected = List.of(
+                sha256(csv) + "  " + csv.getFileName(),
+                sha256(dir.resolve("overrides.yaml")) + "  overrides.yaml");
+        assertEquals(expected.stream().sorted(
+                (a, b) -> a.substring(66).compareTo(b.substring(66))).toList(),
+                manifestLines(tempDir),
+                "Manifest must list sha256sum-style lines sorted by file name");
+    }
+
+    @Test
+    void manifest_keepsOldCsvDigestAndRefreshesOverrides(@TempDir Path tempDir) throws Exception {
+        java.time.ZoneId zone = java.time.ZoneId.of("UTC");
+        AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "",
+                java.time.Clock.fixed(java.time.Instant.parse("2026-01-01T10:00:00Z"), zone));
+        Path dir = tempDir.resolve(".methodatlas");
+        Path first = dir.resolve("methodatlas-20260101-100000.csv");
+        String firstDigest = sha256(first);
+
+        // Tamper with the first CSV, then perform a second save.
+        Files.writeString(first, "tampered", StandardCharsets.UTF_8);
+        AuditWriter.write(tempDir, List.of(new SavedEntry("c", "m2", 1, List.of("security"),
+                null, null, HASH_ABC)), "",
+                java.time.Clock.fixed(java.time.Instant.parse("2026-01-01T10:00:05Z"), zone));
+
+        List<String> lines = manifestLines(tempDir);
+        assertEquals(3, lines.size());
+        assertTrue(lines.contains(firstDigest + "  methodatlas-20260101-100000.csv"),
+                "The recorded digest of an earlier CSV must not be recomputed, "
+                        + "so the tampering stays detectable");
+        assertTrue(lines.contains(sha256(dir.resolve("methodatlas-20260101-100005.csv"))
+                + "  methodatlas-20260101-100005.csv"));
+        assertTrue(lines.contains(sha256(dir.resolve("overrides.yaml")) + "  overrides.yaml"),
+                "overrides.yaml is cumulative, so its digest is refreshed on every save");
+    }
+
+    @Test
+    void manifest_ignoresMalformedExistingLines(@TempDir Path tempDir) throws IOException {
+        Path dir = Files.createDirectories(tempDir.resolve(".methodatlas"));
+        Files.writeString(dir.resolve(AuditWriter.MANIFEST_FILE),
+                "not a digest line\n" + "short  x.csv\n", StandardCharsets.UTF_8);
+
+        AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "");
+
+        List<String> lines = manifestLines(tempDir);
+        assertEquals(2, lines.size(), "Malformed lines must be dropped, new artefacts recorded");
+        assertTrue(lines.stream().noneMatch(l -> l.contains("not a digest")));
+    }
+
+    @Test
+    void evidenceCsv_usesLfLineEndingsOnly(@TempDir Path tempDir) throws IOException {
+        AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "");
+
+        String csv = Files.readString(findEvidenceCsv(tempDir.resolve(".methodatlas")), StandardCharsets.UTF_8);
+
+        assertFalse(csv.contains(String.valueOf((char) 13)), "evidence CSV must be LF-only, byte-compatible with the CLI CSV");
+        assertTrue(csv.endsWith(String.valueOf((char) 10)));
+    }
+
+    @Test
+    void manifest_stillRecordsCsvWhenOverrideYamlStepFails(@TempDir Path tempDir) throws IOException {
+        Path dir = Files.createDirectories(tempDir.resolve(".methodatlas"));
+        Files.writeString(dir.resolve("overrides.yaml"), "overrides: [ unterminated", StandardCharsets.UTF_8);
+
+        assertThrows(RuntimeException.class,
+                () -> AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), ""));
+
+        Path csv = findEvidenceCsv(dir);
+        assertTrue(manifestLines(tempDir).stream().anyMatch(l -> l.endsWith("  " + csv.getFileName())),
+                "a CSV created before the YAML failure must not be orphaned outside the manifest");
+    }
+
+    @Test
+    void write_warnsWhenOverridesEditedOutOfBandBetweenSaves(@TempDir Path tempDir) throws IOException {
+        java.time.ZoneId zone = java.time.ZoneId.of("UTC");
+        AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "",
+                java.time.Clock.fixed(java.time.Instant.parse("2026-01-01T10:00:00Z"), zone));
+        Path yaml = tempDir.resolve(".methodatlas").resolve("overrides.yaml");
+        Files.writeString(yaml, Files.readString(yaml, StandardCharsets.UTF_8) + "# edited by hand\n",
+                StandardCharsets.UTF_8);
+
+        List<java.util.logging.LogRecord> records = new java.util.ArrayList<>();
+        java.util.logging.Logger logger = java.util.logging.Logger.getLogger(AuditWriter.class.getName());
+        java.util.logging.Handler handler = new java.util.logging.Handler() {
+            @Override public void publish(java.util.logging.LogRecord r) { records.add(r); }
+            @Override public void flush() { }
+            @Override public void close() { }
+        };
+        logger.addHandler(handler);
+        try {
+            AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "",
+                    java.time.Clock.fixed(java.time.Instant.parse("2026-01-01T10:00:05Z"), zone));
+        } finally {
+            logger.removeHandler(handler);
+        }
+
+        assertTrue(records.stream().anyMatch(r -> r.getLevel() == java.util.logging.Level.WARNING),
+                "an out-of-band edit of overrides.yaml must be logged, not silently re-hashed");
+    }
+
+    @Test
+    void write_doesNotWarnWhenOverridesUntouchedBetweenSaves(@TempDir Path tempDir) throws IOException {
+        java.time.ZoneId zone = java.time.ZoneId.of("UTC");
+        AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "",
+                java.time.Clock.fixed(java.time.Instant.parse("2026-01-01T10:00:00Z"), zone));
+
+        List<java.util.logging.LogRecord> records = new java.util.ArrayList<>();
+        java.util.logging.Logger logger = java.util.logging.Logger.getLogger(AuditWriter.class.getName());
+        java.util.logging.Handler handler = new java.util.logging.Handler() {
+            @Override public void publish(java.util.logging.LogRecord r) { records.add(r); }
+            @Override public void flush() { }
+            @Override public void close() { }
+        };
+        logger.addHandler(handler);
+        try {
+            AuditWriter.write(tempDir, List.of(hashed(HASH_ABC)), "",
+                    java.time.Clock.fixed(java.time.Instant.parse("2026-01-01T10:00:05Z"), zone));
+        } finally {
+            logger.removeHandler(handler);
+        }
+
+        assertTrue(records.stream().noneMatch(r -> r.getLevel() == java.util.logging.Level.WARNING));
+    }
+
+    // ── Collision-proof file name ────────────────────────────────────────────
+
+    private static final java.time.Clock FIXED = java.time.Clock.fixed(
+            java.time.Instant.parse("2026-03-04T05:06:07Z"), java.time.ZoneId.of("UTC"));
+
+    @Test
+    void evidenceCsv_sameSecondWriteDoesNotOverwrite(@TempDir Path tempDir) throws IOException {
+        AuditWriter.write(tempDir, List.of(entry("c", "first", 1, List.of(), null, null)), "", FIXED);
+        AuditWriter.write(tempDir, List.of(entry("c", "second", 1, List.of(), null, null)), "", FIXED);
+        AuditWriter.write(tempDir, List.of(entry("c", "third", 1, List.of(), null, null)), "", FIXED);
+
+        Path dir = tempDir.resolve(".methodatlas");
+        String base = "methodatlas-20260304-050607";
+        assertTrue(Files.readString(dir.resolve(base + ".csv")).contains("c,first,"));
+        assertTrue(Files.readString(dir.resolve(base + "-1.csv")).contains("c,second,"));
+        assertTrue(Files.readString(dir.resolve(base + "-2.csv")).contains("c,third,"));
+    }
+
+    @Test
+    void evidenceCsv_preexistingFileIsNeverReplaced(@TempDir Path tempDir) throws IOException {
+        Path dir = Files.createDirectories(tempDir.resolve(".methodatlas"));
+        Path existing = dir.resolve("methodatlas-20260304-050607.csv");
+        Files.writeString(existing, "precious audit record", StandardCharsets.UTF_8);
+
+        AuditWriter.write(tempDir, List.of(entry("c", "m", 1, List.of(), null, null)), "", FIXED);
+
+        assertEquals("precious audit record", Files.readString(existing));
+        assertTrue(Files.exists(dir.resolve("methodatlas-20260304-050607-1.csv")));
+    }
+
+    @Test
+    void evidenceCsv_failsWhenAllCollisionSuffixesTaken(@TempDir Path tempDir) throws IOException {
+        Path dir = Files.createDirectories(tempDir.resolve(".methodatlas"));
+        String base = "methodatlas-20260304-050607";
+        Files.createFile(dir.resolve(base + ".csv"));
+        for (int i = 1; i <= 999; i++) {
+            Files.createFile(dir.resolve(base + "-" + i + ".csv"));
+        }
+
+        assertThrows(IOException.class, () -> AuditWriter.write(tempDir,
+                List.of(entry("c", "m", 1, List.of(), null, null)), "", FIXED));
+    }
+
+    @Test
+    void schemaVersion_isThree() {
+        assertEquals(3, AuditWriter.SCHEMA_VERSION);
     }
 
     // ── Utility class invariants ─────────────────────────────────────────────

@@ -1181,6 +1181,35 @@ class SarifEmitterTest {
                 "blank reason should be stored as null (absent) in properties");
     }
 
+    @Test
+    @DisplayName("real source path (non-Java) is used for artifactLocation.uri on every result")
+    @Tag("positive")
+    void flush_usesRealSourcePathForNonJavaFile() throws Exception {
+        AiMethodSuggestion suggestion = new AiMethodSuggestion(
+                "TestBeta", true, "SECURITY: auth", List.of("security", "auth"), "r", 0.9, 0.0);
+        SarifEmitter emitter = new SarifEmitter(true, false, "src/");
+        emitter.recordWithSourcePath("fixture.beta", "TestBeta", 3, 4, null, List.of(), null, suggestion,
+                "fixture/beta_test.go");
+
+        String uri = getFirstResult(flush(emitter)).path("locations").get(0).path("physicalLocation")
+                .path("artifactLocation").path("uri").asString();
+
+        assertEquals("src/fixture/beta_test.go", uri);
+    }
+
+    @Test
+    @DisplayName("without a source path the URI falls back to the FQCN-derived .java path")
+    @Tag("edge-case")
+    void flush_withoutSourcePath_fallsBackToFqcnJavaPath() throws Exception {
+        SarifEmitter emitter = new SarifEmitter(false, false, "");
+        emitter.record("com.acme.FooTest", "testFoo", 10, 5, null, List.of(), null, null);
+
+        String uri = getFirstResult(flush(emitter)).path("locations").get(0).path("physicalLocation")
+                .path("artifactLocation").path("uri").asString();
+
+        assertEquals("com/acme/FooTest.java", uri);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

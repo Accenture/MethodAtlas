@@ -1,0 +1,33 @@
+# Human-reviewed ground truth for the accuracy-evaluation demonstrator.
+# Same format as -override-file: the reviewed decisions double as labels.
+overrides:
+  - fqcn: com.acme.auth.AuthTest
+    method: login_rejectsBadPassword
+    securityRelevant: true
+    tags: [security, auth]
+    note: "Reviewed by alice"
+
+  - fqcn: com.acme.auth.AuthTest
+    method: logout_clearsSession
+    securityRelevant: true
+    tags: [security, auth]
+
+  - fqcn: com.acme.crypto.CryptoTest
+    method: encrypt_roundTrip
+    securityRelevant: true
+    tags: [security, crypto]
+
+  - fqcn: com.acme.crypto.CryptoTest
+    method: hash_isDeterministic
+    securityRelevant: true
+    tags: [security, crypto]
+
+  # Class-level label: every method of UtilTest is not security-relevant
+  # (and therefore carries no security tag).
+  - fqcn: com.acme.util.UtilTest
+    securityRelevant: false
+
+  # Stale entry: the method no longer exists in the scan; it is counted, not scored.
+  - fqcn: com.acme.legacy.LegacyTest
+    method: removedLongAgo
+    securityRelevant: true

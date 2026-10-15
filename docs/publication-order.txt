@@ -73,6 +73,7 @@ docs/ai/interaction-score.md
 docs/ai/taxonomy.md
 docs/ai/custom-taxonomy.md
 docs/ai/overrides.md
+docs/ai/accuracy-evaluation.md
 docs/ai/remote-overrides.md
 docs/ai/caching.md
 docs/ai/drift-detection.md
@@ -92,6 +93,9 @@ docs/concepts/vs-sast.md
 docs/concepts/data-governance.md
 docs/concepts/asvs-mapping.md
 docs/concepts/remediation.md
+docs/sabsa/index.md
+docs/sabsa/layers.md
+docs/sabsa/architecture.md
 
 # ── Part VIII — Regulated environments ────────────────────────────────────────
 docs/compliance.md
@@ -103,6 +107,7 @@ docs/deployment/nist-ssdf.md
 docs/deployment/dora.md
 docs/deployment/soc2.md
 docs/deployment/air-gapped.md
+docs/deployment/supply-chain.md
 
 # ── Part IX — Lifecycle and support ───────────────────────────────────────────
 docs/migration.md

@@ -66,7 +66,11 @@ public final class CredentialScanUnitSource {
         if (globMatcher != null) {
             return globMatcher.matches(p);
         }
-        String name = p.getFileName().toString();
+        Path fileName = p.getFileName();
+        if (fileName == null) {
+            return false;
+        }
+        String name = fileName.toString();
         return suffixes.stream().anyMatch(name::endsWith);
     }
 

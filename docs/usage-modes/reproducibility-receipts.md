@@ -23,7 +23,7 @@ The receipt is a single JSON object. Field types are JSON types; "absent" means 
 
 | Field | Type | When present | Meaning |
 |-------|------|--------------|---------|
-| `schemaVersion` | string | always | Currently `"2"`. Bumped on any breaking schema change; see [Schema migration: v1 → v2](#schema-migration-v1--v2). |
+| `schemaVersion` | string | always | Currently `"3"`. Bumped on any breaking schema change; see [Schema migration: v1 → v2](#schema-migration-v1--v2) and [v2 → v3](#schema-migration-v2--v3). |
 | `generatedUtc` | string | always | ISO-8601 instant when the receipt was written. |
 | `methodAtlasVersion` | string | always | `Implementation-Version` from the JAR manifest, or `"dev"` for local builds. |
 | `javaVersion` | string | always | `System.getProperty("java.version")` at receipt-write time. |
@@ -39,6 +39,7 @@ The receipt is a single JSON object. Field types are JSON types; "absent" means 
 | `inputs.classificationPromptHash` | string | when AI is enabled | SHA-256 of the **effective** method-classification prompt template — the built-in default, or the operator's `-classification-prompt` override. Per-run data (taxonomy, methods, source) is excluded. |
 | `inputs.triageAppendixPromptHash` | string | when AI is enabled | SHA-256 of the effective folded credential-triage appendix template (`-triage-prompt` override, else built-in). |
 | `inputs.dedicatedTriagePromptHash` | string | when AI is enabled | SHA-256 of the effective standalone credential-triage template (`-dedicated-triage-prompt` override, else built-in). |
+| `inputs.redactComments` | boolean | always (v3) | `true` when `-redact-comments` was requested: every comment was blanked in the source sent to the AI provider (or written to a manual-prepare work file). It changes the bytes sent and the content hash, so it is folded into `configHash`. |
 | `configHash` | string | always | 64-char lowercase hex SHA-256 of a canonical key=value serialisation of the input fingerprints. See below. |
 
 The three prompt hashes record the *exact* prompt wording sent to the model. Because they cover the effective template, a custom prompt supplied with `-classification-prompt` (or the triage flags) changes the corresponding hash — an auditor sees that a non-default prompt was used, and can reproduce the checksum with `methodatlas -check-prompts -classification-prompt <file>`.
@@ -58,7 +59,7 @@ Out of scope for this flag: source-file modifications, JVM non-determinism in re
 
 The algorithm is deliberately simple so an auditor can re-derive it with `sha256sum` and a `printf`:
 
-1. Populate the following ten keys with their values; absent inputs map to the empty string:
+1. Populate the following eleven keys with their values; absent inputs map to the empty string:
    - `aiCacheFileSha256`
    - `aiModel`
    - `aiProvider`
@@ -67,6 +68,7 @@ The algorithm is deliberately simple so an auditor can re-derive it with `sha256
    - `dedicatedTriagePromptHash`
    - `methodAtlasVersion`
    - `overrideFileSha256`
+   - `redactComments` (`true` or `false`)
    - `taxonomyFileSha256`
    - `triageAppendixPromptHash`
 2. Sort the keys alphabetically (a `TreeMap` enforces this implicitly).
@@ -85,6 +87,7 @@ The same value is reported as the receipt's `configHash` field. An auditor with 
   printf 'dedicatedTriagePromptHash=%s\n' "$(jq -r '.inputs.dedicatedTriagePromptHash // ""' receipt.json)"
   printf 'methodAtlasVersion=%s\n' "$(jq -r '.methodAtlasVersion'             receipt.json)"
   printf 'overrideFileSha256=%s\n' "$(jq -r '.inputs.overrideFile.sha256 // ""' receipt.json)"
+  printf 'redactComments=%s\n'     "$(jq -r '.inputs.redactComments' receipt.json)"
   printf 'taxonomyFileSha256=%s\n' "$(jq -r '.inputs.taxonomyFile.sha256 // ""' receipt.json)"
   printf 'triageAppendixPromptHash=%s\n' "$(jq -r '.inputs.triageAppendixPromptHash // ""' receipt.json)"
 } | sha256sum
@@ -118,7 +121,7 @@ deterministicReplay true          deterministicReplay false
 
 `configHash` divergence localises the cause: the diff between the two receipts shows exactly which inputs changed.
 
-## Schema migration: v1 → v2
+## Schema migration: v1 → v2 {#schema-migration-v1--v2}
 
 Schema **v2** (MethodAtlas 4.1.0) changed how the AI prompt is fingerprinted. This matters for anyone comparing a receipt produced by 4.1.0+ against one archived from an earlier release.
 
@@ -151,6 +154,10 @@ v1 inputs:                          v2 inputs:
                                       triageAppendixPromptHash   ← folded triage appendix
                                       dedicatedTriagePromptHash  ← standalone triage prompt
 ```
+
+## Schema migration: v2 → v3 {#schema-migration-v2--v3}
+
+Schema **v3** adds the boolean `inputs.redactComments` (always present) and the matching `redactComments=true|false` key in the `configHash` canonical serialisation, which grows from ten to eleven keys. Receipts of different schema versions are not comparable by `configHash`; compare v3 to v3 only, and retain archived v2 receipts as they are.
 
 ## Known limitations
 

@@ -28,7 +28,8 @@ import tools.jackson.databind.json.JsonMapper;
  *     {@code ai_confidence}) are JSON numbers</li>
  * <li>{@code ai_security_relevant} is a JSON boolean</li>
  * <li>Optional columns ({@code source_root}, {@code content_hash},
- *     {@code ai_*}, {@code tag_ai_drift}) are omitted from each object
+ *     {@code ai_*} including {@code ai_taxonomy_version}, {@code tag_ai_drift})
+ *     are omitted from each object
  *     when the corresponding flag is not enabled</li>
  * </ul>
  *
@@ -54,6 +55,7 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
     /** Shared, thread-safe indenting JSON mapper (immutable after build). */
     private static final JsonMapper MAPPER = JsonMapper.builder()
             .configure(SerializationFeature.INDENT_OUTPUT, true)
+            .defaultPrettyPrinter(LineEnding.prettyPrinter())
             .build();
 
     private final boolean aiEnabled;
@@ -61,6 +63,7 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
     private final boolean contentHashEnabled;
     private final boolean driftDetect;
     private final boolean emitSourceRoot;
+    private final String taxonomyVersion;
     private final List<MethodRecord> records = new ArrayList<>();
 
     /**
@@ -81,6 +84,32 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
      */
     public JsonEmitter(boolean aiEnabled, boolean confidenceEnabled,
             boolean contentHashEnabled, boolean driftDetect, boolean emitSourceRoot) {
+        this(aiEnabled, confidenceEnabled, contentHashEnabled, driftDetect, emitSourceRoot, null);
+    }
+
+    /**
+     * Creates a new JSON emitter that stamps a taxonomy version into every
+     * AI-classified record.
+     *
+     * @param aiEnabled          whether AI enrichment fields should be included
+     * @param confidenceEnabled  whether the {@code ai_confidence} field should be
+     *                           included; only meaningful when {@code aiEnabled} is
+     *                           {@code true}
+     * @param contentHashEnabled whether the {@code content_hash} field should be
+     *                           included
+     * @param driftDetect        whether the drift fields should be included; only
+     *                           meaningful when {@code aiEnabled} is {@code true}
+     * @param emitSourceRoot     whether the {@code source_root} field should be
+     *                           included
+     * @param taxonomyVersion    value of the {@code ai_taxonomy_version} field for
+     *                           records that carry an AI suggestion; {@code null}
+     *                           or empty omits the field
+     * @since 6.1.0
+     */
+    public JsonEmitter(boolean aiEnabled, boolean confidenceEnabled,
+            boolean contentHashEnabled, boolean driftDetect, boolean emitSourceRoot,
+            String taxonomyVersion) {
+        this.taxonomyVersion = taxonomyVersion == null || taxonomyVersion.isEmpty() ? null : taxonomyVersion;
         this.aiEnabled = aiEnabled;
         this.confidenceEnabled = confidenceEnabled;
         this.contentHashEnabled = contentHashEnabled;
@@ -138,9 +167,11 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
         String tagAiDrift = null;
         String tagsAdded = null;
         String tagsRemoved = null;
+        String aiTaxonomyVersion = null;
 
         if (aiEnabled) {
             if (suggestion != null) {
+                aiTaxonomyVersion = taxonomyVersion;
                 aiSecurityRelevant = suggestion.securityRelevant();
                 aiDisplayName = suggestion.displayName();
                 aiTags = suggestion.tags() != null ? List.copyOf(suggestion.tags()) : List.of();
@@ -172,7 +203,8 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
                 aiConfidence,
                 tagAiDrift,
                 tagsAdded,
-                tagsRemoved));
+                tagsRemoved,
+                aiTaxonomyVersion));
     }
 
     /**
@@ -215,7 +247,7 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
      */
     public void flush(PrintWriter out) {
         try {
-            out.println(MAPPER.writeValueAsString(records));
+            LineEnding.println(out, MAPPER.writeValueAsString(records));
         } catch (JacksonException e) {
             throw new IllegalStateException("Failed to serialize JSON output", e);
         }
@@ -253,6 +285,7 @@ public final class JsonEmitter implements TestMethodSink, RecordEmitter {
             @JsonProperty("ai_confidence") Double aiConfidence,
             @JsonProperty("tag_ai_drift") String tagAiDrift,
             @JsonProperty("tags_added") String tagsAdded,
-            @JsonProperty("tags_removed") String tagsRemoved) {
+            @JsonProperty("tags_removed") String tagsRemoved,
+            @JsonProperty("ai_taxonomy_version") String aiTaxonomyVersion) {
     }
 }

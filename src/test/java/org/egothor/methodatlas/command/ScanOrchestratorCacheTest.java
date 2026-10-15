@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +26,6 @@ import org.egothor.methodatlas.ai.AiOptions;
 import org.egothor.methodatlas.ai.AiSuggestionEngine;
 import org.egothor.methodatlas.ai.CredentialTriageVerdict;
 import org.egothor.methodatlas.ai.PromptBuilder;
-import org.egothor.methodatlas.ai.PromptTemplateSet;
 import org.egothor.methodatlas.api.DiscoveredMethod;
 import org.egothor.methodatlas.api.SourceContent;
 import org.egothor.methodatlas.api.TestDiscovery;
@@ -47,7 +47,7 @@ class ScanOrchestratorCacheTest {
     private static final String SOURCE = "class LoginTest { @Test void testLogin() {} }";
 
     private final String contentHash = ContentHasher.hashClass(SOURCE);
-    private final String defaultSignature = PromptTemplateSet.defaults().signature();
+    private final String defaultSignature = signatureFor(AiOptions.builder().enabled(true).build());
 
     // ── cache hit with cached verdicts ───────────────────────────────────────
 
@@ -122,12 +122,78 @@ class ScanOrchestratorCacheTest {
                 "an answer from a different prompt catalogue must not be reused; the model is re-queried");
     }
 
+    // ── taxonomy is part of the cache key ────────────────────────────────────
+
+    @Test
+    void cacheEntryClassifiedUnderDefaultTaxonomy_isNotReusedUnderOptimizedTaxonomy(
+            @TempDir Path tempDir) throws IOException {
+        AiResultCache cache = cacheOf(tempDir,
+                new AiCacheEntry(contentHash, defaultSignature, suggestion(null)));
+        AiOptions optimized = AiOptions.builder().enabled(true)
+                .taxonomyMode(AiOptions.TaxonomyMode.OPTIMIZED).build();
+        CountingEngine engine = new CountingEngine();
+
+        run(engine, new CapturingSink(), cache, null, optimized);
+
+        assertEquals(1, engine.classifyCalls,
+                "a result classified under another taxonomy must be re-queried, never reused and mis-stamped");
+    }
+
+    @Test
+    void cacheEntryClassifiedUnderCustomTaxonomy_isNotReusedUnderDefaultTaxonomy(
+            @TempDir Path tempDir) throws IOException {
+        Path taxonomy = tempDir.resolve("taxonomy.txt");
+        Files.writeString(taxonomy, "custom taxonomy v1");
+        AiOptions custom = AiOptions.builder().enabled(true).taxonomyFile(taxonomy).build();
+        AiResultCache cache = cacheOf(tempDir,
+                new AiCacheEntry(contentHash, signatureFor(custom), suggestion(null)));
+        CountingEngine engine = new CountingEngine();
+
+        run(engine, new CapturingSink(), cache, null, AiOptions.builder().enabled(true).build());
+
+        assertEquals(1, engine.classifyCalls, "custom-taxonomy result must miss under the default taxonomy");
+    }
+
+    @Test
+    void cacheEntryUnderSameTaxonomy_isReused(@TempDir Path tempDir) throws IOException {
+        AiResultCache cache = cacheOf(tempDir,
+                new AiCacheEntry(contentHash, defaultSignature, suggestion(null)));
+        CountingEngine engine = new CountingEngine();
+
+        run(engine, new CapturingSink(), cache, null);
+
+        assertEquals(0, engine.classifyCalls, "same prompt catalogue and taxonomy must hit the cache");
+    }
+
+    @Test
+    void legacyEntryWithoutSignature_isNotReused(@TempDir Path tempDir) throws IOException {
+        AiResultCache cache = cacheOf(tempDir, new AiCacheEntry(contentHash, null, suggestion(null)));
+        CountingEngine engine = new CountingEngine();
+
+        run(engine, new CapturingSink(), cache, null);
+
+        assertEquals(1, engine.classifyCalls,
+                "a legacy entry has no taxonomy provenance and must not be served under a stamped taxonomy");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static String signatureFor(AiOptions options) {
+        try {
+            return AiCacheKey.signature(options);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     private void run(AiSuggestionEngine engine, TestMethodSink sink, AiResultCache cache,
             CredentialTriageContext ctx) throws IOException {
+        run(engine, sink, cache, ctx, AiOptions.builder().enabled(true).build());
+    }
+
+    private void run(AiSuggestionEngine engine, TestMethodSink sink, AiResultCache cache,
+            CredentialTriageContext ctx, AiOptions options) throws IOException {
         ScanOrchestrator orchestrator = new ScanOrchestrator(new PluginLoader());
-        AiOptions options = AiOptions.builder().enabled(true).build();
         orchestrator.runDiscovery(Path.of("."), List.of(new OneClassProvider()), options, engine,
                 sink, /* contentHashEnabled */ true, ClassificationOverride.empty(), cache, ctx);
     }

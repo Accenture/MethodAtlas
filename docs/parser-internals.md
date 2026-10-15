@@ -224,6 +224,13 @@ scanRoot }`) and returns JSON-line responses with discovered method descriptors.
 The bundle uses the TypeScript compiler API for full AST-based parsing, which
 means all valid TypeScript and JavaScript syntax is handled correctly.
 
+The `-redact-comments` option uses the same workers: a request
+`{ requestId, mode: "redact", filePath, source }` makes the worker parse the
+provided text and answer `{ requestId, length, comments: [[start, end], ...], error }`
+with the half-open UTF-16 range of every comment (plus a leading `#!` line).  The
+Java side blanks the ranges and re-parses the result; see
+[Data governance](concepts/data-governance.md).
+
 ### What is detected
 
 | Element | Detected | Notes |
@@ -412,6 +419,12 @@ of Python's standard library and uses the same parser as the CPython interpreter
 **all valid Python 3.8+ syntax is handled correctly** — including decorated
 functions, async functions, type annotations, positional-only parameters, and
 all other language features up to the version of CPython that is installed.
+
+For `-redact-comments` the script also answers
+`{ requestId, mode: "redact", source }` with `{ requestId, length, comments: [[start, end], ...], error }`,
+locating `#` comments with the standard-library `tokenize` module (the `ast` module
+discards comments).  Docstrings are string tokens and are not reported.  The Java
+side blanks the ranges and re-tokenizes the result.
 
 ### Python executable search
 

@@ -63,25 +63,29 @@ public final class ManualPrepareCommand implements Command {
     /**
      * Discovers test classes, writes work files, and reports progress.
      *
+     * <p>
+     * When {@code -redact-comments} is set, every class source is redacted
+     * <em>before</em> any work file is written; if any class cannot be redacted
+     * the command aborts with {@link RedactionAbortedException} and writes
+     * nothing (fail-closed).
+     * </p>
+     *
      * @param out writer for progress and summary output
      * @return {@code 0} if all files were processed successfully, {@code 1} if any
      *         provider encountered a processing error
      * @throws IOException if traversing a file tree fails
+     * @throws RedactionAbortedException if redaction is requested and a class
+     *                                   cannot be redacted
      */
     @Override
     @SuppressWarnings("PMD.CloseResource") // providers closed by closeAll() in the finally block
     public int execute(PrintWriter out) throws IOException {
-        ManualPrepareEngine engine;
-        try {
-            engine = new ManualPrepareEngine(prepare.workDir(), prepare.responseDir(), cliConfig.aiOptions());
-        } catch (AiSuggestionException e) {
-            throw new IllegalStateException("Failed to initialize manual prepare engine", e);
-        }
-
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
         List<TestDiscovery> providers = pluginLoader.loadProviders(discoveryConfig);
         boolean hadErrors = false;
-        int prepared = 0;
+        List<PreparedClass> classes = new ArrayList<>();
+        CommentRedaction redaction = cliConfig.aiOptions().redactComments()
+                ? new CommentRedaction(pluginLoader.loadRedactors(discoveryConfig)) : null;
 
         try {
             for (Path root : roots) {
@@ -99,32 +103,58 @@ public final class ManualPrepareCommand implements Command {
                                 LinkedHashMap::new, Collectors.toList()));
 
                 for (Map.Entry<String, List<DiscoveredMethod>> entry : byClass.entrySet()) {
-                    String fqcn = entry.getKey();
                     List<DiscoveredMethod> classMethods = entry.getValue();
                     String classSource = classMethods.get(0).sourceContent().get().orElse(null);
                     if (classSource == null) {
                         continue;
                     }
-                    String fileStem = classMethods.get(0).fileStem();
-                    List<PromptBuilder.TargetMethod> targetMethods = classMethods.stream()
-                            .map(ScanOrchestrator::toTargetMethod).toList();
-                    try {
-                        Path workFile = engine.prepare(fileStem, fqcn, classSource, targetMethods);
-                        out.println("Prepared: " + workFile);
-                        prepared++;
-                    } catch (AiSuggestionException e) {
-                        if (LOG.isLoggable(Level.WARNING)) {
-                            LOG.log(Level.WARNING, "Failed to prepare work file for " + fqcn, e);
-                        }
+                    if (redaction != null) {
+                        classSource = redaction.redactOrThrow(classMethods.get(0).filePath(), classSource);
                     }
+                    classes.add(new PreparedClass(classMethods.get(0).fileStem(), entry.getKey(), classSource,
+                            classMethods.stream().map(ScanOrchestrator::toTargetMethod).toList()));
                 }
             }
         } finally {
             pluginLoader.closeAll(providers);
         }
 
+        // Pre-flight complete: every class is redactable (or redaction is off). Only now
+        // is anything written to the work directory.
+        ManualPrepareEngine engine;
+        try {
+            engine = new ManualPrepareEngine(prepare.workDir(), prepare.responseDir(), cliConfig.aiOptions());
+        } catch (AiSuggestionException e) {
+            throw new IllegalStateException("Failed to initialize manual prepare engine", e);
+        }
+
+        int prepared = 0;
+        for (PreparedClass c : classes) {
+            try {
+                Path workFile = engine.prepare(c.fileStem(), c.fqcn(), c.source(), c.targets());
+                out.println("Prepared: " + workFile);
+                prepared++;
+            } catch (AiSuggestionException e) {
+                if (LOG.isLoggable(Level.WARNING)) {
+                    LOG.log(Level.WARNING, "Failed to prepare work file for " + c.fqcn(), e);
+                }
+            }
+        }
+
         out.println("Manual prepare complete. Wrote " + prepared + " work file(s) to " + prepare.workDir()
                 + " (response stubs in " + prepare.responseDir() + ")");
         return hadErrors ? 1 : 0;
+    }
+
+    /**
+     * One class ready to be written as a work file.
+     *
+     * @param fileStem source file stem
+     * @param fqcn     fully qualified class name
+     * @param source   class source to embed in the prompt (redacted when requested)
+     * @param targets  methods the AI must classify
+     */
+    private record PreparedClass(String fileStem, String fqcn, String source,
+            List<PromptBuilder.TargetMethod> targets) {
     }
 }
