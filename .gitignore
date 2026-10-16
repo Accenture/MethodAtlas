@@ -140,8 +140,10 @@ CLAUDE.md
 COMMIT_MSG*.txt
 COMMIT_MSG*
 # SABSA security-architecture library source and its doc-generation helper are kept
-# local; only the rendered chapter under docs/sabsa/ is published.
-sabsa/
+# local; only the rendered chapter under docs/sabsa/ is published. The leading
+# slash anchors this to the repository root so it does NOT also match the
+# published docs/sabsa/ and docs/images/sabsa/ directories.
+/sabsa/
 tools/sabsa-docs/
 
 ##---------------------------------------------------------------------------------------- Python (doc-build and discovery helper scripts)
