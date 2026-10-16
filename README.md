@@ -1,7 +1,5 @@
 # MethodAtlas
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Accenture/MethodAtlas/badge)](https://scorecard.dev/viewer/?uri=github.com/Accenture/MethodAtlas)
-
 <img src="MethodAtlas.png" width="20%" align="right" alt="MethodAtlas logo" />
 
 MethodAtlas is a CLI tool that scans test source trees for test methods and emits one structured record per discovered method — with optional AI-assisted security classification. Java (JUnit 5, JUnit 4, TestNG), C# (.NET — xUnit, NUnit, MSTest), TypeScript/JavaScript (Jest, Vitest, Mocha), Go, Python (pytest), PowerShell (Pester), SAP ABAP (ABAP Unit, ecATT), and COBOL (MFUnit, COBOL-Check) are supported out of the box; additional languages can be added as plugins.
@@ -65,7 +63,7 @@ MethodAtlas addresses this by turning an existing test suite into a structured i
 - **Credential detection** — `-detect-secrets` deterministically finds credential candidates (provider tokens, private keys, password/token assignments, high-entropy literals) in the scanned source with a clean-room Aho-Corasick engine over a curated rule catalog of 170+ vendor credential formats; **no live verification**. With `-ai`, an LLM assigns each candidate a credibility score and attributes it to the endpoint it authenticates against — including when the credential and its URL are written separately. Findings go to a dedicated CSV and to SARIF (severity from the score, embedded in the message text); values are masked by default. See [Credential detection](docs/concepts/credential-detection.md)
 - **Custom LLM prompts** — override the classification and credential-triage prompts with your own templates (`-classification-prompt`, `-triage-prompt`, `-dedicated-triage-prompt`); `-check-prompts` validates them and prints their checksums. Every effective prompt is fingerprinted into the reproducibility receipt, so a non-default prompt stays auditable
 - **AI accuracy evaluation** — `-eval-accuracy <labels.yaml> <predictions.csv>` scores the AI classification against human-reviewed labels and reports precision, recall, F1 and support per taxonomy tag and for `securityRelevant` (Markdown or JSON, offline, deterministic). The recommended ground truth is the `-override-file` YAML you already maintain; ongoing accuracy numbers require a maintained labelled set, and the target precision/recall is a risk-owner decision. See [AI accuracy evaluation](docs/ai/accuracy-evaluation.md)
-- **Supply-chain assurance** — release assets carry keyless SLSA build provenance (GitHub OIDC + Sigstore, no managed keys; verify with `gh attestation verify`) and the repository is scored weekly by OpenSSF Scorecard. Managed-key release-package signing is deliberately not provided, so Scorecard's `Signed-Releases` check stays unmet by design. See [Supply-chain security](docs/deployment/supply-chain.md)
+- **Supply-chain assurance** — release assets carry keyless SLSA build provenance (GitHub OIDC + Sigstore, no managed keys; verify with `gh attestation verify`). Managed-key release-package signing is deliberately not provided. See [Supply-chain security](docs/deployment/supply-chain.md)
 - **Multiple output modes** — CSV (default), plain text, SARIF, GitHub Actions annotations, and JSON (`-json`) with native array/number/boolean types
 
 ## Quick start

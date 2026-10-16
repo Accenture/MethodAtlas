@@ -144,6 +144,14 @@ COMMIT_MSG*
 sabsa/
 tools/sabsa-docs/
 
+##---------------------------------------------------------------------------------------- Python (doc-build and discovery helper scripts)
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 ##---------------------------------------------------------------------------------------- macOS
 .DS_Store
 **/.DS_Store

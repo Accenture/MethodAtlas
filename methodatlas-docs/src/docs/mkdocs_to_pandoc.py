@@ -66,6 +66,29 @@ TAB_RE = re.compile(
     re.VERBOSE,
 )
 
+# Remote images — status badges such as the OpenSSF Scorecard or shields.io —
+# are decorative on the web README but must never reach the printed PDF.
+# pandoc's --extract-media fetches them at build time, which breaks offline and
+# reproducible builds; worse, a badge served as a gzipped SVG fails XeLaTeX
+# outright when rsvg-convert is absent ("Cannot determine size of graphic ...
+# no BoundingBox"). Drop any image whose source is an absolute http(s) URL,
+# including an enclosing link wrapper: [![alt](img-url)](link-url).
+REMOTE_IMAGE_RE = re.compile(
+    r"""
+    \[?                      # optional opening bracket of a link wrapper
+    !\[[^\]]*\]              # image: ![alt]
+    \(\s*https?://[^)]*\)    # remote image URL
+    (?:\]\([^)]*\))?         # optional link-wrapper close: ](url)
+    """,
+    re.VERBOSE,
+)
+
+
+def strip_remote_images(text: str) -> str:
+    """Remove remote (http/https) images so pandoc never fetches them."""
+    return REMOTE_IMAGE_RE.sub("", text)
+
+
 def indentation_width(text: str) -> int:
     width = 0
     for char in text:
@@ -292,6 +315,7 @@ def process_file(source: pathlib.Path) -> pathlib.Path:
     text = source.read_text(encoding="utf-8")
     converted = convert_admonitions(text)
     converted = convert_tabs(converted)
+    converted = strip_remote_images(converted)
 
     target = output_path_for(source)
     target.parent.mkdir(parents=True, exist_ok=True)
