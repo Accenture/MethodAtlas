@@ -62,6 +62,91 @@ local function contains(text, fragment)
   return text ~= nil and text:find(fragment, 1, true) ~= nil
 end
 
+-- Content-proportional column widths.
+--
+-- Used only as the fallback for tables that match none of the curated rules
+-- below (e.g. the generated SABSA chapter). Each column's weight is the
+-- longest cell it holds (header + body), clamped to a floor so short columns
+-- are not razor-thin and a cap so one very long prose/identifier cell cannot
+-- swallow the whole width. Normalising these weights gives short label/name
+-- columns little room and prose ("description"/"meaning") columns the rest —
+-- automatically, instead of an equal split that leaves half the page blank.
+local WIDTH_FLOOR = 6
+local WIDTH_CAP = 50
+
+local function longest_cells(tbl)
+  local n = #tbl.colspecs
+  local maxlen = {}
+  for i = 1, n do
+    maxlen[i] = 0
+  end
+
+  local function consider(row)
+    if row == nil or row.cells == nil then
+      return
+    end
+    for index, cell in ipairs(row.cells) do
+      if index <= n then
+        local len = #cell_text(cell)
+        if len > maxlen[index] then
+          maxlen[index] = len
+        end
+      end
+    end
+  end
+
+  if tbl.head ~= nil and tbl.head.rows ~= nil then
+    for _, row in ipairs(tbl.head.rows) do
+      consider(row)
+    end
+  end
+
+  if tbl.bodies ~= nil then
+    for _, body in ipairs(tbl.bodies) do
+      if body.head ~= nil then
+        for _, row in ipairs(body.head) do
+          consider(row)
+        end
+      end
+      if body.body ~= nil then
+        for _, row in ipairs(body.body) do
+          consider(row)
+        end
+      end
+    end
+  end
+
+  return maxlen
+end
+
+local function content_widths(tbl)
+  local n = #tbl.colspecs
+  local maxlen = longest_cells(tbl)
+  local weights = {}
+  local total = 0
+  for i = 1, n do
+    local w = maxlen[i]
+    if w < WIDTH_FLOOR then
+      w = WIDTH_FLOOR
+    elseif w > WIDTH_CAP then
+      w = WIDTH_CAP
+    end
+    weights[i] = w
+    total = total + w
+  end
+
+  if total <= 0 then
+    return nil
+  end
+
+  local widths = {}
+  for i = 1, n do
+    widths[i] = weights[i] / total
+  end
+
+  return set_widths(tbl, widths)
+end
+
 function Table(tbl)
   if not FORMAT:match("latex") then
     return nil
@@ -206,7 +291,7 @@ function Table(tbl)
       return set_widths(tbl, {0.25, 0.75})
     end
 
-    return set_widths(tbl, {0.35, 0.65})
+    return content_widths(tbl) or set_widths(tbl, {0.35, 0.65})
   end
 
   -- Workflow/platform/trigger tables.
@@ -557,8 +642,8 @@ function Table(tbl)
       return set_widths(tbl, {0.24, 0.26, 0.50})
     end
 
-    -- Generic 3-column table: keep the last column reasonably wide.
-    return set_widths(tbl, {0.32, 0.23, 0.45})
+    -- Generic 3-column table: derive widths from cell content.
+    return content_widths(tbl) or set_widths(tbl, {0.32, 0.23, 0.45})
   end
 
   -- Generic fallback for wider tables.
@@ -659,7 +744,7 @@ function Table(tbl)
       return set_widths(tbl, {0.30, 0.30, 0.22, 0.18})
     end
 
-    return set_widths(tbl, {0.25, 0.25, 0.25, 0.25})
+    return content_widths(tbl) or set_widths(tbl, {0.25, 0.25, 0.25, 0.25})
   end
 
   if column_count == 5 then
@@ -670,7 +755,7 @@ function Table(tbl)
       return set_widths(tbl, {0.16, 0.30, 0.24, 0.16, 0.14})
     end
 
-    return set_widths(tbl, {0.20, 0.20, 0.20, 0.20, 0.20})
+    return content_widths(tbl) or set_widths(tbl, {0.20, 0.20, 0.20, 0.20, 0.20})
   end
 
   return nil
