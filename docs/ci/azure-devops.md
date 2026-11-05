@@ -12,7 +12,7 @@ YAML pipeline. The techniques can be used individually or combined:
 
 | Requirement                         | Details |
 |-------------------------------------|---------|
-| Java runtime                        | Java 21 or later; available as `PreInstalled` on `ubuntu-latest` agents, or configured via `JavaToolInstaller@0` |
+| Java runtime                        | Java 25 or later; configured via `JavaToolInstaller@0` (`PreInstalled` works only where the agent image ships JDK 25) |
 | MethodAtlas                         | Downloaded at job start from the GitHub release; no separate installation step |
 | AI provider API key                 | Stored as a masked pipeline variable or in a variable group in the ADO Library |
 | GitHub Advanced Security for ADO    | Required only for SARIF upload to the security dashboard; not required for CSV output or count gating |
@@ -54,10 +54,10 @@ pool:
 steps:
   - task: JavaToolInstaller@0
     inputs:
-      versionSpec: '21'
+      versionSpec: '25'
       jdkArchitectureOption: x64
       jdkSourceOption: PreInstalled
-    displayName: Set up Java 21
+    displayName: Set up Java 25
 
   - script: |
       curl -fsSL -o methodatlas.jar \
@@ -88,10 +88,10 @@ variables:
 steps:
   - task: JavaToolInstaller@0
     inputs:
-      versionSpec: '21'
+      versionSpec: '25'
       jdkArchitectureOption: x64
       jdkSourceOption: PreInstalled
-    displayName: Set up Java 21
+    displayName: Set up Java 25
 
   - script: |
       curl -fsSL -o methodatlas.jar \
@@ -137,10 +137,10 @@ variables:
 steps:
   - task: JavaToolInstaller@0
     inputs:
-      versionSpec: '21'
+      versionSpec: '25'
       jdkArchitectureOption: x64
       jdkSourceOption: PreInstalled
-    displayName: Set up Java 21
+    displayName: Set up Java 25
 
   - script: |
       curl -fsSL -o methodatlas.jar \
@@ -203,10 +203,10 @@ stages:
         steps:
           - task: JavaToolInstaller@0
             inputs:
-              versionSpec: '21'
+              versionSpec: '25'
               jdkArchitectureOption: x64
               jdkSourceOption: PreInstalled
-            displayName: Set up Java 21
+            displayName: Set up Java 25
 
           - script: |
               curl -fsSL -o methodatlas.jar \
@@ -272,7 +272,7 @@ pr:
 variables:
   - group: methodatlas-secrets
   - name: javaVersion
-    value: '21'
+    value: '25'
 
 stages:
   - stage: SecurityScan
@@ -371,10 +371,10 @@ test-classification SARIF:
 steps:
   - task: JavaToolInstaller@0
     inputs:
-      versionSpec: '21'
+      versionSpec: '25'
       jdkArchitectureOption: x64
       jdkSourceOption: PreInstalled
-    displayName: Set up Java 21
+    displayName: Set up Java 25
 
   - script: |
       curl -fsSL -o methodatlas.jar \

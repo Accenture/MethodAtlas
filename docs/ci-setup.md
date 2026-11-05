@@ -134,7 +134,7 @@ exactly which parts to change:
 
 **Replace build-from-source with a release download** (the most common
 adaptation): in the workflow file, swap the three steps labelled
-"Set up JDK 21", "Setup Gradle", and "Build MethodAtlas from source" for the
+"Set up JDK 25", "Setup Gradle", and "Build MethodAtlas from source" for the
 download snippet provided in the comment block inside the
 "Obtain MethodAtlas" section.
 

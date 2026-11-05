@@ -20,15 +20,15 @@ runtime there are no mandatory dependencies; everything else is opt-in.
 
 | Requirement | Version | Required for |
 |--------|-----------------|----------------|
-| Java runtime | 21 or later (Temurin recommended) | All functionality |
+| Java runtime | 25 or later (Temurin recommended) | All functionality |
 | Node.js | 18 or later | TypeScript/JavaScript test discovery only |
 | Operating system | Linux, macOS, Windows | — |
 | Disk space | < 60 MB unpacked | Distribution archive + grammar bundles |
 | RAM at runtime | ~256 MB JVM heap for typical scans; ~1 GB for very large monorepos | Scaled by scan size, not by AI use |
 
-**Java 21+** is required because MethodAtlas uses sealed types, pattern
-matching on records, and the modern `java.net.http.HttpClient` introduced
-in long-term-support release 21. Older JDKs will refuse to launch with a
+**Java 25+** is required: MethodAtlas targets the long-term-support
+release 25, and its evidence-pack signing library (ZeroEcho-lib 1.2) is
+compiled for Java 25. Older JDKs will refuse to launch with a
 clear error message — the requirement is enforced at JVM startup. Temurin
 is recommended because it is freely redistributable and ships on all
 major CI runners; any other certified OpenJDK build (Microsoft, Amazon
@@ -105,7 +105,7 @@ The `bin/` scripts handle the classpath automatically. No manual `-cp` flag need
 
 A successful `--help` invocation prints the synopsis, the full flag list,
 and the exit-code table. If the binary exits non-zero or prints a Java
-launcher error, the most common cause is a JDK older than 21 on the
+launcher error, the most common cause is a JDK older than 25 on the
 `PATH`; check with `java --version`.
 
 
@@ -137,7 +137,7 @@ release artefacts:
 ./gradlew distTar       # → build/distributions/methodatlas-<version>.tar
 ```
 
-Java 21 or later is required at build time. The build enforces this
+Java 25 or later is required at build time. The build enforces this
 automatically via `targetCompatibility` and a manual `JavaVersion` check
 in the root build script; the build fails with a clear message if an
 older JDK is detected.

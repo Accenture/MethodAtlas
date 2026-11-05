@@ -101,7 +101,7 @@ policy, and multi-module sprawl.
 | Azure DevOps | [Azure DevOps Pipelines](ci/azure-devops.md) | YAML pipeline samples |
 
 If your platform is not in the list, [Platform prerequisites](ci-setup.md)
-documents the host requirements (JDK 21+, optional Node.js for the TS
+documents the host requirements (JDK 25+, optional Node.js for the TS
 plugin) so you can port the recipe yourself.
 
 ### Gating and release policy
@@ -165,7 +165,7 @@ shipped, and what do you do when AI suggestions drift from source tags?
 
 Use this checklist when you sign off your MethodAtlas integration.
 
-- [ ] CI runner has JDK 21+ and (if scanning TypeScript) Node.js 18+
+- [ ] CI runner has JDK 25+ and (if scanning TypeScript) Node.js 18+
 - [ ] Output format chosen and consumer wired (SARIF / JSON / Delta CSV)
 - [ ] AI provider approved per [Data governance](concepts/data-governance.md); credentials in a secret store, not the YAML
 - [ ] Override file location decided; remote-override URL if applicable

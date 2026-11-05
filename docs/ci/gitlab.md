@@ -12,7 +12,7 @@ pipeline. The techniques can be used individually or combined:
 
 | Requirement       | Details |
 |-------------------|---------|
-| Java runtime      | Java 21 or later; the examples use the `eclipse-temurin:21-jdk` Docker image |
+| Java runtime      | Java 25 or later; the examples use the `eclipse-temurin:25-jdk` Docker image |
 | MethodAtlas       | Downloaded at job start from the GitHub release; the binary is cached between runs using the `cache` directive |
 | AI provider API key | Stored as a GitLab CI/CD variable (masked); not required for static inventory mode |
 | GitLab tier       | SARIF upload to the Security Dashboard requires GitLab Ultimate; annotation output has no tier requirement |
@@ -36,7 +36,7 @@ all test methods with their structural metadata:
 
 ```yaml
 methodatlas-inventory:
-  image: eclipse-temurin:21-jdk
+  image: eclipse-temurin:25-jdk
   stage: test
   cache:
     key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
@@ -65,7 +65,7 @@ Dashboard (GitLab Ultimate required for the dashboard).
 
 ```yaml
 methodatlas-scan:
-  image: eclipse-temurin:21-jdk
+  image: eclipse-temurin:25-jdk
   stage: test
   cache:
     - key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
@@ -110,7 +110,7 @@ its own classification state:
 
 ```yaml
 methodatlas-scan:
-  image: eclipse-temurin:21-jdk
+  image: eclipse-temurin:25-jdk
   stage: test
   cache:
     - key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
@@ -168,7 +168,7 @@ stages:
   - gate
 
 save-baseline:
-  image: eclipse-temurin:21-jdk
+  image: eclipse-temurin:25-jdk
   stage: test
   cache:
     key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"
@@ -195,7 +195,7 @@ save-baseline:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 security-gate:
-  image: eclipse-temurin:21-jdk
+  image: eclipse-temurin:25-jdk
   stage: gate
   needs:
     - job: save-baseline
@@ -266,7 +266,7 @@ variables:
     fi
 
 methodatlas-scan:
-  image: eclipse-temurin:21-jdk
+  image: eclipse-temurin:25-jdk
   stage: test
   cache:
     - <<: *methodatlas-binary-cache
@@ -314,7 +314,7 @@ the Security Dashboard:
 
 ```yaml
 methodatlas-credentials:
-  image: eclipse-temurin:21-jdk
+  image: eclipse-temurin:25-jdk
   stage: test
   cache:
     - key: "methodatlas-binary-$CI_COMMIT_REF_SLUG"

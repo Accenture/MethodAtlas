@@ -105,13 +105,13 @@ tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
 // ---------------------------------------------------------------------------
 // Java version guard
 // ---------------------------------------------------------------------------
-if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
-    throw new GradleException("Java 21 or higher is required to build this project. Found: ${JavaVersion.current()}")
+if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_25)) {
+    throw new GradleException("Java 25 or higher is required to build this project. Found: ${JavaVersion.current()}")
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 repositories {
@@ -235,7 +235,7 @@ dependencies {
     }
 
     // Error Prone – compile-time bug detection
-    errorprone 'com.google.errorprone:error_prone_core:2.36.0'
+    errorprone 'com.google.errorprone:error_prone_core:2.52.0'
 }
 
 compileTestJava {
@@ -256,14 +256,14 @@ tasks.named('compileTestJava') {
 // ---------------------------------------------------------------------------
 // Error Prone JDK compatibility guard.
 // Error Prone reads javac internals that newer JDKs remove (on JDK 27 it crashes
-// with NoSuchFieldError JCCompilationUnit.endPositions), and no released version
-// yet supports JDK 25+. When the build runs on such a JDK, disable Error Prone
-// across every module that applies it so compilation still succeeds; PMD and
-// SpotBugs continue to run and remain the enforced static-analysis gates. On a
-// supported JDK (<= 24, e.g. CI) Error Prone stays enabled exactly as before.
+// with NoSuchFieldError JCCompilationUnit.endPositions). Error Prone 2.52.0
+// supports JDK 25, the project baseline and CI JDK; on JDK 26+ (e.g. the JDK-27
+// development machine) disable it across every module that applies it so
+// compilation still succeeds; PMD and SpotBugs continue to run and remain the
+// enforced static-analysis gates. On JDK 25 (CI) Error Prone stays enabled.
 // ---------------------------------------------------------------------------
-if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_25)) {
-    logger.lifecycle("Error Prone disabled: JDK ${JavaVersion.current()} is newer than the supported ceiling (JDK 24); PMD and SpotBugs still run.")
+if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_26)) {
+    logger.lifecycle("Error Prone disabled: JDK ${JavaVersion.current()} is newer than the supported ceiling (JDK 25); PMD and SpotBugs still run.")
     gradle.projectsEvaluated {
         allprojects { p ->
             p.plugins.withId('net.ltgt.errorprone') {

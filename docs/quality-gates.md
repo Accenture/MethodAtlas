@@ -101,7 +101,7 @@ Pages build but enforces the gate on `./gradlew check`.
 | --- | --- | --- |
 | PMD ruleset (`/.ruleset`) | All Java modules | Zero violations on `pmdMain`. Configured in the `subprojects` block of root `build.gradle`. |
 | SpotBugs | Root main sources | Zero violations. Filter file: `config/spotbugs/excludeFilter.xml`. Test sources excluded. |
-| Error Prone | All Java main sources | Suppressions require an inline justification comment. |
+| Error Prone | All Java main sources | Error Prone 2.52.0 on JDK 25 (CI); disabled automatically on JDK 26+ (e.g. local JDK 27 builds), where PMD and SpotBugs remain the gates. Suppressions require an inline justification comment. |
 | ArchUnit boundary tests | Root test suite | Three plugin-seam invariants; see `org.egothor.methodatlas.arch.ArchitectureTest`. |
 | OWASP Dependency-Check | Runtime classpath | On demand and weekly (`security-scan` workflow): `./gradlew dependencyCheckAnalyze`. The task fails on CVSS ≥ 7.0; it is not part of `check`. |
 | License compliance | Runtime classpaths of the root project and its subprojects | On-demand: `./gradlew checkLicense` against `config/allowed-licenses.json`; a library passes when at least one declared licence is allowlisted. |
@@ -111,7 +111,7 @@ Pages build but enforces the gate on `./gradlew check`.
 
 The `Determinism` workflow (`.github/workflows/determinism.yml`) proves that the
 structural scan output does not depend on the machine (roadmap RM-D). It runs on
-`ubuntu-latest`, `windows-latest` and `macos-latest` with Temurin 21, executes
+`ubuntu-latest`, `windows-latest` and `macos-latest` with Temurin 25, executes
 only `MethodAtlasAppDeterminismTest` (no AI, no static analysis), and uploads each
 leg's output as an artefact. A final `compare` job downloads the three outputs and
 fails the workflow if they are not byte-identical. Each leg also compares its output

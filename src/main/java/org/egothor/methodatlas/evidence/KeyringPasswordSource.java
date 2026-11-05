@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -34,7 +35,7 @@ import zeroecho.core.storage.KeyringPassword;
  * break removed) — suits container and CI secret files;</li>
  * <li>an environment variable named on the command line — it must be set;</li>
  * <li>the {@value #DEFAULT_ENV} environment variable, when set;</li>
- * <li>an interactive, non-echoing prompt when a console is attached.</li>
+ * <li>an interactive, non-echoing prompt when an interactive terminal is attached.</li>
  * </ol>
  *
  * <p>
@@ -216,8 +217,12 @@ final class KeyringPasswordSource {
     }
 
     private static char[] readFromConsole(String text) {
-        Console console = System.console();
-        char[] entered = console == null ? null : console.readPassword("%s", text);
+        // Since JDK 22 System.console() returns a Console even without a terminal
+        // (redirected stdin, CI); only an interactive terminal may be prompted.
+        char[] entered = Optional.ofNullable(System.console())
+                .filter(Console::isTerminal)
+                .map(console -> console.readPassword("%s", text))
+                .orElse(null);
         return entered == null ? new char[0] : entered;
     }
 }

@@ -557,7 +557,7 @@ Command-line flags always override YAML values. See [docs/cli-reference.md](docs
 
 A `.devcontainer/devcontainer.json` is included so contributors can open MethodAtlas in a pre-configured environment with a single click — no local JDK or Node.js installation required.
 
-The container uses the official `mcr.microsoft.com/devcontainers/java:21` image (matching the required JDK 21) and installs Node 18 for the TypeScript discovery plugin. On first open it runs `./gradlew build -x pitest -x dependencyCheckAnalyze` to compile everything and run the test suite.
+The container uses the official `mcr.microsoft.com/devcontainers/java:25` image (matching the required JDK 25) and installs Node 18 for the TypeScript discovery plugin. On first open it runs `./gradlew build -x pitest -x dependencyCheckAnalyze` to compile everything and run the test suite.
 
 Works with [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers), [GitHub Codespaces](https://github.com/features/codespaces), and any OCI-compatible dev container runtime.
 

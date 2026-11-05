@@ -21,16 +21,18 @@ MethodAtlas follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 A major version increment means at least one breaking change that requires
 action from the operator. One documented exception: by owner decision, 6.2.0 is a
 minor release although it requires action from operators who **sign** evidence
-packs (new encrypted keyring). Scanning, output formats and unsigned packs are
-unaffected, and the old plaintext keyring could no longer be built because its
-ZeroEcho version is no longer distributed.
+packs (new encrypted keyring) and moves every user to Java 25. Scanning behaviour,
+output formats and unsigned packs are otherwise unchanged, and the old plaintext keyring could no longer be built because its
+ZeroEcho version is no longer distributed. The same holds for the Java 25 runtime
+requirement that ZeroEcho-lib 1.2 brings.
 
 ## Evidence-pack signing keyrings are encrypted (ZeroEcho 1.2, 6.2.0)
 
-Release 6.2.0 moves manifest signing from ZeroEcho-lib 1.1.1 to **1.2.1**, now resolved from Maven Central (`org.egothor:ZeroEcho-lib`, `org.egothor:conflux`) instead of the retired `gitea.egothor.org` package registry. ZeroEcho 1.2 replaces the plaintext keyring with an encrypted one and does not read or migrate the old format. This is a breaking change for anyone who signs evidence packs; scanning and unsigned packs are unaffected.
+Release 6.2.0 moves manifest signing from ZeroEcho-lib 1.1.1 to **1.2.1**, now resolved from Maven Central (`org.egothor:ZeroEcho-lib`, `org.egothor:conflux`) instead of the retired `gitea.egothor.org` package registry. ZeroEcho 1.2 replaces the plaintext keyring with an encrypted one and does not read or migrate the old format. This is a breaking change for anyone who signs evidence packs. In addition, **every** user now needs Java 25 or later, because ZeroEcho-lib 1.2 is compiled for Java 25; scanning behaviour, output formats and unsigned packs are otherwise unchanged.
 
 | Area | Before (6.1 and earlier) | Now | Action required |
 |---|---|---|---|
+| Java runtime | Java 21 or later | **Java 25 or later** — ZeroEcho-lib 1.2.x is compiled for Java 25 (class-file version 69), so MethodAtlas now targets Java 25 | Run MethodAtlas (CLI, GUI, CI images) on JDK 25+; update `java-version` / Docker images in your pipelines |
 | Keyring file | One plaintext UTF-8 file starting with `# KeyringStore v1`, private key in clear text | Encrypted store (PBKDF2-HMAC-SHA-256 + AES-256-GCM) plus a `<name>.nonce` sidecar, in an owner-only directory | Generate a new keyring with `-gen-signing-key` (old keyrings are rejected with a migration message) |
 | Password | None | Required; from `-evidence-pack-keyring-password-file`, `-evidence-pack-keyring-password-env`, `METHODATLAS_KEYRING_PASSWORD`, or a prompt | Choose a password (≥ 12 characters) and store it in your password manager or secret store |
 | `-gen-signing-key` | Wrote a plaintext file anywhere | Creates or extends the encrypted keyring; new `-key-password-file` / `-key-password-env` | Use a dedicated directory such as `~/.methodatlas/keys/` |

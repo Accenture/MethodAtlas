@@ -12,7 +12,7 @@ workflow. The techniques can be used individually or combined:
 
 | Requirement              | Details |
 |--------------------------|---------|
-| Java runtime             | Java 21 or later; the examples use `actions/setup-java` with Eclipse Temurin |
+| Java runtime             | Java 25 or later; the examples use `actions/setup-java` with Eclipse Temurin |
 | MethodAtlas              | Downloaded at runtime from the GitHub release; no build step required |
 | AI provider API key      | Stored as a repository secret; not required for static inventory mode |
 | GitHub Advanced Security | Required only for SARIF upload to Code Scanning; not required for annotations |
@@ -44,7 +44,7 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: 'temurin'
 
       - name: Download MethodAtlas
@@ -288,7 +288,7 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: 'temurin'
 
       - name: Download MethodAtlas

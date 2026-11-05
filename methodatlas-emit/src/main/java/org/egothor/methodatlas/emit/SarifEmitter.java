@@ -183,7 +183,7 @@ public final class SarifEmitter implements TestMethodSink, RecordEmitter {
      *                          already the repository root
      * @param scoresInMessage   whether scores are embedded in the result message
      *                          text
-     * @param taxonomyVersion   value of the {@code aiTaxonomyVersion} property for
+     * @param taxonomyVersion   value of the SARIF result property {@code "aiTaxonomyVersion"} for
      *                          results that carry an AI suggestion; {@code null}
      *                          or empty omits the property
      * @since 6.1.0

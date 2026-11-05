@@ -259,16 +259,22 @@ final class ReceiptBuilder {
     }
 
     /**
+     * Returns {@code value}, or the empty-string sentinel when it is {@code null}.
+     *
+     * @param value value to normalise; may be {@code null}
+     * @return {@code value} or {@code ""}
+     */
+    private static String orEmpty(String value) {
+        return value == null ? EMPTY : value;
+    }
+
+    /**
      * Extracts the SHA-256 string from a {@link FileArtifact}, or returns the
      * empty-string sentinel when the artefact is absent.
      *
      * @param artifact artefact to inspect; may be {@code null}
      * @return SHA-256 hex or {@code ""}
      */
-    private static String orEmpty(String value) {
-        return value == null ? EMPTY : value;
-    }
-
     private static String shaOrEmpty(FileArtifact artifact) {
         return artifact == null ? EMPTY : artifact.sha256();
     }
