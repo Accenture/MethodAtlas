@@ -12,6 +12,13 @@
     {"moduleLicense": "3-Clause BSD License"},
     {"moduleLicense": "MIT License"},
     {"moduleLicense": "The MIT License"},
-    {"moduleLicense": "MIT"}
+    {"moduleLicense": "MIT"},
+    {"moduleLicense": "BSD 3-Clause \"New\" or \"Revised\" License (BSD-3-Clause)"},
+    {"moduleLicense": "Bouncy Castle Licence"},
+    {"moduleLicense": "Unicode/ICU License"},
+    {"moduleName": "org.egothor:ZeroEcho-lib", "moduleLicense": "BSD 3-Clause License (binary artifacts)"},
+    {"moduleName": "org.egothor:conflux", "moduleLicense": "BSD 3-Clause License (binary artifacts)"},
+    {"moduleName": "org.antlr:ST4", "moduleLicense": "The BSD License"},
+    {"moduleName": "org.antlr:antlr-runtime", "moduleLicense": "BSD licence"}
   ]
 }

@@ -365,15 +365,19 @@ For the complete field reference, the `configHash` re-derivation algorithm, and 
 `-evidence-pack <framework>` runs a full scan and bundles the results into a tamper-evident, self-contained directory that an auditor can verify years later without trusting the original build environment. The pack contains the SARIF and CSV reports, an optional copy of the override file, the AI prompt/response provenance (when `-ai` is used), a SHA-256 manifest of every file in the directory, and machine-readable provenance (`pack-meta.json`).
 
 ```bash
-# One-time: generate a ZeroEcho signing keyring (Ed25519 by default)
-./methodatlas -gen-signing-key keys/audit-keyring.txt -key-alias audit
+# One-time: generate an encrypted ZeroEcho signing keyring (Ed25519 by default);
+# you are asked for a new keyring password
+./methodatlas -gen-signing-key ~/.methodatlas/keys/audit -key-alias audit
 
-# Produce a signed evidence pack
+# Produce a signed evidence pack (asks for the keyring password)
 ./methodatlas -evidence-pack PCI-6.4.1 \
               -evidence-pack-dir build/audit-q2 \
-              -evidence-pack-keyring keys/audit-keyring.txt \
+              -evidence-pack-keyring ~/.methodatlas/keys/audit \
               -evidence-pack-key-alias audit \
               src/test/java
+
+# Verify it offline with openssl only
+scripts/verify-evidence-pack.sh build/audit-q2 ~/.methodatlas/keys/audit-public.pem
 ```
 
 ### Supported framework tokens
@@ -387,21 +391,15 @@ Tokens are case-insensitive on input; the canonical form is what lands in `pack-
 
 ### Signing
 
-Manifest signing is performed by the [ZeroEcho](https://gitea.egothor.org/Egothor/ZeroEcho) cryptographic toolkit (1.1.1). The resulting `manifest.sha256.signed` file is `manifest.sha256` followed by a ZeroEcho signature trailer. When no keyring is supplied the pack is produced unsigned with a clear warning on stderr; the tool still exits 0.
+Manifest signing is performed by the [ZeroEcho](https://github.com/Egothor/ZeroEcho) cryptographic toolkit (1.2.1). The resulting `manifest.sha256.signed` file is `manifest.sha256` followed by a ZeroEcho signature trailer. When no keyring is supplied the pack is produced unsigned and the stderr summary says so (`unsigned — no keyring supplied`); the tool still exits 0.
 
-The signing key lives in a ZeroEcho **keyring** — a plaintext `KeyringStore` file, not a JDK PKCS12/JKS keystore and not produced by `keytool`. Create one with `-gen-signing-key`. Supported algorithms are `Ed25519` (default), `RSA`, `ECDSA`, and the post-quantum `SPHINCS+`/`ML-DSA`/`SLH-DSA`, plus hybrid classical + post-quantum combinations such as `Ed25519+SPHINCS+`. When `-evidence-pack-sign-algo` is omitted the algorithm is read from the keyring entry.
+The signing key lives in an **encrypted** ZeroEcho 1.2 keyring (PBKDF2 + AES-256-GCM) — not a JDK PKCS12/JKS keystore and not produced by `keytool`. Create one with `-gen-signing-key`, which generates `Ed25519` (default), `RSA`, `ECDSA` and the post-quantum `SPHINCS+` keys; hybrid classical + post-quantum signing such as `Ed25519+SPHINCS+` combines two of them. Signing additionally accepts `Ed448`, `ML-DSA` and `SLH-DSA` keys that were placed in the keyring with ZeroEcho's own tooling. When `-evidence-pack-sign-algo` is omitted the algorithm is read from the keyring entry.
 
-The keyring holds the private key in clear text. For interactive CLI use, protect the file with permissions (the generator sets `0600`). For CI/CD, do not place the file on the runner: store the keyring content in a platform secret and pass the variable name with `-evidence-pack-keyring-env`, so the key is parsed in memory and never touches disk.
+The keyring consists of the store and a `<name>.nonce` sidecar in an owner-only directory (`0700`/`0600`, or an owner-only ACL on Windows); keep both together. Its password is never taken from the command line: MethodAtlas reads it from `-evidence-pack-keyring-password-file`, `-evidence-pack-keyring-password-env`, the `METHODATLAS_KEYRING_PASSWORD` variable, or an interactive prompt. For CI/CD, `-export-keyring-secret <keyring>` turns the keyring into one text secret for `-evidence-pack-keyring-env`, and the password goes into a second secret; on GitHub, `scripts/setup-github-signing-secrets.sh` sets up both. Keyrings created by MethodAtlas 6.1 and earlier use a retired plaintext format and must be regenerated — see the [migration guide](docs/migration.md#evidence-pack-signing-keyrings-are-encrypted-zeroecho-12-620).
 
 ### Verification
 
-Auditors verify a signed pack with the public half of the keyring and ZeroEcho's `Tag` tool:
-
-```bash
-ZeroEcho -T --type signature --mode verify --alg Ed25519 \
-         --ks audit-keyring.txt --pub audit \
-         --in manifest.sha256.signed --out manifest.sha256
-```
+Auditors verify a signed pack with the public key alone. `scripts/verify-evidence-pack.sh <pack-dir> <alias>-public.pem` re-hashes every artefact, checks the manifest envelope, and verifies Ed25519, RSA, or ECDSA signatures with `openssl` (and the classical half of a hybrid signature); post-quantum signatures are verified with ZeroEcho.
 
 The signed envelope is a plain detached signature — the manifest bytes followed by a fixed-length signature trailer — so auditors who do not run ZeroEcho can verify it with standard tooling instead. `-gen-signing-key` exports the public key as X.509 PEM (`<alias>-public.pem`); for an Ed25519 key, `openssl pkeyutl -verify -pubin -inkey <alias>-public.pem -rawin -in <manifest-body> -sigfile <signature>` validates it. See [Verifying with standard tools](docs/usage-modes/evidence-packs.md#verifying-with-standard-tools-openssl).
 

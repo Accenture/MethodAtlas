@@ -15,11 +15,40 @@ commit history, see the project
 | **3.x.x** | Plugin-based discovery via `ServiceLoader`; configuration generalised to support multiple languages and platforms |
 | **4.x.x** | Evidence packs and post-quantum-capable manifest signing; the GUI evidence CSV aligned to the CLI drift definition and extended with reviewer tag-delta columns |
 | **5.x.x** | Credential/secret detection (`-detect-secrets`), user-definable and checksum-audited LLM prompts, and a unified AI result cache; the reproducibility-receipt schema is raised to v2 |
-| **6.x.x** | Two discovery-plugin FQCN corrections: TypeScript strips the full test suffix, and Go keys the FQCN on the package name (fixing the `foo` / `foo_test` collision) |
+| **6.x.x** | Two discovery-plugin FQCN corrections: TypeScript strips the full test suffix, and Go keys the FQCN on the package name (fixing the `foo` / `foo_test` collision); 6.2.0 additionally replaces the plaintext evidence-pack signing keyring with an encrypted ZeroEcho 1.2 keyring (see below) |
 
 MethodAtlas follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 A major version increment means at least one breaking change that requires
-action from the operator.
+action from the operator. One documented exception: by owner decision, 6.2.0 is a
+minor release although it requires action from operators who **sign** evidence
+packs (new encrypted keyring). Scanning, output formats and unsigned packs are
+unaffected, and the old plaintext keyring could no longer be built because its
+ZeroEcho version is no longer distributed.
+
+## Evidence-pack signing keyrings are encrypted (ZeroEcho 1.2, 6.2.0)
+
+Release 6.2.0 moves manifest signing from ZeroEcho-lib 1.1.1 to **1.2.1**, now resolved from Maven Central (`org.egothor:ZeroEcho-lib`, `org.egothor:conflux`) instead of the retired `gitea.egothor.org` package registry. ZeroEcho 1.2 replaces the plaintext keyring with an encrypted one and does not read or migrate the old format. This is a breaking change for anyone who signs evidence packs; scanning and unsigned packs are unaffected.
+
+| Area | Before (6.1 and earlier) | Now | Action required |
+|---|---|---|---|
+| Keyring file | One plaintext UTF-8 file starting with `# KeyringStore v1`, private key in clear text | Encrypted store (PBKDF2-HMAC-SHA-256 + AES-256-GCM) plus a `<name>.nonce` sidecar, in an owner-only directory | Generate a new keyring with `-gen-signing-key` (old keyrings are rejected with a migration message) |
+| Password | None | Required; from `-evidence-pack-keyring-password-file`, `-evidence-pack-keyring-password-env`, `METHODATLAS_KEYRING_PASSWORD`, or a prompt | Choose a password (≥ 12 characters) and store it in your password manager or secret store |
+| `-gen-signing-key` | Wrote a plaintext file anywhere | Creates or extends the encrypted keyring; new `-key-password-file` / `-key-password-env` | Use a dedicated directory such as `~/.methodatlas/keys/` |
+| `-evidence-pack-keyring-env` | Variable held the plaintext keyring text | Variable holds a **secret bundle** from the new `-export-keyring-secret` mode | Replace the CI secret with the bundle and add a second secret for the password |
+| Public key | `<alias>-public.pem` | Unchanged format | Publish the **new** public key to your auditors |
+| `pack-meta.json` | `zeroEchoLibVersion: "1.1.1"` | `zeroEchoLibVersion: "1.2.1"` | None; the field keeps its name and type |
+
+Evidence packs signed before the upgrade stay verifiable with the original `<alias>-public.pem`: Ed25519, RSA and ECDSA packs through the standard-tools path or `scripts/verify-evidence-pack.sh`, post-quantum and hybrid packs with ZeroEcho.
+
+### Checklist: moving to an encrypted keyring
+
+- [ ] Generate a new keyring: `./methodatlas -gen-signing-key ~/.methodatlas/keys/audit -key-alias audit` (enter a new password).
+- [ ] Hand the new `~/.methodatlas/keys/audit-public.pem` to your auditors through an authenticated channel; keep the old PEM for verifying older packs.
+- [ ] For CI/CD: `./methodatlas -export-keyring-secret ~/.methodatlas/keys/audit` → store the output as the keyring secret, store the password as a second secret, and add `METHODATLAS_KEYRING_PASSWORD` to the signing step's environment. On GitHub, `scripts/setup-github-signing-secrets.sh` does this.
+- [ ] Destroy the old plaintext keyring files and the old CI secret that contained the clear-text key.
+- [ ] Builds that pointed Gradle at `https://gitea.egothor.org/api/packages/Egothor/maven` can drop that repository; Maven Central is sufficient.
+
+See [Evidence packs → Signing](usage-modes/evidence-packs.md#signing) for details.
 
 ## One-time cache and hash invalidation (6.1.0)
 

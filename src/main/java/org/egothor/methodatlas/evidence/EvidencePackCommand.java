@@ -99,6 +99,9 @@ public final class EvidencePackCommand {
     private final AiResultCache aiCache;
     private final ScanOrchestrator orchestrator;
 
+    /** Algorithm the manifest was signed with, or {@code null} while unsigned. */
+    private String signedAlgorithm;
+
     /**
      * Creates a new evidence-pack command.
      *
@@ -128,6 +131,13 @@ public final class EvidencePackCommand {
      * when a keyring is configured — signs the manifest.
      *
      * <p>
+     * The keyring is unlocked <em>before</em> the scan, so a password prompt
+     * appears immediately and a wrong password or alias is reported before any
+     * (possibly long, AI-backed) scan work is done; the pack is then still
+     * produced, unsigned.
+     * </p>
+     *
+     * <p>
      * Ordering matters for the integrity chain. Artefacts are written first,
      * then {@code pack-meta.json} (optimistically recording whether signing was
      * requested), then {@code manifest.sha256} (the SHA-256 of every artefact,
@@ -147,23 +157,43 @@ public final class EvidencePackCommand {
         prepareOutputDir(outputDir);
         List<Path> roots = cliConfig.paths().isEmpty() ? List.of(Paths.get(".")) : cliConfig.paths();
 
+        SignResult signResult = signIfRequested(outputDir);
+        // Releases the signer's owned context (the hybrid SignatureContext) whether
+        // signing completed, failed, or the scan itself threw; a null signer is skipped.
+        try (signResult.signer) {
+            return buildPack(outputDir, roots, signResult);
+        }
+    }
+
+    /**
+     * Runs the scan and writes, hashes, and (when a signer is available) signs
+     * the pack artefacts.
+     *
+     * @param outputDir  pack directory
+     * @param roots      scan roots
+     * @param signResult outcome of unlocking the keyring
+     * @return the command's exit code
+     * @throws IOException if any pack artefact cannot be written
+     */
+    private int buildPack(Path outputDir, List<Path> roots, SignResult signResult) throws IOException {
         AiResponseArchive aiArchive = wireAiArchive();
         ScanResult scanResult = runScan(outputDir, roots);
 
         copyOverridesIfPresent(outputDir);
         aiArchive.flush(outputDir.resolve(AI_RESPONSES_FILE));
 
-        SignResult signResult = signIfRequested(outputDir);
+        // A reused (-evidence-pack-overwrite) directory may still hold the envelope of
+        // an earlier run; it must never sit next to a manifest it does not sign.
+        Files.deleteIfExists(outputDir.resolve(MANIFEST_SIGNED_FILE));
         writePackMeta(outputDir, roots, signResult);
         ManifestWriter.write(outputDir, outputDir.resolve(MANIFEST_FILE));
 
-        if (signResult != null && signResult.signer != null) {
-            // try-with-resources releases the signer's owned context (the hybrid
-            // SignatureContext) once signing completes or fails.
-            try (ZeroEchoSigner signer = signResult.signer) {
-                signer.sign(
+        if (signResult.signer != null) {
+            try {
+                signResult.signer.sign(
                         outputDir.resolve(MANIFEST_FILE),
                         outputDir.resolve(MANIFEST_SIGNED_FILE));
+                signedAlgorithm = signResult.signer.algorithm();
             } catch (IOException | GeneralSecurityException e) {
                 if (LOG.isLoggable(Level.WARNING)) {
                     LOG.log(Level.WARNING, "Manifest signing failed", e);
@@ -182,6 +212,18 @@ public final class EvidencePackCommand {
         }
 
         return scanResult.hadErrors ? EXIT_SCAN_ERROR : EXIT_OK;
+    }
+
+    /**
+     * Returns the algorithm the manifest was signed with, for the caller's
+     * success message.
+     *
+     * @return signature algorithm (for example {@code "Ed25519"} or
+     *         {@code "Ed25519+SPHINCS+"}), or {@code null} when the pack is unsigned
+     *         or {@link #execute()} has not run
+     */
+    public String signatureAlgorithm() {
+        return signedAlgorithm;
     }
 
     /**
@@ -305,6 +347,33 @@ public final class EvidencePackCommand {
         return new SignResult(null, false);
     }
 
+    private KeyringPasswordSource passwords() {
+        return new KeyringPasswordSource(packOptions.passwordFile(), packOptions.passwordEnv());
+    }
+
+    /**
+     * Logs why the signer could not be initialised, in one actionable line
+     * (the stack trace is attached at {@code FINE} only).
+     *
+     * @param source    human-readable description of the keyring source
+     * @param outputDir pack directory, for context
+     * @param e         failure
+     */
+    private static void logSignerFailure(String source, Path outputDir, Exception e) {
+        String reason = e.getMessage();
+        if (e instanceof KeyringPasswordSource.MissingPasswordException) {
+            reason += "; " + KeyringPasswordSource.howToSupply("-evidence-pack-keyring-password-file",
+                    "-evidence-pack-keyring-password-env");
+        }
+        if (LOG.isLoggable(Level.WARNING)) {
+            LOG.log(Level.WARNING, "Cannot sign evidence pack {0} with keyring from {1}: {2}; pack will be unsigned",
+                    new Object[] { outputDir, source, reason });
+        }
+        if (LOG.isLoggable(Level.FINE)) {
+            LOG.log(Level.FINE, "Signer initialisation failure", e);
+        }
+    }
+
     private SignResult signFromEnv(Path outputDir, String envVar) {
         String keyringText = System.getenv(envVar);
         if (keyringText == null || keyringText.isBlank()) {
@@ -315,26 +384,24 @@ public final class EvidencePackCommand {
             return new SignResult(null, true);
         }
         try {
-            ZeroEchoSigner signer = ZeroEchoSigner.fromKeyringText(keyringText,
+            ZeroEchoSigner signer = ZeroEchoSigner.fromKeyringBundle(keyringText, passwords(),
                     packOptions.keyAlias(), packOptions.signatureAlgorithm());
             return new SignResult(signer, false);
-        } catch (IOException | GeneralSecurityException e) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "Failed to initialise ZeroEcho signer from " + envVar + " for " + outputDir, e);
-            }
+        } catch (IOException | GeneralSecurityException
+                | RuntimeException e) { // NOPMD - any signer failure degrades to an unsigned pack
+            logSignerFailure("environment variable " + envVar, outputDir, e);
             return new SignResult(null, true);
         }
     }
 
     private SignResult signFromFile(Path outputDir, Path keyringFile) {
         try {
-            ZeroEchoSigner signer = ZeroEchoSigner.fromKeyringFile(keyringFile,
+            ZeroEchoSigner signer = ZeroEchoSigner.fromKeyringFile(keyringFile, passwords(),
                     packOptions.keyAlias(), packOptions.signatureAlgorithm());
             return new SignResult(signer, false);
-        } catch (IOException | GeneralSecurityException e) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "Failed to initialise ZeroEcho signer for " + outputDir, e);
-            }
+        } catch (IOException | GeneralSecurityException
+                | RuntimeException e) { // NOPMD - any signer failure degrades to an unsigned pack
+            logSignerFailure(keyringFile.toString(), outputDir, e);
             return new SignResult(null, true);
         }
     }

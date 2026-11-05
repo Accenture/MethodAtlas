@@ -6,7 +6,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,6 +40,7 @@ import org.egothor.methodatlas.receipt.ReceiptFacade;
 import org.egothor.methodatlas.evidence.EvidenceFramework;
 import org.egothor.methodatlas.evidence.EvidencePackCommand;
 import org.egothor.methodatlas.evidence.EvidencePackOptions;
+import org.egothor.methodatlas.evidence.ExportKeyringSecretCommand;
 import org.egothor.methodatlas.evidence.GenSigningKeyCommand;
 
 /**
@@ -296,7 +296,7 @@ public final class MethodAtlasApp {
             }
         }
 
-        // -diff and -gen-signing-key are utility modes handled before full
+        // -diff, -gen-signing-key and -export-keyring-secret are utility modes handled before full
         // argument parsing; each owns its own small set of flags and never
         // participates in the scan pipeline, so all other flags are ignored.
         for (int i = 0; i < args.length; i++) {
@@ -309,6 +309,9 @@ public final class MethodAtlasApp {
             }
             if (GenSigningKeyCommand.FLAG_GEN_SIGNING_KEY.equals(args[i])) {
                 return GenSigningKeyCommand.run(args, out);
+            }
+            if (ExportKeyringSecretCommand.FLAG_EXPORT_KEYRING_SECRET.equals(args[i])) {
+                return ExportKeyringSecretCommand.run(args, out);
             }
             if (EvalAccuracyCommand.FLAG_EVAL_ACCURACY.equals(args[i])) {
                 return EvalAccuracyCommand.fromArgs(args).execute(out);
@@ -723,8 +726,8 @@ public final class MethodAtlasApp {
      * Parses the {@code -evidence-pack} framework token, assembles
      * {@link EvidencePackOptions}, runs the {@link EvidencePackCommand}, and
      * prints a one-line summary to {@code stderr}. The signing key is read from
-     * a ZeroEcho keyring file (a plaintext {@code KeyringStore}); ZeroEcho
-     * keyrings are not password-protected, so no password is collected.
+     * an encrypted ZeroEcho keyring; its password comes from a password file, an
+     * environment variable, or an interactive prompt — never from the command line.
      *
      * @param cliConfig         parsed CLI configuration
      * @param discoveryConfig   discovery configuration forwarded to providers
@@ -752,6 +755,8 @@ public final class MethodAtlasApp {
                 cliConfig.evidencePackOverwrite(),
                 cliConfig.evidencePackKeyringFile(),
                 cliConfig.evidencePackKeyringEnv(),
+                cliConfig.evidencePackPasswordFile(),
+                cliConfig.evidencePackPasswordEnv(),
                 cliConfig.evidencePackKeyAlias(),
                 cliConfig.evidencePackSignAlgo());
         EvidencePackCommand command = new EvidencePackCommand(cliConfig, packOptions, discoveryConfig,
@@ -776,10 +781,8 @@ public final class MethodAtlasApp {
                     + " (unsigned — no keyring supplied)");
             return;
         }
-        String algo = packOptions.signatureAlgorithm() != null
-                ? packOptions.signatureAlgorithm() : "Ed25519 (from keyring)";
-        Path signed = command.outputDir().resolve("manifest.sha256.signed");
-        if (Files.exists(signed)) {
+        String algo = command.signatureAlgorithm();
+        if (algo != null) {
             System.err.println("evidence pack written to " + absolute
                     + " (signed: " + algo + ")");
         } else {

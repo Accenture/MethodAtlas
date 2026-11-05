@@ -410,7 +410,7 @@
           <div>
             <strong>Post-quantum-ready signing</strong>
             <p>Tamper-evident evidence packs, signed with classical (Ed25519,
-               RSA, ECDSA), post-quantum (SPHINCS+, ML-DSA, SLH-DSA), or
+               RSA, ECDSA), post-quantum (SPHINCS+; ML-DSA and SLH-DSA with ZeroEcho-generated keys), or
                <em>hybrid</em> classical&nbsp;+&nbsp;post-quantum signatures &mdash; so an
                audit trail stays verifiable as cryptography moves on.</p>
             <span class="feature-scope">Verifiable with ZeroEcho or, for classical keys, standard tools such as openssl.</span>
@@ -446,9 +446,9 @@
   src/test/java</pre>
 
       <p class="qs-label">5 &mdash; Signed evidence pack (PCI / ISO / NIST / ASVS)</p>
-      <pre class="qs-pre">./methodatlas -gen-signing-key audit.keyring -key-alias audit
+      <pre class="qs-pre">./methodatlas -gen-signing-key ~/.methodatlas/keys/audit -key-alias audit
 ./methodatlas -evidence-pack PCI-6.4.1 \
-  -evidence-pack-keyring audit.keyring \
+  -evidence-pack-keyring ~/.methodatlas/keys/audit \
   -evidence-pack-key-alias audit \
   src/test/java</pre>
 

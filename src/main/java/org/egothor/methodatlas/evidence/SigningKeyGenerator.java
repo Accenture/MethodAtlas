@@ -5,57 +5,55 @@ package org.egothor.methodatlas.evidence;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
+import java.nio.file.StandardCopyOption;
 import java.security.PublicKey;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 
 import zeroecho.core.CryptoAlgorithm;
 import zeroecho.core.CryptoAlgorithms;
+import zeroecho.core.KeyOperation;
+import zeroecho.core.KeyOperationInfo;
 import zeroecho.core.spec.AlgorithmKeySpec;
+import zeroecho.core.storage.KeyringPassword;
 import zeroecho.core.storage.KeyringStore;
 import zeroecho.sdk.util.BouncyCastleActivator;
 
 /**
- * Generates an asymmetric signing key pair and stores it in a ZeroEcho
- * {@link KeyringStore} so that {@code -evidence-pack} can later sign manifests
- * with it.
+ * Generates an asymmetric signing key pair and stores it in an encrypted
+ * ZeroEcho {@link KeyringStore} so that {@code -evidence-pack} can later sign
+ * manifests with it.
  *
  * <p>
- * The keyring is a plaintext UTF-8 file (see {@link KeyringStore}); it is
- * <em>not</em> a JDK PKCS12/JKS keystore. Because the file stores the private
- * key in clear text, the generator restricts the file to owner read/write
- * (POSIX {@code 0600}) after writing it; on platforms without POSIX
- * permissions a warning is emitted instructing the operator to restrict access
- * manually.
+ * The keyring is encrypted with a password (PBKDF2-HMAC-SHA-256 + AES-256-GCM);
+ * it is <em>not</em> a JDK PKCS12/JKS keystore. ZeroEcho requires the keyring
+ * directory and files to be owner-only (POSIX {@code 0700}/{@code 0600}, or an
+ * owner-only ACL on Windows): a missing directory is created that way, and an
+ * existing directory with broader access is rejected with a remediation hint
+ * (see {@link KeyringFiles#explain(zeroecho.core.storage.KeyringException, Path)}).
  * </p>
  *
  * <p>
  * Only asymmetric signing algorithms are offered, and the offered set is
  * deliberately limited to the algorithms covered by round-trip tests: the
  * default {@value #DEFAULT_ALGORITHM}, plus {@code RSA}, {@code ECDSA}, and
- * {@code SPHINCS+}. Storing a key requires an algorithm-specific
- * {@code AlgorithmKeySpec}; the spec class is discovered from the algorithm's
- * {@link CryptoAlgorithm#asymmetricBuildersInfo()} and instantiated from the
- * encoded key material by reflection — the same mechanism ZeroEcho's own
- * {@code KeyStoreManagement} tool uses.
+ * {@code SPHINCS+}. Each key pair is generated with the algorithm's default
+ * key-generation parameters as published by
+ * {@link CryptoAlgorithm#keyOperations()}.
  * </p>
  *
  * <p>
- * This type is a non-instantiable utility holder and is not thread-safe with
- * respect to concurrent writers of the same keyring file.
+ * This type is a non-instantiable utility holder. ZeroEcho's ownership lock
+ * rejects concurrent writers of the same keyring.
  * </p>
  *
  * @see ZeroEchoSigner
@@ -64,13 +62,11 @@ import zeroecho.sdk.util.BouncyCastleActivator;
  */
 final class SigningKeyGenerator {
 
-    private static final Logger LOG = Logger.getLogger(SigningKeyGenerator.class.getName());
-
     /** Default signing algorithm when the caller supplies none. */
     /* default */ static final String DEFAULT_ALGORITHM = "Ed25519";
 
-    /** Owner read/write only — the keyring holds a clear-text private key. */
-    private static final String OWNER_ONLY_PERMISSIONS = "rw-------";
+    /** Suffix of the temporary keyring backup taken while an alias is replaced. */
+    private static final String BACKUP_SUFFIX = ".bak";
 
     /** Filename suffix for the exported X.509 public key in PEM form. */
     private static final String PUBLIC_PEM_SUFFIX = "-public.pem";
@@ -99,10 +95,12 @@ final class SigningKeyGenerator {
      * @param keyringFile   keyring file the key pair was written to
      * @param publicKeyPem  companion file holding the public key in X.509 PEM
      *                      form, for verification with standard tools
+     * @param created       {@code true} when the keyring was newly created,
+     *                      {@code false} when the key was added to an existing one
      * @since 4.0.0
      */
     /* default */ record GeneratedKey(String algorithm, String publicAlias, String privateAlias, Path keyringFile,
-            Path publicKeyPem) {
+            Path publicKeyPem, boolean created) {
     }
 
     /**
@@ -117,23 +115,19 @@ final class SigningKeyGenerator {
 
     /**
      * Generates a signing key pair and stores it under {@code alias} in the
-     * keyring at {@code keyringFile}.
+     * encrypted keyring at {@code keyringFile}.
      *
      * <p>
-     * When the keyring file already exists it is loaded and the new entries are
-     * appended; otherwise a fresh keyring is created. The private key is written
-     * in clear text, so a fresh keyring is created with owner-only permissions
-     * (POSIX {@code 0600}) <em>before</em> it is written and re-verified afterwards
-     * (see {@link #createOwnerOnlyFile(Path)} and {@link #restrictPermissions(Path)}),
-     * leaving no window in which a newly created keyring is world-readable. The
-     * public key is
-     * additionally exported next to the keyring as an X.509 PEM file
-     * ({@code <alias>-public.pem}) so a manifest signature can be verified with
-     * standard tooling such as {@code openssl}.
+     * When the keyring already exists it is unlocked and the new pair is added;
+     * otherwise a new keyring is created and protected with a new password
+     * (at least {@value KeyringPasswordSource#MIN_NEW_PASSWORD_LENGTH}
+     * characters). The public key is additionally exported next to the keyring as
+     * an X.509 PEM file ({@code <alias>-public.pem}) so a manifest signature can
+     * be verified with standard tooling such as {@code openssl}.
      * </p>
      *
      * @param keyringFile target keyring file; must not be {@code null}
-     * @param alias       base alias for the key pair; ZeroEcho stores it as
+     * @param alias       logical alias for the key pair; ZeroEcho stores it as
      *                    {@code alias.pub} and {@code alias.priv}; must not be
      *                    {@code null} or blank
      * @param algorithm   algorithm id ({@code null} selects
@@ -141,47 +135,138 @@ final class SigningKeyGenerator {
      *                    supported ids, case-insensitively
      * @param overwrite   when {@code true}, an existing entry under {@code alias}
      *                    is replaced; when {@code false}, a collision is an error
+     * @param passwords   source of the keyring password; must not be {@code null}
      * @return a {@link GeneratedKey} describing what was written
-     * @throws IOException              if the keyring cannot be read or written
-     * @throws GeneralSecurityException if key generation or spec construction fails
+     * @throws IOException              if the password is unavailable or wrong, the
+     *                                  alias collides, or the keyring cannot be
+     *                                  read or written
+     * @throws GeneralSecurityException if key generation fails
      * @throws IllegalArgumentException if {@code alias} is blank or {@code algorithm}
      *                                  is not supported
      */
-    /* default */ static GeneratedKey generate(Path keyringFile, String alias, String algorithm, boolean overwrite)
-            throws IOException, GeneralSecurityException {
+    /* default */ static GeneratedKey generate(Path keyringFile, String alias, String algorithm, boolean overwrite,
+            KeyringPasswordSource passwords) throws IOException, GeneralSecurityException {
         if (keyringFile == null) {
             throw new IllegalArgumentException("keyringFile must not be null");
         }
-        if (alias == null || alias.isBlank()) {
-            throw new IllegalArgumentException("alias must not be blank");
-        }
+        validateAlias(alias);
         String canonical = canonicalAlgorithm(algorithm);
+        CryptoAlgorithm alg = requireAsymmetric(canonical);
 
         BouncyCastleActivator.init();
-        KeyringStore store = Files.exists(keyringFile) ? KeyringStore.load(keyringFile) : new KeyringStore();
-        if (!overwrite && store.contains(alias)) {
-            throw new IOException("Alias already exists in keyring (use -overwrite to replace): " + alias);
+        // Generate first so a key-generation failure never leaves an empty new keyring behind.
+        KeyPair keyPair = generateKeyPair(alg);
+        boolean created = !Files.exists(keyringFile);
+        boolean stored = false;
+        try {
+            store(keyringFile, alias, canonical, keyPair, overwrite, created, passwords);
+            stored = true;
+        } finally {
+            if (created && !stored) {
+                deleteKeyringFiles(keyringFile);
+            }
         }
-
-        CryptoAlgorithm alg = requireAsymmetric(canonical);
-        KeyPair keyPair = alg.generateKeyPair();
-
-        Class<? extends AlgorithmKeySpec> publicSpecType = findSpecType(alg, "Public");
-        Class<? extends AlgorithmKeySpec> privateSpecType = findSpecType(alg, "Private");
-
-        AlgorithmKeySpec publicSpec = importSpec(publicSpecType, keyPair.getPublic().getEncoded(), canonical);
-        AlgorithmKeySpec privateSpec = importSpec(privateSpecType, keyPair.getPrivate().getEncoded(), canonical);
-
-        store.putPublic(alias, canonical, publicSpec);
-        store.putPrivate(alias, canonical, privateSpec);
-        createOwnerOnlyFile(keyringFile);
-        store.save(keyringFile);
-        restrictPermissions(keyringFile);
 
         Path publicKeyPem = keyringFile.resolveSibling(alias + PUBLIC_PEM_SUFFIX);
         writePublicKeyPem(keyPair.getPublic(), publicKeyPem);
 
-        return new GeneratedKey(canonical, alias + ".pub", alias + ".priv", keyringFile, publicKeyPem);
+        return new GeneratedKey(canonical, alias + ".pub", alias + ".priv", keyringFile, publicKeyPem, created);
+    }
+
+    /**
+     * Rejects aliases that ZeroEcho or the hybrid alias syntax cannot represent.
+     *
+     * @param alias requested alias
+     * @throws IllegalArgumentException if the alias is blank, carries a
+     *                                  {@code .pub}/{@code .priv} suffix, or contains
+     *                                  the hybrid separator {@value ZeroEchoSigner#ALIAS_SEP}
+     */
+    private static void validateAlias(String alias) {
+        if (alias == null || alias.isBlank()) {
+            throw new IllegalArgumentException("alias must not be blank");
+        }
+        if (alias.endsWith(".pub") || alias.endsWith(".priv") || alias.contains(ZeroEchoSigner.ALIAS_SEP)) {
+            throw new IllegalArgumentException("alias must not end with .pub or .priv and must not contain '"
+                    + ZeroEchoSigner.ALIAS_SEP + "': " + alias);
+        }
+    }
+
+    /**
+     * Opens or creates the keyring and stores the key pair. When an existing
+     * alias is replaced, the previous keyring files are backed up first and the
+     * backup is removed only after the new pair is durable, because ZeroEcho
+     * removes the old pair and inserts the new one in two separate snapshots.
+     *
+     * @param keyringFile keyring store path
+     * @param alias       logical alias
+     * @param canonical   canonical algorithm id
+     * @param keyPair     key pair to store
+     * @param overwrite   whether an existing alias may be replaced
+     * @param created     whether the keyring is created by this call
+     * @param passwords   source of the keyring password
+     * @throws IOException              if the keyring cannot be opened or written
+     * @throws GeneralSecurityException if encryption fails
+     */
+    // ZeroEcho signals alias-namespace and limit violations with unchecked
+    // exceptions; any of them must keep the backup and report how to restore it.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private static void store(Path keyringFile, String alias, String canonical, KeyPair keyPair, boolean overwrite,
+            boolean created, KeyringPasswordSource passwords) throws IOException, GeneralSecurityException {
+        try (KeyringPassword password = passwords.resolve(created);
+                KeyringStore store = created
+                        ? KeyringFiles.create(keyringFile, password)
+                        : KeyringFiles.open(keyringFile, password)) {
+            if (!store.contains(alias)) {
+                store.putKeyPairIfAbsent(alias, canonical, keyPair);
+                return;
+            }
+            if (!overwrite) {
+                throw new IOException("Alias already exists in keyring (use -overwrite to replace): " + alias);
+            }
+            List<Path[]> backups = backup(keyringFile);
+            try {
+                store.removeAlias(alias);
+                store.putKeyPairIfAbsent(alias, canonical, keyPair);
+            } catch (IOException | GeneralSecurityException | RuntimeException e) {
+                throw new IOException("Replacing alias '" + alias + "' failed; the previous keyring is preserved as "
+                        + backups.get(0)[1] + " and " + backups.get(1)[1] + " — restore both by renaming them back",
+                        e);
+            }
+            for (Path[] pair : backups) {
+                Files.deleteIfExists(pair[1]);
+            }
+        }
+    }
+
+    /**
+     * Copies the keyring store and its sidecar to {@code .bak} files in the same
+     * owner-only directory.
+     *
+     * @param keyringFile keyring store path
+     * @return {original, backup} path pairs for the store and the sidecar
+     * @throws IOException if a copy fails
+     */
+    private static List<Path[]> backup(Path keyringFile) throws IOException {
+        List<Path[]> pairs = new ArrayList<>(2);
+        for (Path original : List.of(keyringFile, KeyringFiles.nonceFile(keyringFile))) {
+            Path copy = original.resolveSibling(original.getFileName() + BACKUP_SUFFIX);
+            Files.copy(original, copy, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+            pairs.add(new Path[] { original, copy });
+        }
+        return pairs;
+    }
+
+    /**
+     * Removes the files of a keyring that was created by a failed generation, so
+     * a retry starts from scratch (and asks for a new password again).
+     *
+     * @param keyringFile keyring store path
+     * @throws IOException if a file cannot be deleted
+     */
+    private static void deleteKeyringFiles(Path keyringFile) throws IOException {
+        Files.deleteIfExists(keyringFile);
+        Files.deleteIfExists(KeyringFiles.nonceFile(keyringFile));
+        Files.deleteIfExists(keyringFile.resolveSibling(keyringFile.getFileName() + ".lock"));
     }
 
     /**
@@ -191,9 +276,8 @@ final class SigningKeyGenerator {
      * <p>
      * The PEM is produced with Bouncy Castle's {@link JcaPEMWriter} — the same
      * mechanism ZeroEcho uses — so it is readable by standard tooling such as
-     * {@code openssl}. The public key is not secret, so the file is left with
-     * default permissions; it lets auditors verify a signed manifest without
-     * trusting MethodAtlas or ZeroEcho.
+     * {@code openssl}. The public key is not secret; it lets auditors verify a
+     * signed manifest without trusting MethodAtlas or ZeroEcho.
      * </p>
      *
      * @param publicKey public key to export; must not be {@code null}
@@ -225,185 +309,42 @@ final class SigningKeyGenerator {
     }
 
     /**
-     * Resolves the algorithm from the ZeroEcho catalog and verifies it exposes an
-     * asymmetric builder.
+     * Resolves the algorithm from the ZeroEcho catalog.
      *
      * @param canonical canonical algorithm id
      * @return the catalog algorithm
      * @throws GeneralSecurityException if the algorithm is absent from the catalog
-     *                                  or has no asymmetric builder
      */
     private static CryptoAlgorithm requireAsymmetric(String canonical) throws GeneralSecurityException {
-        final CryptoAlgorithm alg;
+        BouncyCastleActivator.init();
         try {
-            alg = CryptoAlgorithms.require(canonical);
+            return CryptoAlgorithms.require(canonical);
         } catch (IllegalArgumentException e) {
             throw new GeneralSecurityException("Algorithm '" + canonical
                     + "' is not available in the ZeroEcho catalog", e);
         }
-        if (alg.asymmetricBuildersInfo().isEmpty()) {
-            throw new GeneralSecurityException("Algorithm '" + canonical + "' has no asymmetric key builder");
-        }
-        return alg;
     }
 
     /**
-     * Finds the import-spec class for a public or private key by matching the
-     * spec class simple name against {@code marker} (for example {@code "Public"}
-     * or {@code "Private"}).
+     * Generates a key pair with the algorithm's default key-generation
+     * specification.
      *
-     * @param alg    catalog algorithm to inspect
-     * @param marker substring that identifies the key role in the spec class name
-     * @return the matching spec class
-     * @throws GeneralSecurityException if no matching spec class is registered
+     * @param alg catalog algorithm
+     * @return the generated key pair
+     * @throws GeneralSecurityException if the algorithm publishes no default
+     *                                  asymmetric key-generation specification
      */
-    private static Class<? extends AlgorithmKeySpec> findSpecType(CryptoAlgorithm alg, String marker)
-            throws GeneralSecurityException {
-        for (CryptoAlgorithm.AsymBuilderInfo info : alg.asymmetricBuildersInfo()) {
-            if (info.specType.getSimpleName().contains(marker)) {
-                return info.specType;
+    private static KeyPair generateKeyPair(CryptoAlgorithm alg) throws GeneralSecurityException {
+        for (KeyOperationInfo info : alg.keyOperations()) {
+            if (info.operation() == KeyOperation.ASYMMETRIC_KEY_PAIR_GENERATE && info.defaultSpec() != null) {
+                return generateWith(alg, info.specType(), info.defaultSpec());
             }
         }
-        throw new GeneralSecurityException("Algorithm '" + alg.id() + "' exposes no "
-                + marker.toLowerCase(Locale.ROOT) + "-key import spec");
+        throw new GeneralSecurityException("Algorithm '" + alg.id() + "' has no default asymmetric key generator");
     }
 
-    /**
-     * Constructs an {@link AlgorithmKeySpec} from encoded key material using the
-     * conventional ZeroEcho factory methods, in order: {@code fromRaw(byte[])},
-     * {@code of(byte[])}, then a single {@code byte[]} constructor.
-     *
-     * @param specType target spec class
-     * @param material encoded key bytes (X.509 SPKI for public keys, PKCS#8 for
-     *                 private keys)
-     * @param algId    algorithm id, used only for diagnostics
-     * @return the constructed spec
-     * @throws GeneralSecurityException if none of the known factories accept the
-     *                                  material
-     */
-    private static AlgorithmKeySpec importSpec(Class<? extends AlgorithmKeySpec> specType, byte[] material,
-            String algId) throws GeneralSecurityException {
-        AlgorithmKeySpec viaFactory = invokeStaticFactory(specType, "fromRaw", material);
-        if (viaFactory == null) {
-            viaFactory = invokeStaticFactory(specType, "of", material);
-        }
-        if (viaFactory != null) {
-            return viaFactory;
-        }
-        AlgorithmKeySpec viaCtor = invokeByteArrayConstructor(specType, material);
-        if (viaCtor != null) {
-            return viaCtor;
-        }
-        throw new GeneralSecurityException("Cannot construct " + specType.getName() + " for algorithm '" + algId
-                + "'; no fromRaw(byte[]), of(byte[]) or byte[] constructor accepted the key material");
-    }
-
-    /**
-     * Invokes a static single-{@code byte[]} factory method named {@code name} on
-     * {@code specType}, returning {@code null} when the method is absent.
-     *
-     * @param specType spec class to invoke on
-     * @param name     factory method name
-     * @param material encoded key bytes
-     * @return the constructed spec, or {@code null} if no such method exists
-     * @throws GeneralSecurityException if the method exists but fails to construct
-     *                                  a spec
-     */
-    private static AlgorithmKeySpec invokeStaticFactory(Class<? extends AlgorithmKeySpec> specType, String name,
-            byte[] material) throws GeneralSecurityException {
-        try {
-            Method method = specType.getMethod(name, byte[].class);
-            return (AlgorithmKeySpec) method.invoke(null, (Object) material);
-        } catch (NoSuchMethodException absent) {
-            return null;
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new GeneralSecurityException("Factory " + specType.getName() + "." + name
-                    + "(byte[]) failed", unwrap(e));
-        }
-    }
-
-    /**
-     * Invokes a single-{@code byte[]} constructor on {@code specType}, returning
-     * {@code null} when no such constructor exists.
-     *
-     * @param specType spec class to instantiate
-     * @param material encoded key bytes
-     * @return the constructed spec, or {@code null} if no such constructor exists
-     * @throws GeneralSecurityException if the constructor exists but fails
-     */
-    private static AlgorithmKeySpec invokeByteArrayConstructor(Class<? extends AlgorithmKeySpec> specType,
-            byte[] material) throws GeneralSecurityException {
-        try {
-            Constructor<? extends AlgorithmKeySpec> ctor = specType.getConstructor(byte[].class);
-            return ctor.newInstance((Object) material);
-        } catch (NoSuchMethodException absent) {
-            return null;
-        } catch (ReflectiveOperationException e) {
-            throw new GeneralSecurityException("Constructor " + specType.getName() + "(byte[]) failed", unwrap(e));
-        }
-    }
-
-    /**
-     * Unwraps an {@link InvocationTargetException} to its underlying cause so the
-     * thrown {@link GeneralSecurityException} carries the real failure.
-     *
-     * @param e reflective exception
-     * @return the underlying cause when present, otherwise {@code e}
-     */
-    private static Throwable unwrap(ReflectiveOperationException e) {
-        return e instanceof InvocationTargetException && e.getCause() != null ? e.getCause() : e;
-    }
-
-    /**
-     * Creates the keyring file with owner-only permissions before it is written,
-     * so a freshly generated keyring is never momentarily world-readable while it
-     * holds a clear-text private key (closing the create-then-{@code chmod} race).
-     *
-     * <p>
-     * Applies only to a newly created file; when the keyring already exists (a key
-     * is being added to it) the file keeps its current permissions and
-     * {@link #restrictPermissions(Path)} tightens them after the write. On file
-     * systems without POSIX support the file is created normally and
-     * {@link #restrictPermissions(Path)} logs a warning.
-     * </p>
-     *
-     * @param keyringFile keyring file to create
-     * @throws IOException if the file cannot be created
-     */
-    private static void createOwnerOnlyFile(Path keyringFile) throws IOException {
-        if (Files.exists(keyringFile)) {
-            return;
-        }
-        try {
-            Files.createFile(keyringFile,
-                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString(OWNER_ONLY_PERMISSIONS)));
-        } catch (UnsupportedOperationException notPosix) {
-            Files.createFile(keyringFile);
-        }
-    }
-
-    /**
-     * Restricts the keyring file to owner read/write. On POSIX file systems this
-     * applies {@code 0600}; on file systems without POSIX support (for example
-     * Windows) a warning is logged because the private key is stored in clear
-     * text and the operator must restrict access by other means.
-     *
-     * @param keyringFile file to lock down
-     */
-    private static void restrictPermissions(Path keyringFile) {
-        try {
-            Files.setPosixFilePermissions(keyringFile, PosixFilePermissions.fromString(OWNER_ONLY_PERMISSIONS));
-        } catch (UnsupportedOperationException notPosix) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "Keyring {0} holds a clear-text private key but this file system does not "
-                        + "support POSIX permissions; restrict access to your account manually (e.g. via NTFS ACLs).",
-                        keyringFile);
-            }
-        } catch (IOException e) {
-            if (LOG.isLoggable(Level.WARNING)) {
-                LOG.log(Level.WARNING, "Failed to restrict permissions on keyring " + keyringFile
-                        + "; verify it is readable only by you", e);
-            }
-        }
+    private static <S extends AlgorithmKeySpec> KeyPair generateWith(CryptoAlgorithm alg, Class<S> specType,
+            AlgorithmKeySpec spec) throws GeneralSecurityException {
+        return alg.asymmetricKeyPairGenerator(specType).generateKeyPair(specType.cast(spec));
     }
 }

@@ -27,7 +27,7 @@ audit/evidence schemas (BD‑005) as stable contracts; build and distribution in
 human-review and override decisions (BD‑008); secure-development discipline and coordinated
 disclosure (BD‑009); credibility for regulated and air-gapped adoption (BD‑010); and a
 deliberate, proportionate self-asserted trust position — published hashes, not managed-key
-signing (BD‑011). Fifteen risks and opportunities (RO‑001…RO‑015) sit beside them.
+signing (BD‑011). Sixteen risks and opportunities (RO‑001…RO‑016) sit beside them.
 
 ## 2 · Conceptual — Architect's view
 
@@ -109,7 +109,7 @@ credential-masking tests, the JaCoCo and PIT reports, the vulnerability-disclosu
 record, and the audit-trail integrity and AI-result reproducibility regression results.
 Regenerating these on every build is what keeps the assurance continuous. **Seven
 operations** (SO), **eleven exceptions** (EX — explicit, owner-accepted, time-boxed residual
-risks) and an **eight-item roadmap** (RM) complete the layer.
+risks) and a **ten-item roadmap** (RM) complete the layer.
 
 !!! note "See also"
     [Quality Gates](../quality-gates.md) · [Build Reports](../reports.md)

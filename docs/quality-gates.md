@@ -103,8 +103,8 @@ Pages build but enforces the gate on `./gradlew check`.
 | SpotBugs | Root main sources | Zero violations. Filter file: `config/spotbugs/excludeFilter.xml`. Test sources excluded. |
 | Error Prone | All Java main sources | Suppressions require an inline justification comment. |
 | ArchUnit boundary tests | Root test suite | Three plugin-seam invariants; see `org.egothor.methodatlas.arch.ArchitectureTest`. |
-| OWASP Dependency-Check | Runtime classpath | On-demand: `./gradlew dependencyCheckAnalyze`. Build fails on CVSS ≥ 7.0. |
-| License compliance | Runtime classpath | `./gradlew checkLicense` against `config/allowed-licenses.json`. |
+| OWASP Dependency-Check | Runtime classpath | On demand and weekly (`security-scan` workflow): `./gradlew dependencyCheckAnalyze`. The task fails on CVSS ≥ 7.0; it is not part of `check`. |
+| License compliance | Runtime classpaths of the root project and its subprojects | On-demand: `./gradlew checkLicense` against `config/allowed-licenses.json`; a library passes when at least one declared licence is allowlisted. |
 | Cross-platform determinism | Structural scan output | `Determinism` workflow: ubuntu/windows/macos byte-identical comparison; see [below](#cross-platform-determinism). |
 
 ## Cross-platform determinism

@@ -64,8 +64,11 @@ methodatlas-<version>/
 │   ├── methodatlas.bat      # Windows launch script
 │   ├── methodatlas-gui      # Unix launch script
 │   └── methodatlas-gui.bat  # Windows launch script
-└── lib/
-    └── methodatlas-<version>.jar  (+ dependency JARs)
+├── lib/
+│   └── methodatlas-<version>.jar  (+ dependency JARs)
+└── scripts/
+    ├── verify-evidence-pack.sh          # offline evidence-pack verification (bash + OpenSSL 3)
+    └── setup-github-signing-secrets.sh  # store the signing keyring as GitHub secrets (bash + gh)
 ```
 
 The `bin/` scripts handle the classpath automatically. No manual `-cp` flag needed.
@@ -273,6 +276,7 @@ GUI. Uninstalling is a `rm -rf` (or *Move to Recycle Bin*).
 | `bin/methodatlas` / `.bat` | CLI launcher; auto-resolves the classpath from `lib/` |
 | `bin/methodatlas-gui` / `.bat` | Swing desktop GUI launcher; shares the same `lib/` |
 | `lib/*.jar` | Application, plugins, AI runtime, and dependency JARs |
+| `scripts/*.sh` | Evidence-pack helpers (bash; on Windows use Git Bash or WSL) — see [Evidence packs](usage-modes/evidence-packs.md#verifying-with-the-helper-script) |
 
 Two start scripts share one `lib/` directory by design: the CLI and the
 GUI ship as a single distribution because both invoke the same scanner

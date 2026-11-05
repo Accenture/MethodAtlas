@@ -5,7 +5,7 @@ document that answers, element by element, *why this tool is trustworthy enough 
 audit evidence* — and lets a reviewer trace every claim back to a business reason.
 
 This page explains what SABSA is, walks through its layers, and shows how MethodAtlas
-applies the method to itself. The full architecture document — all 199 elements, their
+applies the method to itself. The full architecture document — all 202 elements, their
 traceability and the evidence behind each — is published in full as
 [The MethodAtlas SABSA Architecture](architecture.md), generated from the approved library.
 
@@ -82,11 +82,11 @@ architecture protects is *the trustworthiness of MethodAtlas's output and of the
 that produces it* — its reason to exist for a regulated-industry audience.
 
 !!! info "The library at a glance"
-    **199 elements** across the six layers — 11 business drivers, 15 risks, 14 measurable
+    **202 elements** across the six layers — 11 business drivers, 16 risks, 14 measurable
     attributes, 14 control objectives, 8 domains, 8 trust relationships, 11 architecture
     decisions, 13 logical services, 17 mechanisms, 12 standards, 20 components, and the
     service-management set (14 measures, 14 evidence artefacts, 7 operations, 11 exceptions,
-    8 roadmap items). The library (version 6.1.0) is **owner-approved** against a hash-bound snapshot, so the
+    10 roadmap items). The library (version 6.2.0) is **owner-approved** against a hash-bound snapshot, so the
     document and the model cannot silently disagree.
 
 ### What "secure" means here — the attribute profile

@@ -10,9 +10,9 @@ import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 
 /**
- * CLI command handler for the {@code -gen-signing-key} mode, which creates a
- * ZeroEcho keyring containing a fresh signing key pair for evidence-pack
- * signing.
+ * CLI command handler for the {@code -gen-signing-key} mode, which creates (or
+ * extends) an encrypted ZeroEcho keyring containing a fresh signing key pair for
+ * evidence-pack signing.
  *
  * <p>
  * The mode is recognised and dispatched by {@code MethodAtlasApp} before the
@@ -24,12 +24,16 @@ import java.security.GeneralSecurityException;
  * <h2>Usage</h2>
  * <pre>{@code
  * methodatlas -gen-signing-key <keyring-file> [-key-alias <alias>] \
- *             [-key-algo <algorithm>] [-overwrite]
+ *             [-key-algo <algorithm>] [-overwrite] \
+ *             [-key-password-file <file> | -key-password-env <VAR>]
  * }</pre>
  *
  * <p>
- * The produced keyring is a plaintext file holding the private key in clear
- * text; protect it with file-system permissions and keep it out of version
+ * The keyring is encrypted with a password resolved by
+ * {@link KeyringPasswordSource}: a password file, a named environment variable,
+ * {@code METHODATLAS_KEYRING_PASSWORD}, or an interactive prompt. A password is
+ * never accepted as a command-line value. The keyring lives in an owner-only
+ * directory together with its {@code .nonce} sidecar; keep both out of version
  * control and out of any distributed evidence pack. See {@link SigningKeyGenerator}.
  * </p>
  *
@@ -45,6 +49,12 @@ public final class GenSigningKeyCommand {
     private static final String FLAG_KEY_ALIAS = "-key-alias";
     private static final String FLAG_KEY_ALGO = "-key-algo";
     private static final String FLAG_OVERWRITE = "-overwrite";
+    private static final String FLAG_KEY_PASSWORD_FILE = "-key-password-file";
+    private static final String FLAG_KEY_PASSWORD_ENV = "-key-password-env";
+
+    /** Usage line printed when the arguments are invalid. */
+    private static final String USAGE = "Usage: -gen-signing-key <keyring-file> [-key-alias <alias>] "
+            + "[-key-algo <algorithm>] [-overwrite] [-key-password-file <file> | -key-password-env <VAR>]";
 
     /** Default alias used when {@code -key-alias} is omitted. */
     private static final String DEFAULT_ALIAS = "methodatlas-signing";
@@ -59,6 +69,7 @@ public final class GenSigningKeyCommand {
     private final String alias;
     private final String algorithm;
     private final boolean overwrite;
+    private final KeyringPasswordSource passwords;
 
     /**
      * Creates a new command.
@@ -67,12 +78,15 @@ public final class GenSigningKeyCommand {
      * @param alias       base alias for the generated key pair
      * @param algorithm   algorithm id, or {@code null} for the default
      * @param overwrite   whether to replace an existing alias
+     * @param passwords   source of the keyring password
      */
-    private GenSigningKeyCommand(Path keyringFile, String alias, String algorithm, boolean overwrite) {
+    private GenSigningKeyCommand(Path keyringFile, String alias, String algorithm, boolean overwrite,
+            KeyringPasswordSource passwords) {
         this.keyringFile = keyringFile;
         this.alias = alias;
         this.algorithm = algorithm;
         this.overwrite = overwrite;
+        this.passwords = passwords;
     }
 
     /**
@@ -82,8 +96,9 @@ public final class GenSigningKeyCommand {
      *             {@code -gen-signing-key} flag and its value
      * @param out  writer that receives the success summary
      * @return {@code 0} on success, {@code 2} when the arguments are invalid
-     * @throws IOException if the keyring cannot be written, an alias collides
-     *                     without {@code -overwrite}, or key generation fails
+     * @throws IOException if no password is available, the keyring cannot be
+     *                     written, an alias collides without {@code -overwrite},
+     *                     or key generation fails
      */
     public static int run(String[] args, PrintWriter out) throws IOException {
         final GenSigningKeyCommand command;
@@ -91,8 +106,7 @@ public final class GenSigningKeyCommand {
             command = parse(args);
         } catch (IllegalArgumentException e) {
             System.err.println("gen-signing-key: " + e.getMessage());
-            System.err.println("Usage: -gen-signing-key <keyring-file> [-key-alias <alias>] "
-                    + "[-key-algo <algorithm>] [-overwrite]");
+            System.err.println(USAGE);
             return EXIT_BAD_ARGS;
         }
         return command.execute(out);
@@ -112,6 +126,8 @@ public final class GenSigningKeyCommand {
         String alias = DEFAULT_ALIAS;
         String algorithm = null;
         boolean overwrite = false;
+        Path passwordFile = null;
+        String passwordEnv = null;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -119,6 +135,8 @@ public final class GenSigningKeyCommand {
                 case FLAG_KEY_ALIAS -> alias = value(args, ++i, FLAG_KEY_ALIAS);
                 case FLAG_KEY_ALGO -> algorithm = value(args, ++i, FLAG_KEY_ALGO);
                 case FLAG_OVERWRITE -> overwrite = true;
+                case FLAG_KEY_PASSWORD_FILE -> passwordFile = Paths.get(value(args, ++i, FLAG_KEY_PASSWORD_FILE));
+                case FLAG_KEY_PASSWORD_ENV -> passwordEnv = value(args, ++i, FLAG_KEY_PASSWORD_ENV);
                 default -> {
                     // Ignore unrelated tokens so the mode can be combined with
                     // a leading program name or stray scan arguments.
@@ -128,7 +146,8 @@ public final class GenSigningKeyCommand {
         if (keyringFile == null) {
             throw new IllegalArgumentException("missing keyring file after " + FLAG_GEN_SIGNING_KEY);
         }
-        return new GenSigningKeyCommand(keyringFile, alias, algorithm, overwrite);
+        return new GenSigningKeyCommand(keyringFile, alias, algorithm, overwrite,
+                new KeyringPasswordSource(passwordFile, passwordEnv));
     }
 
     /**
@@ -148,34 +167,43 @@ public final class GenSigningKeyCommand {
     }
 
     /**
-     * Generates the key pair and prints a summary plus the matching
-     * evidence-pack invocation.
+     * Generates the key pair and prints a summary plus the next steps for local
+     * and CI/CD signing.
      *
      * @param out writer that receives the success summary
      * @return {@code 0} on success
-     * @throws IOException if the keyring cannot be written, an alias collides
-     *                     without {@code -overwrite}, or key generation fails
+     * @throws IOException if no password is available, the keyring cannot be
+     *                     written, an alias collides without {@code -overwrite},
+     *                     or key generation fails
      */
     private int execute(PrintWriter out) throws IOException {
         final SigningKeyGenerator.GeneratedKey generated;
         try {
-            generated = SigningKeyGenerator.generate(keyringFile, alias, algorithm, overwrite);
+            generated = SigningKeyGenerator.generate(keyringFile, alias, algorithm, overwrite, passwords);
         } catch (IllegalArgumentException e) {
             System.err.println("gen-signing-key: " + e.getMessage());
             return EXIT_BAD_ARGS;
         } catch (GeneralSecurityException e) {
             throw new IOException("Signing-key generation failed: " + e.getMessage(), e);
+        } catch (KeyringPasswordSource.MissingPasswordException e) {
+            throw new IOException(e.getMessage() + "; " + KeyringPasswordSource.howToSupply(
+                    FLAG_KEY_PASSWORD_FILE, FLAG_KEY_PASSWORD_ENV), e);
         }
 
-        out.println("Generated " + generated.algorithm() + " signing key in "
-                + generated.keyringFile().toAbsolutePath());
+        Path keyring = generated.keyringFile().toAbsolutePath();
+        out.println((generated.created() ? "Created encrypted keyring " : "Added key to encrypted keyring ")
+                + keyring);
+        out.println("  algorithm:     " + generated.algorithm());
         out.println("  public alias:  " + generated.publicAlias());
         out.println("  private alias: " + generated.privateAlias());
+        out.println("  sidecar:       " + KeyringFiles.nonceFile(keyring) + " (keep it together with the keyring)");
         out.println("  public key:    " + generated.publicKeyPem().toAbsolutePath() + " (X.509 PEM, for verifiers)");
-        out.println("The keyring holds the private key in clear text — keep it private and out of version control.");
-        out.println("Sign an evidence pack with:");
+        out.println("Keep the keyring, its .nonce file and the password private and out of version control.");
+        out.println("Sign an evidence pack locally with:");
         out.println("  -evidence-pack <framework> -evidence-pack-keyring " + generated.keyringFile()
                 + " -evidence-pack-key-alias " + alias);
+        out.println("Prepare a CI/CD secret with:");
+        out.println("  " + ExportKeyringSecretCommand.FLAG_EXPORT_KEYRING_SECRET + " " + generated.keyringFile());
         return EXIT_OK;
     }
 }

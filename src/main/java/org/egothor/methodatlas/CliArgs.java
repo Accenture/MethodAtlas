@@ -70,6 +70,8 @@ final class CliArgs {
     private static final String FLAG_EVIDENCE_PACK_OVERWRITE = "-evidence-pack-overwrite";
     private static final String FLAG_EVIDENCE_PACK_KEYRING = "-evidence-pack-keyring";
     private static final String FLAG_EVIDENCE_PACK_KEYRING_ENV = "-evidence-pack-keyring-env";
+    private static final String FLAG_EVIDENCE_PACK_KEYRING_PASSWORD_FILE = "-evidence-pack-keyring-password-file";
+    private static final String FLAG_EVIDENCE_PACK_KEYRING_PASSWORD_ENV = "-evidence-pack-keyring-password-env";
     private static final String FLAG_EVIDENCE_PACK_KEY_ALIAS = "-evidence-pack-key-alias";
     private static final String FLAG_EVIDENCE_PACK_SIGN_ALGO = "-evidence-pack-sign-algo";
     private static final String FLAG_DETECT_SECRETS = "-detect-secrets";
@@ -183,6 +185,8 @@ final class CliArgs {
         boolean evidencePackOverwrite = false;
         Path evidencePackKeyringFile = null;
         String evidencePackKeyringEnv = null;
+        Path evidencePackPasswordFile = null;
+        String evidencePackPasswordEnv = null;
         String evidencePackKeyAlias = null;
         String evidencePackSignAlgo = null;
         boolean verbose = false;
@@ -341,6 +345,10 @@ final class CliArgs {
                 case FLAG_EVIDENCE_PACK_KEYRING ->
                     evidencePackKeyringFile = Paths.get(nextArg(args, ++i, arg));
                 case FLAG_EVIDENCE_PACK_KEYRING_ENV -> evidencePackKeyringEnv = nextArg(args, ++i, arg);
+                case FLAG_EVIDENCE_PACK_KEYRING_PASSWORD_FILE ->
+                    evidencePackPasswordFile = Paths.get(nextArg(args, ++i, arg));
+                case FLAG_EVIDENCE_PACK_KEYRING_PASSWORD_ENV ->
+                    evidencePackPasswordEnv = nextArg(args, ++i, arg);
                 case FLAG_EVIDENCE_PACK_KEY_ALIAS -> evidencePackKeyAlias = nextArg(args, ++i, arg);
                 case FLAG_EVIDENCE_PACK_SIGN_ALGO -> evidencePackSignAlgo = nextArg(args, ++i, arg);
                 case FLAG_DETECT_SECRETS -> detectSecrets = true;
@@ -420,6 +428,7 @@ final class CliArgs {
                 emitCoverage, coverageFile, coverageMappingFile,
                 evidencePackFramework, evidencePackDir,
                 evidencePackOverwrite, evidencePackKeyringFile, evidencePackKeyringEnv,
+                evidencePackPasswordFile, evidencePackPasswordEnv,
                 evidencePackKeyAlias, evidencePackSignAlgo, verbose, promoteAi,
                 detectSecrets, secretsInclude, secretsRules,
                 secretsOut, secretsSeparateLlm, secretsShowValues,

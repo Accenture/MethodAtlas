@@ -116,17 +116,14 @@ import org.egothor.methodatlas.emit.OutputMode;
  * @param evidencePackOverwrite when {@code true}, an existing evidence-pack
  *                              directory is reused; when {@code false}, a
  *                              pre-existing directory is treated as an error
- * @param evidencePackKeyringFile   ZeroEcho {@code KeyringStore} file for manifest signing;
- *                                  {@code null} produces an unsigned pack with a stderr warning
- * @param evidencePackKeyringEnv    environment variable holding the full keyring content;
- *                                  takes precedence over {@code evidencePackKeyringFile}
- * @param evidencePackKeyAlias  keyring alias of the signing key; {@code null}
- *                              uses the first alias; for hybrid signing the
- *                              format is {@code "classic/pqc"}
- * @param evidencePackSignAlgo  ZeroEcho signature algorithm identifier;
- *                              {@code null} derives the algorithm from the keyring
- *                              entry (Ed25519 when MethodAtlas-generated); a
- *                              {@code "classic+pqc"} value triggers hybrid mode
+ * @param evidencePackKeyringFile   encrypted ZeroEcho keyring file; {@code null} produces an unsigned pack
+ * @param evidencePackKeyringEnv    variable holding a keyring secret bundle; takes precedence over the keyring file
+ * @param evidencePackPasswordFile  file whose first line is the keyring password; {@code null} when not supplied
+ * @param evidencePackPasswordEnv   variable holding the keyring password; {@code null} when not supplied
+ * @param evidencePackKeyAlias  keyring alias of the signing key; {@code null} uses the first alias;
+ *                              hybrid signing uses {@code "classic/pqc"}
+ * @param evidencePackSignAlgo  ZeroEcho signature algorithm; {@code null} derives it from the keyring entry;
+ *                              a {@code "classic+pqc"} value triggers hybrid mode
  * @param verbose               when {@code true}, emit detailed diagnostics to
  *                              the progress writer; consumed by
  *                              {@code -apply-tags-from-csv} to diagnose zero-update runs
@@ -166,7 +163,8 @@ public record CliConfig(OutputMode outputMode, AiOptions aiOptions, List<Path> p
         boolean emitReceipt, Path receiptFile,
         boolean emitCoverage, Path coverageFile, Path coverageMappingFile,
         String evidencePackFramework, Path evidencePackDir, boolean evidencePackOverwrite,
-        Path evidencePackKeyringFile, String evidencePackKeyringEnv, String evidencePackKeyAlias,
+        Path evidencePackKeyringFile, String evidencePackKeyringEnv,
+        Path evidencePackPasswordFile, String evidencePackPasswordEnv, String evidencePackKeyAlias,
         String evidencePackSignAlgo, boolean verbose, boolean promoteAi,
         boolean detectSecrets, String secretsInclude, Path secretsRules,
         Path secretsOut, boolean secretsSeparateLlm, boolean secretsShowValues,

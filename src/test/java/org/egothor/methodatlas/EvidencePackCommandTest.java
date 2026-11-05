@@ -68,10 +68,12 @@ class EvidencePackCommandTest {
         Files.createDirectories(sourceDir);
         copyFixture(sourceDir, "AccessControlServiceTest.java");
 
-        Path keyring = tempDir.resolve("audit-keyring.txt");
+        Path keyring = tempDir.resolve("keys").resolve("audit-keyring");
+        Path password = writePassword(tempDir);
         assertEquals(0, runApp(new String[] {
                 "-gen-signing-key", keyring.toString(),
-                "-key-alias", "audit"
+                "-key-alias", "audit",
+                "-key-password-file", password.toString()
         }), "key generation must succeed");
 
         Path packDir = tempDir.resolve("pack-signed");
@@ -79,6 +81,7 @@ class EvidencePackCommandTest {
                 "-evidence-pack", "ASVS",
                 "-evidence-pack-dir", packDir.toString(),
                 "-evidence-pack-keyring", keyring.toString(),
+                "-evidence-pack-keyring-password-file", password.toString(),
                 "-evidence-pack-key-alias", "audit",
                 sourceDir.toString()
         });
@@ -93,7 +96,7 @@ class EvidencePackCommandTest {
         assertTrue(meta.path("signed").asBoolean(), "signed flag must be true");
         assertEquals("Ed25519", meta.path("signatureAlgorithm").asString(),
                 "algorithm must be derived from the generated Ed25519 key");
-        assertEquals("1.1.1", meta.path("zeroEchoLibVersion").asString());
+        assertEquals("1.2.1", meta.path("zeroEchoLibVersion").asString());
         assertEquals("audit", meta.path("keyAlias").asString());
     }
 
@@ -103,9 +106,11 @@ class EvidencePackCommandTest {
         Files.createDirectories(sourceDir);
         copyFixture(sourceDir, "AccessControlServiceTest.java");
 
-        Path keyring = tempDir.resolve("audit-keyring.txt");
+        Path keyring = tempDir.resolve("keys").resolve("audit-keyring");
+        Path password = writePassword(tempDir);
         assertEquals(0, runApp(new String[] {
-                "-gen-signing-key", keyring.toString(), "-key-alias", "audit"
+                "-gen-signing-key", keyring.toString(), "-key-alias", "audit",
+                "-key-password-file", password.toString()
         }), "key generation must succeed");
 
         // A valid key loads, so the signer is built, but the unsupported algorithm
@@ -115,6 +120,7 @@ class EvidencePackCommandTest {
                 "-evidence-pack", "ASVS",
                 "-evidence-pack-dir", packDir.toString(),
                 "-evidence-pack-keyring", keyring.toString(),
+                "-evidence-pack-keyring-password-file", password.toString(),
                 "-evidence-pack-key-alias", "audit",
                 "-evidence-pack-sign-algo", "NOT-A-REAL-ALGORITHM",
                 sourceDir.toString()
@@ -141,6 +147,85 @@ class EvidencePackCommandTest {
     private static String sha256Hex(Path file) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         return HexFormat.of().formatHex(digest.digest(Files.readAllBytes(file)));
+    }
+
+    @Test
+    void wrongKeyringPasswordProducesAnUnsignedPack(@TempDir Path tempDir) throws Exception {
+        Path sourceDir = tempDir.resolve("src");
+        Files.createDirectories(sourceDir);
+        copyFixture(sourceDir, "AccessControlServiceTest.java");
+
+        Path keyring = tempDir.resolve("keys").resolve("audit-keyring");
+        Path password = writePassword(tempDir);
+        assertEquals(0, runApp(new String[] {
+                "-gen-signing-key", keyring.toString(), "-key-alias", "audit",
+                "-key-password-file", password.toString()
+        }), "key generation must succeed");
+        Path wrong = tempDir.resolve("wrong-password.txt");
+        Files.writeString(wrong, "not-the-keyring-password\n");
+
+        Path packDir = tempDir.resolve("pack-wrongpw");
+        int exit = runApp(new String[] {
+                "-evidence-pack", "ASVS",
+                "-evidence-pack-dir", packDir.toString(),
+                "-evidence-pack-keyring", keyring.toString(),
+                "-evidence-pack-keyring-password-file", wrong.toString(),
+                sourceDir.toString()
+        });
+        assertEquals(0, exit, "a wrong password must not fail the scan");
+        assertFalse(Files.exists(packDir.resolve("manifest.sha256.signed")),
+                "no signature may be produced with a wrong password");
+        JsonNode meta = new ObjectMapper().readTree(packDir.resolve("pack-meta.json").toFile());
+        assertFalse(meta.path("signed").asBoolean(), "signed must be false when the keyring cannot be unlocked");
+    }
+
+    @Test
+    void unknownKeyAliasProducesAConsistentUnsignedPack(@TempDir Path tempDir) throws Exception {
+        Path sourceDir = tempDir.resolve("src");
+        Files.createDirectories(sourceDir);
+        copyFixture(sourceDir, "AccessControlServiceTest.java");
+        Path keyring = tempDir.resolve("keys").resolve("audit-keyring");
+        Path password = writePassword(tempDir);
+        assertEquals(0, runApp(new String[] {
+                "-gen-signing-key", keyring.toString(), "-key-alias", "audit",
+                "-key-password-file", password.toString()
+        }), "key generation must succeed");
+
+        Path packDir = tempDir.resolve("pack-badalias");
+        int exit = runApp(new String[] {
+                "-evidence-pack", "ASVS",
+                "-evidence-pack-dir", packDir.toString(),
+                "-evidence-pack-keyring", keyring.toString(),
+                "-evidence-pack-keyring-password-file", password.toString(),
+                "-evidence-pack-key-alias", "audti",
+                sourceDir.toString()
+        });
+
+        assertEquals(0, exit, "a mistyped alias must not fail the scan");
+        assertTrue(Files.isRegularFile(packDir.resolve("manifest.sha256")), "the manifest must still be written");
+        assertFalse(Files.exists(packDir.resolve("manifest.sha256.signed")));
+        JsonNode meta = new ObjectMapper().readTree(packDir.resolve("pack-meta.json").toFile());
+        assertFalse(meta.path("signed").asBoolean(), "signed must be false for an unknown alias");
+    }
+
+    @Test
+    void overwrittenUnsignedPackDropsTheStaleSignature(@TempDir Path tempDir) throws Exception {
+        Path sourceDir = tempDir.resolve("src");
+        Files.createDirectories(sourceDir);
+        copyFixture(sourceDir, "AccessControlServiceTest.java");
+        Path packDir = tempDir.resolve("pack-reused");
+        assertEquals(0, runApp(new String[] {
+                "-evidence-pack", "ASVS", "-evidence-pack-dir", packDir.toString(), sourceDir.toString()
+        }));
+        Files.writeString(packDir.resolve("manifest.sha256.signed"), "envelope of an earlier run");
+
+        assertEquals(0, runApp(new String[] {
+                "-evidence-pack", "ASVS", "-evidence-pack-dir", packDir.toString(),
+                "-evidence-pack-overwrite", sourceDir.toString()
+        }));
+
+        assertFalse(Files.exists(packDir.resolve("manifest.sha256.signed")),
+                "an unsigned pack must not keep the signature of an earlier run");
     }
 
     @Test
@@ -277,6 +362,12 @@ class EvidencePackCommandTest {
         } catch (Exception other) {
             throw new AssertionError("Expected IOException, got " + other.getClass(), other);
         }
+    }
+
+    private static Path writePassword(Path dir) throws IOException {
+        Path password = dir.resolve("keyring-password.txt");
+        Files.writeString(password, "evidence-pack-test-password\n");
+        return password;
     }
 
     private static void copyFixture(Path destDir, String fixtureFileName) throws IOException {

@@ -72,7 +72,7 @@ To access: go to the [Releases](https://github.com/Accenture/MethodAtlas/release
 
 ### License compliance (`checkLicense`)
 
-The `./gradlew checkLicense` task enforces that every runtime dependency carries a licence on the allowlist at `config/allowed-licenses.json`. It is part of the standard build gates and fails the build on any non-allowlisted licence — a copyleft licence introduced via a transitive dependency, for instance.
+The `./gradlew checkLicense` task enforces that every runtime dependency carries a licence on the allowlist at `config/allowed-licenses.json`. It is run on demand (it is not part of `./gradlew check` and no CI workflow invokes it) and fails on any non-allowlisted licence — a copyleft licence introduced via a transitive dependency, for instance.
 
 The report file is `build/reports/dependency-license/index.html` and lists every dependency with its declared licence. To add a new licence to the allowlist, edit `config/allowed-licenses.json` and submit a PR — the change is reviewed alongside the dependency that pulled it in.
 
@@ -106,7 +106,7 @@ To access: invoke MethodAtlas with `-emit-receipt` (default destination `methoda
 
 The `-evidence-pack <framework>` mode bundles the SARIF report, CSV report, optional override copy, AI prompt/response provenance, SHA-256 manifest, and `pack-meta.json` provenance file into a tamper-evident directory anchored by an optional ZeroEcho signature. Evidence packs are produced on demand (typically at release time or before a compliance milestone) rather than on every CI run, so they are published as build artefacts of the workflow that generated them rather than to GitHub Pages.
 
-To access: pass `-evidence-pack <framework>` plus the keyring flags (`-evidence-pack-keyring` for CLI, or `-evidence-pack-keyring-env` for a CI secret) during your release pipeline and publish the resulting directory as a workflow artifact or release asset. See [usage-modes/evidence-packs.md](usage-modes/evidence-packs.md) for the full directory layout, signing options, and verification steps.
+To access: pass `-evidence-pack <framework>` plus the keyring flags (`-evidence-pack-keyring` for CLI, or `-evidence-pack-keyring-env` for a CI secret bundle, with the keyring password in `METHODATLAS_KEYRING_PASSWORD`) during your release pipeline and publish the resulting directory as a workflow artifact or release asset. See [usage-modes/evidence-packs.md](usage-modes/evidence-packs.md) for the full directory layout, signing options, and verification steps.
 
 ### Security-domain gap report (opt-in)
 
@@ -131,11 +131,11 @@ To access: invoke MethodAtlas with `-ai -attest` (default destination `security-
 | Gate | Tool | Threshold | Scope |
 | --- | --- | --- | --- |
 | Instruction coverage | JaCoCo | Per-module floor (root ≥ 70 %); see [Quality Gates](quality-gates.md) | Every push (`./gradlew check`) |
-| Mutation score | PIT | Per-module floor (root ≥ 60 %); see [Quality Gates](quality-gates.md) | Every push (`./gradlew check`) |
+| Mutation score | PIT | Per-module floor (root ≥ 55 %); see [Quality Gates](quality-gates.md) | Every push (`./gradlew check`) |
 | Static analysis | PMD | configured ruleset | Every push |
 | Bug patterns | SpotBugs | configured exclusions | Every push |
 | Dependency vulnerabilities | OWASP Dependency-Check | CVSS < 7.0 | On demand / weekly — only when `NVD_API_KEY` is set |
-| Licence allowlist | `checkLicense` | `config/allowed-licenses.json` | Every push |
+| Licence allowlist | `checkLicense` | `config/allowed-licenses.json` | On demand (`./gradlew checkLicense`) — not part of `check` or any workflow |
 | Error-Prone bug patterns | Error Prone | configured ruleset | Every push (main sources) |
 
 See [CI/CD Setup](ci-setup.md) for the full workflow configuration.

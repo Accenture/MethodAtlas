@@ -181,30 +181,48 @@ for row in r:
 ## Evidence packs and signing
 
 ```bash
-# One-time: generate a ZeroEcho signing keyring (Ed25519) plus its public PEM
-./methodatlas -gen-signing-key keys/audit-keyring.txt -key-alias audit
+# One-time: generate an encrypted ZeroEcho signing keyring (Ed25519) plus its
+# public PEM; prompts for a new keyring password (at least 12 characters)
+./methodatlas -gen-signing-key ~/.methodatlas/keys/audit -key-alias audit
 
 # Signed, tamper-evident evidence pack for a compliance framework
+# (prompts for the keyring password)
 ./methodatlas -evidence-pack PCI-6.4.1 \
   -evidence-pack-dir build/audit \
-  -evidence-pack-keyring keys/audit-keyring.txt \
+  -evidence-pack-keyring ~/.methodatlas/keys/audit \
   -evidence-pack-key-alias audit \
   src/test/java
 
+# Same, unattended: password from a file instead of the prompt
+./methodatlas -evidence-pack PCI-6.4.1 \
+  -evidence-pack-dir build/audit \
+  -evidence-pack-keyring ~/.methodatlas/keys/audit \
+  -evidence-pack-keyring-password-file /run/secrets/keyring-password \
+  src/test/java
+
 # Hybrid (classical + post-quantum) signing
-./methodatlas -gen-signing-key keys/ring.txt -key-alias classic -key-algo Ed25519
-./methodatlas -gen-signing-key keys/ring.txt -key-alias pqc     -key-algo SPHINCS+
+./methodatlas -gen-signing-key ~/.methodatlas/keys/ring -key-alias classic -key-algo Ed25519
+./methodatlas -gen-signing-key ~/.methodatlas/keys/ring -key-alias pqc     -key-algo SPHINCS+
 ./methodatlas -evidence-pack ISO-27001-8.29 \
-  -evidence-pack-keyring keys/ring.txt \
+  -evidence-pack-keyring ~/.methodatlas/keys/ring \
   -evidence-pack-key-alias classic/pqc \
   -evidence-pack-sign-algo Ed25519+SPHINCS+ \
   src/test/java
 
-# CI/CD: keyring content from a secret environment variable (never touches disk)
-ZEROECHO_KEYRING="$KEYRING_SECRET" ./methodatlas -evidence-pack ASVS \
-  -evidence-pack-keyring-env ZEROECHO_KEYRING \
+# CI/CD, step 1 (once, locally): turn the keyring into a text secret
+(umask 077; ./methodatlas -export-keyring-secret ~/.methodatlas/keys/audit > audit-keyring.secret)
+#   ... or on GitHub, store both secrets directly:
+scripts/setup-github-signing-secrets.sh ~/.methodatlas/keys/audit
+
+# CI/CD, step 2 (in the pipeline): keyring bundle and password from two secrets
+METHODATLAS_KEYRING="$KEYRING_SECRET" METHODATLAS_KEYRING_PASSWORD="$KEYRING_PASSWORD" \
+./methodatlas -evidence-pack ASVS \
+  -evidence-pack-keyring-env METHODATLAS_KEYRING \
   -evidence-pack-key-alias audit \
   src/test/java
+
+# Auditor: offline verification with openssl only
+scripts/verify-evidence-pack.sh build/audit audit-public.pem
 ```
 
 See [Evidence Packs](usage-modes/evidence-packs.md).

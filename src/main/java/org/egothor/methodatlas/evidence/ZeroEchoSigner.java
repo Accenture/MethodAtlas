@@ -13,12 +13,14 @@ import java.security.PrivateKey;
 import java.security.Signature;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import zeroecho.core.context.SignatureContext;
 import zeroecho.core.spec.VoidSpec;
+import zeroecho.core.storage.KeyringPassword;
 import zeroecho.core.storage.KeyringStore;
 import zeroecho.core.tag.TagEngine;
 import zeroecho.core.tag.TagEngineBuilder;
@@ -26,21 +28,21 @@ import zeroecho.sdk.builders.TagTrailerDataContentBuilder;
 import zeroecho.sdk.content.api.DataContent;
 import zeroecho.sdk.content.builtin.PlainFile;
 import zeroecho.sdk.hybrid.signature.HybridSignatureContexts;
+import zeroecho.sdk.ZeroEchoSession;
 import zeroecho.sdk.hybrid.signature.HybridSignatureProfile;
 import zeroecho.sdk.util.BouncyCastleActivator;
 
 /**
  * Produces a signed envelope of the evidence-pack manifest using the ZeroEcho
- * cryptographic toolkit (version 1.1.1).
+ * cryptographic toolkit (version 1.2.1).
  *
  * <p>
- * The signing key is read from a ZeroEcho {@link KeyringStore} — a plaintext
- * UTF-8 keyring file, <em>not</em> a JDK PKCS12/JKS keystore and not anything
- * produced by {@code keytool}. The keyring is loaded with
- * {@link KeyringStore#load(Path)} and the private key is resolved by alias.
- * Generate a keyring with MethodAtlas's {@code -gen-signing-key} mode (see
- * {@link SigningKeyGenerator}) or with ZeroEcho's own {@code -K --generate}
- * command-line tool.
+ * The signing key is read from an encrypted ZeroEcho {@link KeyringStore}
+ * (PBKDF2 + AES-256-GCM) — <em>not</em> a JDK PKCS12/JKS keystore and not
+ * anything produced by {@code keytool}. The keyring is unlocked with a password
+ * from a {@link KeyringPasswordSource}, the private key is resolved by alias, and
+ * the keyring is closed again before signing starts. Generate a keyring with
+ * MethodAtlas's {@code -gen-signing-key} mode (see {@link SigningKeyGenerator}).
  * </p>
  *
  * <h2>Single-algorithm signing</h2>
@@ -51,7 +53,7 @@ import zeroecho.sdk.util.BouncyCastleActivator;
  * stored alongside the key in the keyring is used. RSA keys are signed with
  * RSA-PSS (SHA-256) and ECDSA keys with the P-256 curve; every other algorithm
  * (Ed25519, Ed448, SPHINCS+, ML-DSA, SLH-DSA, …) is dispatched through
- * {@link TagEngineBuilder#signature(String, java.security.Key, zeroecho.core.spec.ContextSpec)}.
+ * {@link TagEngineBuilder#signature(ZeroEchoSession, String, java.security.Key, zeroecho.core.spec.ContextSpec)}.
  * </p>
  *
  * <h2>Hybrid signing</h2>
@@ -80,7 +82,7 @@ import zeroecho.sdk.util.BouncyCastleActivator;
  * </p>
  *
  * @see SigningKeyGenerator
- * @see <a href="https://gitea.egothor.org/Egothor/ZeroEcho">ZeroEcho</a>
+ * @see <a href="https://github.com/Egothor/ZeroEcho">ZeroEcho</a>
  * @since 4.0.0
  */
 final class ZeroEchoSigner implements AutoCloseable {
@@ -106,7 +108,13 @@ final class ZeroEchoSigner implements AutoCloseable {
     /* default */ static final String ALIAS_SEP = "/";
 
     /** Version of the ZeroEcho library recorded in {@code pack-meta.json}. */
-    /* default */ static final String ZEROECHO_LIB_VERSION = "1.1.1";
+    /* default */ static final String ZEROECHO_LIB_VERSION = "1.2.1";
+
+    /**
+     * ZeroEcho runtime session shared by all signers: the default permissive
+     * policy with auditing off. Sessions are immutable and thread-safe.
+     */
+    private static final ZeroEchoSession SESSION = new ZeroEchoSession();
 
     /** Factory that supplies a fresh signing engine for the manifest pipeline. */
     private final Supplier<TagEngine<Signature>> engineFactory;
@@ -128,8 +136,8 @@ final class ZeroEchoSigner implements AutoCloseable {
 
     /**
      * Private constructor; instances are obtained through
-     * {@link #fromKeyringFile(Path, String, String)} or
-     * {@link #fromKeyringText(String, String, String)}.
+     * {@link #fromKeyringFile(Path, KeyringPasswordSource, String, String)} or
+     * {@link #fromKeyringBundle(String, KeyringPasswordSource, String, String)}.
      *
      * @param engineFactory supplier of the signing engine; must not be {@code null}
      * @param algorithm     algorithm string (e.g. {@code "Ed25519"})
@@ -184,11 +192,11 @@ final class ZeroEchoSigner implements AutoCloseable {
     }
 
     /**
-     * Creates a signer from a ZeroEcho keyring file on disk. This is the path
-     * used for interactive CLI signing, where the keyring file is protected by
-     * file-system permissions or ACLs.
+     * Creates a signer from an encrypted ZeroEcho keyring file on disk. This is
+     * the path used for interactive CLI signing.
      *
      * @param keyringFile        path to the ZeroEcho keyring; must not be {@code null}
+     * @param passwords          source of the keyring password; must not be {@code null}
      * @param keyAlias           alias to load; {@code null} means use the first
      *                           alias in the keyring; for hybrid the format is
      *                           {@code classicAlias/pqcAlias}
@@ -197,25 +205,29 @@ final class ZeroEchoSigner implements AutoCloseable {
      *                           value of the form {@code classic+pqc} selects
      *                           hybrid signing
      * @return signer ready to sign; never {@code null}
-     * @throws IOException              if reading the keyring or building the
+     * @throws IOException              if the password is unavailable or wrong, the
+     *                                  keyring cannot be opened, or building the
      *                                  signing context fails
      * @throws GeneralSecurityException if a key cannot be materialised
      */
-    /* default */ static ZeroEchoSigner fromKeyringFile(Path keyringFile, String keyAlias,
-            String signatureAlgorithm) throws IOException, GeneralSecurityException {
-        return build(KeyringStore.load(keyringFile), keyAlias, signatureAlgorithm);
+    /* default */ static ZeroEchoSigner fromKeyringFile(Path keyringFile, KeyringPasswordSource passwords,
+            String keyAlias, String signatureAlgorithm) throws IOException, GeneralSecurityException {
+        try (KeyringPassword password = passwords.resolve(false);
+                KeyringStore keyring = KeyringFiles.open(keyringFile, password)) {
+            return build(keyring, keyAlias, signatureAlgorithm);
+        }
     }
 
     /**
-     * Creates a signer from in-memory keyring text. This is the path used in
-     * CI/CD pipelines, where the keyring content is delivered through a platform
-     * secret (an environment variable) and is parsed in memory so the private
-     * key never touches the runner's disk.
+     * Creates a signer from a keyring secret bundle (see
+     * {@link KeyringFiles#exportBundle(Path)}). This is the path used in CI/CD
+     * pipelines, where the bundle is delivered through a platform secret. The
+     * still-encrypted keyring is restored into an owner-only temporary directory
+     * that is deleted as soon as the key has been read.
      *
-     * @param keyringText        full keyring content (including the
-     *                           {@code # KeyringStore v1} header), typically the
-     *                           value of a CI secret variable; must not be
-     *                           {@code null} or blank
+     * @param bundle             keyring secret bundle text, typically the value of
+     *                           a CI secret variable; must not be {@code null} or blank
+     * @param passwords          source of the keyring password; must not be {@code null}
      * @param keyAlias           alias to load; {@code null} means use the first
      *                           alias in the keyring; for hybrid the format is
      *                           {@code classicAlias/pqcAlias}
@@ -223,40 +235,70 @@ final class ZeroEchoSigner implements AutoCloseable {
      *                           from the keyring entry; a value of the form
      *                           {@code classic+pqc} selects hybrid signing
      * @return signer ready to sign; never {@code null}
-     * @throws IOException              if the keyring text is malformed or building
-     *                                  the signing context fails
+     * @throws IOException              if the bundle is malformed, the password is
+     *                                  unavailable or wrong, or building the signing
+     *                                  context fails
      * @throws GeneralSecurityException if a key cannot be materialised
      */
-    /* default */ static ZeroEchoSigner fromKeyringText(String keyringText, String keyAlias,
-            String signatureAlgorithm) throws IOException, GeneralSecurityException {
-        if (keyringText == null || keyringText.isBlank()) {
-            throw new IOException("Keyring content is empty");
+    /* default */ static ZeroEchoSigner fromKeyringBundle(String bundle, KeyringPasswordSource passwords,
+            String keyAlias, String signatureAlgorithm) throws IOException, GeneralSecurityException {
+        try (KeyringFiles.RestoredKeyring restored = KeyringFiles.restoreBundle(bundle)) {
+            return fromKeyringFile(restored.keyring(), passwords, keyAlias, signatureAlgorithm);
         }
-        KeyringStore keyring = new KeyringStore();
-        keyring.importText(keyringText, true);
-        return build(keyring, keyAlias, signatureAlgorithm);
     }
 
     /**
-     * Builds a signer from an already-loaded keyring, dispatching to the single
-     * or hybrid construction path based on {@code signatureAlgorithm}.
+     * Builds a signer from an open keyring, dispatching to the single or hybrid
+     * construction path based on {@code signatureAlgorithm}. The keys are
+     * materialised eagerly so the caller may close the keyring afterwards.
      *
-     * @param keyring            loaded keyring store; must not be {@code null}
+     * @param keyring            open keyring store; must not be {@code null}
      * @param keyAlias           alias to load, or {@code null} for the first alias
      * @param signatureAlgorithm algorithm identifier, or {@code null} to derive it
      * @return configured signer
-     * @throws IOException              if the alias/algorithm pairing is invalid
+     * @throws IOException              if an alias is unknown, the alias/algorithm
+     *                                  pairing is invalid, or ZeroEcho rejects the
+     *                                  configuration
      * @throws GeneralSecurityException if a key cannot be materialised
      */
+    // ZeroEcho reports unknown entries and bad hybrid profiles with unchecked
+    // exceptions; translating them keeps a signing misconfiguration from crashing
+    // the evidence-pack run (it must degrade to an unsigned pack).
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private static ZeroEchoSigner build(KeyringStore keyring, String keyAlias, String signatureAlgorithm)
             throws IOException, GeneralSecurityException {
         // SPHINCS+ and the other PQC primitives are provided by Bouncy Castle;
         // init is idempotent and harmless for classical algorithms.
         BouncyCastleActivator.init();
-        if (signatureAlgorithm != null && signatureAlgorithm.contains(HYBRID_SEP)) {
-            return buildHybrid(keyring, keyAlias, signatureAlgorithm);
+        try {
+            if (signatureAlgorithm != null && signatureAlgorithm.contains(HYBRID_SEP)) {
+                return buildHybrid(keyring, keyAlias, signatureAlgorithm);
+            }
+            return buildSingle(keyring, keyAlias, signatureAlgorithm);
+        } catch (RuntimeException e) {
+            throw new IOException("ZeroEcho rejected the signing configuration (" + signatureAlgorithm + ", alias "
+                    + keyAlias + "): " + e.getMessage(), e);
         }
-        return buildSingle(keyring, keyAlias, signatureAlgorithm);
+    }
+
+    /**
+     * Resolves the private key stored under {@code alias}, failing with the list
+     * of available aliases when there is none.
+     *
+     * @param keyring open keyring
+     * @param alias   logical alias
+     * @return the private key entry
+     * @throws IOException              if the keyring holds no private key under {@code alias}
+     * @throws GeneralSecurityException if the key cannot be materialised
+     */
+    private static KeyringStore.PrivateWithId privateEntry(KeyringStore keyring, String alias)
+            throws IOException, GeneralSecurityException {
+        if (!keyring.contains(alias + ".priv")) {
+            String available = keyring.aliases().stream().distinct().collect(Collectors.joining(", "));
+            throw new IOException("Keyring has no private key with alias '" + alias + "'; available aliases: "
+                    + (available.isEmpty() ? "(none)" : available));
+        }
+        return keyring.getPrivateWithId(alias);
     }
 
     /**
@@ -309,7 +351,7 @@ final class ZeroEchoSigner implements AutoCloseable {
     private static ZeroEchoSigner buildSingle(KeyringStore keyring, String keyAlias, String explicitAlgorithm)
             throws IOException, GeneralSecurityException {
         String alias = resolveAlias(keyring, keyAlias);
-        KeyringStore.PrivateWithId entry = keyring.getPrivateWithId(alias);
+        KeyringStore.PrivateWithId entry = privateEntry(keyring, alias);
         String algo = explicitAlgorithm != null ? explicitAlgorithm : entry.algorithm();
         Supplier<TagEngine<Signature>> factory = engineFactoryFor(algo, entry.key());
         return new ZeroEchoSigner(factory, algo, alias, null);
@@ -336,12 +378,13 @@ final class ZeroEchoSigner implements AutoCloseable {
         String[] aliasParts = splitPair(keyAlias, ALIAS_SEP,
                 "Hybrid key alias must be 'classicAlias/pqcAlias': " + keyAlias);
 
-        PrivateKey classicKey = keyring.getPrivate(aliasParts[0]);
-        PrivateKey pqcKey = keyring.getPrivate(aliasParts[1]);
+        PrivateKey classicKey = privateEntry(keyring, aliasParts[0]).key();
+        PrivateKey pqcKey = privateEntry(keyring, aliasParts[1]).key();
 
         HybridSignatureProfile profile = new HybridSignatureProfile(
                 algoParts[0], algoParts[1], null, null, HybridSignatureProfile.VerifyRule.AND);
-        SignatureContext context = HybridSignatureContexts.sign(profile, classicKey, pqcKey, MAX_BODY_BYTES);
+        SignatureContext context = HybridSignatureContexts.sign(SESSION, profile, classicKey, pqcKey,
+                MAX_BODY_BYTES);
         // The hybrid context is stateful and single-use; the signer is documented as
         // single-use, so reusing the same instance across the one sign() call is safe.
         // The signer retains the context and releases it in close().
@@ -353,7 +396,7 @@ final class ZeroEchoSigner implements AutoCloseable {
      * (SHA-256, 32-byte salt) and ECDSA keys use the P-256 curve, matching the
      * dedicated {@link TagEngineBuilder} factories; every other identifier is
      * dispatched through the generic
-     * {@link TagEngineBuilder#signature(String, java.security.Key, zeroecho.core.spec.ContextSpec)}
+     * {@link TagEngineBuilder#signature(ZeroEchoSession, String, java.security.Key, zeroecho.core.spec.ContextSpec)}
      * factory, which covers Ed25519, Ed448, SPHINCS+, ML-DSA, and SLH-DSA.
      *
      * @param algo       canonical algorithm string
@@ -363,9 +406,9 @@ final class ZeroEchoSigner implements AutoCloseable {
     private static Supplier<TagEngine<Signature>> engineFactoryFor(String algo, PrivateKey privateKey) {
         String normalised = algo.toUpperCase(Locale.ROOT);
         return switch (normalised) {
-            case "RSA", "RSA-PSS", "RSASSA-PSS" -> TagEngineBuilder.rsaSign(privateKey, null);
-            case "ECDSA" -> TagEngineBuilder.ecdsaSign(privateKey, null);
-            default -> TagEngineBuilder.signature(algo, privateKey, VoidSpec.INSTANCE);
+            case "RSA", "RSA-PSS", "RSASSA-PSS" -> TagEngineBuilder.rsaSign(SESSION, privateKey, null);
+            case "ECDSA" -> TagEngineBuilder.ecdsaSign(SESSION, privateKey, null);
+            default -> TagEngineBuilder.signature(SESSION, algo, privateKey, VoidSpec.INSTANCE);
         };
     }
 

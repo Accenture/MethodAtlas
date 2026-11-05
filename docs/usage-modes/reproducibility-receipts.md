@@ -163,4 +163,4 @@ Schema **v3** adds the boolean `inputs.redactComments` (always present) and the 
 
 - The receipt records the inputs that *MethodAtlas* observed; it does not capture network conditions, AI provider load, or model-side updates that may affect a live-call run.
 - Source files are deliberately not hashed: the goal is "do two runs of MethodAtlas with the same inputs produce the same output?", which is independent of whether the source changed. Source change is observed via the existing `-content-hash` mechanism.
-- The receipt is not signed. For a signed envelope, generate the receipt first and then sign it with the ZeroEcho CLI (or another tool of your choice) as a follow-on step.
+- The receipt is not signed. For a signed envelope, generate the receipt first and then sign it with a tool of your choice (for example ZeroEcho or `openssl`) as a follow-on step.

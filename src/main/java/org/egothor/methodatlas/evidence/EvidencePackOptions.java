@@ -21,21 +21,25 @@ import java.nio.file.Path;
  * @param overwrite          when {@code true}, an existing output directory is
  *                           reused; when {@code false}, a pre-existing directory
  *                           is treated as an error
- * @param keyringFile        ZeroEcho keyring file holding the signing key, or
- *                           {@code null}; this is a plaintext ZeroEcho
- *                           {@code KeyringStore} file, not a JDK PKCS12/JKS
- *                           keystore and not produced by {@code keytool} (use
- *                           {@code -gen-signing-key}). Intended for interactive
- *                           CLI use where the file is protected by file-system
- *                           permissions or ACLs
- * @param keyringEnv         name of an environment variable holding the full
- *                           keyring content, or {@code null}; intended for CI/CD
- *                           pipelines where the keyring is supplied through a
- *                           platform secret so the private key never touches the
- *                           runner's disk. When both {@code keyringEnv} and
- *                           {@code keyringFile} are set, the environment variable
- *                           takes precedence. When both are {@code null} the pack
- *                           is unsigned
+ * @param keyringFile        encrypted ZeroEcho keyring file holding the signing
+ *                           key, or {@code null}; not a JDK PKCS12/JKS keystore
+ *                           and not produced by {@code keytool} (use
+ *                           {@code -gen-signing-key}). Its {@code .nonce} sidecar
+ *                           must sit next to it in an owner-only directory
+ * @param keyringEnv         name of an environment variable holding a keyring
+ *                           secret bundle (produced by
+ *                           {@code -export-keyring-secret}), or {@code null};
+ *                           intended for CI/CD pipelines where the keyring is
+ *                           supplied through a platform secret. When both
+ *                           {@code keyringEnv} and {@code keyringFile} are set,
+ *                           the environment variable takes precedence. When both
+ *                           are {@code null} the pack is unsigned
+ * @param passwordFile       file whose first line is the keyring password, or
+ *                           {@code null}
+ * @param passwordEnv        name of an environment variable holding the keyring
+ *                           password, or {@code null}; when neither password
+ *                           option is set, {@code METHODATLAS_KEYRING_PASSWORD}
+ *                           and then an interactive prompt are tried
  * @param keyAlias           keyring alias of the signing key; when {@code null}
  *                           the first alias in the keyring is used; for hybrid
  *                           signatures the format is
@@ -55,6 +59,8 @@ public record EvidencePackOptions(
         boolean overwrite,
         Path keyringFile,
         String keyringEnv,
+        Path passwordFile,
+        String passwordEnv,
         String keyAlias,
         String signatureAlgorithm) {
 }

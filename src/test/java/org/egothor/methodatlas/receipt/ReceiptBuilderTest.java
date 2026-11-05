@@ -255,7 +255,7 @@ class ReceiptBuilderTest {
                 false, aiCacheFile, false, null, -1, false, false, 0.0,
                 false, null,
                 false, null, null,
-                null, null, false, null, null, null, null, false, false,
+                null, null, false, null, null, null, null, null, null, false, false,
                 false, null, null, java.nio.file.Path.of("methodatlas-credentials.csv"), false, false, 0.8, 0.4, 0.0,
                 null, false, false,
                 false, null,
