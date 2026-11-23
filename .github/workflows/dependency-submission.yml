@@ -1,0 +1,35 @@
+# Submits the resolved Gradle dependency graph to GitHub on every push to
+# main, so Dependabot alerts cover transitive and build-tool dependencies.
+#
+# Replaces GitHub's "Automatic Dependency Submission (Gradle)", which runs a
+# GitHub-managed workflow pinned to JDK 21 and fails at configuration time
+# because the build requires Java 25 (ZeroEcho-lib 1.2.x is compiled for
+# Java 25). Automatic dependency submission must be disabled in
+# Settings → Code security → Dependency graph, otherwise both submit.
+name: Dependency submission
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # required by the dependency submission API
+
+jobs:
+  dependency-submission:
+    name: Submit Gradle dependency graph
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@v4

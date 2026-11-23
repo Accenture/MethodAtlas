@@ -126,6 +126,15 @@ Code Scanning on a weekly schedule. No configuration is needed for either
 workflow beyond the `security-events: write` permission already declared in
 `pages.yml`.
 
+The `dependency-submission.yml` workflow submits the resolved Gradle
+dependency graph (including transitive and build-tool dependencies) to the
+GitHub dependency graph on every push to `main`, which is what Dependabot
+alerts are raised against. It replaces GitHub's built-in *Automatic
+dependency submission* for Gradle, which runs on JDK 21 and cannot build this
+project (Java 25 is required). Set **Settings → Code security → Dependency
+graph → Automatic dependency submission** to *Disabled* so the two do not
+both submit.
+
 ### 4. Adapting the MethodAtlas analysis workflow for your own project {#adapting-the-methodatlas-analysis-workflow-for-your-own-project}
 
 The [`methodatlas-analysis.yml`](https://github.com/Accenture/MethodAtlas/blob/main/.github/workflows/methodatlas-analysis.yml)
