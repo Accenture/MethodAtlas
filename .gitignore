@@ -100,6 +100,9 @@ node_modules/
 # ./gradlew :methodatlas-discovery-typescript:npmInstall once, and commit the generated
 # methodatlas-discovery-typescript/package-lock.json.
 package-lock.json
+# Exception: the CI tool lock is committed so the release workflow can use npm ci
+# (OpenSSF Scorecard Pinned-Dependencies).
+!.github/tools/mermaid-cli/package-lock.json
 
 ##---------------------------------------------------------------------------------------- Gradle
 .gradle

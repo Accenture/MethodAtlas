@@ -1,0 +1,21 @@
+# Keeps the SHA-pinned GitHub Actions and the CI tool lock files current
+# (OpenSSF Scorecard Pinned-Dependencies / Dependency-Update-Tool).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /.github/requirements
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: npm
+    directory: /.github/tools/mermaid-cli
+    schedule:
+      interval: monthly

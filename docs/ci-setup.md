@@ -123,8 +123,10 @@ also retained as a downloadable workflow artifact for 30 days.
 
 The `security-scan.yml` workflow additionally uploads SpotBugs results to
 Code Scanning on a weekly schedule. No configuration is needed for either
-workflow beyond the `security-events: write` permission already declared in
-`pages.yml`.
+workflow beyond the job-level permissions they already declare. Every
+workflow keeps the top-level `GITHUB_TOKEN` read-only (`contents: read` or
+`read-all`) and grants write scopes such as `security-events: write` only on
+the job that needs them (OpenSSF Scorecard *Token-Permissions*).
 
 The `dependency-submission.yml` workflow submits the resolved Gradle
 dependency graph (including transitive and build-tool dependencies) to the
@@ -169,6 +171,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      models: read             # GitHub Models inference
 ```
 
 For a full, self-contained GitHub Actions workflow that includes caching,

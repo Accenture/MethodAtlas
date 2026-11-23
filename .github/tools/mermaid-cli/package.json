@@ -1,0 +1,8 @@
+{
+  "name": "methodatlas-ci-mermaid-cli",
+  "private": true,
+  "description": "Pinned Mermaid CLI for the release documentation PDF build. Installed in CI with npm ci so the lock file (and its integrity hashes) is enforced.",
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "12.2.0"
+  }
+}

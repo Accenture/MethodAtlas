@@ -68,10 +68,16 @@ commit SHAs.
 
 ## Maintenance notes
 
-- Actions in `scorecard.yml` and the attestation step in `release.yml` are
-  pinned to commit SHAs with a version comment. Update them deliberately
-  (Dependabot can do so) and re-check the SHA against the upstream tag.
-- The other actions in `release.yml` are still referenced by tag; pinning them
-  would improve the Scorecard `Pinned-Dependencies` score.
+- Every workflow under `.github/workflows/` pins its actions to full commit
+  SHAs with a version comment (`uses: owner/action@<sha> # vX.Y.Z`).
+  `.github/dependabot.yml` proposes updates weekly; re-check each SHA against
+  the upstream tag before merging.
+- Tools installed in run steps are lock-file pinned too: MkDocs from the
+  hash-pinned `.github/requirements/mkdocs.txt` (`pip install --require-hashes`)
+  and the Mermaid CLI from `.github/tools/mermaid-cli/package-lock.json`
+  (`npm ci`). Edit the `.in` / `package.json` file and regenerate the lock
+  rather than editing the lock by hand.
+- Every workflow keeps a read-only top-level `GITHUB_TOKEN` and grants write
+  scopes only on the job that needs them (Scorecard `Token-Permissions`).
 - The Gitea mirror does not run these workflows; attestation and Scorecard
   exist only on GitHub.
