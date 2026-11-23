@@ -34,7 +34,7 @@ dependencies {
 
     // Error Prone enabled on main sources only; test compilation uses --release
     // which can conflict with Error Prone's internal API access.
-    errorprone 'com.google.errorprone:error_prone_core:2.36.0'
+    errorprone 'com.google.errorprone:error_prone_core:2.52.0'
 }
 
 tasks.named('compileJava') {

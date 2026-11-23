@@ -38,7 +38,7 @@ Release 6.2.0 moves manifest signing from ZeroEcho-lib 1.1.1 to **1.2.1**, now r
 | `-gen-signing-key` | Wrote a plaintext file anywhere | Creates or extends the encrypted keyring; new `-key-password-file` / `-key-password-env` | Use a dedicated directory such as `~/.methodatlas/keys/` |
 | `-evidence-pack-keyring-env` | Variable held the plaintext keyring text | Variable holds a **secret bundle** from the new `-export-keyring-secret` mode | Replace the CI secret with the bundle and add a second secret for the password |
 | Public key | `<alias>-public.pem` | Unchanged format | Publish the **new** public key to your auditors |
-| `pack-meta.json` | `zeroEchoLibVersion: "1.1.1"` | `zeroEchoLibVersion: "1.2.1"` | None; the field keeps its name and type |
+| `pack-meta.json` | `zeroEchoLibVersion: "1.1.1"` | `zeroEchoLibVersion: "1.2.1"` (6.2.0), `"1.2.2"` (later releases) | None; the field keeps its name and type; the keyring format is unchanged between ZeroEcho 1.2.1 and 1.2.2 |
 
 Evidence packs signed before the upgrade stay verifiable with the original `<alias>-public.pem`: Ed25519, RSA and ECDSA packs through the standard-tools path or `scripts/verify-evidence-pack.sh`, post-quantum and hybrid packs with ZeroEcho.
 

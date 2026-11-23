@@ -34,7 +34,7 @@ import zeroecho.sdk.util.BouncyCastleActivator;
 
 /**
  * Produces a signed envelope of the evidence-pack manifest using the ZeroEcho
- * cryptographic toolkit (version 1.2.1).
+ * cryptographic toolkit (version 1.2.2).
  *
  * <p>
  * The signing key is read from an encrypted ZeroEcho {@link KeyringStore}
@@ -108,7 +108,7 @@ final class ZeroEchoSigner implements AutoCloseable {
     /* default */ static final String ALIAS_SEP = "/";
 
     /** Version of the ZeroEcho library recorded in {@code pack-meta.json}. */
-    /* default */ static final String ZEROECHO_LIB_VERSION = "1.2.1";
+    /* default */ static final String ZEROECHO_LIB_VERSION = "1.2.2";
 
     /**
      * ZeroEcho runtime session shared by all signers: the default permissive

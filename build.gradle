@@ -19,6 +19,8 @@
 //   httpclient5        CVE-2026-64607 (GHSA-hjcp-jmpx-g3qm) — connection leak on bad Content-Encoding (DoS)
 //   jsoup              CVE-2026-71497 (GHSA-pmhh-3w7g-xqp8) — Cleaner XSS via raw-text custom elements
 //   log4j-api          CVE-2026-49844 (GHSA-qv9r-c865-cp47) — non-finite float MapMessage JSON encoding
+//   guava              CVE-2026-102554 (GHSA-xxph-c9ww-hj94) — CompactHashMap deserialization allocation DoS
+//   org.json           CVE-2026-59171 (GHSA-ghc9-756g-vrcv) — unbounded numeric literal DoS (via dependency-check)
 // ---------------------------------------------------------------------------
 buildscript {
     repositories {
@@ -32,6 +34,9 @@ buildscript {
         // Dependabot's static analyser. The resolutionStrategy.force() below
         // ensures Gradle also honours it at build time.
         classpath 'org.apache.logging.log4j:log4j-api:2.25.5'
+        // Same pattern for CVE-2026-59171 (GHSA-ghc9-756g-vrcv): OWASP
+        // Dependency-Check 12.2.2 pulls in org.json 20251224 transitively.
+        classpath 'org.json:json:20260719'
     }
     configurations.classpath.resolutionStrategy {
         force 'com.fasterxml.jackson.core:jackson-core:2.21.7'
@@ -41,6 +46,8 @@ buildscript {
         force 'org.apache.httpcomponents.client5:httpclient5:5.6.3'
         force 'org.jsoup:jsoup:1.23.2'
         force 'org.apache.logging.log4j:log4j-api:2.25.5'
+        force 'org.json:json:20260719'
+        force 'com.google.guava:guava:33.7.2-jre'
     }
 }
 
@@ -191,7 +198,7 @@ dependencies {
     // combinations (zeroecho.sdk.hybrid.signature). Transitively pulls in
     // org.egothor:conflux and Bouncy Castle (bcpkix-jdk18on); do not declare
     // those explicitly.
-    implementation 'org.egothor:ZeroEcho-lib:1.2.1'
+    implementation 'org.egothor:ZeroEcho-lib:1.2.2'
 
     // Bouncy Castle (bcpkix-jdk18on, transitively bcprov/bcutil) backs ZeroEcho's
     // post-quantum primitives (SPHINCS+, ML-DSA, SLH-DSA) and hybrid signing.

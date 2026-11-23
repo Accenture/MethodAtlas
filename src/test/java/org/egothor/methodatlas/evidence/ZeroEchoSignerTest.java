@@ -47,7 +47,7 @@ import zeroecho.sdk.util.BouncyCastleActivator;
  * {@link SigningKeyGenerator} into an encrypted ZeroEcho {@link KeyringStore}, the manifest
  * is signed, and the resulting envelope is verified through ZeroEcho's own
  * verification path — proving the full generate → sign → verify round-trip
- * against the 1.2.1 API rather than against JDK keytool quirks.
+ * against the 1.2.2 API rather than against JDK keytool quirks.
  */
 class ZeroEchoSignerTest {
 
